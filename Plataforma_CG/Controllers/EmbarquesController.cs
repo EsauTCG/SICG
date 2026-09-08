@@ -1400,6 +1400,25 @@ public class EmbarquesController : Controller
 
         ViewBag.ProductosTemperaturaCalidad = productosTemperaturaCalidad;
 
+        var fotosCalidadPendientes =
+            new Dictionary<int, List<Embarque.EmbarqueCalidadFoto>>();
+
+        if (embarques.Any())
+        {
+            var embarquesIds = embarques.Select(x => x.Id).ToList();
+            var fotos = await _qrContext.Set<Embarque.EmbarqueCalidadFoto>()
+                .AsNoTracking()
+                .Where(f => embarquesIds.Contains(f.EmbarqueId))
+                .OrderByDescending(f => f.FechaRegistro)
+                .ToListAsync();
+
+            fotosCalidadPendientes = fotos
+                .GroupBy(f => f.EmbarqueId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        ViewBag.FotosCalidadPendientes = fotosCalidadPendientes;
+
 
         ViewBag.EmbarquesDocumentos = embarquesDocumentos;
         ViewBag.EsHistorial = false;
@@ -1514,6 +1533,74 @@ public class EmbarquesController : Controller
         if (embarque.CalidadAprobada == true)
         {
             TempData["Error"] = "Este embarque ya fue validado en calidad.";
+            return RedirectToAction("Calidad");
+        }
+
+        var camposFaltantes = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(salidaTipo))
+            camposFaltantes.Add("tipo de salida");
+
+        if (string.IsNullOrWhiteSpace(placaTransporte))
+            camposFaltantes.Add("placa del transporte");
+
+        if (!temperaturaProgramacion.HasValue)
+            camposFaltantes.Add("temperatura de programación");
+
+        if (string.IsNullOrWhiteSpace(estadoUnidad))
+            camposFaltantes.Add("condiciones de la unidad");
+
+        if (!horaInicioEmbarque.HasValue)
+            camposFaltantes.Add("hora de inicio");
+
+        if (!horaTerminoEmbarque.HasValue)
+            camposFaltantes.Add("hora de término");
+
+        if (!temperaturaUnidadInicio.HasValue)
+            camposFaltantes.Add("temperatura de unidad al inicio");
+
+        if (!temperaturaUnidadTermino.HasValue)
+            camposFaltantes.Add("temperatura de unidad al término");
+
+        if (string.IsNullOrWhiteSpace(estadoProductos))
+            camposFaltantes.Add("condiciones del producto");
+
+        if (string.IsNullOrWhiteSpace(codigoTermograficador))
+            camposFaltantes.Add("código de termograficador");
+
+        if (string.IsNullOrWhiteSpace(numeroTermometro))
+            camposFaltantes.Add("número de termómetro");
+
+        if (string.IsNullOrWhiteSpace(accionesCorrectivasCalidad))
+            camposFaltantes.Add("acciones correctivas");
+
+        if (string.IsNullOrWhiteSpace(observacionesCalidad))
+            camposFaltantes.Add("observaciones de calidad");
+
+        var tieneFotosGuardadas = await _qrContext
+            .Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .AnyAsync(f => f.EmbarqueId == id);
+
+        var tieneFotosNuevas = fotosCalidad?.Any(f => f.Length > 0) == true;
+
+        if (!tieneFotosGuardadas && !tieneFotosNuevas)
+            camposFaltantes.Add("evidencia fotográfica");
+
+        if (camposFaltantes.Any())
+        {
+            TempData["Error"] =
+                $"No se puede validar Calidad del embarque #{embarque.Consecutivo}. " +
+                $"Falta completar: {string.Join(", ", camposFaltantes)}.";
+
+            return RedirectToAction("Calidad");
+        }
+
+        if (horaTerminoEmbarque < horaInicioEmbarque)
+        {
+            TempData["Error"] =
+                "La hora de término de embarque no puede ser menor que la hora de inicio.";
+
             return RedirectToAction("Calidad");
         }
 
@@ -1644,31 +1731,7 @@ public class EmbarquesController : Controller
                 ? 7
                 : 1;
 
-        if (fotosCalidad != null && fotosCalidad.Any())
-        {
-            var carpetaDestino = Path.Combine(_environment.WebRootPath, "uploads", "calidad");
-
-            if (!Directory.Exists(carpetaDestino))
-                Directory.CreateDirectory(carpetaDestino);
-
-            foreach (var foto in fotosCalidad.Where(f => f.Length > 0))
-            {
-                var extension = Path.GetExtension(foto.FileName);
-                var nombreArchivo = $"calidad_{embarque.Id}_{Guid.NewGuid():N}{extension}";
-                var rutaFisica = Path.Combine(carpetaDestino, nombreArchivo);
-
-                using var stream = new FileStream(rutaFisica, FileMode.Create);
-                await foto.CopyToAsync(stream);
-
-                _qrContext.Set<Embarque.EmbarqueCalidadFoto>().Add(new Embarque.EmbarqueCalidadFoto
-                {
-                    EmbarqueId = embarque.Id,
-                    RutaArchivo = $"/uploads/calidad/{nombreArchivo}",
-                    FechaRegistro = DateTime.Now,
-                    UsuarioRegistro = User.Identity?.Name ?? "Sistema"
-                });
-            }
-        }
+        await GuardarFotosCalidadAsync(embarque.Id, fotosCalidad);
 
         await _qrContext.SaveChangesAsync();
 
@@ -1679,6 +1742,51 @@ public class EmbarquesController : Controller
                 : $"Calidad validó correctamente el embarque #{embarque.Consecutivo}. Aún faltan validaciones de documentación.";
 
         return RedirectToAction("Calidad");
+    }
+
+    private async Task<int> GuardarFotosCalidadAsync(
+        int embarqueId,
+        IEnumerable<IFormFile>? fotosCalidad)
+    {
+        var fotosValidas = fotosCalidad?
+            .Where(f => f.Length > 0)
+            .ToList() ?? new List<IFormFile>();
+
+        if (!fotosValidas.Any())
+            return 0;
+
+        var carpetaDestino = Path.Combine(
+            _environment.WebRootPath,
+            "uploads",
+            "calidad");
+
+        Directory.CreateDirectory(carpetaDestino);
+
+        var usuario = User.Identity?.Name ?? "Sistema";
+        var guardadas = 0;
+
+        foreach (var foto in fotosValidas)
+        {
+            var extension = Path.GetExtension(foto.FileName);
+            var nombreArchivo = $"calidad_{embarqueId}_{Guid.NewGuid():N}{extension}";
+            var rutaFisica = Path.Combine(carpetaDestino, nombreArchivo);
+
+            await using var stream = new FileStream(rutaFisica, FileMode.Create);
+            await foto.CopyToAsync(stream);
+
+            _qrContext.Set<Embarque.EmbarqueCalidadFoto>().Add(
+                new Embarque.EmbarqueCalidadFoto
+                {
+                    EmbarqueId = embarqueId,
+                    RutaArchivo = $"/uploads/calidad/{nombreArchivo}",
+                    FechaRegistro = DateTime.Now,
+                    UsuarioRegistro = usuario
+                });
+
+            guardadas++;
+        }
+
+        return guardadas;
     }
 
     public async Task<IActionResult> MapaCarga(int id)
@@ -3941,7 +4049,181 @@ public class EmbarquesController : Controller
     }
 
     [HttpPost]
-    public async Task<IActionResult> GuardarTemperaturasSku([FromBody] GuardarTemperaturasSkuRequest request)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarBorradorCalidad(
+        [FromForm] GuardarBorradorCalidadRequest request)
+    {
+        if (request == null || request.Id <= 0)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "Datos inválidos para guardar el avance de Calidad."
+            });
+        }
+
+        var embarque = await _qrContext.Embarque
+            .Include(e => e.QR)
+            .FirstOrDefaultAsync(e => e.Id == request.Id);
+
+        if (embarque == null)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "El embarque no existe."
+            });
+        }
+
+        if (embarque.CalidadAprobada == true)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "Este embarque ya fue validado por Calidad."
+            });
+        }
+
+        if (embarque.QR != null)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "Este embarque ya tiene QR generado y no se puede modificar."
+            });
+        }
+
+        const decimal temperaturaMinima = -25m;
+        const decimal temperaturaMaxima = 4m;
+
+        var temperaturasGenerales = new[]
+        {
+            new
+            {
+                Nombre = "Temperatura de programación",
+                Valor = request.TemperaturaProgramacion
+            },
+            new
+            {
+                Nombre = "Temperatura de unidad al inicio",
+                Valor = request.TemperaturaUnidadInicio
+            },
+            new
+            {
+                Nombre = "Temperatura de unidad al término",
+                Valor = request.TemperaturaUnidadTermino
+            }
+        };
+
+        var temperaturaFueraRango = temperaturasGenerales.FirstOrDefault(x =>
+            x.Valor.HasValue &&
+            (x.Valor.Value < temperaturaMinima || x.Valor.Value > temperaturaMaxima));
+
+        if (temperaturaFueraRango != null)
+        {
+            return Json(new
+            {
+                success = false,
+                message =
+                    $"{temperaturaFueraRango.Nombre} está fuera del rango permitido " +
+                    "de -25 °C a 4 °C."
+            });
+        }
+
+        if (request.HoraInicioEmbarque.HasValue &&
+            request.HoraTerminoEmbarque.HasValue &&
+            request.HoraTerminoEmbarque < request.HoraInicioEmbarque)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "La hora de término no puede ser menor que la hora de inicio."
+            });
+        }
+
+        List<GuardarTemperaturaSkuItemRequest> temperaturas;
+
+        try
+        {
+            temperaturas = string.IsNullOrWhiteSpace(request.TemperaturasJson)
+                ? new List<GuardarTemperaturaSkuItemRequest>()
+                : JsonSerializer.Deserialize<List<GuardarTemperaturaSkuItemRequest>>(
+                    request.TemperaturasJson,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }) ?? new List<GuardarTemperaturaSkuItemRequest>();
+        }
+        catch (JsonException)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "No se pudieron interpretar las temperaturas por tarima."
+            });
+        }
+
+        var resultadoTemperaturas = await AplicarTemperaturasSkuAsync(
+            request.Id,
+            temperaturas);
+
+        if (!resultadoTemperaturas.Exitoso)
+        {
+            return Json(new
+            {
+                success = false,
+                message = resultadoTemperaturas.Mensaje
+            });
+        }
+
+        embarque.SalidaTipo = NormalizarTextoBorrador(request.SalidaTipo);
+        embarque.PlacaTransporte = NormalizarTextoBorrador(request.PlacaTransporte);
+        embarque.TemperaturaProgramacion = request.TemperaturaProgramacion;
+        embarque.EstadoUnidadCalidad = NormalizarTextoBorrador(request.EstadoUnidad);
+        embarque.HoraInicioEmbarque = request.HoraInicioEmbarque;
+        embarque.HoraTerminoEmbarque = request.HoraTerminoEmbarque;
+        embarque.TemperaturaUnidadInicio = request.TemperaturaUnidadInicio;
+        embarque.TemperaturaUnidadTermino = request.TemperaturaUnidadTermino;
+        embarque.TemperaturaUnidadCalidad =
+            request.TemperaturaUnidadTermino ?? request.TemperaturaUnidadInicio;
+        embarque.EstadoProductosCalidad = NormalizarTextoBorrador(request.EstadoProductos);
+        embarque.CodigoTermograficador = NormalizarTextoBorrador(request.CodigoTermograficador);
+        embarque.NumeroTermometro = NormalizarTextoBorrador(request.NumeroTermometro);
+        embarque.AccionesCorrectivasCalidad =
+            NormalizarTextoBorrador(request.AccionesCorrectivasCalidad);
+        embarque.ObservacionesCalidad =
+            NormalizarTextoBorrador(request.ObservacionesCalidad);
+
+        var fotosExistentes = await _qrContext
+            .Set<Embarque.EmbarqueCalidadFoto>()
+            .AsNoTracking()
+            .CountAsync(f => f.EmbarqueId == request.Id);
+
+        var fotosGuardadas = await GuardarFotosCalidadAsync(
+            request.Id,
+            request.FotosCalidad);
+
+        await _qrContext.SaveChangesAsync();
+
+        return Json(new
+        {
+            success = true,
+            total = resultadoTemperaturas.Total,
+            capturadas = resultadoTemperaturas.Capturadas,
+            completo =
+                resultadoTemperaturas.Total > 0 &&
+                resultadoTemperaturas.Capturadas == resultadoTemperaturas.Total,
+            fechaGuardado = resultadoTemperaturas.FechaGuardado.ToString("yyyy-MM-dd HH:mm"),
+            usuario = resultadoTemperaturas.Usuario,
+            fotosGuardadas,
+            fotosTotales = fotosExistentes + fotosGuardadas,
+            message = "El avance completo de Calidad se guardó correctamente."
+        });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> GuardarTemperaturasSku(
+        [FromBody] GuardarTemperaturasSkuRequest request)
     {
         if (request == null || request.EmbarqueId <= 0)
         {
@@ -3983,13 +4265,44 @@ public class EmbarquesController : Controller
             });
         }
 
-        var productosFuente = await ConstruirProductosTemperaturaCalidad(request.EmbarqueId);
+        var resultado = await AplicarTemperaturasSkuAsync(
+            request.EmbarqueId,
+            request.Items);
+
+        if (!resultado.Exitoso)
+        {
+            return Json(new
+            {
+                success = false,
+                message = resultado.Mensaje
+            });
+        }
+
+        await _qrContext.SaveChangesAsync();
+
+        return Json(new
+        {
+            success = true,
+            total = resultado.Total,
+            capturadas = resultado.Capturadas,
+            completo = resultado.Total > 0 && resultado.Capturadas == resultado.Total,
+            fechaGuardado = resultado.FechaGuardado.ToString("yyyy-MM-dd HH:mm"),
+            usuario = resultado.Usuario,
+            message = $"Temperaturas guardadas: {resultado.Capturadas}/{resultado.Total} SKU(s)."
+        });
+    }
+
+    private async Task<ResultadoGuardadoTemperaturasSku> AplicarTemperaturasSkuAsync(
+        int embarqueId,
+        List<GuardarTemperaturaSkuItemRequest>? itemsRequest)
+    {
+        var productosFuente = await ConstruirProductosTemperaturaCalidad(embarqueId);
 
         var productosFuenteDic = productosFuente
             .GroupBy(CrearClaveProducto)
             .ToDictionary(g => g.Key, g => g.First());
 
-        var itemsRequest = request.Items ?? new List<GuardarTemperaturaSkuItemRequest>();
+        itemsRequest ??= new List<GuardarTemperaturaSkuItemRequest>();
 
         const decimal temperaturaMinima = -25m;
         const decimal temperaturaMaxima = 4m;
@@ -3997,22 +4310,19 @@ public class EmbarquesController : Controller
         var temperaturasFueraRango = itemsRequest
             .Where(x =>
                 x.Temperatura.HasValue &&
-                (
-                    x.Temperatura.Value < temperaturaMinima ||
-                    x.Temperatura.Value > temperaturaMaxima
-                ))
+                (x.Temperatura.Value < temperaturaMinima ||
+                 x.Temperatura.Value > temperaturaMaxima))
             .ToList();
 
         if (temperaturasFueraRango.Any())
         {
-            return Json(new
+            return new ResultadoGuardadoTemperaturasSku
             {
-                success = false,
-                message =
-                    $"No se guardaron las temperaturas. " +
-                    $"Se encontraron {temperaturasFueraRango.Count} registro(s) " +
-                    $"fuera del rango permitido de -25 °C a 4 °C."
-            });
+                Mensaje =
+                    $"No se guardó el avance. Se encontraron " +
+                    $"{temperaturasFueraRango.Count} registro(s) fuera del rango " +
+                    "permitido de -25 °C a 4 °C."
+            };
         }
 
         var itemsDic = itemsRequest
@@ -4029,7 +4339,7 @@ public class EmbarquesController : Controller
             .ToDictionary(g => g.Key, g => g.Last());
 
         var existentes = await _qrContext.EmbarqueProductoTemperaturas
-            .Where(x => x.EmbarqueId == request.EmbarqueId)
+            .Where(x => x.EmbarqueId == embarqueId)
             .ToListAsync();
 
         var existentesDic = existentes
@@ -4049,7 +4359,7 @@ public class EmbarquesController : Controller
 
             var observaciones = capturado.Observaciones?.Trim();
 
-            bool vieneVacio =
+            var vieneVacio =
                 capturado.Temperatura == null &&
                 string.IsNullOrWhiteSpace(observaciones);
 
@@ -4060,7 +4370,7 @@ public class EmbarquesController : Controller
             {
                 registro = new EmbarqueProductoTemperatura
                 {
-                    EmbarqueId = request.EmbarqueId,
+                    EmbarqueId = embarqueId,
                     TipoDocumento = productoFuente.TipoDocumento,
                     DocumentoId = productoFuente.DocumentoId,
                     DocumentoConsecutivo = productoFuente.DocumentoConsecutivo,
@@ -4095,41 +4405,28 @@ public class EmbarquesController : Controller
                 : observaciones;
         }
 
-        await _qrContext.SaveChangesAsync();
-
-        var guardadasDespues = await _qrContext.EmbarqueProductoTemperaturas
-            .AsNoTracking()
-            .Where(x => x.EmbarqueId == request.EmbarqueId)
-            .ToListAsync();
-
-        var guardadasDespuesDic = guardadasDespues
-            .GroupBy(CrearClaveProducto)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        int total = productosFuente.Count;
-
-        int capturadas = productosFuente.Count(p =>
+        var total = productosFuente.Count;
+        var capturadas = productosFuente.Count(p =>
         {
             var clave = CrearClaveProducto(p);
 
-            return guardadasDespuesDic.TryGetValue(clave, out var registro)
-                   && registro.Temperatura.HasValue;
+            return existentesDic.TryGetValue(clave, out var registro) &&
+                   registro.Temperatura.HasValue;
         });
 
-        return Json(new
+        return new ResultadoGuardadoTemperaturasSku
         {
-            success = true,
-            total,
-            capturadas,
-            completo = total > 0 && capturadas == total,
+            Exitoso = true,
+            Total = total,
+            Capturadas = capturadas,
+            FechaGuardado = fecha,
+            Usuario = usuario
+        };
+    }
 
-            // Se usarán para actualizar visualmente las filas
-            // sin tener que recargar la página.
-            fechaGuardado = fecha.ToString("yyyy-MM-dd HH:mm"),
-            usuario,
-
-            message = $"Temperaturas guardadas: {capturadas}/{total} SKU(s)."
-        });
+    private static string? NormalizarTextoBorrador(string? valor)
+    {
+        return string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
     }
 
     private static string NormalizarClaveProducto(string? valor)
@@ -5570,6 +5867,36 @@ public class EmbarquesController : Controller
     {
         public int EmbarqueId { get; set; }
         public List<GuardarTemperaturaSkuItemRequest> Items { get; set; } = new();
+    }
+
+    public class GuardarBorradorCalidadRequest
+    {
+        public int Id { get; set; }
+        public string? SalidaTipo { get; set; }
+        public string? PlacaTransporte { get; set; }
+        public decimal? TemperaturaProgramacion { get; set; }
+        public string? EstadoUnidad { get; set; }
+        public DateTime? HoraInicioEmbarque { get; set; }
+        public DateTime? HoraTerminoEmbarque { get; set; }
+        public decimal? TemperaturaUnidadInicio { get; set; }
+        public decimal? TemperaturaUnidadTermino { get; set; }
+        public string? EstadoProductos { get; set; }
+        public string? CodigoTermograficador { get; set; }
+        public string? NumeroTermometro { get; set; }
+        public string? AccionesCorrectivasCalidad { get; set; }
+        public string? ObservacionesCalidad { get; set; }
+        public string? TemperaturasJson { get; set; }
+        public List<IFormFile>? FotosCalidad { get; set; }
+    }
+
+    private sealed class ResultadoGuardadoTemperaturasSku
+    {
+        public bool Exitoso { get; set; }
+        public string? Mensaje { get; set; }
+        public int Total { get; set; }
+        public int Capturadas { get; set; }
+        public DateTime FechaGuardado { get; set; }
+        public string Usuario { get; set; } = "Sistema";
     }
 
     public class GuardarTemperaturaSkuItemRequest

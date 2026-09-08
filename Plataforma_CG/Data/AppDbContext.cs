@@ -92,6 +92,8 @@ namespace Plataforma_CG.Data
 
         public DbSet<PrecioLineasHistorico> PrecioLineasHistorico { get; set; }
 
+        public DbSet<CreditoAutorizacionHistorico> CreditoAutorizacionHistorico { get; set; }
+
         public DbSet<ReglaComercial> ReglaComercial { get; set; }
 
         public DbSet<DemandaProducto> DemandaProducto { get; set; }
@@ -162,6 +164,17 @@ namespace Plataforma_CG.Data
         public DbSet<CompraTiBitacora> CompraTiBitacoras { get; set; }
 
         public DbSet<CompraTiOrdenCompraSap> CompraTiOrdenesCompraSap { get; set; }
+
+
+        
+        public DbSet<CobranzaCompromiso> CobranzaCompromisos { get; set; }
+        public DbSet<CobranzaCompromisoFactura> CobranzaCompromisoFacturas { get; set; }
+        public DbSet<CobranzaCompromisoArchivo> CobranzaCompromisoArchivos { get; set; }
+
+        public DbSet<CobranzaCompromisoHistorico> CobranzaCompromisoHistoricos { get; set; }
+        public DbSet<CobranzaCompromisoPagoSap> CobranzaCompromisoPagosSap { get; set; }
+
+
 
 
         // =========================

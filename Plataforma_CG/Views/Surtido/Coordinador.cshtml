@@ -3,6 +3,33 @@
 @{
     ViewData["Title"] = "Coordinación";
     Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var prioridadesPedido =
+        ViewBag.PrioridadesPedido as IDictionary<string, int>
+        ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    var plantaActiva =
+        ViewBag.PlantaActiva as string
+        ?? Model.Almacen.Planta;
+
+    var pedidosOrdenados =
+        Model.Pedidos
+            .OrderBy(x => x.AlmacenNombre)
+            .ThenBy(x =>
+            {
+                var clave =
+                    $"{(x.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{x.SolicitudSurtidoId}";
+
+                return prioridadesPedido.TryGetValue(
+                    clave,
+                    out var prioridad
+                )
+                    ? prioridad
+                    : int.MaxValue;
+            })
+            .ThenBy(x => x.FechaHora)
+            .ThenBy(x => x.SolicitudSurtidoId)
+            .ToList();
 }
 
 <link rel="stylesheet"
@@ -482,6 +509,391 @@
 </style>
 
 
+
+<style id="coord-prioridades-embarques">
+    /* =========================================================
+       PRIORIDAD OPERATIVA DE EMBARQUES / PEDIDOS
+       ========================================================= */
+
+    .coord-priority-help {
+        margin-top:6px;
+        padding:8px 10px;
+        display:grid;
+        grid-template-columns:30px minmax(0,1fr);
+        gap:8px;
+        align-items:center;
+        border:1px solid #d8c78f;
+        border-left:5px solid var(--co-orange);
+        border-radius:10px;
+        background:#fff9e8;
+        color:#665015;
+    }
+
+    .coord-priority-help .ico {
+        width:30px;
+        height:30px;
+        display:grid;
+        place-items:center;
+        border-radius:8px;
+        background:#fff0c2;
+        font-size:15px;
+        font-weight:950;
+    }
+
+    .coord-priority-help strong {
+        display:block;
+        font-size:9px;
+        font-weight:950;
+    }
+
+    .coord-priority-help span {
+        display:block;
+        margin-top:2px;
+        font-size:7px;
+        line-height:1.25;
+        font-weight:700;
+    }
+
+    .coord-op-order.priority-one {
+        border-color:#9bcdb0 !important;
+        border-left-color:var(--co-green) !important;
+        background:#f8fdf9 !important;
+        box-shadow:0 8px 24px rgba(25,135,84,.10) !important;
+    }
+
+    .coord-op-badge.priority-one {
+        background:#e7f5ed !important;
+        color:#17683f !important;
+        border-color:#b8ddc7 !important;
+    }
+
+    .coord-priority-form {
+        margin-top:8px;
+        padding:7px;
+        display:grid;
+        grid-template-columns:minmax(0,1fr) 74px 122px;
+        gap:5px;
+        align-items:end;
+        border:1px solid #d8e0e6;
+        border-radius:9px;
+        background:#f7f9fa;
+    }
+
+    .coord-priority-current {
+        min-width:0;
+    }
+
+    .coord-priority-current span {
+        display:block;
+        color:var(--co-muted);
+        font-size:6.5px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .coord-priority-current strong {
+        display:block;
+        margin-top:2px;
+        color:var(--co-burgundy);
+        font-size:13px;
+        line-height:1;
+        font-weight:950;
+    }
+
+    .coord-priority-field label {
+        display:block;
+        margin-bottom:2px;
+        color:var(--co-muted);
+        font-size:6px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .coord-priority-field input {
+        width:100%;
+        height:31px;
+        min-height:31px;
+        padding:0 6px;
+        border-radius:7px;
+        border:1px solid #bdc9d1;
+        background:#fff;
+        color:var(--co-text);
+        font-size:9px;
+        font-weight:900;
+        text-align:center;
+        box-sizing:border-box;
+    }
+
+    .coord-priority-save {
+        height:31px;
+        min-height:31px;
+        padding:0 7px;
+        border:1px solid var(--co-burgundy-dark);
+        border-radius:7px;
+        background:linear-gradient(180deg,#922934,var(--co-burgundy));
+        color:#fff;
+        font-size:7px;
+        line-height:1.1;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    .coord-priority-save:hover {
+        filter:brightness(.97);
+    }
+
+    .coord-op-alert.success {
+        background:#edf9f1 !important;
+        border-color:#b9dfc8 !important;
+        border-left-color:var(--co-green) !important;
+        color:#17683f !important;
+    }
+
+    @@media(max-width:700px) {
+        .coord-priority-form {
+            grid-template-columns:1fr 72px;
+        }
+
+        .coord-priority-save {
+            grid-column:1 / -1;
+            width:100%;
+        }
+    }
+
+    @@media(max-width:460px) {
+        .coord-priority-form {
+            grid-template-columns:1fr;
+        }
+
+        .coord-priority-save {
+            grid-column:auto;
+        }
+    }
+</style>
+
+
+<style id="coord-planta-almacenes-final">
+    .coord-warehouse-summary {
+        padding:7px 7px 0;
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+        gap:5px;
+    }
+
+    .coord-warehouse-chip {
+        min-width:0;
+        padding:6px 7px;
+        border:1px solid #d8e0e6;
+        border-radius:8px;
+        background:#f6f8f9;
+    }
+
+    .coord-warehouse-chip.has-orders {
+        border-color:#b8ddc7;
+        background:#f1faf5;
+    }
+
+    .coord-warehouse-chip strong {
+        display:block;
+        color:#263741;
+        font-size:8px;
+        font-weight:950;
+    }
+
+    .coord-warehouse-chip span {
+        display:block;
+        margin-top:1px;
+        color:#6c7b85;
+        font-size:6px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+
+    .coord-warehouse-chip b {
+        display:inline-block;
+        margin-top:3px;
+        color:#17683f;
+        font-size:6.5px;
+        font-weight:950;
+    }
+
+    .coord-op-filter-refresh {
+        grid-template-columns:minmax(0,1fr) 150px !important;
+        align-items:center !important;
+    }
+
+    .coord-refresh-copy {
+        min-width:0;
+    }
+
+    .coord-refresh-copy strong {
+        display:block;
+        color:#263741;
+        font-size:9px;
+        font-weight:950;
+    }
+
+    .coord-refresh-copy span {
+        display:block;
+        margin-top:2px;
+        color:#6c7b85;
+        font-size:7px;
+        line-height:1.25;
+    }
+
+    @@media(max-width:560px) {
+        .coord-warehouse-summary {
+            grid-template-columns:1fr 1fr;
+        }
+
+        .coord-op-filter-refresh {
+            grid-template-columns:1fr !important;
+        }
+    }
+</style>
+
+
+<style id="coord-margen-layout-final">
+    /* =========================================================
+       MARGEN REAL CONTRA EL VIEWPORT
+       Evita que _Layout2 + sidebar empujen Coordinación
+       debajo del borde derecho visible.
+       ========================================================= */
+
+    body:has(.coord-op-wrap) .layout-main-content {
+        min-width:0 !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
+        box-sizing:border-box !important;
+    }
+
+    body:has(.coord-op-wrap) .layout-main-content .layout-container-fluid {
+        width:auto !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        margin:0 !important;
+        padding:0 !important;
+        overflow-x:hidden !important;
+        box-sizing:border-box !important;
+    }
+
+    .coord-op-wrap {
+        /*
+           Reserva real del lado derecho:
+           sidebar/layout + colchón para scrollbar/borde.
+        */
+        --coord-layout-reserve:140px;
+
+        width:100% !important;
+        max-width:calc(100vw - var(--coord-layout-reserve)) !important;
+        min-width:0 !important;
+
+        margin-left:0 !important;
+        margin-right:auto !important;
+
+        padding-left:10px !important;
+        padding-right:14px !important;
+
+        overflow-x:hidden !important;
+        box-sizing:border-box !important;
+    }
+
+    .coord-op-shell,
+    .coord-op-hero,
+    .coord-op-hero-grid,
+    .coord-op-actions,
+    .coord-op-panel,
+    .coord-op-panel-head,
+    .coord-op-filter,
+    .coord-op-stats,
+    .coord-op-stat,
+    .coord-op-alert,
+    .coord-op-orders,
+    .coord-op-orders-head,
+    .coord-op-grid,
+    .coord-op-order,
+    .coord-warehouse-summary,
+    .coord-warehouse-chip,
+    .coord-priority-help,
+    .coord-priority-form {
+        min-width:0 !important;
+        max-width:100% !important;
+        box-sizing:border-box !important;
+    }
+
+    .coord-op-shell {
+        width:100% !important;
+        margin-left:0 !important;
+        margin-right:0 !important;
+    }
+
+    /* Los hijos de grid/flex sí pueden encogerse */
+    .coord-op-hero-grid > *,
+    .coord-op-actions > *,
+    .coord-op-panel-head > *,
+    .coord-op-filter > *,
+    .coord-op-stats > *,
+    .coord-op-orders-head > *,
+    .coord-op-grid > *,
+    .coord-op-order-top > *,
+    .coord-priority-form > * {
+        min-width:0 !important;
+    }
+
+    /* Evita que nombres largos de almacenes/clientes empujen el ancho */
+    .coord-op-title,
+    .coord-op-sub,
+    .coord-op-panel-head h2,
+    .coord-op-panel-head p,
+    .coord-op-stat strong,
+    .coord-op-stat .sub,
+    .coord-op-orders-head h2,
+    .coord-op-orders-head p,
+    .coord-op-order .pedido,
+    .coord-op-client,
+    .coord-op-meta strong,
+    .coord-warehouse-chip span,
+    .coord-priority-help span {
+        overflow-wrap:anywhere !important;
+        word-break:break-word !important;
+    }
+
+    /* Laptop / escritorio angosto */
+    @@media (max-width:1200px) {
+        .coord-op-wrap {
+            --coord-layout-reserve:115px;
+            padding-right:12px !important;
+        }
+    }
+
+    /* Tablet: el sidebar suele colapsar */
+    @@media (max-width:900px) {
+        .coord-op-wrap {
+            --coord-layout-reserve:28px;
+            padding-left:7px !important;
+            padding-right:9px !important;
+        }
+    }
+
+    /* Móvil */
+    @@media (max-width:590px) {
+        .coord-op-wrap {
+            --coord-layout-reserve:14px;
+            padding-left:5px !important;
+            padding-right:6px !important;
+        }
+    }
+
+    @@media (max-width:400px) {
+        .coord-op-wrap {
+            --coord-layout-reserve:8px;
+            padding-left:4px !important;
+            padding-right:4px !important;
+        }
+    }
+</style>
+
 <div class="coord-op-wrap">
     <div class="coord-op-shell">
 
@@ -491,7 +903,7 @@
                     <div class="coord-op-kicker">◎ Coordinación de Surtido</div>
                     <div class="coord-op-title">Control de la operación</div>
                     <div class="coord-op-sub">
-                        @Model.Almacen.Nombre · @Model.Almacen.Sucursal · @Model.Almacen.Codigo
+                        @plantaActiva · @Model.Almacenes.Count almacén@(Model.Almacenes.Count == 1 ? "" : "es") · visión completa de la planta
                     </div>
                 </div>
 
@@ -517,15 +929,31 @@
             </div>
         </section>
 
+        @if (TempData["Exito"] != null)
+        {
+            <div class="coord-op-alert success">
+                <strong>✓ Prioridad actualizada.</strong><br />
+                @TempData["Exito"]
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="coord-op-alert">
+                <strong>⚠ No fue posible actualizar la prioridad.</strong><br />
+                @TempData["Error"]
+            </div>
+        }
+
         <section class="coord-op-panel">
             <div class="coord-op-panel-head">
                 <div>
-                    <h2>Consultar operación</h2>
-                    <p>Selecciona el rango y actualiza los pedidos pendientes.</p>
+                    <h2>Operación completa de @plantaActiva</h2>
+                    <p>Se consultan todos los almacenes de la planta y cada pedido conserva su almacén real.</p>
                 </div>
             </div>
 
-            <form class="coord-op-filter"
+            <form class="coord-op-filter coord-op-filter-refresh"
                   method="get"
                   action="@Url.Action("Coordinador","Surtido")">
 
@@ -533,23 +961,14 @@
                        name="almacen"
                        value="@Model.Almacen.Codigo" />
 
-                <div>
-                    <label>DESDE</label>
-                    <input type="date"
-                           name="fechaInicio"
-                           value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
-                </div>
-
-                <div>
-                    <label>HASTA</label>
-                    <input type="date"
-                           name="fechaFin"
-                           value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
+                <div class="coord-refresh-copy">
+                    <strong>Todos los pendientes de @plantaActiva</strong>
+                    <span>La prioridad no se limita por fecha: se muestran los pedidos pendientes de todos los almacenes de la planta.</span>
                 </div>
 
                 <button class="coord-op-btn"
                         type="submit">
-                    CONSULTAR
+                    ACTUALIZAR OPERACIÓN
                 </button>
             </form>
         </section>
@@ -558,19 +977,19 @@
             <article class="coord-op-stat pending">
                 <small>Pedidos pendientes</small>
                 <strong>@Model.TotalPedidos</strong>
-                <span class="sub">Pedidos por revisar en el rango.</span>
+                <span class="sub">Pendientes de todos los almacenes de la planta.</span>
             </article>
 
             <article class="coord-op-stat branch">
-                <small>Sucursal</small>
-                <strong>@Model.Almacen.Sucursal</strong>
-                <span class="sub">Sucursal activa.</span>
+                <small>Planta</small>
+                <strong>@plantaActiva</strong>
+                <span class="sub">Coordinación por planta completa.</span>
             </article>
 
             <article class="coord-op-stat wh">
-                <small>Almacén</small>
-                <strong>@Model.Almacen.Codigo</strong>
-                <span class="sub">@Model.Almacen.Nombre</span>
+                <small>Almacenes</small>
+                <strong>@Model.Almacenes.Count</strong>
+                <span class="sub">Todos los configurados en @plantaActiva.</span>
             </article>
 
             <article class="coord-op-stat conn">
@@ -580,22 +999,9 @@
             </article>
 
             <article class="coord-op-stat rule">
-                <small>Regla de ubicación</small>
-                <strong>
-                    @if (!Model.Almacen.TieneConfiguracionUbicacion)
-                    {
-                        <text>SIN CONFIGURAR</text>
-                    }
-                    else if (Model.Almacen.ObligaUbicacion)
-                    {
-                        <text>OBLIGATORIA</text>
-                    }
-                    else
-                    {
-                        <text>OPCIONAL</text>
-                    }
-                </strong>
-                <span class="sub">Configuración operativa del almacén.</span>
+                <small>Colas activas</small>
+                <strong>@Model.Almacenes.Count</strong>
+                <span class="sub">Una prioridad 1 independiente por almacén.</span>
             </article>
         </section>
 
@@ -613,24 +1019,80 @@
             <section class="coord-op-orders">
                 <div class="coord-op-orders-head">
                     <div>
-                        <h2>Pedidos pendientes</h2>
-                        <p>Pica un pedido para revisar sus productos y continuar el seguimiento.</p>
+                        <h2>Prioridad de embarques · @plantaActiva</h2>
+                        <p>Ves todos los almacenes de la planta. Cada almacén mantiene su propia cola 1, 2, 3...</p>
                     </div>
-                    <div class="coord-op-count">@Model.TotalPedidos</div>
+                    <div class="coord-op-count">@pedidosOrdenados.Count</div>
                 </div>
 
-                @if (Model.Pedidos.Any())
+                @if (pedidosOrdenados.Any())
                 {
-                    <div class="coord-op-grid">
-                        @foreach (var p in Model.Pedidos)
+                    <div class="coord-warehouse-summary">
+                        @foreach (var almacenItem in Model.Almacenes.OrderBy(x => x.Nombre))
                         {
-                            <article class="coord-op-order">
+                            var pedidosAlmacen =
+                                pedidosOrdenados.Count(x =>
+                                    string.Equals(
+                                        x.AlmacenCodigo,
+                                        almacenItem.Codigo,
+                                        StringComparison.OrdinalIgnoreCase
+                                    )
+                                );
+
+                            <div class="coord-warehouse-chip @(pedidosAlmacen > 0 ? "has-orders" : "")">
+                                <strong>@almacenItem.Codigo</strong>
+                                <span>@almacenItem.Nombre</span>
+                                <b>@pedidosAlmacen pedido@(pedidosAlmacen == 1 ? "" : "s")</b>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="coord-priority-help">
+                        <div class="ico">↕</div>
+                        <div>
+                            <strong>La prioridad controla la cola de Picking.</strong>
+                            <span>
+                                Escribe 1 para surtir primero, 2 para después, 3 para el siguiente, etc.
+                                Al guardar, el sistema reordena toda la cola del almacén sin dejar prioridades duplicadas.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="coord-op-grid">
+                        @foreach (var p in pedidosOrdenados)
+                        {
+                            var clavePrioridad =
+                                $"{(p.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{p.SolicitudSurtidoId}";
+
+                            var prioridadActual =
+                                prioridadesPedido.TryGetValue(
+                                    clavePrioridad,
+                                    out var prioridadEncontrada
+                                )
+                                    ? prioridadEncontrada
+                                    : 1;
+
+                            var totalColaAlmacen =
+                                Math.Max(
+                                    1,
+                                    pedidosOrdenados.Count(x =>
+                                        string.Equals(
+                                            x.AlmacenCodigo,
+                                            p.AlmacenCodigo,
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
+                                );
+
+                            <article class="coord-op-order @(prioridadActual == 1 ? "priority-one" : "")">
                                 <div class="coord-op-order-top">
                                     <div>
                                         <span class="sol">Solicitud @p.SolicitudSurtidoId</span>
                                         <span class="pedido">@p.Pedido</span>
                                     </div>
-                                    <span class="coord-op-badge">PENDIENTE</span>
+                                    <span class="coord-op-badge @(prioridadActual == 1 ? "priority-one" : "")">
+                                        @p.AlmacenCodigo · PRIORIDAD @prioridadActual
+                                    </span>
                                 </div>
 
                                 <div class="coord-op-client">@p.Cliente</div>
@@ -642,13 +1104,59 @@
                                     </div>
                                     <div>
                                         <span>Sucursal</span>
-                                        <strong>@Model.Almacen.Sucursal</strong>
+                                        <strong>@p.AlmacenSucursal</strong>
                                     </div>
                                     <div>
                                         <span>Almacén</span>
-                                        <strong>@Model.Almacen.Codigo</strong>
+                                        <strong>@p.AlmacenCodigo</strong>
                                     </div>
                                 </div>
+
+                                <form class="coord-priority-form"
+                                      method="post"
+                                      action="@Url.Action("AsignarPrioridadPedido", "Surtido")">
+
+                                    @Html.AntiForgeryToken()
+
+                                    <input type="hidden"
+                                           name="Almacen"
+                                           value="@p.AlmacenCodigo" />
+
+                                    <input type="hidden"
+                                           name="SolicitudSurtidoId"
+                                           value="@p.SolicitudSurtidoId" />
+
+                                    <input type="hidden"
+                                           name="FechaInicio"
+                                           value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
+
+                                    <input type="hidden"
+                                           name="FechaFin"
+                                           value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
+
+                                    <div class="coord-priority-current">
+                                        <span>Orden actual</span>
+                                        <strong>
+                                            #@prioridadActual
+                                            @(prioridadActual == 1 ? " · SURTIR AHORA" : "")
+                                        </strong>
+                                    </div>
+
+                                    <div class="coord-priority-field">
+                                        <label>Nueva prioridad</label>
+                                        <input type="number"
+                                               name="Prioridad"
+                                               min="1"
+                                               max="@totalColaAlmacen"
+                                               value="@prioridadActual"
+                                               required />
+                                    </div>
+
+                                    <button class="coord-priority-save"
+                                            type="submit">
+                                        GUARDAR PRIORIDAD
+                                    </button>
+                                </form>
 
                                 <a class="coord-op-open"
                                    href="@Url.Action(
@@ -656,7 +1164,7 @@
                                         "Surtido",
                                         new
                                         {
-                                            almacen = Model.Almacen.Codigo,
+                                            almacen = p.AlmacenCodigo,
                                             solicitudSurtidoId = p.SolicitudSurtidoId
                                         }
                                    )">
@@ -671,7 +1179,7 @@
                     <div class="coord-op-empty">
                         <div>
                             <strong>✓ Sin pendientes</strong>
-                            No hay pedidos pendientes para el rango seleccionado.
+                            No hay pedidos pendientes en los almacenes de @plantaActiva.
                         </div>
                     </div>
                 }

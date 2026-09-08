@@ -1,8 +1,8 @@
-﻿@* Su controller es TifController *@
+@* Su controller es TifController *@
 
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
-    ViewData["Title"] = "Pruebas TIF";
+    ViewData["Title"] = "Factor Crítico TIF";
 }
 
 <form id="csrf-form" style="display:none;">
@@ -11,8 +11,10 @@
 
 
 <link rel="stylesheet" href="~/css/factor-critico-tif-grid.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/factor-critico-captura.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/factor-critico-responsive.css" asp-append-version="true" />
 
-<div class="factor-tif-app">
+<div class="factor-tif-app fc-responsive">
 <div class="container-sap">
 
     <div class="sap-titlebar">
@@ -25,7 +27,7 @@
         </button>
     </div>
 
-    <div class="sap-tabs">
+    <nav class="sap-tabs" aria-label="Secciones de Factor Crítico">
         <button id="btn-tab-captura" class="tab-btn active" onclick="cambiarPestana('captura')">
             <i class=""></i> Captura de Datos
         </button>
@@ -36,9 +38,9 @@
             <i class=""></i> Gráficas
         </button>
         <button id="btn-tab-log" class="tab-btn" onclick="cambiarPestana('log'); cargarLogSimulado();">
-            </i> Log de Pruebas
+            Log de Pruebas
         </button>
-    </div>
+    </nav>
 
     <div id="tab-captura" class="tab-content active">
         <div class="sap-card">
@@ -46,7 +48,7 @@
                 <span><i class="bi bi-table" style="color: var(--primary);"></i> Lotes en Proceso</span>
                 <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="cargarPruebas()"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
             </div>
-            <div style="overflow-x: auto;">
+            <div class="fc-table-scroll" tabindex="0" role="region" aria-label="Tabla de resultados">
                 <table class="sap-table" id="tabla-registros-main">
                     <thead>
                         <tr>
@@ -67,9 +69,9 @@
 
     <div id="tab-reportes" class="tab-content">
         <div class="sap-card" style="padding: 1.5rem; background: #fafbfc;">
-            <div style="background: #fff; padding: 15px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; display:flex; gap:15px; flex-wrap:wrap; align-items:end;">
+            <div class="fc-filters">
                 <div>
-                    <label style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Modo de reporte:</label>
+                    <label for="modoReporte" style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Modo de reporte:</label>
                     <select id="modoReporte" class="sap-input" style="width:220px;" onchange="cambiarModoReporte()">
                         <option value="prueba">Por prueba</option>
                         <option value="lote">Total por lote</option>
@@ -77,7 +79,7 @@
                 </div>
 
                 <div>
-                    <label id="lblSelectorReporte" style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Seleccione una Prueba:</label>
+                    <label for="selectLoteReporte" id="lblSelectorReporte" style="font-weight: bold; color: #444; display:block; margin-bottom: 5px;">Seleccione una Prueba:</label>
                     <select id="selectLoteReporte" class="sap-input" style="min-width: 320px;" onchange="cargarReporteSeleccion()">
                         <option value="">-- Seleccione --</option>
                     </select>
@@ -137,13 +139,13 @@
                     </button>
                 </div>
 
-                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+                <div class="fc-report-grid">
 
-                    <div class="report-card" style="flex: 2; min-width: 450px;">
+                    <div class="report-card fc-bone-report">
                         <div class="report-card-header">
                             <i class="bi bi-bone"></i> Desglose de Hueso
                         </div>
-                        <div style="overflow-x: auto;">
+                        <div class="fc-table-scroll" tabindex="0" role="region" aria-label="Tabla de resultados">
                             <table class="report-table">
                                 <thead><tr><th>Tipo</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
                                 <tbody id="resumen-hueso"></tbody>
@@ -151,7 +153,7 @@
                         </div>
                     </div>
 
-                    <div class="report-card" style="flex: 1; min-width: 250px;">
+                    <div class="report-card">
                         <div class="report-card-header">
                             <i class=""></i> Total Recorte
                         </div>
@@ -160,7 +162,7 @@
                         </table>
                     </div>
 
-                    <div class="report-card" style="flex: 1; min-width: 250px;">
+                    <div class="report-card">
                         <div class="report-card-header">
                             <i class=""></i> Total Grasa
                         </div>
@@ -175,11 +177,11 @@
     </div>
 
     <div id="tab-graficas" class="tab-content">
-        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display:flex; gap:15px; flex-wrap:wrap; align-items:end; justify-content:space-between;">
+        <div class="fc-chart-toolbar">
 
-            <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:end;">
+            <div class="fc-filters">
                 <div>
-                    <label style="font-weight: 600; display:block; margin-bottom: 5px;">Modo de gráfica:</label>
+                    <label for="modoGrafica" style="font-weight: 600; display:block; margin-bottom: 5px;">Modo de gráfica:</label>
                     <select id="modoGrafica" class="sap-input" style="width:220px;" onchange="cambiarModoGrafica()">
                         <option value="prueba">Por prueba</option>
                         <option value="lote">Total por lote</option>
@@ -187,7 +189,7 @@
                 </div>
 
                 <div>
-                    <label id="lblSelectorGrafica" style="font-weight: 600; display:block; margin-bottom: 5px;">Seleccione la Prueba:</label>
+                    <label for="selectLoteGrafica" id="lblSelectorGrafica" style="font-weight: 600; display:block; margin-bottom: 5px;">Seleccione la Prueba:</label>
                     <select id="selectLoteGrafica" class="sap-input" style="width: 300px;" onchange="cargarGraficaSeleccion()">
                         <option value="">-- Seleccione --</option>
                     </select>
@@ -203,13 +205,13 @@
         </div>
 
         <div id="contenedor-grafica" style="display:none;">
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
+            <div class="fc-chart-grid">
 
                 <div class="report-card">
                     <div class="report-card-header">
                         <i class="bi bi-bar-chart-line"></i> Objetivo vs Real
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaResumenBarras"></canvas>
                     </div>
                 </div>
@@ -218,7 +220,7 @@
                     <div class="report-card-header">
                         <i class="bi bi-pie-chart"></i> Distribución Real
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaDistribucion"></canvas>
                     </div>
                 </div>
@@ -227,7 +229,7 @@
                     <div class="report-card-header">
                         <i class="bi bi-bullseye"></i> Radar Objetivo vs Real
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaRadar"></canvas>
                     </div>
                 </div>
@@ -236,7 +238,7 @@
                     <div class="report-card-header">
                         <i class="bi bi-arrows-expand"></i> Kg Entrada vs Salida
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaKilos"></canvas>
                     </div>
                 </div>
@@ -245,7 +247,7 @@
                     <div class="report-card-header">
                         <i class="bi bi-activity"></i> Diferencia vs Objetivo
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaDiferencia"></canvas>
                     </div>
                 </div>
@@ -254,7 +256,7 @@
                     <div class="report-card-header">
                         <i class="bi bi-speedometer2"></i> Cumplimiento por Factor
                     </div>
-                    <div style="padding:18px; height:340px;">
+                    <div class="fc-chart-frame">
                         <canvas id="graficaCumplimiento"></canvas>
                     </div>
                 </div>
@@ -268,17 +270,13 @@
             <div class="sap-card-head" style="flex-wrap: wrap; gap: 10px;">
                 <span><i style="color: var(--primary);"></i> Historial Completo de Pruebas</span>
 
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                    <label style="font-size: 0.8rem; font-weight: bold;">Desde:</label>
-                    <input type="date" id="fechaDesdeLog" class="sap-input" style="width: 130px; height: 32px; padding: 2px 8px;" onchange="filtrarLog()">
-
-                    <label style="font-size: 0.8rem; font-weight: bold;">Hasta:</label>
-                    <input type="date" id="fechaHastaLog" class="sap-input" style="width: 130px; height: 32px; padding: 2px 8px;" onchange="filtrarLog()">
-
-                    <input type="text" id="buscadorLog" class="sap-input" style="width: 200px; height: 32px;" placeholder="Buscar lote o usuario..." onkeyup="filtrarLog()">
+                <div class="fc-log-filters">
+                    <label for="fechaDesdeLog">Desde<input type="date" id="fechaDesdeLog" class="sap-input" onchange="filtrarLog()"></label>
+                    <label for="fechaHastaLog">Hasta<input type="date" id="fechaHastaLog" class="sap-input" onchange="filtrarLog()"></label>
+                    <label for="buscadorLog">Buscar<input type="search" id="buscadorLog" class="sap-input" placeholder="Lote o usuario…" oninput="filtrarLog()"></label>
                 </div>
             </div>
-            <div style="overflow-x: auto;">
+            <div class="fc-table-scroll" tabindex="0" role="region" aria-label="Tabla de resultados">
                 <table class="sap-table" id="tabla-log">
                     <thead>
                         <tr>
@@ -301,11 +299,11 @@
     <div class="modal-content-sap modal-content-sm">
         <div class="sap-card-head">
             <span><i class="bi bi-plus-circle" style="color: var(--primary);"></i> Iniciar Nueva Prueba</span>
-            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalNuevaPrueba')"><i class="bi bi-x-lg"></i></button>
+            <button class="tbtn" aria-label="Cerrar" style="border:none; padding:0;" onclick="cerrarModal('modalNuevaPrueba')"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-scroll">
             <div style="margin-bottom: 5px;">
-                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Seleccione Lote Activo:</label>
+                <label for="txtNuevoLote" style="font-weight: bold; display: block; margin-bottom: 5px;">Seleccione Lote Activo:</label>
                 <select id="txtNuevoLote" class="sap-input"><option value="">Cargando lotes...</option></select>
             </div>
         </div>
@@ -316,80 +314,13 @@
     </div>
 </div>
 
-<div id="modalHueso" class="modal-overlay">
-    <div class="modal-content-sap">
-        <div class="sap-card-head">
-            <span>
-                <i class="bi bi-bone" style="color: var(--primary);"></i>
-                Hueso - Lote: <span id="lote-hueso"></span>
-                <span class="badge-sap" id="badge-prueba-hueso" style="margin-left:8px;"></span>
-            </span>
-            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalHueso')"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="modal-body-scroll">
-            <table class="sap-table">
-                <thead><tr><th>Hueso</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th><th></th></tr></thead>
-                <tbody id="tabla-hueso"></tbody>
-            </table>
-        </div>
-        <div class="modal-footer">
-            <button class="tbtn" onclick="cerrarModal('modalHueso')">Cerrar</button>
-            <button id="btnGuardarTodosHueso" class="tbtn primary" onclick="guardarTodosHueso()">Guardar todos</button>
-        </div>
-    </div>
-</div>
-
-<div id="modalRecorte" class="modal-overlay">
-    <div class="modal-content-sap">
-        <div class="sap-card-head">
-            <span>
-                <i style="color: var(--primary);"></i>
-                Recorte - Lote: <span id="lote-Recorte"></span>
-                <span class="badge-sap" id="badge-prueba-recorte" style="margin-left:8px;"></span>
-            </span>
-            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalRecorte')"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="modal-body-scroll">
-            <table class="sap-table">
-                <thead><tr><th>Receta</th><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
-                <tbody id="tabla-Recorte"></tbody>
-            </table>
-        </div>
-        <div class="modal-footer">
-            <button class="tbtn" onclick="cerrarModal('modalRecorte')">Cerrar</button>
-            <button id="btnGuardarRecorte" class="tbtn primary" onclick="guardarRecorte()">Guardar</button>
-        </div>
-    </div>
-</div>
-
-<div id="modalGrasa" class="modal-overlay">
-    <div class="modal-content-sap">
-        <div class="sap-card-head">
-            <span>
-                <i style="color: var(--primary);"></i>
-                Grasa - Lote: <span id="lote-Grasa"></span>
-                <span class="badge-sap" id="badge-prueba-grasa" style="margin-left:8px;"></span>
-            </span>
-            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalGrasa')"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="modal-body-scroll">
-            <table class="sap-table">
-                <thead><tr><th>%Obj</th><th>%Part</th><th>%Dif</th><th>Kg Ent</th><th>Kg Sal</th></tr></thead>
-                <tbody id="tabla-Grasa"></tbody>
-            </table>
-        </div>
-        <div class="modal-footer">
-            <button class="tbtn" onclick="cerrarModal('modalGrasa')">Cerrar</button>
-            <button id="btnGuardarGrasa" class="tbtn primary" onclick="guardarGrasa()">Guardar</button>
-        </div>
-    </div>
-</div>
+<partial name="_FactorCriticoCaptura" />
 
 <div id="modalDetalleLog" class="modal-overlay">
     <div class="modal-content-sap modal-content-sm">
         <div class="sap-card-head">
             <span><i class="bi bi-list-check" style="color: var(--primary);"></i> Detalle de Prueba</span>
-            <button class="tbtn" style="border:none; padding:0;" onclick="cerrarModal('modalDetalleLog')"><i class="bi bi-x-lg"></i></button>
+            <button class="tbtn" aria-label="Cerrar" style="border:none; padding:0;" onclick="cerrarModal('modalDetalleLog')"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-scroll" style="text-align: center;">
             <h5 id="lblDetalleLote" style="color: var(--primary); font-weight: bold; margin-bottom: 15px;"></h5>
@@ -538,16 +469,16 @@
             data.forEach(r => {
                 tbody.innerHTML += `
                     <tr>
-                        <td><strong>#${r.id}</strong></td>
-                        <td>
+                        <td data-label="ID"><strong>#${r.id}</strong></td>
+                        <td data-label="Lote">
                             <div style="display:flex; flex-direction:column; gap:4px;">
                                 <span class="txt-lote" style="font-weight: 700; color: var(--primary);">${r.lote}</span>
                                 <span class="badge-sap" style="width:fit-content;">Prueba #${r.id}</span>
                             </div>
                         </td>
-                        <td><span class="badge-sap">${r.fecha}</span> <span style="font-size:0.9em; color:#999">${r.hora.split('.')[0]}</span></td>
-                        <td>${r.realiza}</td>
-                        <td style="text-align: right;">
+                        <td data-label="Fecha y hora"><span class="badge-sap">${r.fecha}</span> <span style="font-size:0.9em; color:#999">${r.hora.split('.')[0]}</span></td>
+                        <td data-label="Usuario">${r.realiza}</td>
+                        <td class="fc-lot-actions" data-label="Capturar factor">
                             <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaHueso(${r.id}, '${r.lote}')">Hueso</button>
                             <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaRecorte(${r.id}, '${r.lote}')">Recorte</button>
                             <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaGrasa(${r.id}, '${r.lote}')">Grasa</button>
@@ -2406,11 +2337,11 @@
         logsMock.forEach(log => {
             tbody.innerHTML += `
                 <tr data-fecha="${log.fecha}">
-                    <td><strong>#${log.id}</strong></td>
-                    <td style="color: var(--primary); font-weight: bold;">${log.lote}</td>
-                    <td>${log.fecha} ${log.hora}</td>
-                    <td>${log.usuario}</td>
-                    <td style="text-align: right; min-width: 230px;">
+                    <td data-label="ID"><strong>#${log.id}</strong></td>
+                    <td data-label="Lote" style="color: var(--primary); font-weight: bold;">${log.lote}</td>
+                    <td data-label="Fecha y hora">${log.fecha} ${log.hora}</td>
+                    <td data-label="Usuario">${log.usuario}</td>
+                    <td class="fc-lot-actions" data-label="Consultar factor">
                         <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaHueso(${log.id}, '${log.lote}', 0, true)">Hueso</button>
                         <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaRecorte(${log.id}, '${log.lote}', true)">Recorte</button>
                         <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaGrasa(${log.id}, '${log.lote}', true)">Grasa</button>
@@ -2462,3 +2393,4 @@
         }
     }
 </script>
+<script src="~/js/factor-critico-captura.js" asp-append-version="true"></script>

@@ -7,6 +7,195 @@
 <link rel="stylesheet" href="~/css/inventario-minmax-erp-compacto-v2.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/inventario-minmax-color-fix.css" asp-append-version="true" />
 
+
+<style>
+    /* =========================================================
+           MODAL CATÁLOGO MIN–IDEAL–MAX
+           Más ancho para evitar scroll horizontal en las reglas.
+           No modifica la lógica ni el resto de la pantalla.
+           ========================================================= */
+    #catalogoModal .mm-modal-shell {
+        width: min(90vw, 1550px) !important;
+        max-width: 1550px !important;
+        height: min(94vh, 960px) !important;
+        max-height: 94vh !important;
+    }
+
+    #catalogoModal .mm-modal-body {
+        min-height: 0 !important;
+    }
+
+    #catalogoModal .mm-catalog-grid {
+        grid-template-columns: minmax(650px, 1fr) minmax(650px, 1.15fr) !important;
+        gap: 10px !important;
+        min-width: 0 !important;
+    }
+
+    #catalogoModal .mm-catalog-card {
+        min-width: 0 !important;
+    }
+
+        /* La tabla de reglas cabe completa: Clasificación, Mín., Ideal, Máx. y acciones. */
+        #catalogoModal .mm-catalog-card:first-child .mm-catalog-table {
+            width: 100% !important;
+            min-width: 620px !important;
+            table-layout: fixed !important;
+        }
+
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table th:nth-child(1),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table td:nth-child(1) {
+                width: 24% !important;
+            }
+
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table th:nth-child(2),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table td:nth-child(2),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table th:nth-child(3),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table td:nth-child(3),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table th:nth-child(4),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table td:nth-child(4) {
+                width: 16% !important;
+            }
+
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table th:nth-child(5),
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table td:nth-child(5) {
+                width: 28% !important;
+            }
+
+            #catalogoModal .mm-catalog-card:first-child .mm-catalog-table input {
+                width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+    /* En monitor más pequeño conserva usabilidad sin romper el modal. */
+    @@media (max-width: 1450px) {
+        #catalogoModal .mm-modal-shell {
+            width: 96vw !important;
+            max-width: 96vw !important;
+        }
+
+        #catalogoModal .mm-catalog-grid {
+            grid-template-columns: minmax(570px, 1fr) minmax(570px, 1.1fr) !important;
+        }
+
+        #catalogoModal .mm-catalog-card:first-child .mm-catalog-table {
+            min-width: 560px !important;
+        }
+    }
+
+
+    /* =========================================================
+           MODAL DE PEDIDOS PENDIENTES
+           ========================================================= */
+    #pedidosModal .mm-modal-shell {
+        width: min(94vw, 1500px) !important;
+        max-width: 1500px !important;
+        height: min(90vh, 880px) !important;
+        max-height: 90vh !important;
+    }
+
+    #pedidosModal .mm-modal-body {
+        min-height: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .mm-pedidos-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .mm-pedidos-kpi {
+        border: 1px solid rgba(90, 28, 37, .18);
+        background: rgba(255, 255, 255, .88);
+        padding: 8px 10px;
+        min-width: 0;
+    }
+
+        .mm-pedidos-kpi span {
+            display: block;
+            color: var(--mm-muted);
+            font-size: .62rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+
+        .mm-pedidos-kpi strong {
+            display: block;
+            margin-top: 2px;
+            font-size: .86rem;
+        }
+
+    .mm-pedidos-table-wrap {
+        height: calc(min(90vh, 880px) - 155px);
+        min-height: 280px;
+        overflow: auto;
+        border: 1px solid rgba(90, 28, 37, .18);
+        background: #fff;
+    }
+
+    #pedidosModal .mm-catalog-table {
+        min-width: 1180px;
+        width: 100%;
+    }
+
+        #pedidosModal .mm-catalog-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+    .mm-pedidos-link {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        padding: 2px 4px;
+        margin: 0;
+        color: inherit;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        text-underline-offset: 3px;
+        white-space: nowrap;
+    }
+
+        .mm-pedidos-link:hover,
+        .mm-pedidos-link:focus-visible {
+            color: var(--mm-brand);
+            outline: none;
+            text-decoration-style: solid;
+        }
+
+        .mm-pedidos-link i {
+            margin-left: 3px;
+            font-size: .62rem;
+        }
+
+    .mm-pedido-cliente {
+        min-width: 220px;
+    }
+
+        .mm-pedido-cliente strong,
+        .mm-pedido-cliente small {
+            display: block;
+        }
+
+        .mm-pedido-cliente small {
+            color: var(--mm-muted);
+            margin-top: 1px;
+        }
+
+    @@media (max-width: 900px) {
+        .mm-pedidos-summary {
+            grid-template-columns: repeat(2, minmax(130px, 1fr));
+        }
+    }
+</style>
+
 <div class="minmax-root">
     <div class="minmax-shell">
         <header class="minmax-header">
@@ -196,7 +385,7 @@
                                     <span class="mm-sort-head">Inv. inicial <span class="mm-sort-indicator">◇</span></span>
                                 </th>
                                 <th class="num mm-sortable" data-sort="kgBaseCalculo" tabindex="0" title="Ordenar por base de cálculo">
-                                    <span class="mm-sort-head">Base cálculo <span class="mm-sort-indicator">◇</span></span>
+                                    <span class="mm-sort-head">Prod + Inv Inic. <span class="mm-sort-indicator">◇</span></span>
                                 </th>
                                 <th class="num mm-sortable" data-sort="kgActual" tabindex="0" title="Ordenar por inventario actual">
                                     <span class="mm-sort-head">Inv. actual <span class="mm-sort-indicator">◇</span></span>
@@ -213,10 +402,13 @@
                                 <th class="num mm-sortable" data-sort="gapIdeal" tabindex="0" title="Ordenar por diferencia contra ideal">
                                     <span class="mm-sort-head">Gap ideal <span class="mm-sort-indicator">◇</span></span>
                                 </th>
-                                <th class="num mm-sortable" data-sort="diasActual" tabindex="0" title="Ordenar por días actuales">
-                                    <span class="mm-sort-head">Días actual <span class="mm-sort-indicator">◇</span></span>
+                                <th class="num mm-sortable" data-sort="kgFaltaMasInventario" tabindex="0" title="Ordenar por faltante de producción más inventario actual">
+                                    <span class="mm-sort-head">Inv. Final <span class="mm-sort-indicator">◇</span></span>
                                 </th>
-                                <th class="num mm-sortable" data-sort="porcentajeMaximo" tabindex="0" title="Ordenar por porcentaje del máximo">
+                                <th class="num mm-sortable" data-sort="kgPedidosMes" tabindex="0" title="Ordenar por kilos pendientes de surtir">
+                                    <span class="mm-sort-head">Pedidos<span class="mm-sort-indicator">◇</span></span>
+                                </th>
+                                <th class="num mm-sortable" data-sort="porcentajeMaximo" tabindex="0" title="Ordenar por porcentaje arriba/abajo del máximo">
                                     <span class="mm-sort-head">% máximo <span class="mm-sort-indicator">◇</span></span>
                                 </th>
                                 <th class="mm-sortable" data-sort="estatus" tabindex="0" title="Ordenar por indicador">
@@ -226,7 +418,7 @@
                         </thead>
                         <tbody id="tablaBody">
                             <tr>
-                                <td colspan="15" class="mm-loading">
+                                <td colspan="16" class="mm-loading">
                                     Selecciona el mes y actualiza.
                                 </td>
                             </tr>
@@ -239,7 +431,7 @@
         <footer class="mm-footer">
             <div>
                 Regla del Excel: Base = producción mensual + inventario inicial.
-                Umbrales = Base / 30.4 × días definidos por clasificación.
+                Umbrales = Base / días reales del mes seleccionado × días definidos por clasificación.
             </div>
             <div id="fuenteDatos">
                 Inventario actual: última actualización disponible en dbo.InventarioSigo.
@@ -273,6 +465,37 @@
             <div class="mm-catalog-grid">
                 <section class="mm-catalog-card">
                     <h3>Reglas por clasificación</h3>
+
+                    <div class="mm-catalog-search"
+                         style="display:grid;grid-template-columns:minmax(150px,1.6fr) repeat(3,minmax(70px,.65fr)) auto;gap:6px;align-items:end;margin-bottom:7px;">
+                        <div>
+                            <label for="nuevaClasificacionNombre" style="display:block;font-size:.62rem;font-weight:800;margin-bottom:2px;">Nueva clasificación</label>
+                            <input id="nuevaClasificacionNombre"
+                                   type="text"
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   placeholder="Ej. ALTA ROTACIÓN" />
+                        </div>
+                        <div>
+                            <label for="nuevaClasificacionMin" style="display:block;font-size:.62rem;font-weight:800;margin-bottom:2px;">Mín.</label>
+                            <input id="nuevaClasificacionMin" type="number" min="0" step="0.1" value="0" />
+                        </div>
+                        <div>
+                            <label for="nuevaClasificacionIdeal" style="display:block;font-size:.62rem;font-weight:800;margin-bottom:2px;">Ideal</label>
+                            <input id="nuevaClasificacionIdeal" type="number" min="0" step="0.1" value="0" />
+                        </div>
+                        <div>
+                            <label for="nuevaClasificacionMax" style="display:block;font-size:.62rem;font-weight:800;margin-bottom:2px;">Máx.</label>
+                            <input id="nuevaClasificacionMax" type="number" min="0" step="0.1" value="0" />
+                        </div>
+                        <button id="btnAgregarClasificacion"
+                                type="button"
+                                class="mm-btn primary"
+                                title="Agregar clasificación">
+                            <i class="fa-solid fa-plus"></i> Agregar
+                        </button>
+                    </div>
+
                     <div class="mm-catalog-scroll">
                         <table class="mm-catalog-table">
                             <thead>
@@ -281,7 +504,6 @@
                                     <th>Mín.</th>
                                     <th>Ideal</th>
                                     <th>Máx.</th>
-                                    <th>Orden</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -312,6 +534,77 @@
                         </table>
                     </div>
                 </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="pedidosModal" class="mm-modal" aria-hidden="true">
+    <div class="mm-modal-shell">
+        <div class="mm-modal-header">
+            <div>
+                <strong>
+                    <i class="fa-solid fa-truck-ramp-box me-1" style="color:var(--mm-brand)"></i>
+                    Pedidos pendientes por surtir
+                </strong>
+                <div id="pedidosModalSubtitulo" style="margin-top:3px;color:var(--mm-muted);font-size:.68rem">
+                    Selecciona un SKU desde la columna Pedidos pendientes.
+                </div>
+            </div>
+
+            <button id="btnCerrarPedidos"
+                    type="button"
+                    class="mm-btn dark">
+                <i class="fa-solid fa-xmark"></i>
+                Cerrar
+            </button>
+        </div>
+
+        <div class="mm-modal-body">
+            <div class="mm-pedidos-summary">
+                <div class="mm-pedidos-kpi">
+                    <span>Pedidos pendientes</span>
+                    <strong id="pedidosKpiCantidad">0</strong>
+                </div>
+                <div class="mm-pedidos-kpi">
+                    <span>Kg pedido original</span>
+                    <strong id="pedidosKpiPedido">0 kg</strong>
+                </div>
+                <div class="mm-pedidos-kpi">
+                    <span>Kg surtido físico</span>
+                    <strong id="pedidosKpiSurtido">0 kg</strong>
+                </div>
+                <div class="mm-pedidos-kpi">
+                    <span>Kg pendientes surtir</span>
+                    <strong id="pedidosKpiPendiente">0 kg</strong>
+                </div>
+            </div>
+
+            <div class="mm-pedidos-table-wrap">
+                <table class="mm-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>OV</th>
+                            <th>Cliente</th>
+                            <th>Vendedor / canal</th>
+                            <th>Serie</th>
+                            <th>Entrega</th>
+                            <th>Estatus</th>
+                            <th class="num">Kg pedido</th>
+                            <th class="num">Kg surtido</th>
+                            <th class="num">Kg cerrado</th>
+                            <th class="num">Kg pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pedidosDetalleBody">
+                        <tr>
+                            <td colspan="10" class="mm-loading">
+                                Selecciona un SKU para consultar sus pedidos pendientes.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -665,7 +958,10 @@
             datos: '@Url.Action("InventarioMinMaxDatos", "ProcesosCg")',
             catalogo: '@Url.Action("InventarioMinMaxCatalogo", "ProcesosCg")',
             guardarClasificacion: '@Url.Action("GuardarInventarioMinMaxClasificacion", "ProcesosCg")',
-            guardarSku: '@Url.Action("GuardarInventarioMinMaxSkuClasificacion", "ProcesosCg")'
+            crearClasificacion: '@Url.Action("CrearInventarioMinMaxClasificacion", "ProcesosCg")',
+            eliminarClasificacion: '@Url.Action("EliminarInventarioMinMaxClasificacion", "ProcesosCg")',
+            guardarSku: '@Url.Action("GuardarInventarioMinMaxSkuClasificacion", "ProcesosCg")',
+            pedidosDetalle: '@Url.Action("InventarioMinMaxPedidosDetalle", "ProcesosCg")'
         };
 
         const LABELS = {
@@ -700,6 +996,8 @@
         const btnActualizar = el("btnActualizar");
         const btnCatalogo = el("btnCatalogo");
         const catalogoModal = el("catalogoModal");
+        const pedidosModal = el("pedidosModal");
+        const pedidosDetalleBody = el("pedidosDetalleBody");
 
         function normalizarNumero(value) {
             const n = Number(value);
@@ -777,6 +1075,22 @@
 
                 kgProduccionMes: normalizarNumero(
                     getVal(row, "kgProduccionMes", "KgProduccionMes")
+                ),
+
+                kgProducidoReal: normalizarNumero(
+                    getVal(row, "kgProducidoReal", "KgProducidoReal")
+                ),
+
+                kgFaltaProducir: normalizarNumero(
+                    getVal(row, "kgFaltaProducir", "KgFaltaProducir")
+                ),
+
+                kgFaltaMasInventario: normalizarNumero(
+                    getVal(row, "kgFaltaMasInventario", "KgFaltaMasInventario")
+                ),
+
+                kgPedidosMes: normalizarNumero(
+                    getVal(row, "kgPedidosMes", "KgPedidosMes")
                 ),
 
                 kgInventarioInicial: normalizarNumero(
@@ -921,7 +1235,7 @@
         function renderLoading(message) {
             tablaBody.innerHTML = `
                 <tr>
-                    <td colspan="15" class="mm-loading">
+                    <td colspan="16" class="mm-loading">
                         <span class="spinner-border spinner-border-sm me-1"></span>
                         ${esc(message)}
                     </td>
@@ -979,7 +1293,7 @@
 
                 tablaBody.innerHTML = `
                     <tr>
-                        <td colspan="15" class="mm-loading" style="color:#b42318 !important">
+                        <td colspan="16" class="mm-loading" style="color:#b42318 !important">
                             <i class="fa-solid fa-triangle-exclamation me-1"></i>
                             ${esc(error?.message || "No se pudo cargar la información.")}
                         </td>
@@ -1049,9 +1363,13 @@
         function esNumeroOrden(campo) {
             return [
                 "kgProduccionMes",
+                "kgProducidoReal",
+                "kgFaltaProducir",
                 "kgInventarioInicial",
                 "kgBaseCalculo",
                 "kgActual",
+                "kgFaltaMasInventario",
+                "kgPedidosMes",
                 "minimo",
                 "ideal",
                 "maximo",
@@ -1141,7 +1459,7 @@
             if (!lista.length) {
                 tablaBody.innerHTML = `
                     <tr>
-                        <td colspan="15" class="mm-loading">
+                        <td colspan="16" class="mm-loading">
                             No hay registros para los filtros seleccionados.
                         </td>
                     </tr>`;
@@ -1194,13 +1512,27 @@
                             ${formatoNumero(item.gapIdeal, 0)}
                         </td>
 
-                        <td class="num">
-                            ${formatoNumero(item.diasActual, 1)}
+                        <td class="num"
+                            title="Falta producir: ${formatoNumero(item.kgFaltaProducir, 0)} kg · Producido real: ${formatoNumero(item.kgProducidoReal, 0)} kg · Inventario actual: ${formatoNumero(item.kgActual, 0)} kg">
+                            <strong>${formatoNumero(item.kgFaltaMasInventario, 0)}</strong>
+                        </td>
+
+                        <td class="num" title="Kilos pendientes de surtir. Clic para ver el detalle por cliente y OV.">
+                            ${item.kgPedidosMes > 0
+                                ? `<button type="button"
+                                           class="mm-pedidos-link"
+                                           data-pedidos-sku="${esc(item.sku)}"
+                                           data-pedidos-producto="${esc(item.producto)}"
+                                           title="Ver pedidos pendientes de ${esc(item.sku)}">
+                                       ${formatoNumero(item.kgPedidosMes, 0)}
+                                       <i class="fa-solid fa-magnifying-glass"></i>
+                                   </button>`
+                                : `<strong>0</strong>`}
                         </td>
 
                         <td class="num">
                             <div class="mm-bar"
-                                 title="${formatoNumero(item.porcentajeMaximo, 1)}% del máximo">
+                                 title="${formatoNumero(item.porcentajeMaximo, 1)}% respecto al máximo">
                                 <div class="mm-bar-fill fill-${esc(item.estatus)}"
                                      style="width:${pct}%"></div>
                             </div>
@@ -1381,12 +1713,174 @@
             }
         }
 
+        function formatoFechaSoloDia(value) {
+            if (!value) return "-";
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return normalizarTexto(value) || "-";
+
+            return date.toLocaleDateString("es-MX", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            });
+        }
+
+        function cerrarPedidosDetalle() {
+            pedidosModal.classList.remove("show");
+            pedidosModal.setAttribute("aria-hidden", "true");
+
+            document.body.style.overflow = catalogoModal.classList.contains("show")
+                ? "hidden"
+                : "";
+        }
+
+        function renderPedidosDetalle(rows) {
+            if (!rows.length) {
+                pedidosDetalleBody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="mm-loading">
+                            <i class="fa-solid fa-circle-check me-1"></i>
+                            Este SKU no tiene pedidos pendientes de surtir en el mes seleccionado.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            pedidosDetalleBody.innerHTML = rows.map(item => `
+                <tr>
+                    <td>
+                        <strong>${esc(item.ordenVenta || `OV ${item.ordenVentaId}`)}</strong>
+                        <div style="color:var(--mm-muted);font-size:.62rem">#${formatoNumero(item.ordenVentaId)}</div>
+                    </td>
+
+                    <td class="mm-pedido-cliente">
+                        <strong>${esc(item.clienteNombre || item.clienteCodigo || "Sin cliente")}</strong>
+                        <small>${esc(item.clienteCodigo || "-")}</small>
+                    </td>
+
+                    <td>
+                        <strong>${esc(item.vendedor || "-")}</strong>
+                        <div style="color:var(--mm-muted);font-size:.62rem">${esc(item.canal || "SIN CANAL")}</div>
+                    </td>
+
+                    <td>${esc(item.serie || "-")}</td>
+                    <td>${esc(formatoFechaSoloDia(item.fechaEntrega))}</td>
+
+                    <td>
+                        <span class="mm-badge ${item.estatusId === 1 || item.estatusId === 3 ? "status-MIN" : "status-OK"}">
+                            ${esc(item.estatus || "Pendiente")}
+                        </span>
+                    </td>
+
+                    <td class="num">${formatoNumero(item.kgPedido, 0)}</td>
+                    <td class="num">${formatoNumero(item.kgSurtido, 0)}</td>
+                    <td class="num">${formatoNumero(item.kgCerrado, 0)}</td>
+                    <td class="num mm-gap-negative"><strong>${formatoNumero(item.kgPendiente, 0)}</strong></td>
+                </tr>`).join("");
+        }
+
+        async function abrirPedidosDetalle(sku, producto) {
+            const skuNormalizado = normalizarTexto(sku).toUpperCase();
+            if (!skuNormalizado) return;
+
+            const mes = mesInput.value || mesActual();
+            const mesFecha = `${mes}-01`;
+
+            pedidosModal.classList.add("show");
+            pedidosModal.setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+
+            el("pedidosModalSubtitulo").textContent =
+                `${skuNormalizado} · ${normalizarTexto(producto) || "Sin descripción"} · ${mes}`;
+
+            el("pedidosKpiCantidad").textContent = "…";
+            el("pedidosKpiPedido").textContent = "…";
+            el("pedidosKpiSurtido").textContent = "…";
+            el("pedidosKpiPendiente").textContent = "…";
+
+            pedidosDetalleBody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="mm-loading">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        Consultando pedidos pendientes…
+                    </td>
+                </tr>`;
+
+            try {
+                const url =
+                    `${URLS.pedidosDetalle}` +
+                    `?sku=${encodeURIComponent(skuNormalizado)}` +
+                    `&mes=${encodeURIComponent(mesFecha)}` +
+                    `&_=${Date.now()}`;
+
+                const response = await fetch(url, {
+                    method: "GET",
+                    cache: "no-store",
+                    headers: { "Accept": "application/json" }
+                });
+
+                const data = await leerJson(response);
+
+                if (data?.ok === false) {
+                    throw new Error(data.msg || data.error || "No se pudo consultar el detalle.");
+                }
+
+                const rows = Array.isArray(data?.data)
+                    ? data.data.map(x => ({
+                        ordenVentaId: normalizarNumero(getVal(x, "ordenVentaId", "OrdenVentaId")),
+                        ordenVenta: normalizarTexto(getVal(x, "ordenVenta", "OrdenVenta")),
+                        clienteCodigo: normalizarTexto(getVal(x, "clienteCodigo", "ClienteCodigo")),
+                        clienteNombre: normalizarTexto(getVal(x, "clienteNombre", "ClienteNombre")),
+                        vendedor: normalizarTexto(getVal(x, "vendedor", "Vendedor")),
+                        canal: normalizarTexto(getVal(x, "canal", "Canal")),
+                        serie: normalizarTexto(getVal(x, "serie", "Serie")),
+                        fechaRegistro: getVal(x, "fechaRegistro", "FechaRegistro"),
+                        fechaEntrega: getVal(x, "fechaEntrega", "FechaEntrega"),
+                        estatusId: normalizarNumero(getVal(x, "estatusId", "EstatusId")),
+                        estatus: normalizarTexto(getVal(x, "estatus", "Estatus")),
+                        kgPedido: normalizarNumero(getVal(x, "kgPedido", "KgPedido")),
+                        kgSurtido: normalizarNumero(getVal(x, "kgSurtido", "KgSurtido")),
+                        kgCerrado: normalizarNumero(getVal(x, "kgCerrado", "KgCerrado")),
+                        kgPendiente: normalizarNumero(getVal(x, "kgPendiente", "KgPendiente"))
+                    }))
+                    : [];
+
+                el("pedidosKpiCantidad").textContent = formatoNumero(
+                    getVal(data, "totalPedidos", "TotalPedidos") ?? rows.length
+                );
+                el("pedidosKpiPedido").textContent =
+                    `${formatoNumero(getVal(data, "kgPedido", "KgPedido"), 0)} kg`;
+                el("pedidosKpiSurtido").textContent =
+                    `${formatoNumero(getVal(data, "kgSurtido", "KgSurtido"), 0)} kg`;
+                el("pedidosKpiPendiente").textContent =
+                    `${formatoNumero(getVal(data, "kgPendiente", "KgPendiente"), 0)} kg`;
+
+                renderPedidosDetalle(rows);
+            } catch (error) {
+                console.error(error);
+
+                el("pedidosKpiCantidad").textContent = "0";
+                el("pedidosKpiPedido").textContent = "0 kg";
+                el("pedidosKpiSurtido").textContent = "0 kg";
+                el("pedidosKpiPendiente").textContent = "0 kg";
+
+                pedidosDetalleBody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="mm-loading" style="color:#b42318 !important">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                            ${esc(error?.message || "No se pudo cargar el detalle de pedidos pendientes.")}
+                        </td>
+                    </tr>`;
+            }
+        }
+
         async function cargarCatalogo() {
             const bodyClas = el("catalogoClasificacionesBody");
             const bodySku = el("catalogoSkuBody");
 
             bodyClas.innerHTML = `
-                <tr><td colspan="6" class="mm-loading">Cargando reglas…</td></tr>`;
+                <tr><td colspan="5" class="mm-loading">Cargando reglas…</td></tr>`;
             bodySku.innerHTML = `
                 <tr><td colspan="4" class="mm-loading">Cargando asignaciones…</td></tr>`;
 
@@ -1407,6 +1901,9 @@
 
             clasificaciones = Array.isArray(data?.clasificaciones)
                 ? data.clasificaciones.map(x => ({
+                    clasificacionId: normalizarNumero(
+                        getVal(x, "clasificacionId", "ClasificacionId")
+                    ),
                     clasificacion: normalizarTexto(
                         getVal(x, "clasificacion", "Clasificacion")
                     ).toUpperCase(),
@@ -1454,7 +1951,7 @@
 
             if (!clasificaciones.length) {
                 body.innerHTML = `
-                    <tr><td colspan="6" class="mm-loading">No hay clasificaciones.</td></tr>`;
+                    <tr><td colspan="5" class="mm-loading">No hay clasificaciones.</td></tr>`;
                 return;
             }
 
@@ -1485,18 +1982,20 @@
                                value="${item.diasMaximo}" />
                     </td>
                     <td>
-                        <input data-field="orden"
-                               type="number"
-                               min="1"
-                               step="1"
-                               value="${item.orden}" />
-                    </td>
-                    <td>
-                        <button type="button"
-                                class="mm-btn primary"
-                                data-save-clas="${index}">
-                            Guardar
-                        </button>
+                        <div style="display:flex;gap:5px;justify-content:flex-end;white-space:nowrap;">
+                            <button type="button"
+                                    class="mm-btn primary"
+                                    data-save-clas="${index}">
+                                Guardar
+                            </button>
+                            <button type="button"
+                                    class="mm-btn dark"
+                                    data-delete-clas="${item.clasificacionId}"
+                                    data-delete-name="${esc(item.clasificacion)}"
+                                    title="Eliminar clasificación">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>`).join("");
         }
@@ -1580,9 +2079,8 @@
                 diasMaximo: normalizarNumero(
                     row.querySelector('[data-field="diasMaximo"]').value
                 ),
-                orden: normalizarNumero(
-                    row.querySelector('[data-field="orden"]').value
-                ),
+                // El orden se conserva internamente; ya no se muestra en el modal.
+                orden: normalizarNumero(item.orden),
                 activo: true
             };
 
@@ -1607,6 +2105,91 @@
             } finally {
                 button.disabled = false;
                 button.textContent = "Guardar";
+            }
+        }
+
+        async function crearClasificacion() {
+            const nombreInput = el("nuevaClasificacionNombre");
+            const minInput = el("nuevaClasificacionMin");
+            const idealInput = el("nuevaClasificacionIdeal");
+            const maxInput = el("nuevaClasificacionMax");
+            const button = el("btnAgregarClasificacion");
+
+            const payload = {
+                clasificacion: normalizarTexto(nombreInput.value).toUpperCase(),
+                diasMinimo: normalizarNumero(minInput.value),
+                diasIdeal: normalizarNumero(idealInput.value),
+                diasMaximo: normalizarNumero(maxInput.value),
+                orden: 0,
+                activo: true
+            };
+
+            if (!payload.clasificacion) {
+                alert("Escribe el nombre de la nueva clasificación.");
+                nombreInput.focus();
+                return;
+            }
+
+            if (
+                payload.diasMinimo < 0 ||
+                payload.diasIdeal < payload.diasMinimo ||
+                payload.diasMaximo < payload.diasIdeal
+            ) {
+                alert("La regla debe cumplir mínimo ≤ ideal ≤ máximo.");
+                return;
+            }
+
+            button.disabled = true;
+            button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Agregando`;
+
+            try {
+                await postJson(URLS.crearClasificacion, payload);
+
+                nombreInput.value = "";
+                minInput.value = "0";
+                idealInput.value = "0";
+                maxInput.value = "0";
+
+                await cargarCatalogo();
+                await cargarDatos();
+                nombreInput.focus();
+            } catch (error) {
+                alert(error?.message || "No se pudo agregar la clasificación.");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = `<i class="fa-solid fa-plus"></i> Agregar`;
+            }
+        }
+
+        async function eliminarClasificacion(clasificacionId, nombre, button) {
+            const id = normalizarNumero(clasificacionId);
+            if (id <= 0) return;
+
+            const nombreSeguro = normalizarTexto(nombre) || "esta clasificación";
+
+            if (!window.confirm(
+                `¿Eliminar la clasificación "${nombreSeguro}"?\n\n` +
+                `Por seguridad, el sistema no permitirá eliminarla si todavía tiene SKU asignados.`
+            )) {
+                return;
+            }
+
+            button.disabled = true;
+            const htmlAnterior = button.innerHTML;
+            button.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+            try {
+                await postJson(URLS.eliminarClasificacion, {
+                    clasificacionId: id
+                });
+
+                await cargarCatalogo();
+                await cargarDatos();
+            } catch (error) {
+                alert(error?.message || "No se pudo eliminar la clasificación.");
+            } finally {
+                button.disabled = false;
+                button.innerHTML = htmlAnterior;
             }
         }
 
@@ -1676,7 +2259,8 @@
                 "IDEAL",
                 "MAXIMO",
                 "GAP_IDEAL",
-                "DIAS_ACTUAL",
+                "FALTA_PRODUCIR_MAS_INVENTARIO",
+                "PEDIDOS_PENDIENTES",
                 "PORCENTAJE_MAXIMO",
                 "INDICADOR"
             ];
@@ -1697,7 +2281,8 @@
                 item.ideal,
                 item.maximo,
                 item.gapIdeal,
-                item.diasActual,
+                item.kgFaltaMasInventario,
+                item.kgPedidosMes,
                 item.porcentajeMaximo,
                 LABELS[item.estatus] || item.estatus
             ]);
@@ -1742,6 +2327,20 @@
         estatusSelect.addEventListener("change", renderizar);
 
         /*
+         * Columna Pedidos pendientes:
+         * abre el detalle de las OV que todavía tienen kilos por surtir.
+         */
+        tablaBody.addEventListener("click", event => {
+            const button = event.target.closest("[data-pedidos-sku]");
+            if (!button) return;
+
+            abrirPedidosDetalle(
+                button.getAttribute("data-pedidos-sku"),
+                button.getAttribute("data-pedidos-producto")
+            );
+        });
+
+        /*
          * Gráfica "Mayor exceso o faltante contra ideal":
          * clic / Enter / Espacio abre el detalle del SKU seleccionado.
          */
@@ -1783,6 +2382,7 @@
         btnActualizar.addEventListener("click", cargarDatos);
         btnCatalogo.addEventListener("click", abrirCatalogo);
         el("btnCerrarCatalogo").addEventListener("click", cerrarCatalogo);
+        el("btnCerrarPedidos").addEventListener("click", cerrarPedidosDetalle);
         el("btnCsv").addEventListener("click", exportarCsv);
 
 
@@ -1791,14 +2391,33 @@
             searchTimer = setTimeout(renderCatalogoSkus, 130);
         });
 
-        el("catalogoClasificacionesBody").addEventListener("click", event => {
-            const button = event.target.closest("[data-save-clas]");
-            if (!button) return;
+        el("btnAgregarClasificacion").addEventListener("click", crearClasificacion);
 
-            guardarClasificacion(
-                Number(button.getAttribute("data-save-clas")),
-                button
-            );
+        el("nuevaClasificacionNombre").addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                crearClasificacion();
+            }
+        });
+
+        el("catalogoClasificacionesBody").addEventListener("click", event => {
+            const saveButton = event.target.closest("[data-save-clas]");
+            if (saveButton) {
+                guardarClasificacion(
+                    Number(saveButton.getAttribute("data-save-clas")),
+                    saveButton
+                );
+                return;
+            }
+
+            const deleteButton = event.target.closest("[data-delete-clas]");
+            if (deleteButton) {
+                eliminarClasificacion(
+                    deleteButton.getAttribute("data-delete-clas"),
+                    deleteButton.getAttribute("data-delete-name"),
+                    deleteButton
+                );
+            }
         });
 
         el("catalogoSkuBody").addEventListener("click", event => {
@@ -1817,8 +2436,21 @@
             }
         });
 
+        pedidosModal.addEventListener("click", event => {
+            if (event.target === pedidosModal) {
+                cerrarPedidosDetalle();
+            }
+        });
+
         document.addEventListener("keydown", event => {
-            if (event.key === "Escape" && catalogoModal.classList.contains("show")) {
+            if (event.key !== "Escape") return;
+
+            if (pedidosModal.classList.contains("show")) {
+                cerrarPedidosDetalle();
+                return;
+            }
+
+            if (catalogoModal.classList.contains("show")) {
                 cerrarCatalogo();
             }
         });

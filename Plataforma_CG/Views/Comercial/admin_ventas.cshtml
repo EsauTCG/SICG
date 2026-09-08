@@ -4600,7 +4600,12 @@ body:not([data-theme="dark"]) #trModal .modal-dialog{
                 }
 
 
-                function setActualizadoAhora(){ document.getElementById('lblActualizado').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX'); }
+                function setActualizadoAhora(){
+                    const lbl = document.getElementById('lblActualizado');
+                    if (lbl) {
+                        lbl.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+                    }
+                }
                 function isCompletado(p){ return Number(p?.estatus ?? p?.Estatus ?? 0) === 4; }
 
                 function contarCriticos(list){
@@ -4827,7 +4832,7 @@ body:not([data-theme="dark"]) #trModal .modal-dialog{
                 // CARGAR PEDIDOS SEGÚN VISTA
                 //======================================
                 async function cargarPedidos(){
-                    const tbody=$('#pedidosBody');
+                    const tbody = $('#pedidosBody');
                     tbody.html(`<tr><td colspan="8" class="empty">⏳ Cargando pedidos...</td></tr>`);
 
                     const endpoint = (vistaActual === 'completados')
@@ -4835,27 +4840,69 @@ body:not([data-theme="dark"]) #trModal .modal-dialog{
                         : '/Comercial/ObtenerPedidosLiberados';
 
                     try{
-                        const res = await fetch(endpoint,{cache:'no-store'});
-                        if(!res.ok) throw new Error('Error al consultar pedidos.');
-                        const pedidos = await res.json();
+                        const res = await fetch(endpoint, {
+                            headers: { 'Accept': 'application/json' },
+                            cache: 'no-store'
+                        });
+
+                        const raw = await res.text();
+
+                        if (!res.ok) {
+                            console.error('❌ Error al consultar pedidos', {
+                                endpoint,
+                                status: res.status,
+                                statusText: res.statusText,
+                                respuesta: raw
+                            });
+
+                            throw new Error(
+                                `Error al consultar pedidos. HTTP ${res.status}${raw ? ' - ' + raw.substring(0, 500) : ''}`
+                            );
+                        }
+
+                        let pedidos = [];
+                        try {
+                            pedidos = raw ? JSON.parse(raw) : [];
+                        } catch (jsonError) {
+                            console.error('❌ El servidor no devolvió JSON válido al cargar pedidos:', raw);
+                            throw new Error('La respuesta de pedidos no es JSON válido.');
+                        }
 
                         pedidosCache = Array.isArray(pedidos) ? pedidos : [];
 
                         renderPedidos();
                         setActualizadoAhora();
 
+                        // El modal de urgentes está comentado en el HTML actual.
+                        // Por eso primero validamos que ambos elementos existan.
                         if (vistaActual !== 'completados') {
                             const urg = contarCriticos(pedidosCache);
-                            if(urg>0){
-                                document.getElementById('alertUrgentesMsg').textContent =
-                                    `⚠️ Atención: tienes ${urg} pedido${urg===1?'':'s'} urgentes por revisar.`;
-                                // Modal NO bloqueante
-                                new bootstrap.Modal(document.getElementById('alertUrgentes'), { backdrop: false, keyboard: true }).show();
+
+                            if (urg > 0) {
+                                const msgEl = document.getElementById('alertUrgentesMsg');
+                                const modalEl = document.getElementById('alertUrgentes');
+
+                                if (msgEl && modalEl) {
+                                    msgEl.textContent =
+                                        `⚠️ Atención: tienes ${urg} pedido${urg === 1 ? '' : 's'} urgentes por revisar.`;
+
+                                    bootstrap.Modal.getOrCreateInstance(modalEl, {
+                                        backdrop: false,
+                                        keyboard: true
+                                    }).show();
+                                } else {
+                                    // No es error: el modal está comentado/no existe.
+                                    console.info(`ℹ️ Hay ${urg} pedido(s) urgente(s), pero el modal #alertUrgentes no está activo.`);
+                                }
                             }
                         }
                     }catch(e){
-                        console.error(e);
-                        tbody.html(`<tr><td colspan="8" class="empty text-danger">Error al cargar los pedidos.</td></tr>`);
+                        console.error('❌ cargarPedidos:', e);
+                        tbody.html(
+                            `<tr><td colspan="8" class="empty text-danger">` +
+                            `Error al cargar los pedidos.<br><small>${_escapeHtmlDiagnostico(e?.message || String(e))}</small>` +
+                            `</td></tr>`
+                        );
                         setConteo(0);
                     }
                 }
@@ -5769,8 +5816,31 @@ pvTbody.appendChild(tr);
                 const _ovModalCache = new Map();
                 const _ovModalCacheMs = 30000; // 30 segundos
 
+                function _escapeHtmlDiagnostico(valor) {
+                    return String(valor ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                }
+
+                function _resumenErrorServidor(texto, max = 1200) {
+                    const limpio = String(texto ?? '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    if (!limpio) return 'El servidor no devolvió detalle del error.';
+                    return limpio.length > max ? limpio.substring(0, max) + '…' : limpio;
+                }
+
                 async function _getOrdenVentaJsonRapido(id) {
-                    const key = String(id);
+                    const key = String(id ?? '').trim();
+
+                    if (!key) {
+                        throw new Error('No se recibió el Id de la Orden de Venta.');
+                    }
+
                     const now = Date.now();
                     const cached = _ovModalCache.get(key);
 
@@ -5780,22 +5850,94 @@ pvTbody.appendChild(tr);
 
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 20000);
+                    const url = `/Comercial/OrdenVentaJson?id=${encodeURIComponent(key)}`;
 
                     try {
-                        const res = await fetch(
-                            `/Comercial/OrdenVentaJson?id=${encodeURIComponent(id)}`,
-                            {
-                                headers: { 'Accept': 'application/json' },
-                                cache: 'no-store',
-                                signal: controller.signal
-                            }
-                        );
+                        console.log('🔎 Consultando OrdenVentaJson:', {
+                            id: key,
+                            url
+                        });
+
+                        const res = await fetch(url, {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            cache: 'no-store',
+                            signal: controller.signal
+                        });
+
+                        // Leemos como texto primero para poder ver el detalle
+                        // aunque el servidor responda 500 con HTML o texto plano.
+                        const raw = await res.text();
+                        const contentType = res.headers.get('content-type') || '';
+
+                        console.log('📥 Respuesta OrdenVentaJson:', {
+                            id: key,
+                            status: res.status,
+                            statusText: res.statusText,
+                            contentType,
+                            bodyPreview: raw ? raw.substring(0, 1500) : '(vacío)'
+                        });
 
                         if (!res.ok) {
-                            throw new Error(`HTTP ${res.status}`);
+                            const detalle = _resumenErrorServidor(raw);
+
+                            const error = new Error(
+                                `OrdenVentaJson falló. HTTP ${res.status} ${res.statusText || ''}. ${detalle}`
+                            );
+
+                            error.httpStatus = res.status;
+                            error.url = url;
+                            error.serverBody = raw;
+                            error.contentType = contentType;
+
+                            console.error('❌ OrdenVentaJson devolvió error:', {
+                                id: key,
+                                url,
+                                status: res.status,
+                                statusText: res.statusText,
+                                contentType,
+                                respuestaCompleta: raw
+                            });
+
+                            throw error;
                         }
 
-                        const data = await res.json();
+                        if (!raw || !raw.trim()) {
+                            throw new Error(
+                                `OrdenVentaJson respondió HTTP ${res.status}, pero el cuerpo llegó vacío para id=${key}.`
+                            );
+                        }
+
+                        let data;
+                        try {
+                            data = JSON.parse(raw);
+                        } catch (jsonError) {
+                            console.error('❌ OrdenVentaJson no devolvió JSON válido:', {
+                                id: key,
+                                url,
+                                contentType,
+                                respuestaCompleta: raw,
+                                jsonError
+                            });
+
+                            const error = new Error(
+                                `OrdenVentaJson respondió correctamente, pero el contenido no es JSON válido. ` +
+                                `Content-Type: ${contentType || 'sin content-type'}.`
+                            );
+
+                            error.serverBody = raw;
+                            error.url = url;
+                            throw error;
+                        }
+
+                        if (!data || typeof data !== 'object') {
+                            throw new Error(
+                                `OrdenVentaJson devolvió una respuesta inválida para id=${key}.`
+                            );
+                        }
 
                         _ovModalCache.set(key, {
                             ts: Date.now(),
@@ -5803,6 +5945,18 @@ pvTbody.appendChild(tr);
                         });
 
                         return data;
+                    }
+                    catch (e) {
+                        if (e?.name === 'AbortError') {
+                            const timeoutError = new Error(
+                                `Tiempo de espera agotado al consultar OrdenVentaJson para id=${key}.`
+                            );
+                            timeoutError.name = 'AbortError';
+                            timeoutError.url = url;
+                            throw timeoutError;
+                        }
+
+                        throw e;
                     }
                     finally {
                         clearTimeout(timeoutId);
@@ -5856,17 +6010,36 @@ pvTbody.appendChild(tr);
                     }catch(e){
                         console.error('❌ Error al cargar OV:', e);
 
-                        document.getElementById('ovSubtitulo').textContent =
+                        const subtitulo = document.getElementById('ovSubtitulo');
+                        if (subtitulo) {
+                            subtitulo.textContent =
+                                e?.name === 'AbortError'
+                                    ? 'Tiempo de espera agotado'
+                                    : `Error HTTP ${e?.httpStatus ?? ''}`.trim();
+                        }
+
+                        const detalle =
                             e?.name === 'AbortError'
-                                ? 'Tiempo de espera agotado'
-                                : 'Error';
+                                ? e.message
+                                : _resumenErrorServidor(
+                                    e?.serverBody ||
+                                    e?.message ||
+                                    'No fue posible cargar el pedido.'
+                                  );
 
                         if (tbodyLoading) {
                             tbodyLoading.innerHTML = `
                                 <tr>
-                                    <td colspan="9"
-                                        class="text-center text-danger py-3">
-                                        No fue posible cargar el pedido.
+                                    <td colspan="9" class="text-center text-danger py-3">
+                                        <div class="fw-bold mb-1">No fue posible cargar el pedido ${_escapeHtmlDiagnostico(id)}.</div>
+                                        <div class="small text-start mx-auto"
+                                             style="max-width:1100px;white-space:normal;word-break:break-word;">
+                                            ${_escapeHtmlDiagnostico(detalle)}
+                                        </div>
+                                        <div class="small text-muted mt-2">
+                                            Revisa la consola del navegador para ver la respuesta completa de
+                                            /Comercial/OrdenVentaJson.
+                                        </div>
                                     </td>
                                 </tr>`;
                         }

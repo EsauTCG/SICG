@@ -18,6 +18,66 @@
             );
 
     var todos = Model.EsTodosAlmacenes;
+
+    // Prioridad calculada y validada por el servidor.
+    // El coordinador puede modificarla desde /Surtido/Coordinador.
+    var prioridadesBackend =
+        ViewBag.PrioridadesPedido as IDictionary<string, int>;
+
+    var prioridadesPorPedido =
+        prioridadesBackend != null
+            ? new Dictionary<string, int>(
+                prioridadesBackend,
+                StringComparer.OrdinalIgnoreCase
+              )
+            : new Dictionary<string, int>(
+                StringComparer.OrdinalIgnoreCase
+              );
+
+    // Fallback únicamente si el controlador todavía no envía prioridades.
+    foreach (var grupo in Model.Pedidos
+        .Where(x => x.CajasPendientes > 0)
+        .GroupBy(x =>
+            (x.AlmacenCodigo ?? "").Trim().ToUpperInvariant()))
+    {
+        var numero = 0;
+
+        foreach (var pedido in grupo
+            .OrderBy(x => x.FechaHora)
+            .ThenBy(x => x.SolicitudSurtidoId))
+        {
+            numero++;
+
+            var clave =
+                $"{(pedido.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{pedido.SolicitudSurtidoId}";
+
+            if (!prioridadesPorPedido.ContainsKey(clave))
+            {
+                prioridadesPorPedido[clave] =
+                    numero;
+            }
+        }
+    }
+
+    var pedidosOrdenados =
+        Model.Pedidos
+            .Where(x => x.CajasPendientes > 0)
+            .OrderBy(x => x.AlmacenNombre)
+            .ThenBy(x =>
+            {
+                var clave =
+                    $"{(x.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{x.SolicitudSurtidoId}";
+
+                return prioridadesPorPedido.TryGetValue(
+                    clave,
+                    out var prioridad
+                )
+                    ? prioridad
+                    : int.MaxValue;
+            })
+            .ThenBy(x => x.FechaHora)
+            .ThenBy(x => x.SolicitudSurtidoId)
+            .ToList();
 }
 
 <style>
@@ -676,6 +736,343 @@
 @@media(max-width:590px){.pk-hero{grid-template-columns:1fr!important}.pk-score{display:none!important}.pk-orders{grid-template-columns:1fr!important}.pk-order-meta{display:block!important}.pk-filter{grid-template-columns:1fr!important}.pk-filter .pk-field:first-child{grid-column:auto!important}}
 </style>
 
+<style id="pk-margen-layout-final">
+    /* =========================================================
+       AJUSTE FINAL DE ANCHO CONTRA EL VIEWPORT
+       Evita que _Layout2 + sidebar empujen esta vista fuera
+       del borde derecho visible.
+       ========================================================= */
+
+    body:has(.pk-wrap) .layout-main-content,
+    body:has(.pk-wrap) .layout-container-fluid,
+    body:has(.pk-wrap) .container,
+    body:has(.pk-wrap) .container-fluid {
+        min-width:0 !important;
+        box-sizing:border-box !important;
+    }
+
+    .pk-wrap {
+        /* Reserva: sidebar/layout + colchón derecho visible */
+        --pk-layout-reserve:140px;
+
+        width:100% !important;
+        max-width:calc(100vw - var(--pk-layout-reserve)) !important;
+        min-width:0 !important;
+        margin-left:0 !important;
+        margin-right:auto !important;
+        overflow-x:hidden !important;
+        box-sizing:border-box !important;
+    }
+
+    .pk-shell,
+    .pk-topbar,
+    .pk-hero,
+    .pk-kpis,
+    .pk-kpi,
+    .pk-panel,
+    .pk-panel-head,
+    .pk-warehouses,
+    .pk-filter,
+    .pk-field,
+    .pk-orders-head,
+    .pk-orders,
+    .pk-order,
+    .pk-order-top,
+    .pk-pending-box,
+    .pk-progress-row {
+        min-width:0 !important;
+        max-width:100% !important;
+        box-sizing:border-box !important;
+    }
+
+    .pk-shell {
+        width:100% !important;
+        margin-left:0 !important;
+        margin-right:0 !important;
+    }
+
+    /* Los hijos de grid/flex deben poder encogerse */
+    .pk-hero > *,
+    .pk-kpis > *,
+    .pk-panel-head > *,
+    .pk-filter > *,
+    .pk-orders-head > *,
+    .pk-orders > *,
+    .pk-order-top > *,
+    .pk-pending-box > * {
+        min-width:0 !important;
+    }
+
+    /* Textos largos no deben ampliar tarjetas o filtros */
+    .pk-hero h1,
+    .pk-hero p,
+    .pk-help,
+    .pk-kpi small,
+    .pk-kpi strong,
+    .pk-kpi span,
+    .pk-panel-head h2,
+    .pk-panel-head p,
+    .pk-pill,
+    .pk-wh-btn,
+    .pk-order-number,
+    .pk-warehouse-badge,
+    .pk-client,
+    .pk-order-meta,
+    .pk-pending-box span,
+    .pk-pending-box strong {
+        overflow-wrap:anywhere;
+        word-break:break-word;
+    }
+
+    .pk-field select,
+    .pk-field input,
+    .pk-filter button {
+        max-width:100% !important;
+        min-width:0 !important;
+        box-sizing:border-box !important;
+    }
+
+    /* Laptop: conserva margen derecho sin desperdiciar demasiado ancho */
+    @@media (max-width:1200px) {
+        .pk-wrap {
+            --pk-layout-reserve:115px;
+        }
+    }
+
+    /* Tablet: normalmente el sidebar cambia/colapsa */
+    @@media (max-width:900px) {
+        .pk-wrap {
+            --pk-layout-reserve:28px;
+        }
+    }
+
+    @@media (max-width:590px) {
+        .pk-wrap {
+            --pk-layout-reserve:14px;
+        }
+    }
+</style>
+
+
+
+<style id="pk-prioridad-obligatoria-final">
+    /* =========================================================
+       COLA OBLIGATORIA DE PEDIDOS
+       Prioridad 1 = pedido pendiente más antiguo (FechaHora).
+       ========================================================= */
+
+    .pk-priority-notice {
+        min-width:0;
+        max-width:100%;
+        box-sizing:border-box;
+
+        margin-top:6px;
+        padding:8px 10px;
+
+        display:grid;
+        grid-template-columns:30px minmax(0,1fr);
+        gap:8px;
+        align-items:center;
+
+        background:#fff8e7;
+        border:1px solid #efd69a;
+        border-left:5px solid var(--pk-orange);
+        border-radius:10px;
+    }
+
+    .pk-priority-notice-icon {
+        width:30px;
+        height:30px;
+        display:grid;
+        place-items:center;
+
+        border-radius:8px;
+        background:#fff0c9;
+        color:#8b6500;
+
+        font-size:14px;
+        font-weight:950;
+    }
+
+    .pk-priority-notice strong {
+        display:block;
+        color:#604a10;
+        font-size:9px;
+        font-weight:950;
+    }
+
+    .pk-priority-notice span {
+        display:block;
+        margin-top:2px;
+        color:#776326;
+        font-size:7px;
+        line-height:1.3;
+        font-weight:700;
+    }
+
+    .pk-priority-row {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:6px;
+        flex-wrap:wrap;
+
+        margin:-2px 0 7px;
+        padding-left:4px;
+    }
+
+    .pk-priority-badge,
+    .pk-priority-state {
+        min-height:25px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+
+        padding:0 8px;
+        border-radius:999px;
+
+        font-size:7px;
+        line-height:1;
+        font-weight:950;
+        letter-spacing:.03em;
+        white-space:nowrap;
+    }
+
+    .pk-priority-badge.active {
+        background:#e7f5ed;
+        color:#17683f;
+        border:1px solid #b8ddc7;
+    }
+
+    .pk-priority-state.active {
+        background:#198754;
+        color:#fff;
+        border:1px solid #146c43;
+    }
+
+    .pk-priority-badge.waiting {
+        background:#f0f3f5;
+        color:#65737d;
+        border:1px solid #d5dde2;
+    }
+
+    .pk-priority-state.waiting {
+        background:#eceff1;
+        color:#697780;
+        border:1px solid #d3dbe0;
+    }
+
+    /* Prioridad 1: se destaca visualmente */
+    .pk-order.priority-active {
+        border-color:#8cc7a6 !important;
+        border-left-color:#198754 !important;
+        background:#f8fdf9 !important;
+        box-shadow:0 8px 24px rgba(25,135,84,.10) !important;
+    }
+
+    .pk-order.priority-active::before {
+        background:#198754 !important;
+    }
+
+    .pk-order.priority-active .pk-open span {
+        background:linear-gradient(180deg,#25a765,#198754) !important;
+        border-color:#146c43 !important;
+    }
+
+    /* Prioridades siguientes: visibles, pero no seleccionables */
+    .pk-order.priority-locked {
+        cursor:not-allowed !important;
+        opacity:.72;
+        background:#f4f6f7 !important;
+        border-color:#d6dde1 !important;
+        box-shadow:none !important;
+    }
+
+    .pk-order.priority-locked::before {
+        background:#9ba7ae !important;
+    }
+
+    .pk-order.priority-locked:hover {
+        transform:none !important;
+        box-shadow:none !important;
+        border-color:#d6dde1 !important;
+    }
+
+    .pk-order.priority-locked .pk-open span.locked {
+        background:#a5afb5 !important;
+        border-color:#929da4 !important;
+        color:#fff !important;
+    }
+
+    .pk-order.priority-locked .pk-progress > i {
+        opacity:.55;
+    }
+
+    @@media(max-width:590px) {
+        .pk-priority-notice {
+            grid-template-columns:26px minmax(0,1fr);
+        }
+
+        .pk-priority-notice-icon {
+            width:26px;
+            height:26px;
+        }
+
+        .pk-priority-row {
+            align-items:stretch;
+        }
+
+        .pk-priority-badge,
+        .pk-priority-state {
+            flex:1 1 auto;
+            white-space:normal;
+            text-align:center;
+        }
+    }
+</style>
+
+
+<style id="pk-prioridad-por-almacen-v2">
+    .pk-filter-priority {
+        grid-template-columns:minmax(220px,1fr) auto !important;
+        align-items:end !important;
+    }
+
+    .pk-order.priority-active .pk-warehouse-badge {
+        border-color:#9bcdb0 !important;
+        background:#eef9f2 !important;
+    }
+
+    @@media(max-width:760px) {
+        .pk-filter-priority {
+            grid-template-columns:1fr !important;
+        }
+    }
+</style>
+
+
+<style id="pk-priority-live-sync-css">
+    .pk-sync-dot {
+        width:7px;
+        height:7px;
+        display:inline-block;
+        margin-right:5px;
+        border-radius:999px;
+        background:#198754;
+        box-shadow:0 0 0 3px rgba(25,135,84,.12);
+        vertical-align:middle;
+    }
+
+    .pk-sync-dot.checking {
+        background:#d98200;
+        box-shadow:0 0 0 3px rgba(217,130,0,.12);
+    }
+
+    .pk-sync-dot.error {
+        background:#c0392b;
+        box-shadow:0 0 0 3px rgba(192,57,43,.12);
+    }
+</style>
 
 <div class="pk-wrap">
     <main class="pk-shell">
@@ -684,7 +1081,10 @@
             <a class="pk-back" href="@Url.Action("Surtido_cedis", "Surtido")">
                 ← Regresar al inicio
             </a>
-            <div class="pk-help">Selecciona un pedido y toca <strong>ABRIR PEDIDO</strong>.</div>
+            <div class="pk-help">
+                <span id="pk-priority-sync-dot" class="pk-sync-dot"></span>
+                Prioridades sincronizadas automáticamente
+            </div>
         </div>
 
         <section class="pk-hero">
@@ -698,8 +1098,8 @@
                 </h1>
 
                 <p>
-                    Aquí están tus pedidos para surtir. Busca el pedido, revisa las cajas pendientes y toca el botón azul para empezar.
-                    Cada pedido conserva su propio almacén para trabajar correctamente.
+                    Los pedidos están ordenados por prioridad operativa. Debes terminar primero la Prioridad 1;
+                    al completarla, el siguiente pedido pasa automáticamente a ser la nueva Prioridad 1.
                 </p>
             </div>
 
@@ -741,8 +1141,8 @@
         <section class="pk-panel">
             <div class="pk-panel-head">
                 <div>
-                    <h2>Filtrar pedidos</h2>
-                    <p>Toca un almacén o cambia las fechas si necesitas buscar otro pedido.</p>
+                    <h2>Filtrar por almacén</h2>
+                    <p>La cola siempre incluye todos los pedidos pendientes; la fecha no puede cambiar la prioridad.</p>
                 </div>
                 <span class="pk-pill">@Model.Almacenes.Count almacén@(Model.Almacenes.Count == 1 ? "" : "es")</span>
             </div>
@@ -752,11 +1152,7 @@
                    href="@Url.Action(
                         "Picking",
                         "Surtido",
-                        new
-                        {
-                            fechaInicio = Model.FechaInicio.ToString("yyyy-MM-dd"),
-                            fechaFin = Model.FechaFin.ToString("yyyy-MM-dd")
-                        }
+                        new { }
                    )">
                     TODOS
                 </a>
@@ -777,9 +1173,7 @@
                             "Surtido",
                             new
                             {
-                                almacen = a.Codigo,
-                                fechaInicio = Model.FechaInicio.ToString("yyyy-MM-dd"),
-                                fechaFin = Model.FechaFin.ToString("yyyy-MM-dd")
+                                almacen = a.Codigo
                             }
                        )">
                         @a.Codigo · @a.Nombre
@@ -787,7 +1181,7 @@
                 }
             </div>
 
-            <form class="pk-filter"
+            <form class="pk-filter pk-filter-priority"
                   method="get"
                   action="@Url.Action("Picking", "Surtido")">
 
@@ -813,21 +1207,7 @@
                     </select>
                 </div>
 
-                <div class="pk-field">
-                    <label>Desde</label>
-                    <input type="date"
-                           name="fechaInicio"
-                           value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
-                </div>
-
-                <div class="pk-field">
-                    <label>Hasta</label>
-                    <input type="date"
-                           name="fechaFin"
-                           value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
-                </div>
-
-                <button type="submit">Aplicar filtros</button>
+                <button type="submit">VER COLA</button>
             </form>
         </section>
 
@@ -838,17 +1218,53 @@
 
         <div class="pk-orders-head">
             <div>
-                <h2>Mis pedidos para surtir</h2>
-                <p>Los que tienen más cajas pendientes necesitan más trabajo.</p>
+                <h2>Cola de pedidos para surtir</h2>
+                <p>Cada almacén tiene su propia cola. Solo la Prioridad 1 de cada almacén está habilitada.</p>
             </div>
             <span class="pk-pill">@Model.NombreConexion</span>
         </div>
 
-        @if (Model.Pedidos.Any())
+        @if (pedidosOrdenados.Any())
         {
+            <section class="pk-priority-notice">
+                <div class="pk-priority-notice-icon">!</div>
+                <div>
+                    <strong>Orden obligatorio de surtido</strong>
+                    <span>
+                        En cada almacén trabaja primero el pedido marcado como <b>PRIORIDAD 1</b>.
+                        Al terminarlo, la Prioridad 2 pasa automáticamente a Prioridad 1.
+                    </span>
+                </div>
+            </section>
+
             <section class="pk-orders">
-                @foreach (var o in Model.Pedidos)
+                @for (var indicePedido = 0; indicePedido < pedidosOrdenados.Count; indicePedido++)
                 {
+                    var o = pedidosOrdenados[indicePedido];
+
+                    var clavePrioridad =
+                        $"{(o.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{o.SolicitudSurtidoId}";
+
+                    var prioridadPedido =
+                        prioridadesPorPedido.TryGetValue(
+                            clavePrioridad,
+                            out var prioridadCalculada
+                        )
+                            ? prioridadCalculada
+                            : int.MaxValue;
+
+                    var esPrioridadActiva = prioridadPedido == 1;
+
+                    var urlPedido =
+                        Url.Action(
+                            "PedidoPicking",
+                            "Surtido",
+                            new
+                            {
+                                almacen = o.AlmacenCodigo,
+                                solicitudSurtidoId = o.SolicitudSurtidoId
+                            }
+                        );
                     var statusClass =
                         o.AvancePorcentaje >= 100
                             ? "status-done"
@@ -858,17 +1274,31 @@
                                     ? "status-progress"
                                     : "status-start";
 
-                    <a class="pk-order @statusClass"
-                       href="@Url.Action(
-                            "PedidoPicking",
-                            "Surtido",
-                            new
+                    <a class="pk-order @statusClass @(esPrioridadActiva ? "priority-active" : "priority-locked")"
+                       href="@(esPrioridadActiva ? urlPedido : "javascript:void(0);")"
+                       aria-disabled="@(esPrioridadActiva ? "false" : "true")"
+                       data-prioridad="@prioridadPedido"
+                       data-locked="@(esPrioridadActiva ? "false" : "true")"
+                       data-priority-key="@clavePrioridad">
+
+                        <div class="pk-priority-row">
+                            <span class="pk-priority-badge @(esPrioridadActiva ? "active" : "waiting")">
+                                PRIORIDAD @prioridadPedido · @o.AlmacenCodigo
+                            </span>
+
+                            @if (esPrioridadActiva)
                             {
-                                // CRÍTICO: el pedido siempre abre con SU almacén.
-                                almacen = o.AlmacenCodigo,
-                                solicitudSurtidoId = o.SolicitudSurtidoId
+                                <span class="pk-priority-state active">
+                                    ● SURTIR AHORA
+                                </span>
                             }
-                       )">
+                            else
+                            {
+                                <span class="pk-priority-state waiting">
+                                    🔒 EN ESPERA
+                                </span>
+                            }
+                        </div>
 
                         <div class="pk-order-top">
                             <div>
@@ -919,7 +1349,16 @@
                         </div>
 
                         <div class="pk-open">
-                            <span>ABRIR PEDIDO →</span>
+                            @if (esPrioridadActiva)
+                            {
+                                <span>SURTIR PRIORIDAD 1 →</span>
+                            }
+                            else
+                            {
+                                <span class="locked">
+                                    🔒 TERMINA PRIORIDAD @(prioridadPedido - 1) DE @o.AlmacenCodigo
+                                </span>
+                            }
                         </div>
                     </a>
                 }
@@ -933,13 +1372,13 @@
                     @if (todos)
                     {
                         <text>
-                            No hay pedidos pendientes en tus almacenes autorizados para las fechas seleccionadas.
+                            No hay pedidos pendientes en tus almacenes autorizados.
                         </text>
                     }
                     else
                     {
                         <text>
-                            No hay pedidos pendientes en el almacén @Model.FiltroAlmacen para las fechas seleccionadas.
+                            No hay pedidos pendientes en el almacén @Model.FiltroAlmacen.
                         </text>
                     }
                 </div>
@@ -948,3 +1387,181 @@
 
     </main>
 </div>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    // ---------------------------------------------------------
+    // 1. Bloqueo visual existente de prioridades no activas.
+    // ---------------------------------------------------------
+    document.querySelectorAll('.pk-order[data-locked="true"]').forEach(function (pedido) {
+        pedido.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+
+        pedido.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+            }
+        });
+    });
+
+
+    // ---------------------------------------------------------
+    // 2. Sincronización automática con Coordinación.
+    //
+    // IMPORTANTE:
+    // Este chequeo ya NO reconstruye colas completas de MEAT.
+    // Sólo compara prioridades de SIGO + una firma mínima de IDs pendientes.
+    // ---------------------------------------------------------
+    const syncDot =
+        document.getElementById("pk-priority-sync-dot");
+
+    const filtroAlmacen =
+        @Html.Raw(
+            System.Text.Json.JsonSerializer.Serialize(
+                Model.FiltroAlmacen ?? ""
+            )
+        );
+
+    const endpointBase =
+        @Html.Raw(
+            System.Text.Json.JsonSerializer.Serialize(
+                Url.Action(
+                    "PrioridadesPicking",
+                    "Surtido"
+                ) ?? "/Surtido/PrioridadesPicking"
+            )
+        );
+
+    let firmaVista =
+        @Html.Raw(
+            System.Text.Json.JsonSerializer.Serialize(
+                (string?)ViewBag.FirmaPrioridades ?? ""
+            )
+        );
+
+    let consultando = false;
+    let recargando = false;
+
+    async function revisarPrioridades() {
+        if (consultando || recargando) {
+            return;
+        }
+
+        if (document.hidden) {
+            return;
+        }
+
+        consultando = true;
+
+        if (syncDot) {
+            syncDot.classList.add("checking");
+            syncDot.classList.remove("error");
+        }
+
+        try {
+            let url =
+                endpointBase
+                + "?_="
+                + Date.now();
+
+            if (filtroAlmacen) {
+                url +=
+                    "&almacen="
+                    + encodeURIComponent(
+                        filtroAlmacen
+                    );
+            }
+
+            const response =
+                await fetch(
+                    url,
+                    {
+                        method: "GET",
+                        cache: "no-store",
+                        headers: {
+                            "X-Requested-With":
+                                "XMLHttpRequest"
+                        }
+                    }
+                );
+
+            if (!response.ok) {
+                throw new Error(
+                    "HTTP " + response.status
+                );
+            }
+
+            const data =
+                await response.json();
+
+            if (!data || data.ok !== true) {
+                throw new Error(
+                    "Respuesta inválida"
+                );
+            }
+
+            const firmaNueva =
+                String(data.firma || "");
+
+            if (firmaNueva !== firmaVista) {
+                recargando = true;
+                window.location.reload();
+                return;
+            }
+
+            if (syncDot) {
+                syncDot.classList.remove(
+                    "checking",
+                    "error"
+                );
+            }
+        }
+        catch (error) {
+            if (syncDot) {
+                syncDot.classList.remove(
+                    "checking"
+                );
+
+                syncDot.classList.add(
+                    "error"
+                );
+            }
+        }
+        finally {
+            consultando = false;
+        }
+    }
+
+    // Primer chequeo después de que la pantalla ya terminó de cargar.
+    window.setTimeout(
+        revisarPrioridades,
+        5000
+    );
+
+    // Antes: cada 1.5 segundos reconstruyendo colas completas de MEAT.
+    // Ahora: cada 15 segundos con una consulta de sincronización mínima.
+    window.setInterval(
+        revisarPrioridades,
+        15000
+    );
+
+    document.addEventListener(
+        "visibilitychange",
+        function () {
+            if (!document.hidden) {
+                revisarPrioridades();
+            }
+        }
+    );
+
+    window.addEventListener(
+        "focus",
+        revisarPrioridades
+    );
+});
+</script>
+

@@ -29,6 +29,10 @@
         ViewBag.FotosCalidadHistorial as Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>
         ?? new Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>();
 
+    var fotosCalidadPendientes =
+        ViewBag.FotosCalidadPendientes as Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>
+        ?? new Dictionary<int, List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>>();
+
     var productosTemperaturaCalidad =
     ViewBag.ProductosTemperaturaCalidad
         as Dictionary<int, List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>>
@@ -5072,6 +5076,10 @@
                 var totalOV = ordenes.Count();
                 var totalTR = transferencias.Count();
 
+                var fotosGuardadasCalidad = fotosCalidadPendientes.ContainsKey(e.Id)
+                ? fotosCalidadPendientes[e.Id]
+                : new List<Plataforma_CG.Models.Embarque.EmbarqueCalidadFoto>();
+
                 var productosTemperatura = productosTemperaturaCalidad.ContainsKey(e.Id)
                 ? productosTemperaturaCalidad[e.Id]
                 : new List<Plataforma_CG.Models.EmbarqueProductoTemperaturaItemVm>();
@@ -5386,9 +5394,9 @@
                                                                 class="form-select"
                                                                 data-required-message="Selecciona el tipo de salida.">
                                                             <option value="">Selecciona</option>
-                                                            <option value="TIF 776">TIF 776</option>
-                                                            <option value="TIF 805">TIF 805</option>
-                                                            <option value="NO TIF">NO TIF</option>
+                                                            <option value="TIF 776" selected="@(e.SalidaTipo == "TIF 776" ? "selected" : null)">TIF 776</option>
+                                                            <option value="TIF 805" selected="@(e.SalidaTipo == "TIF 805" ? "selected" : null)">TIF 805</option>
+                                                            <option value="NO TIF" selected="@(e.SalidaTipo == "NO TIF" ? "selected" : null)">NO TIF</option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -5414,6 +5422,7 @@
                                                         <input type="text"
                                                                name="placaTransporte"
                                                                class="form-control"
+                                                               value="@e.PlacaTransporte"
                                                                placeholder="Ej. 45-AT-9K"
                                                                data-required-message="Captura la placa del transporte." />
                                                     </div>
@@ -5426,6 +5435,7 @@
                                                                max="4"
                                                                name="temperaturaProgramacion"
                                                                class="form-control"
+                                                               value="@(e.TemperaturaProgramacion?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
                                                                placeholder="Ej. 4.0"
                                                                data-temp-range
                                                                data-temp-label="Temperatura de programación"
@@ -5447,9 +5457,9 @@
                                                                 class="form-select"
                                                                 data-required-message="Selecciona las condiciones de la unidad.">
                                                             <option value="">Selecciona</option>
-                                                            <option value="BUENO">Bueno</option>
-                                                            <option value="REGULAR">Regular</option>
-                                                            <option value="MALO">Malo</option>
+                                                            <option value="BUENO" selected="@(e.EstadoUnidadCalidad == "BUENO" ? "selected" : null)">Bueno</option>
+                                                            <option value="REGULAR" selected="@(e.EstadoUnidadCalidad == "REGULAR" ? "selected" : null)">Regular</option>
+                                                            <option value="MALO" selected="@(e.EstadoUnidadCalidad == "MALO" ? "selected" : null)">Malo</option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -5475,6 +5485,7 @@
                                                         <input type="datetime-local"
                                                                name="horaInicioEmbarque"
                                                                class="form-control"
+                                                               value="@(e.HoraInicioEmbarque?.ToString("yyyy-MM-ddTHH:mm"))"
                                                                data-required-message="Captura la hora de inicio de embarque." />
                                                     </div>
 
@@ -5483,6 +5494,7 @@
                                                         <input type="datetime-local"
                                                                name="horaTerminoEmbarque"
                                                                class="form-control"
+                                                               value="@(e.HoraTerminoEmbarque?.ToString("yyyy-MM-ddTHH:mm"))"
                                                                data-required-message="Captura la hora de término de embarque." />
                                                     </div>
                                                 </div>
@@ -5511,6 +5523,7 @@
                                                                max="4"
                                                                name="temperaturaUnidadInicio"
                                                                class="form-control"
+                                                               value="@(e.TemperaturaUnidadInicio?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
                                                                placeholder="Ej. 3.8"
                                                                data-temp-range
                                                                data-temp-label="Temperatura de unidad al inicio"
@@ -5529,6 +5542,7 @@
                                                                max="4"
                                                                name="temperaturaUnidadTermino"
                                                                class="form-control"
+                                                               value="@(e.TemperaturaUnidadTermino?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"
                                                                placeholder="Ej. 4.0"
                                                                data-temp-range
                                                                data-temp-label="Temperatura de unidad al término"
@@ -5562,9 +5576,9 @@
                                                                 class="form-select"
                                                                 data-required-message="Selecciona las condiciones del producto.">
                                                             <option value="">Selecciona</option>
-                                                            <option value="BUENO">Bueno</option>
-                                                            <option value="REGULAR">Regular</option>
-                                                            <option value="MALO">Malo</option>
+                                                            <option value="BUENO" selected="@(e.EstadoProductosCalidad == "BUENO" ? "selected" : null)">Bueno</option>
+                                                            <option value="REGULAR" selected="@(e.EstadoProductosCalidad == "REGULAR" ? "selected" : null)">Regular</option>
+                                                            <option value="MALO" selected="@(e.EstadoProductosCalidad == "MALO" ? "selected" : null)">Malo</option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -5590,6 +5604,7 @@
                                                         <input type="text"
                                                                name="codigoTermograficador"
                                                                class="form-control"
+                                                               value="@e.CodigoTermograficador"
                                                                placeholder="Código"
                                                                data-required-message="Captura el código de termograficador." />
                                                     </div>
@@ -5599,6 +5614,7 @@
                                                         <input type="text"
                                                                name="numeroTermometro"
                                                                class="form-control"
+                                                               value="@e.NumeroTermometro"
                                                                placeholder="Número"
                                                                data-required-message="Captura el número de termómetro utilizado." />
                                                     </div>
@@ -5626,7 +5642,7 @@
                                                           class="form-control"
                                                           rows="3"
                                                           placeholder="Acciones correctivas aplicadas..."
-                                                          data-required-message="Captura las acciones correctivas. Si no aplica, escribe N/A."></textarea>
+                                                          data-required-message="Captura las acciones correctivas. Si no aplica, escribe N/A.">@e.AccionesCorrectivasCalidad</textarea>
                                                     </div>
 
                                                     <div class="col-12">
@@ -5635,7 +5651,7 @@
                                                           class="form-control"
                                                           rows="4"
                                                           placeholder="Agrega comentarios de la inspección, hallazgos o detalles relevantes..."
-                                                          data-required-message="Captura las observaciones de calidad. Si no aplica, escribe N/A."></textarea>
+                                                          data-required-message="Captura las observaciones de calidad. Si no aplica, escribe N/A.">@e.ObservacionesCalidad</textarea>
                                                     </div>
                                                 </div>
                                             </div>
@@ -5658,13 +5674,14 @@
                                                     <div class="col-12">
                                                         <label class="form-label">Fotografías</label>
 
-                                                        <div class="upload-box" id="@uploadId">
+                                                        <div class="upload-box @(fotosGuardadasCalidad.Any() ? "has-files" : "")" id="@uploadId">
                                                             <input type="file"
                                                                    name="fotosCalidad"
                                                                    class="form-control"
                                                                    accept="image/*"
                                                                    capture="environment"
                                                                    multiple
+                                                                   data-existing-files="@fotosGuardadasCalidad.Count"
                                                                    data-required-message="Agrega al menos una fotografía de evidencia."
                                                                    onchange="mostrarArchivos(this, '@filesId', '@uploadId')" />
 
@@ -5672,7 +5689,35 @@
                                                                 Puedes subir varias fotografías o tomarlas directamente desde el celular.
                                                             </div>
 
-                                                            <div class="file-list" id="@filesId"></div>
+                                                            <div class="file-list" id="@filesId">
+                                                                @if (fotosGuardadasCalidad.Any())
+                                                                {
+                                                                    <div class="file-item" data-saved-photo-summary>
+                                                                        <i class="bi bi-check-circle-fill"></i>
+                                                                        @fotosGuardadasCalidad.Count fotografía(s) guardada(s)
+                                                                    </div>
+                                                                }
+                                                            </div>
+
+                                                            @if (fotosGuardadasCalidad.Any())
+                                                            {
+                                                                <div class="quality-photo-grid mt-3" data-existing-photo-grid>
+                                                                    @foreach (var foto in fotosGuardadasCalidad)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="quality-photo-card"
+                                                                                data-photo-url="@foto.RutaArchivo"
+                                                                                data-photo-title="Evidencia del embarque @e.Consecutivo"
+                                                                                onclick="abrirFotoCalidadDesdeBoton(this)">
+                                                                            <img src="@foto.RutaArchivo"
+                                                                                 alt="Evidencia de Calidad guardada" />
+                                                                            <span class="quality-photo-date">
+                                                                                @foto.FechaRegistro.ToString("yyyy-MM-dd HH:mm")
+                                                                            </span>
+                                                                        </button>
+                                                                    }
+                                                                </div>
+                                                            }
                                                         </div>
                                                     </div>
                                                 </div>
@@ -5987,7 +6032,7 @@
                                     <div class="form-actions-sticky">
                                         <div class="action-note">
                                             <i class="bi bi-info-circle me-1"></i>
-                                            Revisa la información antes de liberar este embarque.
+                                            Guarda avances en cualquier momento. Para validar, todos los datos deben estar completos.
                                             <br />
                                             <span class="sku-save-status"
                                                   data-sku-status
@@ -5997,10 +6042,10 @@
                                         <div class="d-flex gap-2 flex-wrap">
                                             <button type="button"
                                                     class="btn btn-sap btn-sap-outline"
-                                                    data-btn-guardar-temperaturas
-                                                    onclick="guardarTemperaturasSku(this.closest('form'), false)">
+                                                    data-btn-guardar-borrador
+                                                    onclick="guardarBorradorCalidad(this.closest('form'))">
                                                 <i class="bi bi-save me-1"></i>
-                                                Guardar temperaturas
+                                                Guardar avance
                                             </button>
 
                                             <button type="submit" class="btn btn-sap btn-sap-success">
@@ -8037,7 +8082,24 @@
                     contenedor.appendChild(item);
                 });
             } else {
-                uploadBox.classList.remove("has-files");
+                const fotosExistentes = Number(
+                    input.dataset.existingFiles || 0
+                );
+
+                uploadBox.classList.toggle(
+                    "has-files",
+                    fotosExistentes > 0
+                );
+
+                if (fotosExistentes > 0) {
+                    const item = document.createElement("div");
+                    item.className = "file-item";
+                    item.dataset.savedPhotoSummary = "";
+                    item.innerHTML =
+                        '<i class="bi bi-check-circle-fill"></i> ' +
+                        `${fotosExistentes} fotografía(s) guardada(s)`;
+                    contenedor.appendChild(item);
+                }
             }
         }
 
@@ -8082,7 +8144,15 @@
             if (!campo) return "";
 
             if (campo.type === "file") {
-                return campo.files && campo.files.length > 0 ? "OK" : "";
+                const tieneArchivosNuevos =
+                    campo.files && campo.files.length > 0;
+
+                const tieneArchivosGuardados =
+                    Number(campo.dataset.existingFiles || 0) > 0;
+
+                return tieneArchivosNuevos || tieneArchivosGuardados
+                    ? "OK"
+                    : "";
             }
 
             return (campo.value || "").trim();
@@ -8578,21 +8648,23 @@
             };
         }
 
-        function validarTemperaturasTarimasAntesDeGuardar(form) {
+        function validarAvanceCalidadAntesDeGuardar(form) {
             if (!form) {
                 return false;
             }
+
+            limpiarErroresFormulario(form);
 
             const TEMPERATURA_MINIMA = -25;
             const TEMPERATURA_MAXIMA = 4;
 
             const camposTemperatura = Array.from(
-                form.querySelectorAll(".temp-sku-input")
+                form.querySelectorAll("[data-temp-range]")
             );
 
             /*
-             * Solamente limpiamos errores de los campos de temperatura
-             * porque este botón permite guardar temperaturas parcialmente.
+             * El guardado de avance permite campos vacíos. Sólo revisa
+             * que los valores ya capturados sean válidos.
              */
             camposTemperatura.forEach(campo => {
                 campo.classList.remove("is-invalid");
@@ -8604,8 +8676,8 @@
                 const valorTexto = obtenerValorCampo(campo);
 
                 /*
-                 * En Guardar temperaturas permitimos campos vacíos porque
-                 * actualmente tu flujo permite guardado parcial.
+                 * En Guardar avance permitimos campos vacíos porque
+                 * el embarque todavía no se está validando.
                  */
                 if (!valorTexto) {
                     return;
@@ -8621,7 +8693,11 @@
                     const row = campo.closest("[data-sku-row]");
 
                     const tarima =
-                        row?.dataset?.tarima?.trim() || "Sin código";
+                        row?.dataset?.tarima?.trim();
+
+                    const descripcion = tarima
+                        ? `la tarima ${tarima}`
+                        : (campo.dataset.tempLabel || "la temperatura");
 
                     campo.classList.add("is-invalid");
 
@@ -8630,10 +8706,39 @@
                     invalidos.push({
                         campo,
                         temperatura,
-                        tarima
+                        descripcion
                     });
                 }
             });
+
+            const horaInicio =
+                form.querySelector("[name='horaInicioEmbarque']");
+
+            const horaTermino =
+                form.querySelector("[name='horaTerminoEmbarque']");
+
+            if (
+                horaInicio?.value &&
+                horaTermino?.value &&
+                new Date(horaTermino.value) < new Date(horaInicio.value)
+            ) {
+                horaInicio.classList.add("is-invalid");
+                horaTermino.classList.add("is-invalid");
+                abrirSeccionConError(horaInicio);
+
+                cambiarEstadoTemperaturas(
+                    form,
+                    "error",
+                    "La hora de término no puede ser menor que la hora de inicio."
+                );
+
+                horaInicio.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+
+                return false;
+            }
 
             if (invalidos.length === 0) {
                 return true;
@@ -8645,7 +8750,7 @@
                 form,
                 "error",
                 invalidos.length === 1
-                    ? `La temperatura de la tarima ${primero.tarima} está fuera del rango permitido (-25 °C a 4 °C).`
+                    ? `El valor de ${primero.descripcion} está fuera del rango permitido (-25 °C a 4 °C).`
                     : `Hay ${invalidos.length} temperaturas fuera del rango permitido (-25 °C a 4 °C). Corrige las marcadas en rojo.`
             );
 
@@ -8708,7 +8813,7 @@
          * ============================================================
          */
         const temperaturasValidas =
-            validarTemperaturasTarimasAntesDeGuardar(form);
+            validarAvanceCalidadAntesDeGuardar(form);
 
         if (!temperaturasValidas) {
             return false;
@@ -8883,11 +8988,227 @@
             }
         }
 
+        function actualizarFotosGuardadasBorrador(form, result) {
+            const input = form?.querySelector("[name='fotosCalidad']");
+
+            if (!input) return;
+
+            const total = Number(result.fotosTotales || 0);
+            const nuevas = Number(result.fotosGuardadas || 0);
+            const uploadBox = input.closest(".upload-box");
+            const fileList = uploadBox?.querySelector(".file-list");
+
+            input.dataset.existingFiles = total.toString();
+
+            if (nuevas > 0) {
+                input.value = "";
+            }
+
+            uploadBox?.classList.toggle("has-files", total > 0);
+            uploadBox?.classList.remove("is-invalid");
+            input.classList.remove("is-invalid");
+
+            if (!fileList) return;
+
+            fileList.replaceChildren();
+
+            if (total > 0) {
+                const item = document.createElement("div");
+                const icono = document.createElement("i");
+
+                item.className = "file-item";
+                item.dataset.savedPhotoSummary = "";
+                icono.className = "bi bi-check-circle-fill";
+
+                item.append(
+                    icono,
+                    document.createTextNode(
+                        ` ${total} fotografía(s) guardada(s)`
+                    )
+                );
+
+                fileList.appendChild(item);
+            }
+        }
+
+        async function guardarBorradorCalidad(form) {
+            if (!form || form.dataset.guardandoBorrador === "1") {
+                return false;
+            }
+
+            if (!validarAvanceCalidadAntesDeGuardar(form)) {
+                return false;
+            }
+
+            const embarqueId = Number(form.dataset.embarqueId || 0);
+            const btnGuardar = form.querySelector("[data-btn-guardar-borrador]");
+            const btnValidar = form.querySelector("[type='submit']");
+            const campoFocoAnterior = form._ultimoCampoGuardado || null;
+            const posicionAnterior = window.scrollY;
+            let guardadoExitoso = false;
+
+            if (!embarqueId) {
+                cambiarEstadoTemperaturas(
+                    form,
+                    "error",
+                    "No se encontró el ID del embarque."
+                );
+
+                return false;
+            }
+
+            const datos = new FormData(form);
+            datos.set("id", embarqueId.toString());
+            datos.set(
+                "temperaturasJson",
+                JSON.stringify(recolectarTemperaturasSku(form))
+            );
+
+            form.dataset.guardandoBorrador = "1";
+
+            if (btnGuardar) {
+                if (!btnGuardar.dataset.htmlOriginal) {
+                    btnGuardar.dataset.htmlOriginal = btnGuardar.innerHTML;
+                }
+
+                btnGuardar.disabled = true;
+                btnGuardar.innerHTML =
+                    '<i class="bi bi-hourglass-split me-1"></i>' +
+                    'Guardando avance...';
+            }
+
+            if (btnValidar) {
+                btnValidar.disabled = true;
+            }
+
+            cambiarEstadoTemperaturas(
+                form,
+                "saving",
+                "Guardando todos los datos capturados..."
+            );
+
+            try {
+                const response = await fetch(
+                    "/Embarques/GuardarBorradorCalidad",
+                    {
+                        method: "POST",
+                        body: datos
+                    }
+                );
+
+                const result = await response.json().catch(() => null);
+
+                if (!response.ok || !result?.success) {
+                    cambiarEstadoTemperaturas(
+                        form,
+                        "error",
+                        result?.message ||
+                        "No se pudo guardar el avance de Calidad."
+                    );
+
+                    return false;
+                }
+
+                guardadoExitoso = true;
+
+                const progresoTarimas = actualizarInterfazTemperaturas(
+                    form,
+                    result
+                );
+
+                actualizarFotosGuardadasBorrador(form, result);
+                limpiarErroresFormulario(form);
+
+                form.querySelectorAll("[data-sku-row]").forEach(row => {
+                    row.classList.remove("sku-row-dirty");
+                });
+
+                const detalleFotos = Number(result.fotosGuardadas || 0) > 0
+                    ? ` Se agregaron ${result.fotosGuardadas} fotografía(s).`
+                    : "";
+
+                cambiarEstadoTemperaturas(
+                    form,
+                    "success",
+                    `Avance guardado. Temperaturas: ` +
+                    `${progresoTarimas.capturadas}/` +
+                    `${progresoTarimas.total} tarima(s).` +
+                    detalleFotos
+                );
+
+                return true;
+            } catch (error) {
+                console.error(
+                    "Error al guardar el avance de Calidad:",
+                    error
+                );
+
+                cambiarEstadoTemperaturas(
+                    form,
+                    "error",
+                    "No fue posible guardar el avance. Intenta nuevamente."
+                );
+
+                return false;
+            } finally {
+                form.dataset.guardandoBorrador = "0";
+
+                if (btnGuardar) {
+                    btnGuardar.disabled = false;
+
+                    if (guardadoExitoso) {
+                        btnGuardar.innerHTML =
+                            '<i class="bi bi-check2-circle me-1"></i>' +
+                            'Avance guardado';
+
+                        window.setTimeout(() => {
+                            if (btnGuardar.isConnected) {
+                                btnGuardar.innerHTML =
+                                    btnGuardar.dataset.htmlOriginal ||
+                                    '<i class="bi bi-save me-1"></i>' +
+                                    'Guardar avance';
+                            }
+                        }, 1600);
+                    } else {
+                        btnGuardar.innerHTML =
+                            btnGuardar.dataset.htmlOriginal ||
+                            '<i class="bi bi-save me-1"></i>' +
+                            'Guardar avance';
+                    }
+                }
+
+                if (btnValidar) {
+                    btnValidar.disabled = false;
+                }
+
+                window.requestAnimationFrame(() => {
+                    window.scrollTo({
+                        top: posicionAnterior,
+                        left: 0,
+                        behavior: "auto"
+                    });
+
+                    if (
+                        campoFocoAnterior &&
+                        campoFocoAnterior.isConnected
+                    ) {
+                        campoFocoAnterior.focus({
+                            preventScroll: true
+                        });
+                    }
+                });
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", function () {
             document.querySelectorAll(".form-calidad-validacion").forEach(form => {
 
                 form.addEventListener("focusin", function (event) {
                     const campo = event.target;
+
+                    if (campo.matches("input, select, textarea")) {
+                        form._ultimoCampoGuardado = campo;
+                    }
 
                     if (
                         campo.matches(".temp-sku-input") ||
@@ -8898,9 +9219,9 @@
                 });
 
                 form.querySelectorAll(
-                    ".temp-sku-input, .temp-sku-obs"
+                    "input[name]:not([type='hidden']), select[name], textarea[name], .temp-sku-input, .temp-sku-obs"
                 ).forEach(campo => {
-                    campo.addEventListener("input", function () {
+                    const marcarCambioPendiente = function () {
                         const row = campo.closest("[data-sku-row]");
 
                         if (row) {
@@ -8912,7 +9233,10 @@
                             "dirty",
                             "Existen cambios pendientes por guardar."
                         );
-                    });
+                    };
+
+                    campo.addEventListener("input", marcarCambioPendiente);
+                    campo.addEventListener("change", marcarCambioPendiente);
                 });
 
                 form.addEventListener("submit", async function (event) {

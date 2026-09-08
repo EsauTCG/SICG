@@ -1163,44 +1163,1131 @@ namespace Plataforma_CG.Services
 
 
 
-        //======================================
-        // OBTIENE CODIGO DE CLIENTE EN SAP 
-        //======================================
+        ////======================================
+        //// OBTIENE CODIGO DE CLIENTE EN SAP 
+        ////======================================
+        //public async Task<ClienteViewModel?> ObtenerClientePorCodigoAsync(string cardCode)
+        //{
+        //    if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+        //        await LoginAsync();
+
+        //    var settings = _config.GetSection("SapServiceLayer");
+        //    var baseUrl = settings["BaseUrl"].TrimEnd('/');
+
+        //    var url = $"{baseUrl}/BusinessPartners?$filter=CardType eq 'C' and CardCode eq '{cardCode}'" +
+        //              "&$select=CardCode,CardName,CreditLimit,CurrentAccountBalance,OpenDeliveryNotesBalance,OpenOrdersBalance";
+
+        //    //var response = await _httpClient.GetAsync(url);
+        //    var response = await GetWithReLoginAsync(url);
+        //    response.EnsureSuccessStatusCode();
+
+        //    var json = await response.Content.ReadAsStringAsync();
+        //    using var doc = JsonDocument.Parse(json);
+
+        //    if (!doc.RootElement.TryGetProperty("value", out var value) || value.GetArrayLength() == 0)
+        //        return null;
+
+        //    var x = value[0];
+
+        //    decimal entregas = x.TryGetProperty("OpenDeliveryNotesBalance", out var dnotes) ? dnotes.GetDecimal() : 0;
+        //    decimal pedidos = x.TryGetProperty("OpenOrdersBalance", out var orders) ? orders.GetDecimal() : 0;
+
+        //    return new ClienteViewModel
+        //    {
+        //        CardCode = x.GetProperty("CardCode").GetString(),
+        //        CardName = x.GetProperty("CardName").GetString(),
+        //        CreditLimit = x.TryGetProperty("CreditLimit", out var credito) ? credito.GetDecimal() : 0,
+        //        CurrentAccountBalance = x.TryGetProperty("CurrentAccountBalance", out var saldo) ? saldo.GetDecimal() : 0,
+        //        TotalPendiente = entregas + pedidos
+        //    };
+        //}
+
+
+        //======================================================================
+        // OBTIENE CLIENTE EN SAP
+        //
+        // REGLAS:
+        //
+        // SALDO:
+        //      CurrentAccountBalance
+        //
+        // SALDO VENCIDO:
+        //      Facturas con:
+        //      - saldo pendiente
+        //      - fecha de vencimiento menor a hoy
+        //
+        // OTROS PEDIDOS:
+        //      SOLO órdenes de venta que:
+        //      1. Sean del cliente
+        //      2. Estén ABIERTAS
+        //      3. NO estén CANCELADAS
+        //      4. NO tengan NINGUNA entrega válida relacionada
+        //
+        //      Si una OV tuvo aunque sea una entrega parcial,
+        //      YA NO cuenta dentro de OTROS PEDIDOS.
+        //
+        // CRÉDITO:
+        //      CreditLimit
+        //======================================================================
         public async Task<ClienteViewModel?> ObtenerClientePorCodigoAsync(string cardCode)
         {
+            //==================================================================
+            // VALIDACIÓN
+            //==================================================================
+            if (string.IsNullOrWhiteSpace(cardCode))
+                return null;
+
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
+
+            var settings =
+                _config.GetSection("SapServiceLayer");
+
+            var baseUrl =
+                settings["BaseUrl"]?.TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new Exception(
+                    "No está configurado SapServiceLayer:BaseUrl."
+                );
+            }
+
+            var codigoCliente =
+                cardCode
+                    .Trim()
+                    .Replace("'", "''");
+
+
+            //==================================================================
+            // HELPER LOCAL PARA OBTENER TODAS LAS PÁGINAS DE SERVICE LAYER
+            //==================================================================
+            async Task<List<JsonElement>> ObtenerTodosAsync(string urlInicial)
+            {
+                var resultado =
+                    new List<JsonElement>();
+
+                string? urlActual =
+                    urlInicial;
+
+                while (!string.IsNullOrWhiteSpace(urlActual))
+                {
+                    var response =
+                        await GetWithReLoginAsync(
+                            urlActual
+                        );
+
+                    response.EnsureSuccessStatusCode();
+
+                    var json =
+                        await response.Content
+                            .ReadAsStringAsync();
+
+                    using var doc =
+                        JsonDocument.Parse(json);
+
+                    //==========================================================
+                    // DATOS
+                    //==========================================================
+                    if (doc.RootElement.TryGetProperty(
+                            "value",
+                            out var value)
+                        &&
+                        value.ValueKind ==
+                            JsonValueKind.Array)
+                    {
+                        foreach (var item in value.EnumerateArray())
+                        {
+                            // Clone porque JsonDocument se elimina
+                            resultado.Add(
+                                item.Clone()
+                            );
+                        }
+                    }
+
+                    //==========================================================
+                    // PAGINACIÓN
+                    //==========================================================
+                    string? nextLink =
+                        null;
+
+                    // Service Layer / OData
+                    if (doc.RootElement.TryGetProperty(
+                            "odata.nextLink",
+                            out var nextV3)
+                        &&
+                        nextV3.ValueKind ==
+                            JsonValueKind.String)
+                    {
+                        nextLink =
+                            nextV3.GetString();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(nextLink)
+                        &&
+                        doc.RootElement.TryGetProperty(
+                            "@odata.nextLink",
+                            out var nextV4)
+                        &&
+                        nextV4.ValueKind ==
+                            JsonValueKind.String)
+                    {
+                        nextLink =
+                            nextV4.GetString();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(nextLink))
+                    {
+                        urlActual =
+                            null;
+
+                        continue;
+                    }
+
+                    //==========================================================
+                    // URL ABSOLUTA
+                    //==========================================================
+                    if (Uri.TryCreate(
+                            nextLink,
+                            UriKind.Absolute,
+                            out var absolute))
+                    {
+                        urlActual =
+                            absolute.ToString();
+
+                        continue;
+                    }
+
+                    //==========================================================
+                    // URL RELATIVA
+                    //==========================================================
+                    var serviceUri =
+                        new Uri(
+                            baseUrl.TrimEnd('/') + "/"
+                        );
+
+                    var hostUri =
+                        new Uri(
+                            $"{serviceUri.Scheme}://" +
+                            $"{serviceUri.Authority}/"
+                        );
+
+                    var relative =
+                        nextLink.TrimStart('/');
+
+                    // Si SAP manda:
+                    // b1s/v1/Orders?$skip=20
+                    if (relative.StartsWith(
+                            "b1s/",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        urlActual =
+                            new Uri(
+                                hostUri,
+                                relative
+                            )
+                            .ToString();
+                    }
+                    else
+                    {
+                        // Si SAP manda:
+                        // Orders?$skip=20
+                        urlActual =
+                            new Uri(
+                                serviceUri,
+                                relative
+                            )
+                            .ToString();
+                    }
+                }
+
+                return resultado;
+            }
+
+
+            //==================================================================
+            // 1. OBTENER CLIENTE
+            //==================================================================
+            var urlCliente =
+                $"{baseUrl}/BusinessPartners" +
+                $"?$filter=" +
+                $"CardType eq 'C' " +
+                $"and CardCode eq '{codigoCliente}'" +
+                "&$select=" +
+                "CardCode," +
+                "CardName," +
+                "CreditLimit," +
+                "CurrentAccountBalance";
+
+            var responseCliente =
+                await GetWithReLoginAsync(
+                    urlCliente
+                );
+
+            responseCliente
+                .EnsureSuccessStatusCode();
+
+            var jsonCliente =
+                await responseCliente.Content
+                    .ReadAsStringAsync();
+
+            using var docCliente =
+                JsonDocument.Parse(
+                    jsonCliente
+                );
+
+            if (!docCliente.RootElement.TryGetProperty(
+                    "value",
+                    out var clientes)
+                ||
+                clientes.ValueKind !=
+                    JsonValueKind.Array
+                ||
+                clientes.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var cliente =
+                clientes[0];
+
+
+            //==================================================================
+            // 2. LÍMITE DE CRÉDITO
+            //==================================================================
+            decimal limiteCredito =
+                0m;
+
+            if (cliente.TryGetProperty(
+                    "CreditLimit",
+                    out var creditoProp)
+                &&
+                creditoProp.ValueKind ==
+                    JsonValueKind.Number)
+            {
+                limiteCredito =
+                    creditoProp.GetDecimal();
+            }
+
+
+            //==================================================================
+            // 3. SALDO ACTUAL
+            //==================================================================
+            decimal saldoActual =
+                0m;
+
+            if (cliente.TryGetProperty(
+                    "CurrentAccountBalance",
+                    out var saldoProp)
+                &&
+                saldoProp.ValueKind ==
+                    JsonValueKind.Number)
+            {
+                saldoActual =
+                    saldoProp.GetDecimal();
+            }
+
+
+            //==================================================================
+            // 4. SALDO VENCIDO
+            //
+            // FACTURAS:
+            //
+            // - DEL CLIENTE
+            // - CON SALDO PENDIENTE
+            // - CUYA FECHA DE VENCIMIENTO YA PASÓ
+            // - NO CANCELADAS
+            //
+            // Saldo vencido =
+            // DocTotal - PaidToDate
+            //==================================================================
+            decimal saldoVencido =
+                0m;
+
+            try
+            {
+                var hoy =
+                    DateTime.Today
+                        .ToString("yyyy-MM-dd");
+
+                var urlFacturasVencidas =
+                    $"{baseUrl}/Invoices" +
+                    $"?$filter=" +
+                    $"CardCode eq '{codigoCliente}' " +
+                    $"and Cancelled eq 'tNO' " +
+                    $"and DocTotal gt PaidToDate " +
+                    $"and DocDueDate lt '{hoy}'" +
+                    "&$select=" +
+                    "DocEntry," +
+                    "DocNum," +
+                    "DocTotal," +
+                    "PaidToDate," +
+                    "DocDueDate," +
+                    "Cancelled";
+
+                var facturasVencidas =
+                    await ObtenerTodosAsync(
+                        urlFacturasVencidas
+                    );
+
+                foreach (var factura in facturasVencidas)
+                {
+                    decimal docTotal =
+                        0m;
+
+                    decimal pagado =
+                        0m;
+
+
+                    //==========================================================
+                    // TOTAL FACTURA
+                    //==========================================================
+                    if (factura.TryGetProperty(
+                            "DocTotal",
+                            out var docTotalProp))
+                    {
+                        if (docTotalProp.ValueKind ==
+                            JsonValueKind.Number)
+                        {
+                            docTotal =
+                                docTotalProp.GetDecimal();
+                        }
+                        else if (
+                            docTotalProp.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            decimal.TryParse(
+                                docTotalProp.GetString(),
+                                System.Globalization
+                                    .NumberStyles.Any,
+                                System.Globalization
+                                    .CultureInfo.InvariantCulture,
+                                out docTotal
+                            );
+                        }
+                    }
+
+
+                    //==========================================================
+                    // PAGADO A LA FECHA
+                    //==========================================================
+                    if (factura.TryGetProperty(
+                            "PaidToDate",
+                            out var pagadoProp))
+                    {
+                        if (pagadoProp.ValueKind ==
+                            JsonValueKind.Number)
+                        {
+                            pagado =
+                                pagadoProp.GetDecimal();
+                        }
+                        else if (
+                            pagadoProp.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            decimal.TryParse(
+                                pagadoProp.GetString(),
+                                System.Globalization
+                                    .NumberStyles.Any,
+                                System.Globalization
+                                    .CultureInfo.InvariantCulture,
+                                out pagado
+                            );
+                        }
+                    }
+
+
+                    //==========================================================
+                    // PENDIENTE
+                    //==========================================================
+                    var pendiente =
+                        docTotal - pagado;
+
+                    if (pendiente > 0m)
+                    {
+                        saldoVencido +=
+                            pendiente;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // El crédito, saldo y otros pedidos pueden seguir funcionando
+                // aunque falle únicamente la consulta de saldo vencido.
+                Console.WriteLine(
+                    $"Error calculando saldo vencido del cliente " +
+                    $"{cardCode}: {ex.Message}"
+                );
+
+                saldoVencido =
+                    0m;
+            }
+
+
+            //==================================================================
+            // 5. OBTENER ÓRDENES DE VENTA ABIERTAS Y NO CANCELADAS
+            //
+            // IMPORTANTE:
+            // En Service Layer es DocumentStatus.
+            // NO usar DocStatus.
+            //==================================================================
+            var urlOrdenes =
+                $"{baseUrl}/Orders" +
+                $"?$filter=" +
+                $"CardCode eq '{codigoCliente}' " +
+                $"and DocumentStatus eq 'bost_Open' " +
+                $"and Cancelled eq 'tNO'" +
+                "&$select=" +
+                "DocEntry," +
+                "DocNum," +
+                "CardCode," +
+                "DocTotal," +
+                "DocumentStatus," +
+                "Cancelled";
+
+            var ordenesAbiertas =
+                await ObtenerTodosAsync(
+                    urlOrdenes
+                );
+
+
+            //==================================================================
+            // 6. SI NO HAY ÓRDENES ABIERTAS
+            //
+            // OTROS PEDIDOS = 0
+            //
+            // PERO SÍ MANDAMOS:
+            // CRÉDITO
+            // SALDO
+            // SALDO VENCIDO
+            //==================================================================
+            if (ordenesAbiertas.Count == 0)
+            {
+                return new ClienteViewModel
+                {
+                    CardCode =
+                        cliente.TryGetProperty(
+                            "CardCode",
+                            out var code)
+                            ? code.GetString()
+                            : cardCode,
+
+                    CardName =
+                        cliente.TryGetProperty(
+                            "CardName",
+                            out var name)
+                            ? name.GetString()
+                            : "",
+
+                    CreditLimit =
+                        Math.Round(
+                            limiteCredito,
+                            2,
+                            MidpointRounding.AwayFromZero
+                        ),
+
+                    CurrentAccountBalance =
+                        Math.Round(
+                            saldoActual,
+                            2,
+                            MidpointRounding.AwayFromZero
+                        ),
+
+                    SaldoVencido =
+                        Math.Round(
+                            saldoVencido,
+                            2,
+                            MidpointRounding.AwayFromZero
+                        ),
+
+                    TotalPendiente =
+                        0m
+                };
+            }
+
+
+            //==================================================================
+            // 7. OBTENER ENTREGAS NO CANCELADAS DEL CLIENTE
+            //
+            // IMPORTANTE:
+            //
+            // Necesitamos DocumentLines para conocer:
+            //
+            // BaseType  = 17
+            // BaseEntry = DocEntry de la Orden de Venta
+            //
+            // No ponemos $select porque necesitamos DocumentLines.
+            //==================================================================
+            var urlEntregas =
+                $"{baseUrl}/DeliveryNotes" +
+                $"?$filter=" +
+                $"CardCode eq '{codigoCliente}' " +
+                $"and Cancelled eq 'tNO'";
+
+            var entregas =
+                await ObtenerTodosAsync(
+                    urlEntregas
+                );
+
+
+            //==================================================================
+            // 8. IDENTIFICAR ÓRDENES QUE YA TIENEN ENTREGA
+            //==================================================================
+            var ordenesConEntrega =
+                new HashSet<int>();
+
+            foreach (var entrega in entregas)
+            {
+                //==============================================================
+                // SEGURIDAD EXTRA:
+                // NO TOMAR ENTREGAS CANCELADAS
+                //==============================================================
+                if (entrega.TryGetProperty(
+                        "Cancelled",
+                        out var cancelledEntrega))
+                {
+                    var cancelada =
+                        cancelledEntrega.GetString();
+
+                    if (!string.Equals(
+                            cancelada,
+                            "tNO",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                }
+
+
+                //==============================================================
+                // DOCUMENT LINES
+                //==============================================================
+                if (!entrega.TryGetProperty(
+                        "DocumentLines",
+                        out var lineasEntrega))
+                {
+                    continue;
+                }
+
+                if (lineasEntrega.ValueKind !=
+                    JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+
+                foreach (var linea in
+                         lineasEntrega.EnumerateArray())
+                {
+                    //==========================================================
+                    // BASE TYPE
+                    //
+                    // 17 = ORDEN DE VENTA
+                    //==========================================================
+                    int baseType =
+                        -1;
+
+                    if (linea.TryGetProperty(
+                            "BaseType",
+                            out var baseTypeProp))
+                    {
+                        if (baseTypeProp.ValueKind ==
+                            JsonValueKind.Number)
+                        {
+                            baseType =
+                                baseTypeProp.GetInt32();
+                        }
+                        else if (
+                            baseTypeProp.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            int.TryParse(
+                                baseTypeProp.GetString(),
+                                out baseType
+                            );
+                        }
+                    }
+
+                    if (baseType != 17)
+                        continue;
+
+
+                    //==========================================================
+                    // BASE ENTRY
+                    //
+                    // DocEntry de la Orden de Venta original
+                    //==========================================================
+                    int baseEntry =
+                        0;
+
+                    if (linea.TryGetProperty(
+                            "BaseEntry",
+                            out var baseEntryProp))
+                    {
+                        if (baseEntryProp.ValueKind ==
+                            JsonValueKind.Number)
+                        {
+                            baseEntry =
+                                baseEntryProp.GetInt32();
+                        }
+                        else if (
+                            baseEntryProp.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            int.TryParse(
+                                baseEntryProp.GetString(),
+                                out baseEntry
+                            );
+                        }
+                    }
+
+
+                    if (baseEntry > 0)
+                    {
+                        ordenesConEntrega.Add(
+                            baseEntry
+                        );
+                    }
+                }
+            }
+
+
+            //==================================================================
+            // 9. CALCULAR OTROS PEDIDOS
+            //
+            // SOLO:
+            //
+            // OV ABIERTA
+            // + NO CANCELADA
+            // + SIN NINGUNA ENTREGA
+            //
+            // SI YA TUVO UNA ENTREGA PARCIAL:
+            // NO CUENTA
+            //
+            // SI YA TUVO UNA ENTREGA COMPLETA:
+            // NO CUENTA
+            //==================================================================
+            decimal otrosPedidos =
+                0m;
+
+
+            foreach (var orden in ordenesAbiertas)
+            {
+                //==============================================================
+                // DOC ENTRY
+                //==============================================================
+                if (!orden.TryGetProperty(
+                        "DocEntry",
+                        out var docEntryProp))
+                {
+                    continue;
+                }
+
+                int docEntry =
+                    0;
+
+                if (docEntryProp.ValueKind ==
+                    JsonValueKind.Number)
+                {
+                    docEntry =
+                        docEntryProp.GetInt32();
+                }
+                else if (
+                    docEntryProp.ValueKind ==
+                    JsonValueKind.String)
+                {
+                    int.TryParse(
+                        docEntryProp.GetString(),
+                        out docEntry
+                    );
+                }
+
+                if (docEntry <= 0)
+                    continue;
+
+
+                //==============================================================
+                // SI YA TIENE ENTREGA:
+                // NO CUENTA EN OTROS PEDIDOS
+                //==============================================================
+                if (ordenesConEntrega.Contains(
+                        docEntry))
+                {
+                    continue;
+                }
+
+
+                //==============================================================
+                // VALIDAR ESTADO NUEVAMENTE
+                //==============================================================
+                var documentStatus =
+                    orden.TryGetProperty(
+                        "DocumentStatus",
+                        out var statusProp)
+                        ? statusProp.GetString()
+                        : "";
+
+
+                var cancelled =
+                    orden.TryGetProperty(
+                        "Cancelled",
+                        out var cancelledProp)
+                        ? cancelledProp.GetString()
+                        : "";
+
+
+                //==============================================================
+                // DEBE ESTAR ABIERTA
+                //==============================================================
+                if (!string.Equals(
+                        documentStatus,
+                        "bost_Open",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+
+                //==============================================================
+                // NO DEBE ESTAR CANCELADA
+                //==============================================================
+                if (!string.Equals(
+                        cancelled,
+                        "tNO",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+
+                //==============================================================
+                // TOTAL DE LA OV
+                //
+                // Como NO tiene ninguna entrega,
+                // se toma completo el DocTotal.
+                //==============================================================
+                decimal totalOrden =
+                    0m;
+
+
+                if (orden.TryGetProperty(
+                        "DocTotal",
+                        out var totalProp))
+                {
+                    if (totalProp.ValueKind ==
+                        JsonValueKind.Number)
+                    {
+                        totalOrden =
+                            totalProp.GetDecimal();
+                    }
+                    else if (
+                        totalProp.ValueKind ==
+                        JsonValueKind.String)
+                    {
+                        decimal.TryParse(
+                            totalProp.GetString(),
+                            System.Globalization
+                                .NumberStyles.Any,
+                            System.Globalization
+                                .CultureInfo.InvariantCulture,
+                            out totalOrden
+                        );
+                    }
+                }
+
+
+                //==============================================================
+                // SOLO SUMAR MONTOS POSITIVOS
+                //==============================================================
+                if (totalOrden > 0m)
+                {
+                    otrosPedidos +=
+                        totalOrden;
+                }
+            }
+
+
+            //==================================================================
+            // 10. RESPUESTA FINAL
+            //==================================================================
+            return new ClienteViewModel
+            {
+                CardCode =
+                    cliente.TryGetProperty(
+                        "CardCode",
+                        out var cardCodeProp)
+                        ? cardCodeProp.GetString()
+                        : cardCode,
+
+                CardName =
+                    cliente.TryGetProperty(
+                        "CardName",
+                        out var cardNameProp)
+                        ? cardNameProp.GetString()
+                        : "",
+
+                //==============================================================
+                // CRÉDITO
+                //==============================================================
+                CreditLimit =
+                    Math.Round(
+                        limiteCredito,
+                        2,
+                        MidpointRounding.AwayFromZero
+                    ),
+
+                //==============================================================
+                // SALDO
+                //==============================================================
+                CurrentAccountBalance =
+                    Math.Round(
+                        saldoActual,
+                        2,
+                        MidpointRounding.AwayFromZero
+                    ),
+
+                //==============================================================
+                // SALDO VENCIDO
+                //==============================================================
+                SaldoVencido =
+                    Math.Round(
+                        saldoVencido,
+                        2,
+                        MidpointRounding.AwayFromZero
+                    ),
+
+                //==============================================================
+                // OTROS PEDIDOS
+                //
+                // SOLO OV:
+                // ABIERTAS
+                // NO CANCELADAS
+                // SIN ENTREGA
+                //==============================================================
+                TotalPendiente =
+                    Math.Round(
+                        otrosPedidos,
+                        2,
+                        MidpointRounding.AwayFromZero
+                    )
+            };
+        }
+
+
+        // ============================================================
+        // PEGAR DENTRO DE: SapServiceLayerClient
+        // Requiere: using Plataforma_CG.ViewModels;
+        // ============================================================
+
+        public async Task<List<FacturaPendienteSapViewModel>> ObtenerFacturasVencidasClienteAsync(string cardCode)
+        {
+            return await ObtenerFacturasPendientesClienteInternoAsync(cardCode, soloVencidas: true);
+        }
+
+        public async Task<List<FacturaPendienteSapViewModel>> ObtenerFacturasPendientesClienteAsync(string cardCode)
+        {
+            return await ObtenerFacturasPendientesClienteInternoAsync(cardCode, soloVencidas: false);
+        }
+
+        private async Task<List<FacturaPendienteSapViewModel>> ObtenerFacturasPendientesClienteInternoAsync(
+            string cardCode,
+            bool soloVencidas)
+        {
+            if (string.IsNullOrWhiteSpace(cardCode))
+                return new List<FacturaPendienteSapViewModel>();
+
             if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
                 await LoginAsync();
 
             var settings = _config.GetSection("SapServiceLayer");
-            var baseUrl = settings["BaseUrl"].TrimEnd('/');
+            var baseUrl = settings["BaseUrl"]?.TrimEnd('/');
 
-            var url = $"{baseUrl}/BusinessPartners?$filter=CardType eq 'C' and CardCode eq '{cardCode}'" +
-                      "&$select=CardCode,CardName,CreditLimit,CurrentAccountBalance,OpenDeliveryNotesBalance,OpenOrdersBalance";
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException("No está configurado SapServiceLayer:BaseUrl.");
 
-            //var response = await _httpClient.GetAsync(url);
-            var response = await GetWithReLoginAsync(url);
-            response.EnsureSuccessStatusCode();
+            var codigo = cardCode.Trim().Replace("'", "''");
+            var hoy = DateTime.Today.ToString("yyyy-MM-dd");
 
-            var json = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
+            var filtro =
+                $"CardCode eq '{codigo}' " +
+                "and Cancelled eq 'tNO' " +
+                "and DocumentStatus eq 'bost_Open'";
 
-            if (!doc.RootElement.TryGetProperty("value", out var value) || value.GetArrayLength() == 0)
-                return null;
+            if (soloVencidas)
+                filtro += $" and DocDueDate lt '{hoy}'";
 
-            var x = value[0];
+            var url =
+                $"{baseUrl}/Invoices" +
+                $"?$filter={filtro}" +
+                "&$select=" +
+                "DocEntry," +
+                "DocNum," +
+                "DocDate," +
+                "DocDueDate," +
+                "DocTotal," +
+                "PaidToDate," +
+                "DocCurrency," +
+                "DocumentStatus," +
+                "Cancelled";
 
-            decimal entregas = x.TryGetProperty("OpenDeliveryNotesBalance", out var dnotes) ? dnotes.GetDecimal() : 0;
-            decimal pedidos = x.TryGetProperty("OpenOrdersBalance", out var orders) ? orders.GetDecimal() : 0;
+            var resultado = new List<FacturaPendienteSapViewModel>();
+            string? urlActual = url;
 
-            return new ClienteViewModel
+            while (!string.IsNullOrWhiteSpace(urlActual))
             {
-                CardCode = x.GetProperty("CardCode").GetString(),
-                CardName = x.GetProperty("CardName").GetString(),
-                CreditLimit = x.TryGetProperty("CreditLimit", out var credito) ? credito.GetDecimal() : 0,
-                CurrentAccountBalance = x.TryGetProperty("CurrentAccountBalance", out var saldo) ? saldo.GetDecimal() : 0,
-                TotalPendiente = entregas + pedidos
-            };
+                var response = await GetWithReLoginAsync(urlActual);
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("value", out var value) &&
+                    value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var x in value.EnumerateArray())
+                    {
+                        decimal docTotal =
+                            x.TryGetProperty("DocTotal", out var pTotal) && pTotal.ValueKind == JsonValueKind.Number
+                                ? pTotal.GetDecimal()
+                                : 0m;
+
+                        decimal paidToDate =
+                            x.TryGetProperty("PaidToDate", out var pPaid) && pPaid.ValueKind == JsonValueKind.Number
+                                ? pPaid.GetDecimal()
+                                : 0m;
+
+                        var pendiente = docTotal - paidToDate;
+                        if (pendiente <= 0.01m)
+                            continue;
+
+                        DateTime? fechaFactura = null;
+                        DateTime? fechaVencimiento = null;
+
+                        if (x.TryGetProperty("DocDate", out var pDocDate) &&
+                            DateTime.TryParse(pDocDate.GetString(), out var fd))
+                            fechaFactura = fd.Date;
+
+                        if (x.TryGetProperty("DocDueDate", out var pDueDate) &&
+                            DateTime.TryParse(pDueDate.GetString(), out var fv))
+                            fechaVencimiento = fv.Date;
+
+                        int diasVencidos = 0;
+                        if (fechaVencimiento.HasValue && fechaVencimiento.Value.Date < DateTime.Today)
+                            diasVencidos = (DateTime.Today - fechaVencimiento.Value.Date).Days;
+
+                        resultado.Add(new FacturaPendienteSapViewModel
+                        {
+                            DocEntry = x.TryGetProperty("DocEntry", out var pEntry) ? pEntry.GetInt32() : 0,
+                            DocNum = x.TryGetProperty("DocNum", out var pNum) ? pNum.GetInt32() : 0,
+                            FechaFactura = fechaFactura,
+                            FechaVencimiento = fechaVencimiento,
+                            Moneda = x.TryGetProperty("DocCurrency", out var pCur) ? (pCur.GetString() ?? "") : "",
+                            Importe = decimal.Round(docTotal, 2, MidpointRounding.AwayFromZero),
+                            Pagado = decimal.Round(paidToDate, 2, MidpointRounding.AwayFromZero),
+                            Pendiente = decimal.Round(pendiente, 2, MidpointRounding.AwayFromZero),
+                            DiasVencidos = diasVencidos
+                        });
+                    }
+                }
+
+                string? nextLink = null;
+                if (doc.RootElement.TryGetProperty("odata.nextLink", out var next1) && next1.ValueKind == JsonValueKind.String)
+                    nextLink = next1.GetString();
+                else if (doc.RootElement.TryGetProperty("@odata.nextLink", out var next2) && next2.ValueKind == JsonValueKind.String)
+                    nextLink = next2.GetString();
+
+                if (string.IsNullOrWhiteSpace(nextLink))
+                {
+                    urlActual = null;
+                }
+                else if (Uri.TryCreate(nextLink, UriKind.Absolute, out var absoluta))
+                {
+                    urlActual = absoluta.ToString();
+                }
+                else
+                {
+                    var serviceUri = new Uri(baseUrl.TrimEnd('/') + "/");
+                    var hostUri = new Uri($"{serviceUri.Scheme}://{serviceUri.Authority}/");
+                    var relative = nextLink.TrimStart('/');
+
+                    urlActual = relative.StartsWith("b1s/", StringComparison.OrdinalIgnoreCase)
+                        ? new Uri(hostUri, relative).ToString()
+                        : new Uri(serviceUri, relative).ToString();
+                }
+            }
+
+            return resultado
+                .OrderBy(x => x.FechaVencimiento)
+                .ThenBy(x => x.DocNum)
+                .ToList();
         }
+
+        // ============================================================
+        // EN TU ObtenerClientePorCodigoAsync, para SALDO VENCIDO usa:
+        // ============================================================
+        // var facturasVencidas = await ObtenerFacturasVencidasClienteAsync(cardCode);
+        // decimal saldoVencido = facturasVencidas.Sum(x => x.Pendiente);
+        //
+        // y en el return ClienteViewModel:
+        // SaldoVencido = Math.Round(saldoVencido, 2, MidpointRounding.AwayFromZero),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         //======================================
@@ -2477,6 +3564,443 @@ namespace Plataforma_CG.Services
                 fueraDeSap);
         }
 
+
+        // ============================================================================
+        // PEGAR DENTRO DE LA CLASE SapServiceLayerClient
+        // Requiere: using Plataforma_CG.ViewModels;
+        // Estos métodos reutilizan LoginAsync() y GetWithReLoginAsync() que ya tienes.
+        // ============================================================================
+
+        public async Task<EstadoFacturaCobranzaSapViewModel?> ObtenerEstadoFacturaCobranzaAsync(
+            int docEntry,
+            CancellationToken ct = default)
+        {
+            if (docEntry <= 0)
+                return null;
+
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
+
+            var settings = _config.GetSection("SapServiceLayer");
+            var baseUrl = settings["BaseUrl"]?.TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException("No está configurado SapServiceLayer:BaseUrl.");
+
+            var url =
+                $"{baseUrl}/Invoices({docEntry})" +
+                "?$select=DocEntry,DocNum,CardCode,DocDate,DocDueDate,DocTotal,PaidToDate,DocCurrency,DocumentStatus,Cancelled";
+
+            var response = await GetWithReLoginAsync(url);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return null;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorSap = await response.Content.ReadAsStringAsync();
+                throw new InvalidOperationException(
+                    $"SAP no pudo consultar la factura DocEntry {docEntry}. " +
+                    $"HTTP {(int)response.StatusCode}. {errorSap}");
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var x = doc.RootElement;
+
+            decimal ObtenerDecimal(string propiedad)
+            {
+                if (!x.TryGetProperty(propiedad, out var p))
+                    return 0m;
+
+                if (p.ValueKind == JsonValueKind.Number)
+                    return p.GetDecimal();
+
+                if (p.ValueKind == JsonValueKind.String &&
+                    decimal.TryParse(
+                        p.GetString(),
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var valor))
+                {
+                    return valor;
+                }
+
+                return 0m;
+            }
+
+            DateTime? ObtenerFecha(string propiedad)
+            {
+                if (!x.TryGetProperty(propiedad, out var p) ||
+                    p.ValueKind != JsonValueKind.String)
+                    return null;
+
+                return DateTime.TryParse(p.GetString(), out var fecha)
+                    ? fecha.Date
+                    : null;
+            }
+
+            var total = ObtenerDecimal("DocTotal");
+            var pagado = ObtenerDecimal("PaidToDate");
+            var pendiente = Math.Max(0m, total - pagado);
+
+            var cancelled =
+                x.TryGetProperty("Cancelled", out var c)
+                    ? c.GetString() ?? ""
+                    : "";
+
+            return new EstadoFacturaCobranzaSapViewModel
+            {
+                DocEntry =
+                    x.TryGetProperty("DocEntry", out var de) &&
+                    de.ValueKind == JsonValueKind.Number
+                        ? de.GetInt32()
+                        : docEntry,
+
+                DocNum =
+                    x.TryGetProperty("DocNum", out var dn) &&
+                    dn.ValueKind == JsonValueKind.Number
+                        ? dn.GetInt32()
+                        : 0,
+
+                CardCode =
+                    x.TryGetProperty("CardCode", out var cc) &&
+                    cc.ValueKind == JsonValueKind.String
+                        ? cc.GetString() ?? ""
+                        : "",
+
+                FechaDocumento = ObtenerFecha("DocDate"),
+                FechaVencimiento = ObtenerFecha("DocDueDate"),
+
+                DocTotal =
+                    decimal.Round(total, 2, MidpointRounding.AwayFromZero),
+
+                PaidToDate =
+                    decimal.Round(pagado, 2, MidpointRounding.AwayFromZero),
+
+                Pendiente =
+                    decimal.Round(pendiente, 2, MidpointRounding.AwayFromZero),
+
+                Moneda =
+                    x.TryGetProperty("DocCurrency", out var cur) &&
+                    cur.ValueKind == JsonValueKind.String
+                        ? cur.GetString() ?? ""
+                        : "",
+
+                DocumentStatus =
+                    x.TryGetProperty("DocumentStatus", out var st) &&
+                    st.ValueKind == JsonValueKind.String
+                        ? st.GetString() ?? ""
+                        : "",
+
+                Cancelada =
+                    cancelled.Equals("tYES", StringComparison.OrdinalIgnoreCase) ||
+                    cancelled.Equals("Y", StringComparison.OrdinalIgnoreCase)
+            };
+        }
+
+
+        public async Task<List<PagoAplicadoFacturaSapViewModel>> ObtenerPagosAplicadosClienteAsync(
+            string cardCode,
+            DateTime fechaDesde,
+            CancellationToken ct = default)
+        {
+            var resultado =
+                new List<PagoAplicadoFacturaSapViewModel>();
+
+            if (string.IsNullOrWhiteSpace(cardCode))
+                return resultado;
+
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
+
+            var settings = _config.GetSection("SapServiceLayer");
+            var baseUrl = settings["BaseUrl"]?.TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException(
+                    "No está configurado SapServiceLayer:BaseUrl.");
+
+            var codigo =
+                cardCode
+                    .Trim()
+                    .Replace("'", "''");
+
+            var desde =
+                fechaDesde.Date.ToString("yyyy-MM-dd");
+
+            // No usamos $select porque necesitamos PaymentInvoices.
+            string? urlActual =
+                $"{baseUrl}/IncomingPayments" +
+                $"?$filter=CardCode eq '{codigo}' and DocDate ge '{desde}'" +
+                "&$orderby=DocDate desc";
+
+            while (!string.IsNullOrWhiteSpace(urlActual))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var response =
+                    await GetWithReLoginAsync(urlActual);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorSap =
+                        await response.Content.ReadAsStringAsync();
+
+                    throw new InvalidOperationException(
+                        $"SAP no pudo consultar pagos recibidos del cliente {cardCode}. " +
+                        $"HTTP {(int)response.StatusCode}. {errorSap}");
+                }
+
+                var json =
+                    await response.Content.ReadAsStringAsync();
+
+                using var doc =
+                    JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("value", out var value) &&
+                    value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var pago in value.EnumerateArray())
+                    {
+                        var cancelled =
+                            pago.TryGetProperty("Cancelled", out var c)
+                                ? c.GetString() ?? ""
+                                : "";
+
+                        if (cancelled.Equals("tYES", StringComparison.OrdinalIgnoreCase) ||
+                            cancelled.Equals("Y", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        var pagoDocEntry =
+                            pago.TryGetProperty("DocEntry", out var pde) &&
+                            pde.ValueKind == JsonValueKind.Number
+                                ? pde.GetInt32()
+                                : 0;
+
+                        int? pagoDocNum =
+                            pago.TryGetProperty("DocNum", out var pdn) &&
+                            pdn.ValueKind == JsonValueKind.Number
+                                ? pdn.GetInt32()
+                                : null;
+
+                        DateTime? fechaPagoCabecera = null;
+
+                        if (pago.TryGetProperty("DocDate", out var pfd) &&
+                            pfd.ValueKind == JsonValueKind.String &&
+                            DateTime.TryParse(pfd.GetString(), out var fechaPago))
+                        {
+                            fechaPagoCabecera = fechaPago.Date;
+                        }
+
+                        var referencia =
+                            pago.TryGetProperty("Reference2", out var pr) &&
+                            pr.ValueKind == JsonValueKind.String
+                                ? pr.GetString()
+                                : null;
+
+                        var comentario =
+                            pago.TryGetProperty("Remarks", out var pc) &&
+                            pc.ValueKind == JsonValueKind.String
+                                ? pc.GetString()
+                                : null;
+
+                        if (!pago.TryGetProperty("PaymentInvoices", out var lineas) ||
+                            lineas.ValueKind != JsonValueKind.Array)
+                        {
+                            continue;
+                        }
+
+                        foreach (var linea in lineas.EnumerateArray())
+                        {
+                            if (!linea.TryGetProperty("DocEntry", out var facturaEntryProp) ||
+                                facturaEntryProp.ValueKind != JsonValueKind.Number)
+                            {
+                                continue;
+                            }
+
+                            var facturaDocEntry =
+                                facturaEntryProp.GetInt32();
+
+                            // Si SAP expone InvoiceType, sólo tomamos facturas.
+                            if (linea.TryGetProperty("InvoiceType", out var tipoProp) &&
+                                tipoProp.ValueKind == JsonValueKind.String)
+                            {
+                                var tipo =
+                                    tipoProp.GetString() ?? "";
+
+                                if (!string.IsNullOrWhiteSpace(tipo) &&
+                                    !tipo.Equals(
+                                        "it_Invoice",
+                                        StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+                            }
+
+                            decimal montoAplicado = 0m;
+
+                            if (linea.TryGetProperty("SumApplied", out var suma))
+                            {
+                                if (suma.ValueKind == JsonValueKind.Number)
+                                {
+                                    montoAplicado =
+                                        suma.GetDecimal();
+                                }
+                                else if (
+                                    suma.ValueKind == JsonValueKind.String)
+                                {
+                                    decimal.TryParse(
+                                        suma.GetString(),
+                                        System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture,
+                                        out montoAplicado);
+                                }
+                            }
+
+                            DateTime? fechaAplicacion =
+                                fechaPagoCabecera;
+
+                            // LinkDate es preferible cuando Service Layer lo devuelve.
+                            if (linea.TryGetProperty("LinkDate", out var linkDate) &&
+                                linkDate.ValueKind == JsonValueKind.String &&
+                                DateTime.TryParse(linkDate.GetString(), out var fechaLink))
+                            {
+                                fechaAplicacion =
+                                    fechaLink.Date;
+                            }
+
+                            resultado.Add(
+                                new PagoAplicadoFacturaSapViewModel
+                                {
+                                    FacturaDocEntry =
+                                        facturaDocEntry,
+
+                                    PagoDocEntry =
+                                        pagoDocEntry,
+
+                                    PagoDocNum =
+                                        pagoDocNum,
+
+                                    FechaPago =
+                                        fechaAplicacion,
+
+                                    MontoAplicado =
+                                        decimal.Round(
+                                            Math.Abs(montoAplicado),
+                                            2,
+                                            MidpointRounding.AwayFromZero),
+
+                                    Referencia =
+                                        referencia,
+
+                                    Comentario =
+                                        comentario
+                                });
+                        }
+                    }
+                }
+
+                string? nextLink = null;
+
+                if (doc.RootElement.TryGetProperty("odata.nextLink", out var n1) &&
+                    n1.ValueKind == JsonValueKind.String)
+                {
+                    nextLink =
+                        n1.GetString();
+                }
+                else if (
+                    doc.RootElement.TryGetProperty("@odata.nextLink", out var n2) &&
+                    n2.ValueKind == JsonValueKind.String)
+                {
+                    nextLink =
+                        n2.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(nextLink))
+                {
+                    urlActual =
+                        null;
+                }
+                else if (
+                    Uri.TryCreate(
+                        nextLink,
+                        UriKind.Absolute,
+                        out var absoluta))
+                {
+                    urlActual =
+                        absoluta.ToString();
+                }
+                else
+                {
+                    var serviceUri =
+                        new Uri(
+                            baseUrl.TrimEnd('/') + "/");
+
+                    var hostUri =
+                        new Uri(
+                            $"{serviceUri.Scheme}://{serviceUri.Authority}/");
+
+                    var relative =
+                        nextLink.TrimStart('/');
+
+                    urlActual =
+                        relative.StartsWith(
+                            "b1s/",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? new Uri(hostUri, relative).ToString()
+                            : new Uri(serviceUri, relative).ToString();
+                }
+            }
+
+            // Evita duplicados si SAP devuelve más de una línea
+            // del mismo pago aplicada a la misma factura.
+            return resultado
+                .GroupBy(x => new
+                {
+                    x.FacturaDocEntry,
+                    x.PagoDocEntry
+                })
+                .Select(g =>
+                    new PagoAplicadoFacturaSapViewModel
+                    {
+                        FacturaDocEntry =
+                            g.Key.FacturaDocEntry,
+
+                        PagoDocEntry =
+                            g.Key.PagoDocEntry,
+
+                        PagoDocNum =
+                            g.Select(x => x.PagoDocNum)
+                             .FirstOrDefault(x => x.HasValue),
+
+                        FechaPago =
+                            g.Select(x => x.FechaPago)
+                             .Where(x => x.HasValue)
+                             .OrderByDescending(x => x)
+                             .FirstOrDefault(),
+
+                        MontoAplicado =
+                            decimal.Round(
+                                g.Sum(x => x.MontoAplicado),
+                                2,
+                                MidpointRounding.AwayFromZero),
+
+                        Referencia =
+                            g.Select(x => x.Referencia)
+                             .FirstOrDefault(x =>
+                                !string.IsNullOrWhiteSpace(x)),
+
+                        Comentario =
+                            g.Select(x => x.Comentario)
+                             .FirstOrDefault(x =>
+                                !string.IsNullOrWhiteSpace(x))
+                    })
+                .OrderByDescending(x => x.FechaPago)
+                .ToList();
+        }
 
 
 

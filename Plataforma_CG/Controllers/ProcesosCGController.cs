@@ -8097,85 +8097,214 @@ ORDER BY Nombre;";
 
 
         [HttpGet("InventarioCamaras")]
-        public async Task<IActionResult> InventarioCamaras(string planta = "P1", string camara = "")
+        public async Task<IActionResult> InventarioCamaras(
+      string planta = "P1",
+      string camara = "",
+      int? etiquetacionId = null)
         {
-            planta = NormalizeSource(planta);
+            try
+            {
+                planta = NormalizeSource(planta);
 
-            var cs = GetMeatConnectionString(planta);
+                var cs = GetMeatConnectionString(planta);
 
-            if (string.IsNullOrWhiteSpace(cs))
-                return StatusCode(500, new { ok = false, mensaje = $"No existe cadena para planta {planta}" });
+                if (string.IsNullOrWhiteSpace(cs))
+                {
+                    return StatusCode(500, new
+                    {
+                        ok = false,
+                        mensaje = $"No existe cadena para planta {planta}"
+                    });
+                }
 
-            var dbCommercia = planta == "TIF" ? "TIF_CommerciaNet" : "CommerciaNet";
-            var dbMeat = planta == "TIF" ? "TIF_Meat" : "Meat";
+                var dbCommercia = planta == "TIF"
+                    ? "TIF_CommerciaNet"
+                    : "CommerciaNet";
 
-            camara = (camara ?? "").Trim();
+                var dbMeat = planta == "TIF"
+                    ? "TIF_Meat"
+                    : "Meat";
 
-            var sql = $@"
+                camara = (camara ?? "").Trim();
+
+                var sql = $@"
 SELECT 
     '-' AS Fecha,
+
     alm.Nombre AS Almacen,
+
     CASE 
         WHEN MAX(SUBSTRING(prod.CodigoEtiqueta,1,4)) = 'SACT' 
             THEN ISNULL(a2.ArticuloId,'-') 
         ELSE prod.Articulo 
     END AS Sku,
+
     CASE 
         WHEN MAX(SUBSTRING(prod.CodigoEtiqueta,1,4)) = 'SACT' 
             THEN ISNULL(a2.Nombre,'Sin Clasificar') 
         ELSE a.Nombre 
     END AS Nombre,
+
+    etq.EtiquetacionId,
+
+    ISNULL(
+        NULLIF(
+            LTRIM(RTRIM(etq.Etiquetacion)),
+            ''
+        ),
+        'SIN ETIQUETACION'
+    ) AS Etiquetacion,
+
     COUNT(1) AS Cajas,
-    SUM(Prod.PesoNeto) AS Kg,
-    ROUND(SUM(Prod.PesoNeto) / COUNT(1), 2) AS Prom,
+
+    SUM(ISNULL(Prod.PesoNeto,0)) AS Kg,
+
+    ROUND(
+        SUM(ISNULL(Prod.PesoNeto,0)) /
+        NULLIF(COUNT(1),0),
+        2
+    ) AS Prom,
+
     a.LineaId,
+
     CASE 
-        WHEN Prod.Estatus = 1 THEN 'Activo' 
+        WHEN Prod.Estatus = 1 
+            THEN 'Activo' 
         ELSE 'No activo' 
     END AS Estatus,
+
     '-' AS Ubic
+
 FROM Produccion Prod
+
 INNER JOIN {dbCommercia}.dbo.Articulo a 
     ON Prod.Articulo = a.ArticuloId
+
 INNER JOIN {dbCommercia}.dbo.Almacen alm 
     ON Prod.Almacen = alm.AlmacenId
+
 LEFT JOIN {dbMeat}.dbo.CanalDetalle cd 
     ON Prod.ProduccionId = cd.ProduccionId
+
 LEFT JOIN {dbCommercia}.dbo.Articulo a2 
     ON cd.ClasificacionId = a2.Clasifica1
-WHERE Prod.Estatus = 1
-  AND (
-        @Camara = '' 
-        OR LTRIM(RTRIM(alm.Nombre)) = LTRIM(RTRIM(@Camara))
-      )
+
+
+/* =====================================================
+   ULTIMA ETIQUETACION REGISTRADA PARA LA CAJA
+   ===================================================== */
+OUTER APPLY
+(
+    SELECT TOP (1)
+
+        pel.EtiquetacionId,
+
+        ISNULL(
+            NULLIF(
+                LTRIM(RTRIM(col.Nombre)),
+                ''
+            ),
+            CONVERT(varchar(20),pel.EtiquetacionId)
+        ) AS Etiquetacion
+
+    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
+
+    LEFT JOIN {dbCommercia}.dbo.COLECTOR col
+        ON col.ColectorId = pel.EtiquetacionId
+       AND UPPER(LTRIM(RTRIM(col.SistemaId))) = 'ETI'
+
+    WHERE pel.ProduccionId = Prod.ProduccionId
+
+    ORDER BY
+        pel.FechaHoraEvento DESC,
+        pel.LogId DESC
+
+) etq
+
+
+WHERE
+    Prod.Estatus = 1
+
+    AND
+    (
+        @Camara = ''
+        OR LTRIM(RTRIM(alm.Nombre)) =
+           LTRIM(RTRIM(@Camara))
+    )
+
+    AND
+    (
+        @EtiquetacionId IS NULL
+        OR etq.EtiquetacionId = @EtiquetacionId
+    )
+
+
 GROUP BY 
     alm.Nombre,
+
     a2.ArticuloId,
+
     prod.Articulo,
+
     a2.Nombre,
+
     a.Nombre,
+
     a.LineaId,
-    prod.Estatus
-ORDER BY alm.Nombre, Nombre;";
 
-            using var cn = new SqlConnection(cs);
+    prod.Estatus,
 
-            var rows = (await cn.QueryAsync(sql, new
+    etq.EtiquetacionId,
+
+    etq.Etiquetacion
+
+
+ORDER BY
+    alm.Nombre,
+    Etiquetacion,
+    Nombre;";
+
+                using var cn = new SqlConnection(cs);
+
+                var rows = (
+                    await cn.QueryAsync(
+                        sql,
+                        new
+                        {
+                            Camara = camara,
+                            EtiquetacionId = etiquetacionId
+                        },
+                        commandTimeout: 120
+                    )
+                ).ToList();
+
+                return Json(new
+                {
+                    ok = true,
+
+                    servidor = cn.DataSource,
+                    bd = cn.Database,
+
+                    planta,
+                    camara,
+                    camaraLen = camara.Length,
+
+                    etiquetacionId,
+
+                    total = rows.Count,
+
+                    rows
+                });
+            }
+            catch (Exception ex)
             {
-                Camara = camara
-            })).ToList();
-
-            return Json(new
-            {
-                ok = true,
-                servidor = cn.DataSource,
-                bd = cn.Database,
-                planta,
-                camara,
-                camaraLen = camara.Length,
-                total = rows.Count,
-                rows
-            });
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "Error al consultar inventario por cámara y etiquetación.",
+                    error = ex.GetBaseException().Message
+                });
+            }
         }
 
         [HttpGet("TrazabilidadCamara")]
@@ -8288,7 +8417,7 @@ OUTER APPLY (
 
 {joinReclasificacion}
 WHERE 
-    Prod.Estatus = 1 
+    Prod.Estatus = 1 and pr.TipoReferenciaId = 16
     AND (
         CASE 
             WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
@@ -8333,121 +8462,266 @@ ORDER BY Prod.FechaProduccion DESC, Prod.CodigoEtiqueta;";
             });
         }
 
-
         [HttpGet("DetalleCamaraCompleta")]
-        public async Task<IActionResult> DetalleCamaraCompleta(string planta = "P1", string camara = "")
+        public async Task<IActionResult> DetalleCamaraCompleta(
+    string planta = "P1",
+    string camara = "")
         {
             planta = NormalizeSource(planta);
 
             var cs = GetMeatConnectionString(planta);
 
             if (string.IsNullOrWhiteSpace(cs))
-                return StatusCode(500, new { ok = false, mensaje = $"No existe cadena para planta {planta}" });
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = $"No existe cadena para planta {planta}"
+                });
 
             camara = (camara ?? "").Trim();
 
             if (string.IsNullOrWhiteSpace(camara))
-                return Json(new { ok = false, mensaje = "Falta cámara/almacén." });
+                return Json(new
+                {
+                    ok = false,
+                    mensaje = "Falta cámara/almacén."
+                });
 
-            var dbCommercia = planta == "TIF" ? "TIF_CommerciaNet" : "CommerciaNet";
-            var dbMeat = planta == "TIF" ? "TIF_Meat" : "Meat";
-            var prefijoCanal = planta == "TIF" ? "SACT" : "SACC";
+            var dbCommercia =
+                planta == "TIF"
+                    ? "TIF_CommerciaNet"
+                    : "CommerciaNet";
+
+            var dbMeat =
+                planta == "TIF"
+                    ? "TIF_Meat"
+                    : "Meat";
+
+            var prefijoCanal =
+                planta == "TIF"
+                    ? "SACT"
+                    : "SACC";
 
             var sql = $@"
 SELECT
     CONVERT(date, Prod.FechaProduccion) AS Fecha,
+
     Prod.CodigoEtiqueta,
+
     CASE 
         WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
             THEN artt.ArticuloId 
         ELSE Prod.Articulo 
     END AS Sku,
+
     CASE 
         WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
             THEN ISNULL(cn.Nombre,'-') 
         ELSE a.Nombre 
     END AS Producto,
+
     Prod.PesoNeto AS Kg,
+
     alm.Nombre,
+
     lot.Nombre AS Lote,
-    ISNULL(STRING_AGG(emp.Nombre,' - '),'-') AS Empaque,
-    ISNULL(STRING_AGG(CONVERT(varchar(50), ct.Cantidad),' - '),'-') AS Cantidad,
-    ISNULL(STRING_AGG(tar.Nombre,'-'), '-') AS Tar,
-    ISNULL(STRING_AGG(CONVERT(varchar(50), tar.Estatus),'-'), '-') AS ActTar,
-    ISNULL(PR.Referencia, '-') AS Ubic,
-    MIN(logIngreso.FechaIngresoCamara) AS FechaIngresoCamara,
+
+    ISNULL(
+        STRING_AGG(emp.Nombre,' - '),
+        '-'
+    ) AS Empaque,
+
+    ISNULL(
+        STRING_AGG(
+            CONVERT(varchar(50),ct.Cantidad),
+            ' - '
+        ),
+        '-'
+    ) AS Cantidad,
+
+    ISNULL(
+        STRING_AGG(tar.Nombre,'-'),
+        '-'
+    ) AS Tar,
+
+    ISNULL(
+        STRING_AGG(
+            CONVERT(varchar(50),tar.Estatus),
+            '-'
+        ),
+        '-'
+    ) AS ActTar,
+
+    ISNULL(
+        PR.Referencia,
+        '-'
+    ) AS Ubic,
+
+    MIN(
+        logIngreso.FechaIngresoCamara
+    ) AS FechaIngresoCamara,
+
+    MAX(
+        ISNULL(
+            NULLIF(
+                LTRIM(RTRIM(etq.NombreEtiquetacion)),
+                ''
+            ),
+            '-'
+        )
+    ) AS Etiquetacion,
+
     '-' AS Reclasificacion,
+
     CASE
-        WHEN alm.Nombre = 'TIF CAMARA FRESCO' 
-            THEN DATEADD(DAY,30,CONVERT(date,Prod.FechaProduccion)) 
-        ELSE DATEADD(DAY,365,CONVERT(date,Prod.FechaProduccion)) 
+        WHEN alm.Nombre = 'TIF CAMARA FRESCO'
+            THEN DATEADD(
+                DAY,
+                30,
+                CONVERT(date,Prod.FechaProduccion)
+            )
+        ELSE DATEADD(
+            DAY,
+            365,
+            CONVERT(date,Prod.FechaProduccion)
+        )
     END AS Fechas_Caducidad
+
 FROM Produccion Prod
-INNER JOIN {dbCommercia}.dbo.Articulo a 
+
+INNER JOIN {dbCommercia}.dbo.Articulo a
     ON Prod.Articulo = a.ArticuloId
-INNER JOIN {dbCommercia}.dbo.Almacen alm 
+
+INNER JOIN {dbCommercia}.dbo.Almacen alm
     ON Prod.Almacen = alm.AlmacenId
-INNER JOIN Lote lot 
+
+INNER JOIN Lote lot
     ON Prod.LoteId = lot.LoteId
-LEFT JOIN {dbMeat}.dbo.CanalDetalle cd 
+
+LEFT JOIN {dbMeat}.dbo.CanalDetalle cd
     ON Prod.ProduccionId = cd.ProduccionId
-LEFT JOIN {dbMeat}.dbo.Clasificacion cn 
+
+LEFT JOIN {dbMeat}.dbo.Clasificacion cn
     ON cd.ClasificacionId = cn.ClasificacionId
-LEFT JOIN {dbCommercia}.dbo.Articulo artt 
-    ON cn.ClasificacionId = artt.Clasifica1 
-LEFT JOIN TarimaDetalle tarD 
+
+LEFT JOIN {dbCommercia}.dbo.Articulo artt
+    ON cn.ClasificacionId = artt.Clasifica1
+
+LEFT JOIN TarimaDetalle tarD
     ON tarD.ProduccionId = Prod.ProduccionId
-LEFT JOIN Tarima tar 
+
+LEFT JOIN Tarima tar
     ON tar.TarimaId = tarD.TarimaId
-LEFT JOIN ProduccionReferencia PR 
+
+LEFT JOIN ProduccionReferencia PR
     ON PR.ProduccionId = Prod.ProduccionId
-LEFT JOIN {dbMeat}.dbo.CajaTara CT 
-    ON CT.ProduccionId = Prod.ProduccionId        
-LEFT JOIN {dbMeat}.dbo.Empaque emp 
+
+LEFT JOIN {dbMeat}.dbo.CajaTara CT
+    ON CT.ProduccionId = Prod.ProduccionId
+
+LEFT JOIN {dbMeat}.dbo.Empaque emp
     ON emp.EmpaqueId = CT.EmpaqueId
 
-OUTER APPLY (
+
+/* ==========================================
+   PRIMER INGRESO A CAMARA
+   ========================================== */
+
+OUTER APPLY
+(
     SELECT TOP 1
         pl.FechaHora AS FechaIngresoCamara
+
     FROM {dbMeat}.dbo.ProduccionLog pl
-    WHERE pl.ProduccionId = Prod.ProduccionId
-      AND pl.CodigoEtiqueta = Prod.CodigoEtiqueta
-      AND (
-            LTRIM(RTRIM(pl.Almacen)) = LTRIM(RTRIM(alm.AlmacenId))
-         OR LTRIM(RTRIM(pl.Almacen)) = LTRIM(RTRIM(alm.Nombre))
-      )
-    ORDER BY 
+
+    WHERE
+        pl.ProduccionId = Prod.ProduccionId and pr.TipoReferenciaId = 16
+
+        AND LTRIM(RTRIM(pl.CodigoEtiqueta)) =
+            LTRIM(RTRIM(Prod.CodigoEtiqueta))
+
+        AND
+        (
+            LTRIM(RTRIM(pl.Almacen)) =
+                LTRIM(RTRIM(alm.AlmacenId))
+
+            OR
+
+            LTRIM(RTRIM(pl.Almacen)) =
+                LTRIM(RTRIM(alm.Nombre))
+        )
+
+    ORDER BY
         pl.FechaHora ASC,
         pl.ProduccionLogId ASC
+
 ) logIngreso
 
-WHERE 
+
+/* ==========================================
+   ULTIMA ETIQUETACION REGISTRADA
+   ========================================== */
+
+OUTER APPLY
+(
+    SELECT TOP 1
+        pel.EtiquetacionId,
+
+        pel.Etiquetacion AS NombreEtiquetacion,
+
+        pel.FechaHoraEvento
+
+    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
+
+    WHERE
+        LTRIM(RTRIM(pel.CodigoEtiqueta)) =
+            LTRIM(RTRIM(Prod.CodigoEtiqueta))
+
+    ORDER BY
+        pel.FechaHoraEvento DESC,
+        pel.LogId DESC
+
+) etq
+
+
+WHERE
     Prod.Estatus = 1
-    AND LTRIM(RTRIM(alm.Nombre)) = LTRIM(RTRIM(@Camara))
+
+    AND LTRIM(RTRIM(alm.Nombre)) =
+        LTRIM(RTRIM(@Camara))
+
+
 GROUP BY
-    Prod.CodigoEtiqueta, 
-    Prod.FechaProduccion, 
-    Prod.Articulo, 
-    a.Nombre, 
-    Prod.PesoNeto, 
+    Prod.CodigoEtiqueta,
+    Prod.FechaProduccion,
+    Prod.Articulo,
+    a.Nombre,
+    Prod.PesoNeto,
     alm.Nombre,
     alm.AlmacenId,
     lot.Nombre,
     PR.Referencia,
     cn.Nombre,
     artt.ArticuloId
-ORDER BY 
-    PR.Referencia, 
-    Producto, 
+
+
+ORDER BY
+    PR.Referencia,
+    Producto,
     Prod.FechaProduccion DESC;";
 
             using var cnSql = new SqlConnection(cs);
 
-            var rows = (await cnSql.QueryAsync(sql, new
-            {
-                Camara = camara,
-                PrefijoCanal = prefijoCanal
-            })).ToList();
+            var rows = (
+                await cnSql.QueryAsync(
+                    sql,
+                    new
+                    {
+                        Camara = camara,
+                        PrefijoCanal = prefijoCanal
+                    }
+                )
+            ).ToList();
 
             return Json(new
             {
@@ -8458,7 +8732,6 @@ ORDER BY
                 rows
             });
         }
-
 
         // ========================= AVISOS MOVILIZACION SENASICA =========================
         // Fuente oficial: ConnectionStrings:CadenaMeatTIF
@@ -13568,9 +13841,13 @@ ORDER BY
             public string Producto { get; set; } = "";
 
             public decimal KgProduccionMes { get; set; }
+            public decimal KgProducidoReal { get; set; }
+            public decimal KgFaltaProducir { get; set; }
             public decimal KgInventarioInicial { get; set; }
             public decimal KgBaseCalculo { get; set; }
             public decimal KgActual { get; set; }
+            public decimal KgFaltaMasInventario { get; set; }
+            public decimal KgPedidosMes { get; set; }
 
             public int CajasActuales { get; set; }
             public int Lotes { get; set; }
@@ -13591,6 +13868,25 @@ ORDER BY
             public string Estatus { get; set; } = "";
             public DateTime? FechaActualizacion { get; set; }
             public DateTime? FechaInventarioInicial { get; set; }
+        }
+
+        private sealed class InventarioMinMaxPedidoDetalleVM
+        {
+            public int OrdenVentaId { get; set; }
+            public string OrdenVenta { get; set; } = "";
+            public string ClienteCodigo { get; set; } = "";
+            public string ClienteNombre { get; set; } = "";
+            public string Vendedor { get; set; } = "";
+            public string Canal { get; set; } = "";
+            public string Serie { get; set; } = "";
+            public DateTime? FechaRegistro { get; set; }
+            public DateTime? FechaEntrega { get; set; }
+            public int EstatusId { get; set; }
+            public string Estatus { get; set; } = "";
+            public decimal KgPedido { get; set; }
+            public decimal KgSurtido { get; set; }
+            public decimal KgCerrado { get; set; }
+            public decimal KgPendiente { get; set; }
         }
 
         private sealed class InventarioMinMaxClasificacionVM
@@ -13628,6 +13924,11 @@ ORDER BY
         {
             public string Sku { get; set; } = "";
             public string Clasificacion { get; set; } = "";
+        }
+
+        public sealed class InventarioMinMaxEliminarClasificacionRequest
+        {
+            public int ClasificacionId { get; set; }
         }
 
         /*
@@ -13749,7 +14050,184 @@ Produccion AS
 
     HAVING
         SUM(ISNULL(pd.Peso, 0)) > 0
-),InventarioInicial AS
+),
+ProduccionReal AS
+(
+    /*
+     * PRODUCCIÓN REAL DEL MES
+     * Misma fuente utilizada en ComercialController para comparar
+     * el plan mensual contra lo realmente producido.
+     */
+    SELECT
+        UPPER(LTRIM(RTRIM(p.ArticuloCodigo))) AS Sku,
+        CAST(
+            SUM(ISNULL(p.KgProducidos, 0))
+            AS DECIMAL(18,3)
+        ) AS KgProducidoReal
+    FROM dbo.ProduccionSigo p WITH (NOLOCK)
+    WHERE
+        p.FechaProduccion IS NOT NULL
+        AND p.FechaProduccion >= @FechaDesde
+        AND p.FechaProduccion < @FechaHasta
+        AND NULLIF(LTRIM(RTRIM(p.ArticuloCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(p.ArticuloCodigo)))
+),
+OVMes AS
+(
+    /*
+     * ÓRDENES ACTIVAS DEL MES.
+     * Solamente órdenes pertenecientes a la sucursal MATRIZ,
+     * según el catálogo dbo.Series.
+     */
+    SELECT
+        o.Id
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    WHERE
+        o.Estatus <> 0
+        AND o.FechaEntrega >= @FechaDesde
+        AND o.FechaEntrega < @FechaHasta
+
+        AND EXISTS
+        (
+            SELECT 1
+            FROM dbo.Series sr WITH (NOLOCK)
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(sr.NombreSerie, '')))) =
+                UPPER(LTRIM(RTRIM(ISNULL(o.Serie, ''))))
+
+                AND UPPER(LTRIM(RTRIM(ISNULL(sr.Sucursal, '')))) = 'MATRIZ'
+        )
+),
+OVPesoMes AS
+(
+    /* Kg originalmente pedidos por OV + SKU. */
+    SELECT
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo))) AS Sku,
+        CAST(SUM(ISNULL(op.Peso, 0)) AS DECIMAL(18,3)) AS KgPedido
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    INNER JOIN OVMes ov
+        ON ov.Id = op.PedidoId
+    WHERE
+        (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND NULLIF(LTRIM(RTRIM(op.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+),
+OVValidacionMes AS
+(
+    /*
+     * Una OV queda cerrada únicamente cuando TODOS sus subpedidos están
+     * cerrados. Cerrado = FechaValidacion o Remision/VREM.
+     */
+    SELECT
+        sp.OrdenVentaId AS PedidoId,
+        CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(CASE WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1 ELSE 0 END) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END
+            AS BIT
+        ) AS PedidoCerrado
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OVMes ov
+        ON ov.Id = sp.OrdenVentaId
+    LEFT JOIN
+    (
+        SELECT
+            se.SolicitudSurtidoId,
+            MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            ) AS EsCerrado
+        FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+        GROUP BY se.SolicitudSurtidoId
+    ) sev
+        ON sev.SolicitudSurtidoId = TRY_CONVERT(
+            INT,
+            NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+        )
+    GROUP BY sp.OrdenVentaId
+),
+OVCerradoSkuMes AS
+(
+    /*
+     * Kg pertenecientes a subpedidos que ya fueron cerrados.
+     * Si una solicitud cerró con menos surtido físico, la diferencia
+     * queda liberada y no vuelve a aparecer como pendiente.
+     */
+    SELECT
+        sp.OrdenVentaId AS PedidoId,
+        UPPER(LTRIM(RTRIM(spp.ProductoCodigo))) AS Sku,
+        CAST(SUM(ISNULL(spp.KilosCaja, 0)) AS DECIMAL(18,3)) AS KgCerrado
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OVMes ov
+        ON ov.Id = sp.OrdenVentaId
+    INNER JOIN dbo.SubpedidoProductos spp WITH (NOLOCK)
+        ON spp.SubpedidoId = sp.Id
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+        AND EXISTS
+        (
+            SELECT 1
+            FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+            WHERE se.SolicitudSurtidoId = TRY_CONVERT(
+                      INT,
+                      NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                  )
+              AND
+              (
+                  se.FechaValidacion IS NOT NULL
+                  OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+              )
+        )
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(spp.ProductoCodigo)))
+),
+OVPendienteSkuMes AS
+(
+    /*
+     * Pendiente real, usando la misma regla operativa de Comercial:
+     * - OV completamente cerrada => 0.
+     * - OV parcialmente cerrada => pedido original - kg de subpedidos cerrados.
+     */
+    SELECT
+        p.Sku,
+        CAST(
+            CASE
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1 THEN 0
+                WHEN ISNULL(p.KgPedido, 0) - ISNULL(c.KgCerrado, 0) <= 0 THEN 0
+                ELSE ISNULL(p.KgPedido, 0) - ISNULL(c.KgCerrado, 0)
+            END
+            AS DECIMAL(18,3)
+        ) AS KgPendiente
+    FROM OVPesoMes p
+    LEFT JOIN OVValidacionMes v
+        ON v.PedidoId = p.PedidoId
+    LEFT JOIN OVCerradoSkuMes c
+        ON c.PedidoId = p.PedidoId
+       AND c.Sku = p.Sku
+),
+PedidosMes AS
+(
+    /* La cifra visible en la tabla ahora es el pendiente real por SKU. */
+    SELECT
+        Sku,
+        CAST(SUM(KgPendiente) AS DECIMAL(18,3)) AS KgPedidosMes
+    FROM OVPendienteSkuMes
+    WHERE KgPendiente > 0
+    GROUP BY Sku
+),
+InventarioInicial AS
 (
     SELECT
         UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku,
@@ -13818,6 +14296,17 @@ Base AS
         ISNULL(cp.OrdenMinMax, 999) AS ClasificacionOrden,
 
         CAST(ISNULL(p.KgProduccionMes, 0) AS DECIMAL(18,3)) AS KgProduccionMes,
+        CAST(ISNULL(pr.KgProducidoReal, 0) AS DECIMAL(18,3)) AS KgProducidoReal,
+
+        CAST(
+            CASE
+                WHEN ISNULL(p.KgProduccionMes, 0) - ISNULL(pr.KgProducidoReal, 0) > 0
+                    THEN ISNULL(p.KgProduccionMes, 0) - ISNULL(pr.KgProducidoReal, 0)
+                ELSE 0
+            END
+            AS DECIMAL(18,3)
+        ) AS KgFaltaProducir,
+
         CAST(ISNULL(ii.KgInventarioInicial, 0) AS DECIMAL(18,3)) AS KgInventarioInicial,
 
         CAST(
@@ -13827,6 +14316,18 @@ Base AS
         ) AS KgBaseCalculo,
 
         CAST(ISNULL(ia.KgActual, 0) AS DECIMAL(18,3)) AS KgActual,
+
+        CAST(
+            ISNULL(ia.KgActual, 0) +
+            CASE
+                WHEN ISNULL(p.KgProduccionMes, 0) - ISNULL(pr.KgProducidoReal, 0) > 0
+                    THEN ISNULL(p.KgProduccionMes, 0) - ISNULL(pr.KgProducidoReal, 0)
+                ELSE 0
+            END
+            AS DECIMAL(18,3)
+        ) AS KgFaltaMasInventario,
+
+        CAST(ISNULL(pm.KgPedidosMes, 0) AS DECIMAL(18,3)) AS KgPedidosMes,
 
         ISNULL(ia.CajasActuales, 0) AS CajasActuales,
         ISNULL(ia.Lotes, 0) AS Lotes,
@@ -13866,10 +14367,14 @@ Base AS
         ON cm.Sku = s.Sku
     LEFT JOIN Produccion p
         ON p.Sku = s.Sku
+    LEFT JOIN ProduccionReal pr
+        ON pr.Sku = s.Sku
     LEFT JOIN InventarioInicial ii
         ON ii.Sku = s.Sku
     LEFT JOIN InventarioActual ia
         ON ia.Sku = s.Sku
+    LEFT JOIN PedidosMes pm
+        ON pm.Sku = s.Sku
     LEFT JOIN dbo.ClasificacionProduccion cp WITH (NOLOCK)
         ON cp.ClasificacionId = a.ClasificacionId
 ),
@@ -13881,24 +14386,24 @@ Umbrales AS
         CAST(
             CASE
                 WHEN b.KgBaseCalculo > 0
-                    THEN b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))
+                    THEN b.KgBaseCalculo / CAST(DAY(EOMONTH(@FechaDesde)) AS DECIMAL(10,2))
                 ELSE 0
             END
             AS DECIMAL(18,6)
         ) AS ConsumoDiario,
 
         CAST(
-            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasMinimo
+            (b.KgBaseCalculo / CAST(DAY(EOMONTH(@FechaDesde)) AS DECIMAL(10,2))) * b.DiasMinimo
             AS DECIMAL(18,3)
         ) AS Minimo,
 
         CAST(
-            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasIdeal
+            (b.KgBaseCalculo / CAST(DAY(EOMONTH(@FechaDesde)) AS DECIMAL(10,2))) * b.DiasIdeal
             AS DECIMAL(18,3)
         ) AS Ideal,
 
         CAST(
-            (b.KgBaseCalculo / CAST(30.4 AS DECIMAL(10,2))) * b.DiasMaximo
+            (b.KgBaseCalculo / CAST(DAY(EOMONTH(@FechaDesde)) AS DECIMAL(10,2))) * b.DiasMaximo
             AS DECIMAL(18,3)
         ) AS Maximo
     FROM Base b
@@ -13911,9 +14416,13 @@ SELECT
     u.Producto,
 
     u.KgProduccionMes,
+    u.KgProducidoReal,
+    u.KgFaltaProducir,
     u.KgInventarioInicial,
     u.KgBaseCalculo,
     u.KgActual,
+    u.KgFaltaMasInventario,
+    u.KgPedidosMes,
 
     u.CajasActuales,
     u.Lotes,
@@ -13941,7 +14450,7 @@ SELECT
     CAST(
         CASE
             WHEN u.Maximo > 0
-                THEN (u.KgActual / u.Maximo) * 100
+                THEN ((u.KgActual / u.Maximo) - 1) * 100
             ELSE 0
         END
         AS DECIMAL(18,2)
@@ -14048,13 +14557,15 @@ ORDER BY
                                 ? (DateTime?)null
                                 : fechaActualizacion,
 
-                        denominadorDias = 30.4m,
+                        denominadorDias = DateTime.DaysInMonth(fechaDesde.Year, fechaDesde.Month),
 
                         criterio =
                             "Solo se muestran SKUs con producción mensual > 0. " +
                             "El inventario inicial y actual se usan para el análisis, pero no hacen visible un SKU si no tiene producción en el mes. " +
                             "Base = producción planeada del mes + último inventario almacenado disponible al cierre anterior. " +
-                            "Mínimo, ideal y máximo = Base / 30.4 × días definidos en ClasificacionProduccion.",
+                            "Falta prod. + Inv. = MAX(plan mensual - producido real, 0) + inventario actual. " +
+                            "Pedidos pendientes = kilos de OV aún comprometidos por surtir en el mes; excluye canceladas, líneas eliminadas y libera subpedidos ya cerrados. " +
+                            "Mínimo, ideal y máximo = Base / días reales del mes seleccionado × días definidos en ClasificacionProduccion.",
 
                         data = rows
                     });
@@ -14073,6 +14584,320 @@ ORDER BY
                 {
                     ok = false,
                     msg = "Error al consultar el indicador de inventario mínimo y máximo.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+
+        // =========================================================
+        // DETALLE DE PEDIDOS PENDIENTES POR SKU / MES
+        //
+        // La cifra regresada aquí debe cuadrar con KgPedidosMes de
+        // InventarioMinMaxDatos. La regla de pendiente replica la
+        // utilizada en ComercialController:
+        //   - OV cancelada (Estatus 0) no entra.
+        //   - Línea eliminada no entra.
+        //   - Si todos los subpedidos cerraron, pendiente = 0.
+        //   - Si hay subpedidos abiertos, pendiente = pedido original
+        //     menos los kg pertenecientes a subpedidos ya cerrados.
+        // =========================================================
+        [HttpGet("InventarioMinMaxPedidosDetalle")]
+        public async Task<IActionResult> InventarioMinMaxPedidosDetalle(
+            string sku,
+            DateTime? mes = null)
+        {
+            try
+            {
+                sku = (sku ?? "").Trim().ToUpperInvariant();
+
+                if (string.IsNullOrWhiteSpace(sku))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Se requiere el SKU para consultar los pedidos pendientes."
+                    });
+                }
+
+                var mesBase = mes ?? DateTime.Today;
+                var fechaDesde = new DateTime(mesBase.Year, mesBase.Month, 1);
+                var fechaHasta = fechaDesde.AddMonths(1);
+
+                const string sql = @"
+;WITH OV AS
+(
+    SELECT
+        o.Id,
+        OrdenVenta = ISNULL(o.Consecutivo, ''),
+        ClienteCodigo = UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, '')))),
+        ClienteNombre = COALESCE(
+            NULLIF(LTRIM(RTRIM(cs.Nombrecliente)), ''),
+            NULLIF(LTRIM(RTRIM(o.Cliente)), ''),
+            ''
+        ),
+        Vendedor = COALESCE(
+            NULLIF(LTRIM(RTRIM(o.Vendedor)), ''),
+            NULLIF(LTRIM(RTRIM(cs.VendedorNombre)), ''),
+            ''
+        ),
+        Canal = ISNULL(LTRIM(RTRIM(cs.U_CANAL)), ''),
+        Serie = ISNULL(LTRIM(RTRIM(o.Serie)), ''),
+        o.FechaRegistro,
+        FechaEntrega = TRY_CONVERT(DATETIME, o.FechaEntrega),
+        EstatusId = o.Estatus
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+
+    LEFT JOIN dbo.ClienteSap cs WITH (NOLOCK)
+        ON UPPER(LTRIM(RTRIM(ISNULL(cs.Cliente, '')))) =
+           UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+
+    WHERE
+        o.Estatus <> 0
+        AND o.FechaEntrega >= @FechaDesde
+        AND o.FechaEntrega < @FechaHasta
+
+        AND EXISTS
+        (
+            SELECT 1
+            FROM dbo.Series sr WITH (NOLOCK)
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(sr.NombreSerie, '')))) =
+                UPPER(LTRIM(RTRIM(ISNULL(o.Serie, ''))))
+
+                AND UPPER(LTRIM(RTRIM(ISNULL(sr.Sucursal, '')))) = 'MATRIZ'
+        )
+),
+PedidoSku AS
+(
+    SELECT
+        op.PedidoId,
+        Sku = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+        KgPedido = CAST(SUM(ISNULL(op.Peso, 0)) AS DECIMAL(18,3))
+    FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.Id = op.PedidoId
+    WHERE
+        (op.Eliminado IS NULL OR op.Eliminado = 0)
+        AND UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, '')))) = @Sku
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+),
+ValidacionOV AS
+(
+    SELECT
+        sp.OrdenVentaId AS PedidoId,
+        TotalSubpedidos = COUNT_BIG(*),
+        SubpedidosCerrados = SUM(
+            CASE WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1 ELSE 0 END
+        ),
+        PedidoCerrado = CAST(
+            CASE
+                WHEN COUNT_BIG(*) > 0
+                 AND SUM(CASE WHEN ISNULL(sev.EsCerrado, 0) = 1 THEN 1 ELSE 0 END) = COUNT_BIG(*)
+                    THEN 1
+                ELSE 0
+            END AS BIT
+        )
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.Id = sp.OrdenVentaId
+    LEFT JOIN
+    (
+        SELECT
+            se.SolicitudSurtidoId,
+            EsCerrado = MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+        FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+        GROUP BY se.SolicitudSurtidoId
+    ) sev
+        ON sev.SolicitudSurtidoId = TRY_CONVERT(
+            INT,
+            NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+        )
+    GROUP BY sp.OrdenVentaId
+),
+CerradoSku AS
+(
+    SELECT
+        sp.OrdenVentaId AS PedidoId,
+        Sku = UPPER(LTRIM(RTRIM(spp.ProductoCodigo))),
+        KgCerrado = CAST(SUM(ISNULL(spp.KilosCaja, 0)) AS DECIMAL(18,3))
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.Id = sp.OrdenVentaId
+    INNER JOIN dbo.SubpedidoProductos spp WITH (NOLOCK)
+        ON spp.SubpedidoId = sp.Id
+    WHERE
+        UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, '')))) = @Sku
+        AND EXISTS
+        (
+            SELECT 1
+            FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+            WHERE se.SolicitudSurtidoId = TRY_CONVERT(
+                      INT,
+                      NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                  )
+              AND
+              (
+                  se.FechaValidacion IS NOT NULL
+                  OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+              )
+        )
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(spp.ProductoCodigo)))
+),
+SurtidoSku AS
+(
+    SELECT
+        sp.OrdenVentaId AS PedidoId,
+        Sku = UPPER(LTRIM(RTRIM(sd.Articulo))),
+        KgSurtido = CAST(SUM(ISNULL(sd.Kg, 0)) AS DECIMAL(18,3))
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN OV o
+        ON o.Id = sp.OrdenVentaId
+    INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+        ON se.SolicitudSurtidoId = TRY_CONVERT(
+            INT,
+            NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+        )
+    INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+    WHERE
+        UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) = @Sku
+        AND
+        (
+            se.FechaValidacion IS NOT NULL
+            OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+        )
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(sd.Articulo)))
+),
+Detalle AS
+(
+    SELECT
+        OrdenVentaId = o.Id,
+        o.OrdenVenta,
+        o.ClienteCodigo,
+        o.ClienteNombre,
+        o.Vendedor,
+        o.Canal,
+        o.Serie,
+        o.FechaRegistro,
+        o.FechaEntrega,
+        o.EstatusId,
+        Estatus = CASE
+            WHEN o.EstatusId IN (1, 3) THEN 'Pendiente'
+            WHEN o.EstatusId = 2 THEN 'Autorización'
+            WHEN o.EstatusId = 4 THEN 'Validado'
+            WHEN o.EstatusId = 5 THEN 'Enviado a SAP'
+            WHEN o.EstatusId = 6 THEN 'Logística'
+            ELSE CONCAT('Estatus ', o.EstatusId)
+        END,
+        KgPedido = CAST(ISNULL(p.KgPedido, 0) AS DECIMAL(18,3)),
+        KgSurtido = CAST(ISNULL(s.KgSurtido, 0) AS DECIMAL(18,3)),
+        KgCerrado = CAST(ISNULL(c.KgCerrado, 0) AS DECIMAL(18,3)),
+        KgPendiente = CAST(
+            CASE
+                WHEN ISNULL(v.PedidoCerrado, 0) = 1 THEN 0
+                WHEN ISNULL(p.KgPedido, 0) - ISNULL(c.KgCerrado, 0) <= 0 THEN 0
+                ELSE ISNULL(p.KgPedido, 0) - ISNULL(c.KgCerrado, 0)
+            END
+            AS DECIMAL(18,3)
+        )
+    FROM OV o
+    INNER JOIN PedidoSku p
+        ON p.PedidoId = o.Id
+    LEFT JOIN ValidacionOV v
+        ON v.PedidoId = o.Id
+    LEFT JOIN CerradoSku c
+        ON c.PedidoId = o.Id
+       AND c.Sku = p.Sku
+    LEFT JOIN SurtidoSku s
+        ON s.PedidoId = o.Id
+       AND s.Sku = p.Sku
+)
+SELECT
+    OrdenVentaId,
+    OrdenVenta,
+    ClienteCodigo,
+    ClienteNombre,
+    Vendedor,
+    Canal,
+    Serie,
+    FechaRegistro,
+    FechaEntrega,
+    EstatusId,
+    Estatus,
+    KgPedido,
+    KgSurtido,
+    KgCerrado,
+    KgPendiente
+FROM Detalle
+WHERE KgPendiente > 0
+ORDER BY
+    FechaEntrega,
+    OrdenVentaId;";
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var rows = (await cn.QueryAsync<InventarioMinMaxPedidoDetalleVM>(
+                        sql,
+                        new
+                        {
+                            Sku = sku,
+                            FechaDesde = fechaDesde,
+                            FechaHasta = fechaHasta
+                        },
+                        commandTimeout: 180
+                    )).ToList();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        sku,
+                        mes = fechaDesde.ToString("yyyy-MM"),
+                        totalPedidos = rows.Count,
+                        kgPedido = rows.Sum(x => x.KgPedido),
+                        kgSurtido = rows.Sum(x => x.KgSurtido),
+                        kgCerrado = rows.Sum(x => x.KgCerrado),
+                        kgPendiente = rows.Sum(x => x.KgPendiente),
+                        data = rows
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al consultar pedidos pendientes MinMax. SKU={Sku} Mes={Mes}",
+                    sku,
+                    mes);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "Error al consultar el detalle de pedidos pendientes.",
                     error = ex.Message,
                     inner = ex.InnerException?.Message
                 });
@@ -14129,6 +14954,7 @@ Articulos AS
     FROM dbo.ArticuloSap a WITH (NOLOCK)
     WHERE
         NULLIF(LTRIM(RTRIM(a.ProductoCodigo)), '') IS NOT NULL
+        AND TRY_CONVERT(INT, a.U_TipoporSKU) IN (1, 2)
     GROUP BY
         UPPER(LTRIM(RTRIM(a.ProductoCodigo)))
 )
@@ -14197,6 +15023,312 @@ ORDER BY
                 {
                     ok = false,
                     msg = "No se pudo consultar el catálogo de inventario mínimo y máximo.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpPost("CrearInventarioMinMaxClasificacion")]
+        public async Task<IActionResult> CrearInventarioMinMaxClasificacion(
+            [FromBody] InventarioMinMaxClasificacionRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "No se recibió la nueva clasificación."
+                    });
+                }
+
+                var clasificacion = (request.Clasificacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+                if (string.IsNullOrWhiteSpace(clasificacion))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "El nombre de la clasificación es obligatorio."
+                    });
+                }
+
+                if (clasificacion.Length > 100)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "El nombre de la clasificación es demasiado largo."
+                    });
+                }
+
+                if (request.DiasMinimo < 0 ||
+                    request.DiasIdeal < request.DiasMinimo ||
+                    request.DiasMaximo < request.DiasIdeal)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La regla debe cumplir: mínimo >= 0, ideal >= mínimo y máximo >= ideal."
+                    });
+                }
+
+                const string sql = @"
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+BEGIN TRAN;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM dbo.ClasificacionProduccion WITH (UPDLOCK, HOLDLOCK)
+    WHERE UPPER(LTRIM(RTRIM(Nombre))) = @Clasificacion
+)
+BEGIN
+    ROLLBACK TRAN;
+    SELECT CAST(-1 AS INT);
+    RETURN;
+END;
+
+DECLARE @OrdenNuevo INT =
+(
+    SELECT ISNULL(MAX(ISNULL(OrdenMinMax, 0)), 0) + 1
+    FROM dbo.ClasificacionProduccion WITH (UPDLOCK, HOLDLOCK)
+);
+
+DECLARE @EsIdentity INT =
+    ISNULL(COLUMNPROPERTY(
+        OBJECT_ID('dbo.ClasificacionProduccion'),
+        'ClasificacionId',
+        'IsIdentity'
+    ), 0);
+
+DECLARE @NuevoId INT;
+
+IF @EsIdentity = 1
+BEGIN
+    INSERT INTO dbo.ClasificacionProduccion
+    (
+        Nombre,
+        DiasMinimo,
+        DiasIdeal,
+        DiasMaximo,
+        OrdenMinMax,
+        ActivoMinMax,
+        UsuarioMinMaxActualizacion,
+        FechaMinMaxActualizacion
+    )
+    VALUES
+    (
+        @Clasificacion,
+        @DiasMinimo,
+        @DiasIdeal,
+        @DiasMaximo,
+        @OrdenNuevo,
+        1,
+        @Usuario,
+        SYSDATETIME()
+    );
+
+    SET @NuevoId = CONVERT(INT, SCOPE_IDENTITY());
+END
+ELSE
+BEGIN
+    SELECT @NuevoId = ISNULL(MAX(ClasificacionId), 0) + 1
+    FROM dbo.ClasificacionProduccion WITH (UPDLOCK, HOLDLOCK);
+
+    INSERT INTO dbo.ClasificacionProduccion
+    (
+        ClasificacionId,
+        Nombre,
+        DiasMinimo,
+        DiasIdeal,
+        DiasMaximo,
+        OrdenMinMax,
+        ActivoMinMax,
+        UsuarioMinMaxActualizacion,
+        FechaMinMaxActualizacion
+    )
+    VALUES
+    (
+        @NuevoId,
+        @Clasificacion,
+        @DiasMinimo,
+        @DiasIdeal,
+        @DiasMaximo,
+        @OrdenNuevo,
+        1,
+        @Usuario,
+        SYSDATETIME()
+    );
+END;
+
+COMMIT TRAN;
+SELECT @NuevoId;";
+
+                var usuario = (User?.Identity?.Name ?? "SISTEMA").Trim();
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var nuevoId = await cn.ExecuteScalarAsync<int>(
+                        sql,
+                        new
+                        {
+                            Clasificacion = clasificacion,
+                            request.DiasMinimo,
+                            request.DiasIdeal,
+                            request.DiasMaximo,
+                            Usuario = usuario
+                        },
+                        commandTimeout: 60
+                    );
+
+                    if (nuevoId == -1)
+                    {
+                        return Conflict(new
+                        {
+                            ok = false,
+                            msg = "Ya existe una clasificación con ese nombre."
+                        });
+                    }
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        clasificacionId = nuevoId,
+                        msg = "Clasificación agregada correctamente."
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al crear clasificación de inventario min/max"
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo agregar la clasificación.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpPost("EliminarInventarioMinMaxClasificacion")]
+        public async Task<IActionResult> EliminarInventarioMinMaxClasificacion(
+            [FromBody] InventarioMinMaxEliminarClasificacionRequest request)
+        {
+            try
+            {
+                if (request == null || request.ClasificacionId <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "La clasificación a eliminar es inválida."
+                    });
+                }
+
+                var cn = _db.Database.GetDbConnection();
+                var shouldClose = cn.State == ConnectionState.Closed;
+
+                if (shouldClose)
+                    await cn.OpenAsync();
+
+                try
+                {
+                    var clasificacion = await cn.ExecuteScalarAsync<string?>(
+                        @"SELECT TOP (1) Nombre
+                          FROM dbo.ClasificacionProduccion WITH (NOLOCK)
+                          WHERE ClasificacionId = @ClasificacionId;",
+                        new { request.ClasificacionId },
+                        commandTimeout: 60
+                    );
+
+                    if (string.IsNullOrWhiteSpace(clasificacion))
+                    {
+                        return NotFound(new
+                        {
+                            ok = false,
+                            msg = "La clasificación ya no existe."
+                        });
+                    }
+
+                    var skusAsignados = await cn.ExecuteScalarAsync<int>(
+                        @"SELECT COUNT(1)
+                          FROM dbo.ArticuloSap WITH (NOLOCK)
+                          WHERE TRY_CONVERT(INT, U_Clas_Prod) = @ClasificacionId;",
+                        new { request.ClasificacionId },
+                        commandTimeout: 60
+                    );
+
+                    if (skusAsignados > 0)
+                    {
+                        return Conflict(new
+                        {
+                            ok = false,
+                            msg = $"No se puede eliminar '{clasificacion.Trim()}' porque está asignada a {skusAsignados:N0} SKU(s). Reasigna esos SKU primero."
+                        });
+                    }
+
+                    var affected = await cn.ExecuteAsync(
+                        @"DELETE FROM dbo.ClasificacionProduccion
+                          WHERE ClasificacionId = @ClasificacionId;",
+                        new { request.ClasificacionId },
+                        commandTimeout: 60
+                    );
+
+                    if (affected <= 0)
+                    {
+                        return NotFound(new
+                        {
+                            ok = false,
+                            msg = "La clasificación ya no existe."
+                        });
+                    }
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        msg = "Clasificación eliminada correctamente."
+                    });
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await cn.CloseAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al eliminar clasificación de inventario min/max"
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo eliminar la clasificación. Puede estar relacionada con información existente.",
                     error = ex.Message,
                     inner = ex.InnerException?.Message
                 });
@@ -14363,7 +15495,8 @@ WHERE
                     var existeSku = await cn.ExecuteScalarAsync<int>(
                         @"SELECT COUNT(1)
                           FROM dbo.ArticuloSap WITH (NOLOCK)
-                          WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) = @Sku;",
+                          WHERE UPPER(LTRIM(RTRIM(ProductoCodigo))) = @Sku
+                            AND TRY_CONVERT(INT, U_TipoporSKU) IN (1, 2);",
                         new { Sku = sku },
                         commandTimeout: 60
                     );
@@ -14373,7 +15506,7 @@ WHERE
                         return NotFound(new
                         {
                             ok = false,
-                            msg = "El SKU no existe en ArticuloSap."
+                            msg = "El SKU no existe en ArticuloSap o no es tipo Primario/Secundario (U_TipoporSKU 1 o 2)."
                         });
                     }
 
@@ -16070,8 +17203,198 @@ VALUES
                 source = NormalizeSource(source);
                 var d1 = (desde ?? DateTime.Today).Date;
                 var d2 = (hasta ?? DateTime.Today).Date;
-                var rows = await cierre.ListarLotesAsync(source, d1, d2, estado);
-                return Ok(new { ok = true, source, desde = d1, hasta = d2, rows });
+
+                var rows =
+                    await cierre.ListarLotesAsync(
+                        source,
+                        d1,
+                        d2,
+                        estado
+                    );
+
+                // ====================================================
+                // PLANTA 1:
+                // TipoLoteId = 11 NO pertenece al flujo de cierre
+                // mostrado en esta pantalla, por lo que no debe salir
+                // ni afectar conteos/KPIs.
+                //
+                // TIF no cambia.
+                // ====================================================
+                if (string.Equals(
+                        source,
+                        "P1",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    rows =
+                        rows
+                            .Where(x =>
+                                x.TipoLoteId != 11
+                            )
+                            .ToList();
+                }
+
+                // ====================================================
+                // ENRIQUECIMIENTO PARA LA VISTA:
+                // - mostrar el NOMBRE DEL PROCESO en lugar del TipoLoteId
+                // - semáforo usando LOS MISMOS límites configurados para cierre
+                // ====================================================
+                var configsPorTipo =
+                    new Dictionary<int, CierreLoteTipoConfigVM?>();
+
+                foreach (var tipoId in
+                    rows
+                        .Select(x => x.TipoLoteId)
+                        .Distinct())
+                {
+                    configsPorTipo[tipoId] =
+                        await cierre.ObtenerTipoConfigAsync(
+                            source,
+                            tipoId
+                        );
+                }
+
+                var rowsVista =
+                    rows
+                        .Select(x =>
+                        {
+                            configsPorTipo.TryGetValue(
+                                x.TipoLoteId,
+                                out var config
+                            );
+
+                            var tipoProceso =
+                                (config?.TipoProceso ?? "")
+                                    .Trim()
+                                    .ToUpperInvariant();
+
+                            if (string.IsNullOrWhiteSpace(tipoProceso))
+                            {
+                                tipoProceso = "SIN CONFIG";
+                            }
+
+                            var kgEntrada =
+                                Convert.ToDecimal(x.KgEntrada);
+
+                            var kgSalida =
+                                Convert.ToDecimal(x.KgSalida);
+
+                            var variacionPct =
+                                kgEntrada <= 0
+                                    ? 0m
+                                    : decimal.Round(
+                                        Math.Abs(
+                                            kgEntrada - kgSalida
+                                        )
+                                        / kgEntrada
+                                        * 100m,
+                                        2
+                                    );
+
+                            string cumplimiento;
+                            string cumplimientoTexto;
+
+                            if (x.EstatusId == 3)
+                            {
+                                cumplimiento = "VERDE";
+                                cumplimientoTexto =
+                                    "Lote cerrado.";
+                            }
+                            else if (config == null)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    "Tipo de lote sin configuración activa de cierre.";
+                            }
+                            else if (
+                                config.RequiereEntradasLogistica &&
+                                x.Entradas <= 0)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    "El proceso requiere entradas y no existen entradas logísticas.";
+                            }
+                            else if (x.Salidas <= 0)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    "El lote no tiene salidas activas.";
+                            }
+                            else if (
+                                config.RequiereEntradasLogistica &&
+                                kgEntrada > 0 &&
+                                kgSalida > 0 &&
+                                config.VariacionBloqueoPct > 0 &&
+                                variacionPct >=
+                                    config.VariacionBloqueoPct)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    $"Variación {variacionPct:N2}% >= límite de bloqueo {config.VariacionBloqueoPct:N2}%.";
+                            }
+                            else if (
+                                config.RequiereEntradasLogistica &&
+                                kgEntrada > 0 &&
+                                kgSalida > 0 &&
+                                config.VariacionAdvertenciaPct > 0 &&
+                                variacionPct >=
+                                    config.VariacionAdvertenciaPct)
+                            {
+                                cumplimiento = "AMARILLO";
+                                cumplimientoTexto =
+                                    $"Variación {variacionPct:N2}% >= límite de advertencia {config.VariacionAdvertenciaPct:N2}%. Requiere revisión/autorización.";
+                            }
+                            else
+                            {
+                                cumplimiento = "VERDE";
+
+                                cumplimientoTexto =
+                                    config.RequiereEntradasLogistica
+                                        ? $"Variación {variacionPct:N2}% dentro de tolerancia."
+                                        : "Cumplimiento operativo sin comparación de kg de entrada.";
+                            }
+
+                            return new
+                            {
+                                x.LoteId,
+                                x.Nombre,
+                                x.TipoLoteId,
+                                TipoProceso = tipoProceso,
+                                x.EstatusId,
+                                x.FechaProduccion,
+                                x.Entradas,
+                                x.KgEntrada,
+                                x.Salidas,
+                                x.KgSalida,
+                                x.DiferenciaKg,
+                                x.RendimientoPct,
+
+                                VariacionPct = variacionPct,
+
+                                VariacionAdvertenciaPct =
+                                    config?.VariacionAdvertenciaPct ?? 0m,
+
+                                VariacionBloqueoPct =
+                                    config?.VariacionBloqueoPct ?? 0m,
+
+                                RequiereEntradasLogistica =
+                                    config?.RequiereEntradasLogistica ?? false,
+
+                                Cumplimiento = cumplimiento,
+                                CumplimientoTexto = cumplimientoTexto
+                            };
+                        })
+                        .ToList();
+
+                return Ok(
+                    new
+                    {
+                        ok = true,
+                        source,
+                        desde = d1,
+                        hasta = d2,
+                        rows = rowsVista
+                    }
+                );
             }
             catch (Exception ex)
             {

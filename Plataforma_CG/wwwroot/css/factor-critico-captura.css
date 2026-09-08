@@ -1,0 +1,1034 @@
+/* Estación de pesaje de Factor Crítico.
+   Se mantiene aislada de la hoja histórica para no alterar reportes ni gráficas. */
+
+.factor-tif-app .fc-capture-overlay,
+.factor-tif-app .fc-dialog-overlay {
+    padding: 12px;
+    background: rgba(12, 18, 28, .72);
+    backdrop-filter: blur(4px);
+}
+
+.factor-tif-app .fc-dialog-overlay {
+    z-index: 2400;
+}
+
+.factor-tif-app .fc-row-factor {
+    min-width: 86px;
+    height: 42px !important;
+    padding: 4px 8px !important;
+    border-radius: 8px !important;
+}
+
+.factor-tif-app .fc-row-factor img {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f1f4f6;
+}
+
+.factor-tif-app .fc-row-factor span {
+    font-size: 9px !important;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-capture-modal {
+    width: min(1320px, 100%);
+    max-width: 1320px;
+    height: min(900px, calc(100vh - 24px));
+    max-height: calc(100vh - 24px);
+    overflow: hidden;
+    border: 1px solid #cbd6df;
+    border-radius: 16px;
+    background: #f2f6f8;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+}
+
+.factor-tif-app .fc-capture-head {
+    min-height: 82px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: #fff;
+    background: linear-gradient(125deg, #67101a 0%, #8f1c27 55%, #a93b42 100%);
+}
+
+.factor-tif-app .fc-capture-head h3,
+.factor-tif-app .fc-dialog-head h3 {
+    margin: 2px 0 3px;
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-capture-head p,
+.factor-tif-app .fc-dialog-head p {
+    margin: 0;
+    font-size: 12px;
+    opacity: .88;
+}
+
+.factor-tif-app .fc-capture-head .badge-sap {
+    margin-left: 8px;
+    color: #fff;
+    border-color: rgba(255, 255, 255, .28);
+    background: rgba(255, 255, 255, .12);
+}
+
+.factor-tif-app .fc-eyebrow,
+.factor-tif-app .fc-dialog-head > div > span {
+    display: block;
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: .13em;
+    opacity: .76;
+}
+
+.factor-tif-app .fc-icon-button {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .1);
+    color: inherit;
+    cursor: pointer;
+    transition: background .18s ease, transform .18s ease;
+}
+
+.factor-tif-app .fc-icon-button:hover {
+    background: rgba(255, 255, 255, .2);
+    transform: translateY(-1px);
+}
+
+.factor-tif-app .fc-stepper {
+    min-height: 42px;
+    padding: 7px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    border-bottom: 1px solid #d7e0e6;
+    background: #fff;
+    color: #789;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.factor-tif-app .fc-stepper span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.factor-tif-app .fc-stepper b {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #e7edf1;
+    color: #647786;
+    font-size: 10px;
+}
+
+.factor-tif-app .fc-stepper .done,
+.factor-tif-app .fc-stepper .active {
+    color: #71131d;
+}
+
+.factor-tif-app .fc-stepper .done b {
+    background: #def2e6;
+    color: #198754;
+}
+
+.factor-tif-app .fc-stepper .active b {
+    background: #801924;
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(128, 25, 36, .1);
+}
+
+.factor-tif-app .fc-capture-body {
+    min-height: 0;
+    padding: 12px;
+    display: grid;
+    grid-template-rows: auto minmax(335px, 1fr) auto;
+    gap: 10px;
+    background: #edf2f5;
+}
+
+.factor-tif-app .fc-factor-switch {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.factor-tif-app .fc-factor-switch button {
+    min-width: 0;
+    min-height: 54px;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid #cfdae2;
+    border-radius: 10px;
+    background: #fff;
+    color: #344451;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.factor-tif-app .fc-factor-switch button:hover {
+    border-color: #9fb0bc;
+    transform: translateY(-1px);
+}
+
+.factor-tif-app .fc-factor-switch button.active {
+    border-color: #8b1b26;
+    color: #74151f;
+    background: #fff8f8;
+    box-shadow: inset 0 0 0 1px #8b1b26, 0 5px 15px rgba(112, 19, 29, .08);
+}
+
+.factor-tif-app .fc-factor-switch img {
+    width: 42px;
+    height: 42px;
+    padding: 2px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f3f6f8;
+}
+
+.factor-tif-app .fc-workstation {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(310px, 1.2fr) minmax(350px, 1.35fr) minmax(220px, .8fr);
+    gap: 10px;
+}
+
+.factor-tif-app .fc-panel {
+    min-width: 0;
+    min-height: 0;
+    padding: 12px;
+    border: 1px solid #d4dee5;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(20, 35, 50, .05);
+}
+
+.factor-tif-app .fc-panel-head {
+    min-height: 38px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.factor-tif-app .fc-panel-head span {
+    display: block;
+    color: #8b1b26;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .12em;
+}
+
+.factor-tif-app .fc-panel-head h4 {
+    margin: 2px 0 0;
+    color: #22313c;
+    font-size: 14px;
+    line-height: 1.15;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-panel-head small {
+    color: #7b8a95;
+    font-size: 9px;
+    text-align: right;
+}
+
+.factor-tif-app .fc-catalog-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.factor-tif-app .fc-item-grid {
+    min-height: 0;
+    margin-top: 8px;
+    padding-right: 3px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.factor-tif-app .fc-catalog-loading {
+    grid-column: 1 / -1;
+    min-height: 150px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed #cdd8df;
+    border-radius: 10px;
+    color: #778893;
+    font-size: 11px;
+}
+
+.factor-tif-app .fc-item-card {
+    min-width: 0;
+    min-height: 128px;
+    padding: 0;
+    display: grid;
+    grid-template-rows: 78px auto;
+    overflow: hidden;
+    border: 1px solid #d8e1e7;
+    border-radius: 10px;
+    background: #fff;
+    color: #253641;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.factor-tif-app .fc-item-card:hover {
+    transform: translateY(-2px);
+    border-color: #a7b6c1;
+    box-shadow: 0 7px 16px rgba(38, 54, 65, .1);
+}
+
+.factor-tif-app .fc-item-card.active {
+    border-color: #891c26;
+    box-shadow: inset 0 0 0 2px #891c26, 0 7px 18px rgba(114, 21, 31, .12);
+}
+
+.factor-tif-app .fc-item-card img {
+    width: 100%;
+    height: 78px;
+    object-fit: cover;
+    background: #f1f4f6;
+}
+
+.factor-tif-app .fc-item-card > span {
+    min-width: 0;
+    padding: 8px;
+    display: grid;
+    gap: 4px;
+}
+
+.factor-tif-app .fc-item-card strong {
+    overflow: hidden;
+    color: #253641;
+    font-size: 11px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.factor-tif-app .fc-item-card small {
+    display: flex;
+    justify-content: space-between;
+    gap: 5px;
+    color: #788a96;
+    font-size: 8px;
+}
+
+.factor-tif-app .fc-item-card small b {
+    color: #7b1822;
+}
+
+.factor-tif-app .fc-scale-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.factor-tif-app .fc-mode-button {
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid #e3bd72;
+    border-radius: 999px;
+    background: #fff5db;
+    color: #7a5600;
+    font-size: 9px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.factor-tif-app .fc-mode-button.auto {
+    border-color: #84b99a;
+    background: #e8f5ed;
+    color: #22633d;
+}
+
+.factor-tif-app .fc-weight-target {
+    margin: 10px 0 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+}
+
+.factor-tif-app .fc-weight-target button {
+    min-height: 48px;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #d4dee5;
+    border-radius: 9px;
+    background: #f7f9fa;
+    color: #50616d;
+    cursor: pointer;
+}
+
+.factor-tif-app .fc-weight-target button.active {
+    border-color: #8b1b26;
+    background: #fff6f7;
+    color: #74151f;
+    box-shadow: inset 0 0 0 1px #8b1b26;
+}
+
+.factor-tif-app .fc-weight-target span {
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-weight-target strong {
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.factor-tif-app .fc-scale-shell {
+    position: relative;
+    padding: 17px 16px 20px;
+    border: 1px solid #aebcc5;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #e5ebef, #b9c4ca);
+    box-shadow: inset 0 1px 0 #fff, 0 7px 14px rgba(38, 54, 65, .15);
+}
+
+.factor-tif-app .fc-scale-handle {
+    width: 58%;
+    height: 10px;
+    margin: -8px auto 10px;
+    border: 3px solid #8f9ca4;
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+}
+
+.factor-tif-app .fc-scale-screen {
+    min-height: 92px;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 4px solid #4c5960;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #e4f2d0, #cbdcb2);
+    box-shadow: inset 0 4px 12px rgba(46, 66, 30, .2);
+}
+
+.factor-tif-app .fc-scale-value {
+    color: #7b1620;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: clamp(44px, 5.4vw, 72px);
+    line-height: .9;
+    font-weight: 800;
+    letter-spacing: -.06em;
+}
+
+.factor-tif-app .fc-scale-screen > span {
+    align-self: flex-end;
+    margin-bottom: 7px;
+    color: #50603f;
+    font-size: 17px;
+    font-weight: 900;
+}
+
+.factor-tif-app .fc-manual-input {
+    width: 100%;
+    height: 38px;
+    margin-top: 8px;
+    border: 2px solid #b56a71;
+    border-radius: 8px;
+    background: #fff;
+    color: #71131d;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-scale-panel.is-auto .fc-manual-input {
+    display: none;
+}
+
+.factor-tif-app .fc-scale-feet {
+    position: absolute;
+    right: 24px;
+    bottom: -5px;
+    left: 24px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.factor-tif-app .fc-scale-feet i {
+    width: 36px;
+    height: 7px;
+    border-radius: 0 0 5px 5px;
+    background: #65727a;
+}
+
+.factor-tif-app .fc-scale-status {
+    min-height: 30px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.factor-tif-app .fc-scale-status > span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #60727e;
+    font-size: 9px;
+}
+
+.factor-tif-app .fc-scale-status > span > i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d49a24;
+    box-shadow: 0 0 0 3px rgba(212, 154, 36, .13);
+}
+
+.factor-tif-app .fc-scale-panel.is-auto .fc-scale-status > span > i {
+    background: #2a9b5d;
+    box-shadow: 0 0 0 3px rgba(42, 155, 93, .13);
+}
+
+.factor-tif-app .fc-scale-status > span.error > i {
+    background: #cf3947;
+    box-shadow: 0 0 0 3px rgba(207, 57, 71, .13);
+}
+
+.factor-tif-app .fc-scale-status button {
+    padding: 3px;
+    border: 0;
+    background: transparent;
+    color: #6f1720;
+    font-size: 9px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.factor-tif-app .fc-use-weight {
+    min-height: 42px;
+    margin-top: auto;
+    border: 0;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #2db36a, #218e54);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 5px 12px rgba(33, 142, 84, .2);
+}
+
+.factor-tif-app .fc-use-weight:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.factor-tif-app .fc-scale-help {
+    min-height: 13px;
+    margin: 5px 0 0;
+    color: #768691;
+    font-size: 8px;
+    text-align: center;
+}
+
+.factor-tif-app .fc-preview-panel {
+    display: grid;
+    grid-template-rows: auto minmax(145px, 1fr) auto;
+    gap: 8px;
+}
+
+.factor-tif-app .fc-preview-image {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px dashed #c6d2da;
+    border-radius: 10px;
+    background: #f3f6f8;
+}
+
+.factor-tif-app .fc-preview-image img {
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    object-fit: contain;
+}
+
+.factor-tif-app .fc-selection-data {
+    margin: 0;
+    display: grid;
+    gap: 5px;
+}
+
+.factor-tif-app .fc-selection-data > div {
+    min-height: 34px;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #dde5ea;
+    border-radius: 8px;
+    background: #f8fafb;
+}
+
+.factor-tif-app .fc-selection-data dt {
+    color: #788994;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.factor-tif-app .fc-selection-data dd {
+    margin: 0;
+    color: #263640;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.factor-tif-app .fc-summary {
+    border: 1px solid #d4dee5;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.factor-tif-app .fc-summary summary {
+    min-height: 36px;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #334550;
+    cursor: pointer;
+    list-style: none;
+}
+
+.factor-tif-app .fc-summary summary::-webkit-details-marker {
+    display: none;
+}
+
+.factor-tif-app .fc-summary summary span {
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.factor-tif-app .fc-summary summary small {
+    color: #7c8b96;
+    font-size: 8px;
+}
+
+.factor-tif-app .fc-summary-scroll {
+    max-height: 145px;
+    overflow: auto;
+    border-top: 1px solid #dbe3e8;
+}
+
+.factor-tif-app .fc-summary-table {
+    min-width: 650px;
+}
+
+.factor-tif-app .fc-summary-table input,
+.factor-tif-app .fc-summary-table select {
+    pointer-events: none;
+}
+
+.factor-tif-app #modalHueso .fc-summary-table th:last-child,
+.factor-tif-app #modalHueso .fc-summary-table td:last-child {
+    display: none;
+}
+
+.factor-tif-app .fc-capture-footer {
+    min-height: 56px;
+    padding: 9px 14px;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+}
+
+.factor-tif-app .fc-capture-footer > span {
+    color: #75858f;
+    font-size: 9px;
+}
+
+.factor-tif-app .fc-capture-footer > div {
+    display: flex;
+    gap: 8px;
+}
+
+.factor-tif-app .fc-dialog {
+    width: min(520px, 100%);
+    max-width: 520px;
+    border: 1px solid #c8d3da;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, .28);
+}
+
+.factor-tif-app .fc-dialog-head {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(125deg, #651019, #8b1b26);
+    color: #fff;
+}
+
+.factor-tif-app .fc-dialog-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .14);
+    font-size: 20px;
+}
+
+.factor-tif-app .fc-dialog-icon.success {
+    background: rgba(81, 190, 126, .2);
+}
+
+.factor-tif-app .fc-dialog-body {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+    background: #f3f6f8;
+}
+
+.factor-tif-app .fc-dialog-body label {
+    display: grid;
+    gap: 5px;
+    color: #3a4a55;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.factor-tif-app .fc-dialog-note,
+.factor-tif-app .fc-confirm-note {
+    padding: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border: 1px solid #cddce7;
+    border-radius: 9px;
+    background: #eaf3f9;
+    color: #496473;
+    font-size: 9px;
+}
+
+.factor-tif-app .fc-confirm-note {
+    border-color: #ead49d;
+    background: #fff8e6;
+    color: #735c22;
+}
+
+.factor-tif-app .fc-confirm-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.factor-tif-app .fc-confirm-grid > div {
+    min-height: 64px;
+    padding: 10px;
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    border: 1px solid #d6e0e6;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.factor-tif-app .fc-confirm-grid .wide {
+    grid-column: 1 / -1;
+}
+
+.factor-tif-app .fc-confirm-grid span {
+    color: #778893;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.factor-tif-app .fc-confirm-grid strong {
+    overflow: hidden;
+    color: #263640;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.factor-tif-app .fc-confirm-grid .weight strong {
+    color: #7b1620;
+    font-size: 20px;
+}
+
+body[data-theme="dark"] .factor-tif-app .fc-capture-modal,
+body[data-theme="dark"] .factor-tif-app .fc-capture-body,
+body[data-theme="dark"] .factor-tif-app .fc-dialog-body {
+    background: #101827;
+}
+
+body[data-theme="dark"] .factor-tif-app .fc-stepper,
+body[data-theme="dark"] .factor-tif-app .fc-panel,
+body[data-theme="dark"] .factor-tif-app .fc-factor-switch button,
+body[data-theme="dark"] .factor-tif-app .fc-summary,
+body[data-theme="dark"] .factor-tif-app .fc-capture-footer,
+body[data-theme="dark"] .factor-tif-app .fc-confirm-grid > div {
+    border-color: #344151;
+    background: #182233;
+    color: #e8edf3;
+}
+
+body[data-theme="dark"] .factor-tif-app .fc-panel-head h4,
+body[data-theme="dark"] .factor-tif-app .fc-item-card strong,
+body[data-theme="dark"] .factor-tif-app .fc-selection-data dd,
+body[data-theme="dark"] .factor-tif-app .fc-summary summary,
+body[data-theme="dark"] .factor-tif-app .fc-confirm-grid strong {
+    color: #eef3f8;
+}
+
+body[data-theme="dark"] .factor-tif-app .fc-item-card,
+body[data-theme="dark"] .factor-tif-app .fc-selection-data > div,
+body[data-theme="dark"] .factor-tif-app .fc-weight-target button {
+    border-color: #394758;
+    background: #202c3d;
+    color: #d9e1e8;
+}
+
+body[data-theme="dark"] .factor-tif-app .fc-item-card.active,
+body[data-theme="dark"] .factor-tif-app .fc-factor-switch button.active,
+body[data-theme="dark"] .factor-tif-app .fc-weight-target button.active {
+    border-color: #e35e68;
+    background: #321c25;
+    color: #ffc4c8;
+}
+
+@media (max-width: 1000px) {
+    .factor-tif-app .fc-capture-modal {
+        height: calc(100vh - 16px);
+        max-height: calc(100vh - 16px);
+    }
+
+    .factor-tif-app .fc-workstation {
+        grid-template-columns: 1fr 1.15fr;
+    }
+
+    .factor-tif-app .fc-preview-panel {
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr);
+        grid-template-rows: auto minmax(115px, 1fr);
+    }
+
+    .factor-tif-app .fc-preview-panel .fc-panel-head {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 700px) {
+    .factor-tif-app .fc-capture-overlay,
+    .factor-tif-app .fc-dialog-overlay {
+        padding: 0;
+    }
+
+    .factor-tif-app .fc-capture-modal {
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .factor-tif-app .fc-capture-head {
+        min-height: 68px;
+        padding: 10px 12px;
+    }
+
+    .factor-tif-app .fc-capture-head h3 {
+        font-size: 17px;
+    }
+
+    .factor-tif-app .fc-stepper {
+        gap: 5px;
+        padding: 6px;
+        font-size: 8px;
+    }
+
+    .factor-tif-app .fc-stepper i {
+        display: none;
+    }
+
+    .factor-tif-app .fc-stepper b {
+        width: 18px;
+        height: 18px;
+    }
+
+    .factor-tif-app .fc-capture-body {
+        display: block;
+        padding: 8px;
+    }
+
+    .factor-tif-app .fc-factor-switch {
+        position: sticky;
+        top: -8px;
+        z-index: 4;
+        margin: -1px 0 8px;
+        padding: 4px 0;
+        background: #edf2f5;
+    }
+
+    .factor-tif-app .fc-factor-switch button {
+        min-height: 44px;
+        padding: 4px 6px;
+        justify-content: center;
+    }
+
+    .factor-tif-app .fc-factor-switch img {
+        width: 34px;
+        height: 34px;
+    }
+
+    .factor-tif-app .fc-workstation {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .factor-tif-app .fc-panel {
+        min-height: 300px;
+    }
+
+    .factor-tif-app .fc-preview-panel {
+        grid-column: auto;
+        grid-template-columns: 1fr 1fr;
+        min-height: 235px;
+    }
+
+    .factor-tif-app .fc-summary {
+        margin-top: 8px;
+    }
+
+    .factor-tif-app .fc-capture-footer > span {
+        display: none;
+    }
+
+    .factor-tif-app .fc-capture-footer > div,
+    .factor-tif-app .fc-capture-footer .tbtn {
+        flex: 1;
+    }
+}
+
+/* La hoja histórica aplica tamaños compactos con !important en tema claro.
+   Estas reglas restituyen la jerarquía de la nueva estación de pesaje. */
+body:not([data-theme="dark"]) .factor-tif-app .fc-capture-modal {
+    width: min(1320px, 100%) !important;
+    max-width: 1320px !important;
+    border-radius: 16px !important;
+    background: #f2f6f8 !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-capture-body {
+    padding: 12px !important;
+    background: #edf2f5 !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-capture-head *,
+body:not([data-theme="dark"]) .factor-tif-app .fc-dialog-head * {
+    color: #fff !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-factor-switch button,
+body:not([data-theme="dark"]) .factor-tif-app .fc-item-card,
+body:not([data-theme="dark"]) .factor-tif-app .fc-mode-button,
+body:not([data-theme="dark"]) .factor-tif-app .fc-weight-target button,
+body:not([data-theme="dark"]) .factor-tif-app .fc-use-weight,
+body:not([data-theme="dark"]) .factor-tif-app .fc-icon-button,
+body:not([data-theme="dark"]) .factor-tif-app .fc-scale-status button {
+    height: auto !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-row-factor {
+    min-width: 86px !important;
+    height: 42px !important;
+    padding: 4px 8px !important;
+    border-radius: 8px !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-factor-switch button {
+    min-height: 54px !important;
+    padding: 5px 10px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-item-card {
+    min-height: 128px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-item-card strong,
+body:not([data-theme="dark"]) .factor-tif-app .fc-panel-head h4,
+body:not([data-theme="dark"]) .factor-tif-app .fc-dialog-head h3,
+body:not([data-theme="dark"]) .factor-tif-app .fc-capture-head h3 {
+    font-weight: 800 !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-manual-input {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 4px 8px !important;
+    border: 2px solid #b56a71 !important;
+    border-radius: 8px !important;
+    color: #71131d !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+}
+
+body:not([data-theme="dark"]) .factor-tif-app .fc-use-weight {
+    min-height: 42px !important;
+    border: 0 !important;
+    border-radius: 9px !important;
+    background: linear-gradient(180deg, #2db36a, #218e54) !important;
+    color: #fff !important;
+    font-size: 12px !important;
+}
+
+@media (max-width: 700px) {
+    body:not([data-theme="dark"]) .factor-tif-app .fc-capture-modal {
+        border-radius: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) .factor-tif-app .fc-capture-body {
+        padding: 8px !important;
+    }
+
+    body:not([data-theme="dark"]) .factor-tif-app .fc-factor-switch button {
+        min-height: 44px !important;
+        padding: 4px 6px !important;
+    }
+}

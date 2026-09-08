@@ -352,6 +352,28 @@ HAVING COUNT(*) > 1;", new { LoteId = loteId }, commandTimeout: 60);
                 {
                     await AgregarAnomaliasCompatibilidadAsync(cn, source, entradas, salidas, diagnostico.Anomalias);
                 }
+
+                // ============================================================
+                // TIF / DESHUESE
+                // ÚNICAMENTE requiere autorización cuando una canal quedó
+                // en una clasificación INFERIOR a la que tenía en caliente.
+                //
+                // Misma clasificación  -> OK
+                // Clasificación superior -> OK
+                // Clasificación inferior -> AUTORIZACION
+                //
+                // En la configuración actual, DESHUESE entra por TipoProceso
+                // "CAJAS". También se acepta "DESHUESE" por compatibilidad
+                // si después se cambia el nombre del proceso en configuración.
+                // ============================================================
+                if (EsProcesoDeshueseParaValidacion(source, config.TipoProceso))
+                {
+                    await AgregarAnomaliasBajaClasificacionDeshueseAsync(
+                        cn,
+                        null,
+                        loteId,
+                        diagnostico);
+                }
             }
 
             if (validarCosteo && salidas.Count > 0)
@@ -364,6 +386,23 @@ HAVING COUNT(*) > 1;", new { LoteId = loteId }, commandTimeout: 60);
             diagnostico.TieneBloqueos = diagnostico.Anomalias.Any(x => x.Bloquea);
             diagnostico.RequiereAutorizacion = diagnostico.Anomalias.Any(x => x.RequiereAutorizacion);
             diagnostico.PuedeCerrarSinAutorizacion = !diagnostico.TieneBloqueos && !diagnostico.RequiereAutorizacion;
+
+            // ============================================================
+            // DATOS VISUALES DE RECLASIFICACIÓN PARA LA VISTA
+            // Se agregan DESPUÉS de calcular hash/bloqueos/autorización.
+            // Por lo tanto estos registros INFO NO cambian la decisión de cierre.
+            // La única regla autorizable sigue siendo:
+            //      NivelDespues < NivelAntes
+            // ============================================================
+            if (config != null &&
+                EsProcesoDeshueseParaValidacion(source, config.TipoProceso))
+            {
+                await AgregarInformacionReclasificacionesDeshueseAsync(
+                    cn,
+                    null,
+                    loteId,
+                    diagnostico);
+            }
 
             return diagnostico;
         }
@@ -678,6 +717,643 @@ ORDER BY p.ProduccionId;";
             return entradas;
         }
 
+
+        // ============================================================
+        // DESHUESE TIF - VALIDACIÓN DE BAJA DE CLASIFICACIÓN
+        // ============================================================
+        private static bool EsProcesoDeshueseParaValidacion(
+            string source,
+            string? tipoProceso)
+        {
+            if (!string.Equals(
+                    NormalizeSource(source),
+                    "TIF",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var proceso = (tipoProceso ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+            // En la configuración actual TipoLoteId=7 usa CAJAS.
+            // Se deja DESHUESE como alias para no romper la validación
+            // si posteriormente se renombra TipoProceso en la tabla.
+            return proceso == "CAJAS" || proceso == "DESHUESE";
+        }
+
+
+        private async Task AgregarAnomaliasBajaClasificacionDeshueseAsync(
+            SqlConnection cn,
+            SqlTransaction? tx,
+            int loteId,
+            CierreLoteDiagnosticoVM diagnostico)
+        {
+            var bajas = await ObtenerBajasClasificacionDeshueseAsync(
+                cn,
+                tx,
+                loteId);
+
+            foreach (var row in bajas)
+            {
+                diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                {
+                    Codigo = "DESHUESE_BAJA_CLASIFICACION_CANAL",
+                    Nivel = "AUTORIZACION",
+                    Titulo = "Canal bajó de clasificación en deshuese",
+                    Detalle =
+                        $"ProduccionId={row.ProduccionId}; " +
+                        $"Etiqueta={row.CodigoEtiqueta}; " +
+                        $"Peso={row.Peso:N2} kg; " +
+                        $"Clasificación caliente={row.ComoEstaba} (nivel {row.NivelAntes}); " +
+                        $"Clasificación después={row.ComoQuedo} (nivel {row.NivelDespues}); " +
+                        $"Proveedor={row.Proveedor} ({row.ProveedorId}); " +
+                        $"Lote canales={row.LoteCanalesId}. " +
+                        "La clasificación posterior quedó por debajo de la clasificación de peso caliente. " +
+                        "El lote de deshuese requiere autorización para poder cerrarse.",
+                    ArticuloEntrada = row.ComoEstaba,
+                    ArticuloSalida = row.ComoQuedo,
+
+                    // Se usan los niveles en Valor/Limite para que formen parte
+                    // del DiagnosticoHash y la autorización corresponda a la
+                    // misma degradación detectada.
+                    Valor = row.NivelDespues,
+                    Limite = row.NivelAntes
+                });
+            }
+        }
+
+
+        private async Task<List<DeshueseBajaClasificacionRow>>
+            ObtenerBajasClasificacionDeshueseAsync(
+                SqlConnection cn,
+                SqlTransaction? tx,
+                int loteId)
+        {
+            const string sql = @"
+;WITH EntradasDeshuese AS
+(
+    SELECT DISTINCT
+        LoteDeshueseId = pl.SolicitudProduccionId,
+        pl.ProduccionId
+    FROM dbo.ProduccionLogistica pl
+    WHERE pl.SolicitudProduccionId = @LoteId
+      AND pl.ProduccionId IS NOT NULL
+),
+Base AS
+(
+    SELECT
+        e.LoteDeshueseId,
+        LoteCanalesId = p.LoteId,
+        e.ProduccionId,
+        CodigoEtiqueta =
+            CONVERT(nvarchar(200), ISNULL(p.CodigoEtiqueta,'')),
+
+        Peso =
+            CONVERT(
+                decimal(18,2),
+                FLOOR(CONVERT(decimal(18,6), ISNULL(p.PesoNeto,0)) * 100) / 100.0
+            ),
+
+        ComoEstaba =
+            CONVERT(nvarchar(250), ISNULL(pc.ClasificacionPesoCaliente,'')),
+
+        LineaCaliente =
+            CONVERT(nvarchar(250), ISNULL(pc.LineaPesoCaliente,'')),
+
+        ReclasificacionCanalId =
+            rc.ReclasificacionCanalId,
+
+        ArticuloAntes =
+            CONVERT(nvarchar(100), ISNULL(CONVERT(nvarchar(100),rc.ArticuloActual),'')),
+
+        ArticuloDespues =
+            CONVERT(nvarchar(100), ISNULL(CONVERT(nvarchar(100),rc.ArticuloNuevo),'')),
+
+        ClasificacionNuevaId =
+            cn.ClasificacionId,
+
+        ClasificacionNuevaNombre =
+            CONVERT(nvarchar(250), ISNULL(cn.Nombre,'')),
+
+        LineaNueva =
+            CONVERT(nvarchar(250), ISNULL(cn.NombreArchivo,'')),
+
+        Caracteristica7 =
+            CONVERT(nvarchar(250), ISNULL(ccl.Nombre,'')),
+
+        ProveedorId =
+            CONVERT(nvarchar(100), ISNULL(compra.ProveedorId,'')),
+
+        Proveedor =
+            CONVERT(nvarchar(250), ISNULL(ps.Nombre,''))
+
+    FROM EntradasDeshuese e
+
+    INNER JOIN dbo.Produccion p
+        ON p.ProduccionId = e.ProduccionId
+
+    /* Clasificación original registrada en peso caliente */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            x.LineaPesoCaliente,
+            x.ClasificacionPesoCaliente,
+            x.FechaRegistro
+        FROM dbo.LogPesoCalienteReclasificacion x
+        WHERE x.ProduccionId = e.ProduccionId
+        ORDER BY x.FechaRegistro DESC
+    ) pc
+
+    /* Última reclasificación hecha en deshuese */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            r.ReclasificacionCanalId,
+            r.ArticuloActual,
+            r.ArticuloNuevo
+        FROM dbo.ReclasificacionCanal r
+        WHERE r.ProduccionId = e.ProduccionId
+        ORDER BY r.ReclasificacionCanalId DESC
+    ) rc
+
+    /* Artículo después de la reclasificación */
+    LEFT JOIN TIF_CommerciaNET.dbo.Articulo an
+        ON CONVERT(nvarchar(100),an.ArticuloId) COLLATE DATABASE_DEFAULT =
+           CONVERT(nvarchar(100),rc.ArticuloNuevo) COLLATE DATABASE_DEFAULT
+
+    /* Clasificación/línea asociada al artículo nuevo */
+    LEFT JOIN dbo.Clasificacion cn
+        ON CONVERT(nvarchar(50),cn.ClasificacionId) =
+           ISNULL(CONVERT(nvarchar(50),an.Clasifica1),'')
+
+    /* Característica 7, igual que en la lógica de peso caliente */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            cc.Valor
+        FROM dbo.CanalCaracteristica cc
+        WHERE cc.ProduccionId = p.ProduccionId
+          AND cc.CaracteristicaId = 7
+        ORDER BY cc.ProduccionId
+    ) cc7
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            ccl2.Nombre
+        FROM dbo.CaracteristicaClasificacion ccl2
+        WHERE ccl2.CaracteristicaId = 7
+          AND ccl2.Valor = cc7.Valor
+          AND NULLIF(LTRIM(RTRIM(ccl2.Nombre)),'') IS NOT NULL
+        ORDER BY ccl2.Nombre
+    ) ccl
+
+    /* Proveedor de la canal original */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            ProveedorId =
+                CONVERT(nvarchar(100),doc.ClienteProveedorId)
+        FROM dbo.SolicitudReferencia sr
+        INNER JOIN TIF_CommerciaNET.dbo.Documento doc
+            ON sr.Referencia =
+               CONCAT(
+                   doc.EmpresaId,'.',
+                   doc.SucursalId,'.',
+                   doc.OperacionId,'.',
+                   doc.Folio
+               )
+        WHERE sr.SolicitudProduccionId = p.LoteId
+          AND sr.TipoReferenciaId = 1
+          AND doc.Estatus <> 'Z0'
+        ORDER BY doc.Folio DESC
+    ) compra
+
+    LEFT JOIN TIF_CommerciaNET.dbo.Proveedor ps
+        ON UPPER(LTRIM(RTRIM(ISNULL(CONVERT(nvarchar(100),ps.ProveedorId),'')))) COLLATE DATABASE_DEFAULT =
+           UPPER(LTRIM(RTRIM(ISNULL(compra.ProveedorId,'')))) COLLATE DATABASE_DEFAULT
+),
+Calculo AS
+(
+    SELECT
+        b.*,
+
+        ComoQuedo =
+            CONVERT(nvarchar(250),
+                CASE
+                    WHEN b.ReclasificacionCanalId IS NULL
+                        THEN b.ComoEstaba
+
+                    WHEN UPPER(ISNULL(b.ClasificacionNuevaNombre,'')) LIKE '%MATANZA%'
+                        THEN 'MAQUILAS'
+
+                    WHEN CONVERT(varchar(50),b.ClasificacionNuevaId) = '1031'
+                        THEN 'TERNERA AMARILLA'
+
+                    WHEN UPPER(ISNULL(b.Caracteristica7,'')) LIKE '%VACA REGULAR%'
+                        THEN 'VACA REGULAR'
+
+                    WHEN UPPER(ISNULL(b.ClasificacionNuevaNombre,'')) LIKE '%RES%'
+                      OR UPPER(ISNULL(b.ClasificacionNuevaNombre,'')) LIKE '%REGULAR%'
+                      OR UPPER(ISNULL(b.ClasificacionNuevaNombre,'')) LIKE '%REGULAR AMARILLA%'
+                      OR UPPER(ISNULL(b.ClasificacionNuevaNombre,'')) LIKE '%GORDA AMARILLA%'
+                        THEN 'REG'
+
+                    ELSE ISNULL(
+                        NULLIF(LTRIM(RTRIM(rangoNuevo.Clasificacion)),''),
+                        'SIN CLASIF'
+                    )
+                END
+            ),
+
+        NivelAntes =
+            rangoCaliente.Nivel,
+
+        NivelDespues =
+            rangoNuevo.Nivel
+
+    FROM Base b
+
+    /* Nivel de la clasificación que tenía en caliente */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            cpc.Clasificacion,
+
+            Nivel =
+            (
+                SELECT COUNT(*) + 1
+                FROM dbo.ClasificacionPesoCaliente x
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(x.Linea,'')))) =
+                      UPPER(LTRIM(RTRIM(ISNULL(cpc.Linea,''))))
+                  AND ISNULL(x.PesoMin,0) < ISNULL(cpc.PesoMin,0)
+            )
+
+        FROM dbo.ClasificacionPesoCaliente cpc
+
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(cpc.Linea,'')))) =
+              UPPER(LTRIM(RTRIM(ISNULL(b.LineaCaliente,''))))
+
+          AND UPPER(LTRIM(RTRIM(ISNULL(cpc.Clasificacion,'')))) =
+              UPPER(LTRIM(RTRIM(ISNULL(b.ComoEstaba,''))))
+
+        ORDER BY cpc.PesoMin
+    ) rangoCaliente
+
+    /* Clasificación que le corresponde DESPUÉS,
+       aplicando la línea nueva + peso actual. */
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            cpc.Clasificacion,
+            cpc.PesoMin,
+            cpc.PesoMax,
+
+            Nivel =
+            (
+                SELECT COUNT(*) + 1
+                FROM dbo.ClasificacionPesoCaliente x
+                WHERE UPPER(LTRIM(RTRIM(ISNULL(x.Linea,'')))) =
+                      UPPER(LTRIM(RTRIM(ISNULL(cpc.Linea,''))))
+                  AND ISNULL(x.PesoMin,0) < ISNULL(cpc.PesoMin,0)
+            )
+
+        FROM dbo.ClasificacionPesoCaliente cpc
+
+        WHERE UPPER(LTRIM(RTRIM(ISNULL(cpc.Linea,'')))) =
+              UPPER(LTRIM(RTRIM(ISNULL(b.LineaNueva,''))))
+
+          AND b.Peso >= cpc.PesoMin
+
+          AND
+          (
+              cpc.PesoMax IS NULL
+              OR b.Peso <= cpc.PesoMax
+          )
+
+        ORDER BY
+            cpc.PesoMin DESC,
+            CASE WHEN cpc.PesoMax IS NULL THEN 1 ELSE 0 END,
+            cpc.PesoMax
+    ) rangoNuevo
+)
+SELECT
+    LoteDeshueseId,
+    LoteCanalesId,
+    ProduccionId,
+    CodigoEtiqueta,
+    Peso,
+    ComoEstaba,
+    ComoQuedo,
+    NivelAntes,
+    NivelDespues,
+    ProveedorId,
+    Proveedor
+FROM Calculo
+WHERE ReclasificacionCanalId IS NOT NULL
+
+  /* ÚNICA CONDICIÓN DE ALERTA:
+     la clasificación nueva está ABAJO de la anterior. */
+  AND NivelAntes IS NOT NULL
+  AND NivelDespues IS NOT NULL
+  AND NivelDespues < NivelAntes
+
+ORDER BY ProduccionId;";
+
+            var rows = await cn.QueryAsync<DeshueseBajaClasificacionRow>(
+                sql,
+                new { LoteId = loteId },
+                transaction: tx,
+                commandTimeout: 120);
+
+            return rows.ToList();
+        }
+
+
+        private async Task AgregarInformacionReclasificacionesDeshueseAsync(
+            SqlConnection cn,
+            SqlTransaction? tx,
+            int loteId,
+            CierreLoteDiagnosticoVM diagnostico)
+        {
+            // 1) Traemos TODAS las reclasificaciones del lote para mostrarlas.
+            var rows = await ObtenerReclasificacionesDeshueseVistaAsync(
+                cn,
+                tx,
+                loteId);
+
+            // 2) Traemos únicamente las que realmente BAJARON de clasificación.
+            //    Esta sigue siendo la regla que requiere autorización.
+            var bajas = await ObtenerBajasClasificacionDeshueseAsync(
+                cn,
+                tx,
+                loteId);
+
+            var produccionesConBaja = bajas
+                .Select(x => x.ProduccionId)
+                .ToHashSet();
+
+            foreach (var row in rows)
+            {
+                var esBaja = produccionesConBaja.Contains(row.ProduccionId);
+
+                diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                {
+                    Codigo = "DESHUESE_RECLASIFICACION_INFO",
+                    Nivel = "INFO",
+                    Titulo = "Reclasificación de canal",
+                    Detalle =
+                        $"ProduccionId={row.ProduccionId}; " +
+                        $"Etiqueta={row.CodigoEtiqueta}; " +
+                        $"Peso={row.Peso:N2} kg; " +
+                        $"ArticuloAntes={row.ArticuloAntes}; " +
+                        $"NombreAntes={row.NombreAntes}; " +
+                        $"ArticuloDespues={row.ArticuloDespues}; " +
+                        $"NombreDespues={row.NombreDespues}; " +
+                        $"Estado={(esBaja ? "BAJO" : "OK")}; " +
+                        $"Proveedor={row.Proveedor} ({row.ProveedorId}); " +
+                        $"LoteCanales={row.LoteCanalesId}.",
+
+                    // IMPORTANTE:
+                    // Para la VISTA usamos exactamente los nombres del artículo
+                    // antes y después de ReclasificacionCanal.
+                    ArticuloEntrada = row.NombreAntes,
+                    ArticuloSalida = row.NombreDespues,
+
+                    // Valor=1 únicamente cuando la validación real detectó BAJA.
+                    // Es sólo un indicador visual; estos INFO se agregan después
+                    // de calcular hash/bloqueos/autorización.
+                    Valor = esBaja ? 1m : 0m,
+                    Limite = 0m
+                });
+            }
+        }
+
+
+        private async Task<List<DeshueseBajaClasificacionRow>>
+            ObtenerReclasificacionesDeshueseVistaAsync(
+                SqlConnection cn,
+                SqlTransaction? tx,
+                int loteId)
+        {
+            const string sql = @"
+;WITH EntradasDeshuese AS
+(
+    SELECT DISTINCT
+        LoteDeshueseId = pl.SolicitudProduccionId,
+        pl.ProduccionId
+    FROM dbo.ProduccionLogistica pl
+    WHERE pl.SolicitudProduccionId = @LoteId
+      AND pl.ProduccionId IS NOT NULL
+)
+SELECT
+    e.LoteDeshueseId,
+    LoteCanalesId = p.LoteId,
+    e.ProduccionId,
+
+    CodigoEtiqueta =
+        CONVERT(nvarchar(200), ISNULL(p.CodigoEtiqueta,'')),
+
+    Peso =
+        CONVERT(
+            decimal(18,2),
+            FLOOR(CONVERT(decimal(18,6), ISNULL(p.PesoNeto,0)) * 100) / 100.0
+        ),
+
+    ReclasificacionCanalId =
+        rc.ReclasificacionCanalId,
+
+    /* ============================================================
+       NOMBRE ANTES = CALIENTE
+       Primero toma ArticuloActual de ReclasificacionCanal.
+       Si no existe registro de reclasificación, usa el artículo
+       con el que entró la canal al lote de deshuese.
+       ============================================================ */
+    ArticuloAntes =
+        CONVERT(
+            nvarchar(100),
+            COALESCE(
+                NULLIF(CONVERT(nvarchar(100),rc.ArticuloActual),''),
+                NULLIF(CONVERT(nvarchar(100),p.Articulo),''),
+                ''
+            )
+        ),
+
+    NombreAntes =
+        CONVERT(
+            nvarchar(250),
+            COALESCE(
+                NULLIF(LTRIM(RTRIM(aa.Nombre)),''),
+                NULLIF(LTRIM(RTRIM(aEntrada.Nombre)),''),
+                ''
+            )
+        ),
+
+    /* ============================================================
+       NOMBRE DESPUÉS = DESHUESE
+       Si hubo reclasificación toma ArticuloNuevo.
+       Si NO hubo cambio, conserva el mismo nombre de caliente.
+       ============================================================ */
+    ArticuloDespues =
+        CONVERT(
+            nvarchar(100),
+            COALESCE(
+                NULLIF(CONVERT(nvarchar(100),rc.ArticuloNuevo),''),
+                NULLIF(CONVERT(nvarchar(100),rc.ArticuloActual),''),
+                NULLIF(CONVERT(nvarchar(100),p.Articulo),''),
+                ''
+            )
+        ),
+
+    NombreDespues =
+        CONVERT(
+            nvarchar(250),
+            COALESCE(
+                NULLIF(LTRIM(RTRIM(an.Nombre)),''),
+                NULLIF(LTRIM(RTRIM(aa.Nombre)),''),
+                NULLIF(LTRIM(RTRIM(aEntrada.Nombre)),''),
+                ''
+            )
+        ),
+
+    ProveedorId =
+        CONVERT(
+            nvarchar(100),
+            ISNULL(compra.ProveedorId,'')
+        ),
+
+    Proveedor =
+        CONVERT(
+            nvarchar(250),
+            ISNULL(ps.Nombre,'')
+        )
+
+FROM EntradasDeshuese e
+
+INNER JOIN dbo.Produccion p
+    ON p.ProduccionId = e.ProduccionId
+
+/* Producto con el que realmente está entrando la canal */
+LEFT JOIN TIF_CommerciaNET.dbo.Articulo aEntrada
+    ON CONVERT(nvarchar(100),aEntrada.ArticuloId) COLLATE DATABASE_DEFAULT =
+       CONVERT(nvarchar(100),p.Articulo) COLLATE DATABASE_DEFAULT
+
+/* Última reclasificación registrada para esa ProduccionId */
+OUTER APPLY
+(
+    SELECT TOP (1)
+        r.ReclasificacionCanalId,
+        r.ArticuloActual,
+        r.ArticuloNuevo
+    FROM dbo.ReclasificacionCanal r
+    WHERE r.ProduccionId = e.ProduccionId
+    ORDER BY r.ReclasificacionCanalId DESC
+) rc
+
+/* Nombre ANTES */
+LEFT JOIN TIF_CommerciaNET.dbo.Articulo aa
+    ON CONVERT(nvarchar(100),aa.ArticuloId) COLLATE DATABASE_DEFAULT =
+       CONVERT(nvarchar(100),rc.ArticuloActual) COLLATE DATABASE_DEFAULT
+
+/* Nombre DESPUÉS */
+LEFT JOIN TIF_CommerciaNET.dbo.Articulo an
+    ON CONVERT(nvarchar(100),an.ArticuloId) COLLATE DATABASE_DEFAULT =
+       CONVERT(nvarchar(100),rc.ArticuloNuevo) COLLATE DATABASE_DEFAULT
+
+/* Proveedor de la canal original */
+OUTER APPLY
+(
+    SELECT TOP (1)
+        ProveedorId =
+            CONVERT(nvarchar(100),doc.ClienteProveedorId)
+    FROM dbo.SolicitudReferencia sr
+    INNER JOIN TIF_CommerciaNET.dbo.Documento doc
+        ON sr.Referencia =
+           CONCAT(
+               doc.EmpresaId,'.',
+               doc.SucursalId,'.',
+               doc.OperacionId,'.',
+               doc.Folio
+           )
+    WHERE sr.SolicitudProduccionId = p.LoteId
+      AND sr.TipoReferenciaId = 1
+      AND doc.Estatus <> 'Z0'
+    ORDER BY doc.Folio DESC
+) compra
+
+LEFT JOIN TIF_CommerciaNET.dbo.Proveedor ps
+    ON UPPER(LTRIM(RTRIM(ISNULL(CONVERT(nvarchar(100),ps.ProveedorId),'')))) COLLATE DATABASE_DEFAULT =
+       UPPER(LTRIM(RTRIM(ISNULL(compra.ProveedorId,'')))) COLLATE DATABASE_DEFAULT
+
+/* IMPORTANTE:
+   YA NO filtramos por rc.ReclasificacionCanalId.
+   De esta forma TODAS las entradas llegan a la vista. */
+ORDER BY e.ProduccionId;";
+
+            var rows = await cn.QueryAsync<DeshueseBajaClasificacionRow>(
+                sql,
+                new { LoteId = loteId },
+                transaction: tx,
+                commandTimeout: 120);
+
+            return rows.ToList();
+        }
+
+
+        private async Task ValidarAutorizacionBajaClasificacionDeshueseAsync(
+            SqlConnection cn,
+            SqlTransaction tx,
+            string source,
+            int loteId,
+            string diagnosticoHash,
+            long? solicitudId)
+        {
+            var bajas = await ObtenerBajasClasificacionDeshueseAsync(
+                cn,
+                tx,
+                loteId);
+
+            // Si ya no existe ninguna baja, esta regla no exige autorización.
+            if (bajas.Count == 0)
+                return;
+
+            if (!solicitudId.HasValue)
+            {
+                throw new InvalidOperationException(
+                    $"El lote tiene {bajas.Count:N0} canal(es) que bajaron de clasificación en deshuese. " +
+                    "No se puede cerrar sin una autorización aprobada.");
+            }
+
+            var autorizada = await cn.ExecuteScalarAsync<int>(@"
+SELECT COUNT(*)
+FROM dbo.meat_CierreLoteSolicitud WITH (UPDLOCK, HOLDLOCK)
+WHERE SolicitudId = @SolicitudId
+  AND Source = @Source
+  AND LoteId = @LoteId
+  AND DiagnosticoHash = @DiagnosticoHash
+  AND Estado = 'APROBADA';",
+                new
+                {
+                    SolicitudId = solicitudId.Value,
+                    Source = source,
+                    LoteId = loteId,
+                    DiagnosticoHash = diagnosticoHash
+                },
+                transaction: tx,
+                commandTimeout: 60);
+
+            if (autorizada != 1)
+            {
+                throw new InvalidOperationException(
+                    "El lote tiene canales que bajaron de clasificación en deshuese, " +
+                    "pero la autorización no está APROBADA o no corresponde al diagnóstico actual. " +
+                    "Revalide el lote y obtenga autorización antes de cerrar.");
+            }
+        }
+
+
         private async Task AgregarAnomaliasCompatibilidadAsync(
             SqlConnection cn,
             string source,
@@ -773,6 +1449,9 @@ WHERE Activo = 1
             int loteId,
             CierreLoteDiagnosticoVM diagnostico)
         {
+            const decimal TOLERANCIA_COSTO = 0.05m;
+
+            // CANALES utiliza su propia lógica de validación.
             if (string.Equals(diagnostico.TipoProceso, "CANALES", StringComparison.OrdinalIgnoreCase))
             {
                 await AgregarAnomaliasCosteoCanalesAsync(cn, loteId, diagnostico);
@@ -826,14 +1505,43 @@ WHERE p.LoteId = @LoteId
   AND ISNULL(p.UltimoProcesoId, 0) <> 29
 ORDER BY p.ProduccionId;";
 
-            var rows = (await cn.QueryAsync<CostoSalidaRow>(sql, new { LoteId = loteId }, commandTimeout: 120)).ToList();
+            var rows = (await cn.QueryAsync<CostoSalidaRow>(
+                sql,
+                new { LoteId = loteId },
+                commandTimeout: 120)).ToList();
 
-            diagnostico.SalidasSinCosteo = rows.Count(x => !x.EsSinCosto && (x.FilasCosteo == 0 || x.CostoUnitario <= 0));
+            // ============================================================
+            // CONTROLES TÉCNICOS REALES
+            // ============================================================
+            diagnostico.SalidasSinCosteo = rows.Count(x =>
+                !x.EsSinCosto &&
+                (x.FilasCosteo == 0 || x.CostoUnitario <= 0));
+
             diagnostico.SalidasConCostoDuplicado = rows.Count(x => x.FilasCosteo > 1);
             diagnostico.SalidasConProduccionCosteoDuplicado = rows.Count(x => x.FilasProduccionCosteo > 1);
-            diagnostico.CostoSalidaCalculado = decimal.Round(rows.Where(x => !x.EsSinCosto).Sum(x => x.PesoNeto * x.CostoUnitario), 6);
-            diagnostico.CostoSalidaGuardado = decimal.Round(rows.Where(x => !x.EsSinCosto).Sum(x => x.CostoLote), 6);
-            diagnostico.DiferenciaCosto = decimal.Round(diagnostico.CostoSalidaGuardado - diagnostico.CostoSalidaCalculado, 6);
+
+            // ============================================================
+            // COSTO ECONÓMICO DE SALIDA
+            // ============================================================
+            // IMPORTANTE:
+            // En CAJAS/RETRABAJO Costeo.CostoLote NO representa de forma
+            // uniforme el costo extendido de cada salida. Según el SP puede
+            // contener costo total de lote, costo/tasa de referencia o costo
+            // asignado. Por ello NO se valida CostoLote contra Peso*CU.
+            //
+            // La distribución económica que sí debe conservar el costo es:
+            //              SUM(PesoNeto * CostoUnitario)
+            // ============================================================
+            diagnostico.CostoSalidaCalculado = decimal.Round(
+                rows.Where(x => !x.EsSinCosto)
+                    .Sum(x => x.PesoNeto * x.CostoUnitario),
+                6);
+
+            // Para el diagnóstico de cierre, el costo de salida guardado/económico
+            // se expresa con la misma distribución persistida en CostoUnitario.
+            // No se suma Costeo.CostoLote porque ese campo no es aditivo por salida.
+            diagnostico.CostoSalidaGuardado = diagnostico.CostoSalidaCalculado;
+            diagnostico.DiferenciaCosto = 0m;
 
             var costoEntrada = await CalcularCostoEntradaParaValidacionAsync(
                 cn,
@@ -852,16 +1560,24 @@ ORDER BY p.ProduccionId;";
                     Codigo = "SIN_COSTO_ENTRADA",
                     Nivel = "BLOQUEO",
                     Titulo = "No se encontró costo positivo en las entradas",
-                    Detalle = "La validación posterior al costeo no encontró costo de entrada positivo según las fuentes usadas por los diagnósticos de cajas/retrabajo."
+                    Detalle = "La validación posterior al costeo no encontró costo de entrada positivo según las fuentes utilizadas por el costeo."
                 });
             }
             else if (diagnostico.TipoProceso == "CAJAS" || diagnostico.TipoProceso == "RETRABAJO")
             {
-                var salida = diagnostico.CostoSalidaCalculado;
-                var principalCuadra = diagnostico.CostoEntradaCalculado > 0 &&
-                                      Math.Abs(diagnostico.CostoEntradaCalculado - salida) <= 0.05m;
-                var alternoCuadra = diagnostico.CostoEntradaAlterno > 0 &&
-                                    Math.Abs(diagnostico.CostoEntradaAlterno - salida) <= 0.05m;
+                // Comparación monetaria a 2 decimales.
+                var salida = decimal.Round(diagnostico.CostoSalidaCalculado, 2);
+                var entradaPrincipal = decimal.Round(diagnostico.CostoEntradaCalculado, 2);
+                var entradaAlterna = decimal.Round(diagnostico.CostoEntradaAlterno, 2);
+
+                var diferenciaPrincipal = Math.Abs(entradaPrincipal - salida);
+                var diferenciaAlterna = Math.Abs(entradaAlterna - salida);
+
+                var principalCuadra = entradaPrincipal > 0 &&
+                                      diferenciaPrincipal <= TOLERANCIA_COSTO;
+
+                var alternoCuadra = entradaAlterna > 0 &&
+                                    diferenciaAlterna <= TOLERANCIA_COSTO;
 
                 if (!principalCuadra && !alternoCuadra)
                 {
@@ -870,7 +1586,13 @@ ORDER BY p.ProduccionId;";
                         Codigo = "COSTO_ENTRADA_VS_SALIDA_NO_CUADRA",
                         Nivel = "BLOQUEO",
                         Titulo = "Costo de entrada no coincide con costo distribuido a salidas",
-                        Detalle = $"Entrada principal={diagnostico.CostoEntradaCalculado:N2}, entrada alterna={diagnostico.CostoEntradaAlterno:N2}, salida distribuida={salida:N2}. Ninguna comparación cuadra dentro de $0.05."
+                        Detalle =
+                            $"Entrada principal={entradaPrincipal:N2}, " +
+                            $"entrada alterna={entradaAlterna:N2}, " +
+                            $"salida distribuida={salida:N2}, " +
+                            $"diferencia principal={diferenciaPrincipal:N2}, " +
+                            $"diferencia alterna={diferenciaAlterna:N2}. " +
+                            $"La tolerancia permitida es ${TOLERANCIA_COSTO:N2}."
                     });
                 }
             }
@@ -908,32 +1630,10 @@ ORDER BY p.ProduccionId;";
                 });
             }
 
-            var desfases = rows
-                .Where(x => !x.EsSinCosto && x.FilasCosteo > 0)
-                .Where(x => Math.Abs(x.CostoLote - (x.PesoNeto * x.CostoUnitario)) > 0.05m)
-                .ToList();
-
-            if (desfases.Count > 0)
-            {
-                diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
-                {
-                    Codigo = "COSTO_LOTE_NO_CUADRA",
-                    Nivel = "BLOQUEO",
-                    Titulo = "CostoLote no coincide con Peso × CostoUnitario",
-                    Detalle = $"Se detectaron {desfases.Count:N0} salida(s) con diferencia superior a $0.05 entre CostoLote y PesoNeto × CostoUnitario."
-                });
-            }
-
-            if (Math.Abs(diagnostico.DiferenciaCosto) > 0.05m)
-            {
-                diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
-                {
-                    Codigo = "COSTO_TOTAL_NO_CUADRA",
-                    Nivel = "BLOQUEO",
-                    Titulo = "El costo distribuido del lote no cuadra",
-                    Detalle = $"Costo guardado={diagnostico.CostoSalidaGuardado:N2}, costo calculado por kg={diagnostico.CostoSalidaCalculado:N2}, diferencia={diagnostico.DiferenciaCosto:N2}."
-                });
-            }
+            // No se genera COSTO_LOTE_NO_CUADRA ni COSTO_TOTAL_NO_CUADRA.
+            // Costeo.CostoLote no es un campo aditivo/extendido uniforme para
+            // CAJAS y RETRABAJO, por lo que compararlo con Peso*CostoUnitario
+            // produce falsos positivos.
         }
 
         private async Task AgregarAnomaliasCosteoCanalesAsync(
@@ -1045,36 +1745,102 @@ ORDER BY p.ProduccionId;";
 
             if (tipoProceso == "CAJAS")
             {
+                // Debe reflejar la misma fuente económica que usa el costeo de cajas:
+                //   COMP/COMT  -> ProduccionCosteo.CostoCanal
+                //   Resto      -> Costeo.CostoUnitario * FactorUnidad
+                // Si esa ruta no existe, se admite como respaldo el costo total
+                // disponible en ProduccionCosto. CostoAlterno conserva la fórmula
+                // histórica para poder validar lotes antiguos sin falsear el cierre.
                 const string sql = @"
 ;WITH EntradasUnicas AS
 (
     SELECT DISTINCT pl.ProduccionId
     FROM dbo.ProduccionLogistica pl
     WHERE pl.SolicitudProduccionId = @LoteId
-), CostoEntrada AS
+), Base AS
 (
     SELECT
-        eu.ProduccionId,
-        ISNULL((
-            SELECT SUM(ISNULL(pc.Costo,0))
-            FROM dbo.ProduccionCosto pc
-            WHERE pc.ProduccionId = eu.ProduccionId
-              AND pc.TipoCostoId = 0
-        ),0) AS CostoTipo0,
-        ISNULL((
-            SELECT TOP (1) ISNULL(pc2.CostoCanal,0)
-            FROM dbo.ProduccionCosteo pc2
-            WHERE pc2.ProduccionId = eu.ProduccionId
-            ORDER BY ISNULL(pc2.FechaHora,CONVERT(datetime,'19000101',112)) DESC
-        ),0) AS UltimoCostoCanal
+        p.ProduccionId,
+        CONVERT(varchar(100), ISNULL(p.CodigoEtiqueta,'')) AS CodigoEtiqueta,
+        CONVERT(decimal(38,12), ISNULL(NULLIF(pc.FactorUnidad,0), ISNULL(p.PesoNeto,0))) AS FactorUnidad,
+        CONVERT(decimal(38,12), ISNULL(pc.CostoCanal,0)) AS CostoCanal,
+        CONVERT(decimal(38,12), ISNULL(c.CostoUnitario,0)) AS CostoUnitario,
+        CONVERT(decimal(38,12), ISNULL(pcost.TotalProduccionCosto,0)) AS TotalProduccionCosto,
+        CONVERT(decimal(38,12), ISNULL(pcost0.CostoTipo0,0)) AS CostoTipo0
     FROM EntradasUnicas eu
+    INNER JOIN dbo.Produccion p
+        ON p.ProduccionId = eu.ProduccionId
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            pc1.CostoCanal,
+            pc1.FactorUnidad
+        FROM dbo.ProduccionCosteo pc1
+        WHERE pc1.ProduccionId = eu.ProduccionId
+        ORDER BY ISNULL(pc1.FechaHora, CONVERT(datetime,'19000101',112)) DESC
+    ) pc
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            c1.CostoUnitario
+        FROM dbo.Costeo c1
+        WHERE c1.ProduccionId = eu.ProduccionId
+          AND c1.TipoCosteoId = 1
+        ORDER BY ISNULL(c1.FechaHora, CONVERT(datetime,'19000101',112)) DESC
+    ) c
+    OUTER APPLY
+    (
+        SELECT SUM(CONVERT(decimal(38,12), ISNULL(x.Costo,0))) AS TotalProduccionCosto
+        FROM dbo.ProduccionCosto x
+        WHERE x.ProduccionId = eu.ProduccionId
+    ) pcost
+    OUTER APPLY
+    (
+        SELECT SUM(CONVERT(decimal(38,12), ISNULL(x.Costo,0))) AS CostoTipo0
+        FROM dbo.ProduccionCosto x
+        WHERE x.ProduccionId = eu.ProduccionId
+          AND x.TipoCostoId = 0
+    ) pcost0
+), Totales AS
+(
+    SELECT
+        CostoNormal = CONVERT(decimal(38,12), ISNULL(SUM(
+            CASE
+                WHEN CodigoEtiqueta LIKE 'COMP%'
+                  OR CodigoEtiqueta LIKE 'COMT%'
+                    THEN CASE WHEN CostoCanal > 0 THEN CostoCanal ELSE 0 END
+                ELSE CASE
+                    WHEN CostoUnitario > 0 AND FactorUnidad > 0
+                        THEN CostoUnitario * FactorUnidad
+                    ELSE 0
+                END
+            END
+        ),0)),
+        CostoProduccion = CONVERT(decimal(38,12), ISNULL(SUM(
+            CASE WHEN TotalProduccionCosto > 0 THEN TotalProduccionCosto ELSE 0 END
+        ),0)),
+        CostoHistorico = CONVERT(decimal(38,12), ISNULL(SUM(
+            ISNULL(CostoTipo0,0) + ISNULL(CostoCanal,0)
+        ),0))
+    FROM Base
 )
 SELECT
-    CONVERT(decimal(38,12), ISNULL(SUM(CostoTipo0 + UltimoCostoCanal),0)) AS CostoPrincipal,
-    CONVERT(decimal(38,12), 0) AS CostoAlterno
-FROM CostoEntrada;";
+    CostoPrincipal = CONVERT(decimal(38,12),
+        CASE
+            WHEN CostoNormal > 0 THEN CostoNormal
+            ELSE CostoProduccion
+        END),
+    CostoAlterno = CONVERT(decimal(38,12),
+        CASE
+            WHEN CostoHistorico > 0 THEN CostoHistorico
+            ELSE 0
+        END)
+FROM Totales;";
 
-                return await cn.QueryFirstAsync<CostoEntradaValidacionRow>(sql, new { LoteId = loteId }, commandTimeout: 120);
+                return await cn.QueryFirstAsync<CostoEntradaValidacionRow>(
+                    sql,
+                    new { LoteId = loteId },
+                    commandTimeout: 120);
             }
 
             if (tipoProceso == "RETRABAJO")
@@ -1553,6 +2319,26 @@ WHERE l.LoteId = @LoteId;",
                     movimientosActuales = await ObtenerMovimientosAsync(cn, tx, loteId, dbCommercia);
                 }
 
+                // ============================================================
+                // DEFENSA FINAL TIF / DESHUESE
+                // Antes de poner EstatusId=3 se vuelve a revisar la regla.
+                //
+                // Solo exige autorización si:
+                //     NivelDespues < NivelAntes
+                //
+                // Si quedó igual o SUBIÓ de clasificación, se deja cerrar.
+                // ============================================================
+                if (EsProcesoDeshueseParaValidacion(source, tipoProcesoActual))
+                {
+                    await ValidarAutorizacionBajaClasificacionDeshueseAsync(
+                        cn,
+                        tx,
+                        source,
+                        loteId,
+                        diagnosticoHash,
+                        solicitudId);
+                }
+
                 var entradasActuales = movimientosActuales.Where(x => x.Tipo == "ENTRADA").ToList();
                 var salidasActuales = movimientosActuales.Where(x => x.Tipo == "SALIDA").ToList();
                 var hashActual = CalcularMovimientoHash(entradasActuales, salidasActuales);
@@ -1837,6 +2623,29 @@ WHERE CompatibilidadId=@CompatibilidadId;",
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? ""));
             return Convert.ToHexString(bytes);
         }
+
+        private sealed class DeshueseBajaClasificacionRow
+        {
+            public int LoteDeshueseId { get; set; }
+            public int LoteCanalesId { get; set; }
+            public int ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public decimal Peso { get; set; }
+            public string ComoEstaba { get; set; } = "";
+            public string ComoQuedo { get; set; } = "";
+
+            // Datos directos de ReclasificacionCanal para mostrar en la vista.
+            public string ArticuloAntes { get; set; } = "";
+            public string NombreAntes { get; set; } = "";
+            public string ArticuloDespues { get; set; } = "";
+            public string NombreDespues { get; set; } = "";
+
+            public int NivelAntes { get; set; }
+            public int NivelDespues { get; set; }
+            public string ProveedorId { get; set; } = "";
+            public string Proveedor { get; set; } = "";
+        }
+
 
         private sealed class CanalLoteBaseRow
         {

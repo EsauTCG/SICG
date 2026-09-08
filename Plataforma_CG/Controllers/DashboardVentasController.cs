@@ -944,6 +944,8 @@ OPTION (RECOMPILE);";
 
         // ============================================================
         // BASE ÚNICA DE PRESUPUESTO / VENTA REAL
+        // AJUSTADO:
+        // SOLO DEVUELVE REGISTROS CON PRESUPUESTO MENSUAL > 0
         // ============================================================
         private async Task<List<PresupuestoVentaSqlRow>> ObtenerPresupuestoVentaDashboardAsync(
             DateTime inicio,
@@ -963,8 +965,12 @@ OPTION (RECOMPILE);";
             'SIN_MASTER'
         )
     FROM dbo.ArticuloSap a WITH (NOLOCK)
-    WHERE NULLIF(LTRIM(RTRIM(ISNULL(a.ProductoCodigo, ''))), '') IS NOT NULL
+    WHERE NULLIF(
+        LTRIM(RTRIM(ISNULL(a.ProductoCodigo, ''))),
+        ''
+    ) IS NOT NULL
 ),
+
 Clientes AS
 (
     SELECT
@@ -974,6 +980,7 @@ Clientes AS
         Canal = UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, ''))))
     FROM dbo.ClienteSap c WITH (NOLOCK)
 ),
+
 Vendedores AS
 (
     SELECT
@@ -986,6 +993,7 @@ Vendedores AS
     WHERE VendedorId IS NOT NULL
     GROUP BY VendedorId
 ),
+
 CanalVendedores AS
 (
     SELECT DISTINCT
@@ -995,12 +1003,22 @@ CanalVendedores AS
     WHERE VendedorId IS NOT NULL
       AND Canal LIKE 'CEDIS%'
 ),
+
+/* ============================================================
+   PRESUPUESTO POR VENDEDOR
+   ============================================================ */
 PresupuestoVendedor AS
 (
     SELECT
         VendedorId = pv.VendedorId,
         SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
-        Presupuesto = SUM(CAST(ISNULL(pv.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+        Presupuesto =
+            SUM(
+                CAST(
+                    ISNULL(pv.PresupuestoAsignado, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
     FROM dbo.PresupuestoVendedor pv WITH (NOLOCK)
     WHERE pv.Anio = @Anio
       AND pv.Mes = @Mes
@@ -1008,12 +1026,22 @@ PresupuestoVendedor AS
         pv.VendedorId,
         UPPER(LTRIM(RTRIM(pv.ProductoCodigo)))
 ),
+
+/* ============================================================
+   PRESUPUESTO CEDIS
+   ============================================================ */
 PresupuestoCedis AS
 (
     SELECT
         Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
         SKU = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        Presupuesto = SUM(CAST(ISNULL(pc.PresupuestoAsignado, 0) AS DECIMAL(18,4)))
+        Presupuesto =
+            SUM(
+                CAST(
+                    ISNULL(pc.PresupuestoAsignado, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
     FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
     WHERE pc.Anio = @Anio
       AND pc.Mes = @Mes
@@ -1021,12 +1049,22 @@ PresupuestoCedis AS
         UPPER(LTRIM(RTRIM(pc.Canal))),
         UPPER(LTRIM(RTRIM(pc.ProductoCodigo)))
 ),
+
+/* ============================================================
+   PRESUPUESTO TOTAL DE VENDEDORES POR CANAL
+   ============================================================ */
 PresVendedorXCanal AS
 (
     SELECT
         cv.Canal,
         pv.SKU,
-        PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
+        PresTotalCanal =
+            SUM(
+                CAST(
+                    pv.Presupuesto
+                    AS DECIMAL(18,4)
+                )
+            )
     FROM PresupuestoVendedor pv
     INNER JOIN CanalVendedores cv
         ON cv.VendedorId = pv.VendedorId
@@ -1034,267 +1072,640 @@ PresVendedorXCanal AS
         cv.Canal,
         pv.SKU
 ),
+
+/* ============================================================
+   VENTA REAL BASE
+   ============================================================ */
 VentaRealBase AS
 (
     SELECT
         SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
         VendedorId = cli.VendedorId,
         Canal = cli.Canal,
-        KgVendidos = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
-        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+
+        KgVendidos =
+            SUM(
+                CAST(
+                    ISNULL(sd.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            ),
+
+        UltimaFechaVenta =
+            MAX(
+                CAST(se.FechaValidacion AS date)
+            )
+
     FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+
     INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+        ON sd.SolicitudSurtidoId =
+           se.SolicitudSurtidoId
+
     LEFT JOIN Clientes cli
-        ON cli.Cliente = UPPER(LTRIM(RTRIM(se.CodigoSap)))
+        ON cli.Cliente =
+           UPPER(LTRIM(RTRIM(se.CodigoSap)))
+
     WHERE se.FechaValidacion >= @Inicio
       AND se.FechaValidacion < @FinExclusivo
+
     GROUP BY
         UPPER(LTRIM(RTRIM(sd.Articulo))),
         cli.VendedorId,
         cli.Canal
 ),
+
+/* ============================================================
+   VENTA REAL CEDIS
+   ============================================================ */
 VentaRealCedis AS
 (
     SELECT
         Canal,
         SKU,
-        VentaRealBruta = SUM(KgVendidos),
-        UltimaFechaVenta = MAX(UltimaFechaVenta)
+
+        VentaRealBruta =
+            SUM(KgVendidos),
+
+        UltimaFechaVenta =
+            MAX(UltimaFechaVenta)
+
     FROM VentaRealBase
+
     WHERE Canal LIKE 'CEDIS%'
-    GROUP BY Canal, SKU
+
+    GROUP BY
+        Canal,
+        SKU
 ),
+
+/* ============================================================
+   DEVOLUCIONES CEDIS
+   ============================================================ */
 DevolucionesCedis AS
 (
     SELECT
-        Canal = UPPER(LTRIM(RTRIM(ISNULL(c.Canal, '')))),
-        SKU = UPPER(LTRIM(RTRIM(d.Articulo))),
-        KgDevoluciones = SUM(CAST(ISNULL(d.Peso, 0) AS DECIMAL(18,4)))
+        Canal =
+            UPPER(
+                LTRIM(
+                    RTRIM(
+                        ISNULL(c.Canal, '')
+                    )
+                )
+            ),
+
+        SKU =
+            UPPER(
+                LTRIM(
+                    RTRIM(d.Articulo)
+                )
+            ),
+
+        KgDevoluciones =
+            SUM(
+                CAST(
+                    ISNULL(d.Peso, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+
     FROM dbo.DevolucionMeat d WITH (NOLOCK)
+
     INNER JOIN Clientes c
-        ON UPPER(LTRIM(RTRIM(d.CodigoSap))) = c.Cliente
+        ON UPPER(LTRIM(RTRIM(d.CodigoSap))) =
+           c.Cliente
+
     WHERE d.FechaDevolucion >= @Inicio
       AND d.FechaDevolucion < @FinExclusivo
-      AND (
-            d.Remision LIKE '%SUC01%'
-            OR d.Remision LIKE '%SUC02%'
-          )
+
+      AND
+      (
+          d.Remision LIKE '%SUC01%'
+          OR d.Remision LIKE '%SUC02%'
+      )
+
       AND EXISTS
       (
           SELECT 1
           FROM dbo.Subpedido sp WITH (NOLOCK)
-          WHERE CONVERT(varchar(100), sp.U_DocMeat) = CONVERT(varchar(100), d.SolicitudSurtidoId)
+          WHERE
+              CONVERT(varchar(100), sp.U_DocMeat)
+              =
+              CONVERT(varchar(100), d.SolicitudSurtidoId)
       )
+
       AND ISNULL(
-            UPPER(LTRIM(RTRIM(d.AlmacenDevolucionNombre))),
+            UPPER(
+                LTRIM(
+                    RTRIM(d.AlmacenDevolucionNombre)
+                )
+            ),
             ''
           ) NOT LIKE 'FRIGORIFICO%'
+
       AND c.Canal LIKE 'CEDIS%'
+
     GROUP BY
-        UPPER(LTRIM(RTRIM(ISNULL(c.Canal, '')))),
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(c.Canal, '')
+                )
+            )
+        ),
         UPPER(LTRIM(RTRIM(d.Articulo)))
 ),
+
+/* ============================================================
+   SURTIDO OV CEDIS
+   ============================================================ */
 SurtidoOvCedis AS
 (
     SELECT
         Canal = cli.Canal,
-        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
-        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+
+        SKU =
+            UPPER(
+                LTRIM(
+                    RTRIM(sd.Articulo)
+                )
+            ),
+
+        KgSurtido =
+            SUM(
+                CAST(
+                    ISNULL(sd.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            ),
+
+        UltimaFechaVenta =
+            MAX(
+                CAST(se.FechaValidacion AS date)
+            )
+
     FROM dbo.OrdenVenta o WITH (NOLOCK)
+
     INNER JOIN dbo.Series ser WITH (NOLOCK)
         ON ser.NombreSerie = o.Serie
+
     INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
         ON sp.OrdenVentaId = o.Id
+
     INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
-        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               int,
+               NULLIF(
+                   LTRIM(RTRIM(sp.U_DocMeat)),
+                   ''
+               )
+           )
+
     INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+        ON sd.SolicitudSurtidoId =
+           se.SolicitudSurtidoId
+
     INNER JOIN Clientes cli
-        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+        ON cli.Cliente =
+           UPPER(LTRIM(RTRIM(o.Cliente)))
+
     WHERE o.Estatus <> 0
       AND se.FechaValidacion >= @Inicio
       AND se.FechaValidacion < @FinExclusivo
       AND ser.Sucursal = 'MATRIZ'
       AND cli.Canal LIKE 'CEDIS%'
+
     GROUP BY
         cli.Canal,
         UPPER(LTRIM(RTRIM(sd.Articulo)))
 ),
+
+/* ============================================================
+   SURTIDO TRANSFERENCIAS CEDIS
+   ============================================================ */
 SurtidoTransferenciasCedis AS
 (
     SELECT
-        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-        SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
-        KgSurtido = SUM(CAST(ISNULL(ts.KgSurtido, 0) AS DECIMAL(18,4))),
-        UltimaFechaVenta = MAX(CAST(t.FechaSolicitud AS date))
+        Canal =
+            UPPER(
+                LTRIM(
+                    RTRIM(s.Canal)
+                )
+            ),
+
+        SKU =
+            UPPER(
+                LTRIM(
+                    RTRIM(ts.Sku)
+                )
+            ),
+
+        KgSurtido =
+            SUM(
+                CAST(
+                    ISNULL(ts.KgSurtido, 0)
+                    AS DECIMAL(18,4)
+                )
+            ),
+
+        UltimaFechaVenta =
+            MAX(
+                CAST(t.FechaSolicitud AS date)
+            )
+
     FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+
     INNER JOIN dbo.Transferencias t WITH (NOLOCK)
         ON t.Id = ts.TransferenciaId
+
     INNER JOIN dbo.Series s WITH (NOLOCK)
         ON s.Sucursal = t.Sucursal
+
     WHERE t.FechaSolicitud >= @Inicio
       AND t.FechaSolicitud < @FinExclusivo
       AND t.Estatus >= 5
       AND ISNULL(ts.KgSurtido, 0) > 0
-      AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) LIKE 'CEDIS%'
+      AND UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(s.Canal, '')
+                )
+            )
+          ) LIKE 'CEDIS%'
+
     GROUP BY
         UPPER(LTRIM(RTRIM(s.Canal))),
         UPPER(LTRIM(RTRIM(ts.Sku)))
 ),
+
+/* ============================================================
+   SURTIDO TOTAL CEDIS
+   ============================================================ */
 SurtidoCedisBase AS
 (
     SELECT
         Canal,
         SKU,
-        KgSurtido = SUM(KgSurtido),
-        UltimaFechaVenta = MAX(UltimaFechaVenta)
+
+        KgSurtido =
+            SUM(KgSurtido),
+
+        UltimaFechaVenta =
+            MAX(UltimaFechaVenta)
+
     FROM
     (
-        SELECT * FROM SurtidoOvCedis
+        SELECT *
+        FROM SurtidoOvCedis
+
         UNION ALL
-        SELECT * FROM SurtidoTransferenciasCedis
+
+        SELECT *
+        FROM SurtidoTransferenciasCedis
     ) x
-    GROUP BY Canal, SKU
+
+    GROUP BY
+        Canal,
+        SKU
 ),
+
+/* ============================================================
+   SURTIDO VENDEDOR NORMAL
+   ============================================================ */
 SurtidoVendedorNormal AS
 (
     SELECT
-        VendedorId = cli.VendedorId,
-        SKU = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(ISNULL(sd.Kg, 0) AS DECIMAL(18,4))),
-        UltimaFechaVenta = MAX(CAST(se.FechaValidacion AS date))
+        VendedorId =
+            cli.VendedorId,
+
+        SKU =
+            UPPER(
+                LTRIM(
+                    RTRIM(sd.Articulo)
+                )
+            ),
+
+        KgSurtido =
+            SUM(
+                CAST(
+                    ISNULL(sd.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            ),
+
+        UltimaFechaVenta =
+            MAX(
+                CAST(se.FechaValidacion AS date)
+            )
+
     FROM dbo.OrdenVenta o WITH (NOLOCK)
+
     INNER JOIN dbo.Series ser WITH (NOLOCK)
         ON ser.NombreSerie = o.Serie
+
     INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
         ON sp.OrdenVentaId = o.Id
+
     INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
-        ON se.SolicitudSurtidoId = TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), ''))
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               int,
+               NULLIF(
+                   LTRIM(RTRIM(sp.U_DocMeat)),
+                   ''
+               )
+           )
+
     INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
-        ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+        ON sd.SolicitudSurtidoId =
+           se.SolicitudSurtidoId
+
     INNER JOIN Clientes cli
-        ON cli.Cliente = UPPER(LTRIM(RTRIM(o.Cliente)))
+        ON cli.Cliente =
+           UPPER(LTRIM(RTRIM(o.Cliente)))
+
     WHERE o.Estatus <> 0
       AND se.FechaValidacion >= @Inicio
       AND se.FechaValidacion < @FinExclusivo
       AND ser.Sucursal = 'MATRIZ'
       AND ISNULL(cli.Canal, '') NOT LIKE 'CEDIS%'
       AND cli.VendedorId IS NOT NULL
+
     GROUP BY
         cli.VendedorId,
         UPPER(LTRIM(RTRIM(sd.Articulo)))
 ),
+
+/* ============================================================
+   DISTRIBUCIÓN DEL SURTIDO CEDIS A VENDEDORES
+   ============================================================ */
 SurtidoVendedorDesdeCedis AS
 (
     SELECT
-        VendedorId = pv.VendedorId,
-        SKU = pv.SKU,
-        KgSurtido = SUM(
-            CASE
-                WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0 THEN 0
-                ELSE sb.KgSurtido
-                     * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal)
-            END
-        ),
-        UltimaFechaVenta = MAX(sb.UltimaFechaVenta)
+        VendedorId =
+            pv.VendedorId,
+
+        SKU =
+            pv.SKU,
+
+        KgSurtido =
+            SUM(
+                CASE
+                    WHEN ISNULL(pxc.PresTotalCanal, 0) <= 0
+                        THEN 0
+
+                    ELSE
+                        sb.KgSurtido
+                        *
+                        (
+                            CAST(
+                                pv.Presupuesto
+                                AS DECIMAL(18,4)
+                            )
+                            /
+                            pxc.PresTotalCanal
+                        )
+                END
+            ),
+
+        UltimaFechaVenta =
+            MAX(sb.UltimaFechaVenta)
+
     FROM PresupuestoVendedor pv
+
     INNER JOIN CanalVendedores cv
-        ON cv.VendedorId = pv.VendedorId
+        ON cv.VendedorId =
+           pv.VendedorId
+
     INNER JOIN PresVendedorXCanal pxc
-        ON pxc.Canal = cv.Canal
-       AND pxc.SKU = pv.SKU
+        ON pxc.Canal =
+           cv.Canal
+       AND pxc.SKU =
+           pv.SKU
+
     INNER JOIN SurtidoCedisBase sb
-        ON sb.Canal = cv.Canal
-       AND sb.SKU = pv.SKU
+        ON sb.Canal =
+           cv.Canal
+       AND sb.SKU =
+           pv.SKU
+
     GROUP BY
         pv.VendedorId,
         pv.SKU
 ),
+
+/* ============================================================
+   SURTIDO TOTAL VENDEDOR
+   ============================================================ */
 SurtidoVendedorTotal AS
 (
     SELECT
         VendedorId,
         SKU,
-        KgSurtido = SUM(KgSurtido),
-        UltimaFechaVenta = MAX(UltimaFechaVenta)
+
+        KgSurtido =
+            SUM(KgSurtido),
+
+        UltimaFechaVenta =
+            MAX(UltimaFechaVenta)
+
     FROM
     (
-        SELECT * FROM SurtidoVendedorNormal
+        SELECT *
+        FROM SurtidoVendedorNormal
+
         UNION ALL
-        SELECT * FROM SurtidoVendedorDesdeCedis
+
+        SELECT *
+        FROM SurtidoVendedorDesdeCedis
     ) x
-    GROUP BY VendedorId, SKU
+
+    GROUP BY
+        VendedorId,
+        SKU
 ),
+
+/* ============================================================
+   CLAVES CEDIS
+   ============================================================ */
 CedisKeys AS
 (
-    SELECT Canal, SKU FROM PresupuestoCedis
+    SELECT
+        Canal,
+        SKU
+    FROM PresupuestoCedis
+
     UNION
-    SELECT Canal, SKU FROM VentaRealCedis
+
+    SELECT
+        Canal,
+        SKU
+    FROM VentaRealCedis
 ),
+
+/* ============================================================
+   CLAVES VENDEDOR
+   ============================================================ */
 VendedorKeys AS
 (
-    SELECT VendedorId, SKU FROM PresupuestoVendedor
+    SELECT
+        VendedorId,
+        SKU
+    FROM PresupuestoVendedor
+
     UNION
-    SELECT VendedorId, SKU FROM SurtidoVendedorTotal
+
+    SELECT
+        VendedorId,
+        SKU
+    FROM SurtidoVendedorTotal
 ),
+
+/* ============================================================
+   BASE FINAL
+   ============================================================ */
 Base AS
 (
+    /* ==========================
+       CEDIS
+       ========================== */
     SELECT
-        Origen = CONVERT(varchar(10), 'CEDIS'),
-        Canal = ck.Canal,
-        VendedorId = CONVERT(int, 0),
-        Vendedor = ck.Canal,
-        SKU = ck.SKU,
-        Master = ISNULL(pr.Master, 'SIN_MASTER'),
-        PresupuestoMensual = CAST(ISNULL(pc.Presupuesto, 0) AS DECIMAL(18,4)),
-        VentaReal = CAST(
-            CASE
-                WHEN ISNULL(vrc.VentaRealBruta, 0) - ISNULL(dc.KgDevoluciones, 0) < 0
+        Origen =
+            CONVERT(varchar(10), 'CEDIS'),
+
+        Canal =
+            ck.Canal,
+
+        VendedorId =
+            CONVERT(int, 0),
+
+        Vendedor =
+            ck.Canal,
+
+        SKU =
+            ck.SKU,
+
+        Master =
+            ISNULL(pr.Master, 'SIN_MASTER'),
+
+        PresupuestoMensual =
+            CAST(
+                ISNULL(pc.Presupuesto, 0)
+                AS DECIMAL(18,4)
+            ),
+
+        VentaReal =
+            CAST(
+                CASE
+                    WHEN
+                        ISNULL(vrc.VentaRealBruta, 0)
+                        -
+                        ISNULL(dc.KgDevoluciones, 0)
+                        < 0
                     THEN 0
-                ELSE ISNULL(vrc.VentaRealBruta, 0) - ISNULL(dc.KgDevoluciones, 0)
-            END
-            AS DECIMAL(18,4)
-        ),
-        UltimaFechaVenta = vrc.UltimaFechaVenta
+
+                    ELSE
+                        ISNULL(vrc.VentaRealBruta, 0)
+                        -
+                        ISNULL(dc.KgDevoluciones, 0)
+                END
+                AS DECIMAL(18,4)
+            ),
+
+        UltimaFechaVenta =
+            vrc.UltimaFechaVenta
+
     FROM CedisKeys ck
+
     LEFT JOIN PresupuestoCedis pc
         ON pc.Canal = ck.Canal
        AND pc.SKU = ck.SKU
+
     LEFT JOIN VentaRealCedis vrc
         ON vrc.Canal = ck.Canal
        AND vrc.SKU = ck.SKU
+
     LEFT JOIN DevolucionesCedis dc
         ON dc.Canal = ck.Canal
        AND dc.SKU = ck.SKU
+
     LEFT JOIN Productos pr
         ON pr.SKU = ck.SKU
 
+
     UNION ALL
 
+
+    /* ==========================
+       VENDEDOR
+       ========================== */
     SELECT
-        Origen = CONVERT(varchar(10), 'VENDEDOR'),
-        Canal = CONVERT(varchar(100), NULL),
-        VendedorId = vk.VendedorId,
-        Vendedor = ISNULL(v.VendedorNombre, CONCAT('VENDEDOR ', vk.VendedorId)),
-        SKU = vk.SKU,
-        Master = ISNULL(pr.Master, 'SIN_MASTER'),
-        PresupuestoMensual = CAST(ISNULL(pv.Presupuesto, 0) AS DECIMAL(18,4)),
-        VentaReal = CAST(ISNULL(srv.KgSurtido, 0) AS DECIMAL(18,4)),
-        UltimaFechaVenta = srv.UltimaFechaVenta
+        Origen =
+            CONVERT(varchar(10), 'VENDEDOR'),
+
+        Canal =
+            CONVERT(varchar(100), NULL),
+
+        VendedorId =
+            vk.VendedorId,
+
+        Vendedor =
+            ISNULL(
+                v.VendedorNombre,
+                CONCAT(
+                    'VENDEDOR ',
+                    vk.VendedorId
+                )
+            ),
+
+        SKU =
+            vk.SKU,
+
+        Master =
+            ISNULL(pr.Master, 'SIN_MASTER'),
+
+        PresupuestoMensual =
+            CAST(
+                ISNULL(pv.Presupuesto, 0)
+                AS DECIMAL(18,4)
+            ),
+
+        VentaReal =
+            CAST(
+                ISNULL(srv.KgSurtido, 0)
+                AS DECIMAL(18,4)
+            ),
+
+        UltimaFechaVenta =
+            srv.UltimaFechaVenta
+
     FROM VendedorKeys vk
+
     LEFT JOIN PresupuestoVendedor pv
         ON pv.VendedorId = vk.VendedorId
        AND pv.SKU = vk.SKU
+
     LEFT JOIN SurtidoVendedorTotal srv
         ON srv.VendedorId = vk.VendedorId
        AND srv.SKU = vk.SKU
+
     LEFT JOIN Vendedores v
         ON v.VendedorId = vk.VendedorId
+
     LEFT JOIN Productos pr
         ON pr.SKU = vk.SKU
 )
+
+/* ============================================================
+   RESULTADO FINAL
+
+   IMPORTANTE:
+   SOLO SE MUESTRAN REGISTROS CON PRESUPUESTO > 0.
+
+   Ya NO se muestran registros únicamente porque tengan
+   VentaReal > 0.
+   ============================================================ */
 SELECT
     Origen,
     Canal,
@@ -1305,29 +1716,115 @@ SELECT
     PresupuestoMensual,
     VentaReal,
     UltimaFechaVenta
+
 FROM Base
+
 WHERE
+    ISNULL(PresupuestoMensual, 0) > 0
+
+    AND
     (
-        ISNULL(PresupuestoMensual, 0) > 0
-        OR ISNULL(VentaReal, 0) > 0
-    )
-    AND (
         @TieneMaster = 0
-        OR Master IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@MastersCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+
+        OR Master IN
+        (
+            SELECT
+                UPPER(
+                    LTRIM(
+                        RTRIM(value)
+                    )
+                )
+            FROM STRING_SPLIT(
+                @MastersCsv,
+                ','
+            )
+            WHERE NULLIF(
+                LTRIM(RTRIM(value)),
+                ''
+            ) IS NOT NULL
+        )
     )
-    AND (
+
+    AND
+    (
         @TieneSku = 0
-        OR SKU IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@SkusCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL)
+
+        OR SKU IN
+        (
+            SELECT
+                UPPER(
+                    LTRIM(
+                        RTRIM(value)
+                    )
+                )
+            FROM STRING_SPLIT(
+                @SkusCsv,
+                ','
+            )
+            WHERE NULLIF(
+                LTRIM(RTRIM(value)),
+                ''
+            ) IS NOT NULL
+        )
     )
-    AND (
+
+    AND
+    (
         @TieneVendedor = 0
-        OR (Origen = 'CEDIS' AND Canal IN (SELECT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@CanalesCsv, ',') WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL))
-        OR (Origen = 'VENDEDOR' AND VendedorId IN (SELECT TRY_CONVERT(int, value) FROM STRING_SPLIT(@VendedorIdsCsv, ',') WHERE TRY_CONVERT(int, value) IS NOT NULL))
+
+        OR
+        (
+            Origen = 'CEDIS'
+
+            AND Canal IN
+            (
+                SELECT
+                    UPPER(
+                        LTRIM(
+                            RTRIM(value)
+                        )
+                    )
+                FROM STRING_SPLIT(
+                    @CanalesCsv,
+                    ','
+                )
+                WHERE NULLIF(
+                    LTRIM(RTRIM(value)),
+                    ''
+                ) IS NOT NULL
+            )
+        )
+
+        OR
+        (
+            Origen = 'VENDEDOR'
+
+            AND VendedorId IN
+            (
+                SELECT
+                    TRY_CONVERT(int, value)
+                FROM STRING_SPLIT(
+                    @VendedorIdsCsv,
+                    ','
+                )
+                WHERE TRY_CONVERT(
+                    int,
+                    value
+                ) IS NOT NULL
+            )
+        )
     )
-ORDER BY Origen, Canal, VendedorId, SKU
+
+ORDER BY
+    Origen,
+    Canal,
+    VendedorId,
+    SKU
+
 OPTION (RECOMPILE);";
 
-            await using var con = await AbrirConexionAsync(ct);
+            await using var con =
+                await AbrirConexionAsync(ct);
 
             return (
                 await con.QueryAsync<PresupuestoVentaSqlRow>(
@@ -1339,17 +1836,39 @@ OPTION (RECOMPILE);";
                             FinExclusivo = finExclusivo,
                             Anio = anio,
                             Mes = mes,
+
                             filtros.TieneMaster,
                             filtros.TieneSku,
                             filtros.TieneVendedor,
+
                             Masters = filtros.MastersSql,
                             Skus = filtros.SkusSql,
                             VendedorIds = filtros.VendedorIdsSql,
                             CanalesCedis = filtros.CanalesCedisSql,
-                            MastersCsv = string.Join(",", filtros.Masters),
-                            SkusCsv = string.Join(",", filtros.Skus),
-                            VendedorIdsCsv = string.Join(",", filtros.VendedorIds),
-                            CanalesCsv = string.Join(",", filtros.CanalesCedis)
+
+                            MastersCsv =
+                                string.Join(
+                                    ",",
+                                    filtros.Masters
+                                ),
+
+                            SkusCsv =
+                                string.Join(
+                                    ",",
+                                    filtros.Skus
+                                ),
+
+                            VendedorIdsCsv =
+                                string.Join(
+                                    ",",
+                                    filtros.VendedorIds
+                                ),
+
+                            CanalesCsv =
+                                string.Join(
+                                    ",",
+                                    filtros.CanalesCedis
+                                )
                         },
                         commandTimeout: 180,
                         cancellationToken: ct

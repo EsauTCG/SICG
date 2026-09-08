@@ -705,22 +705,15 @@ namespace Plataforma_CG.Controllers
                 ?? new List<WarehouseConfigItem>();
         }
 
-        private bool UsuarioPuedeVerTodosLosAlmacenes()
-        {
-            return User.IsInRole("Administrador") || User.IsInRole("Sistemas");
-        }
-
         private async Task<HashSet<string>> ObtenerIdsAlmacenesPermitidosAsync(
             CancellationToken ct)
         {
-            var configurados = ObtenerAlmacenesConfigurados();
-
-            if (UsuarioPuedeVerTodosLosAlmacenes())
-            {
-                return configurados
-                    .Select(x => Norm(x.Id))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            }
+            // UsuarioSQL.AlmacenesPermitidos manda para TODOS los usuarios,
+            // incluyendo Administrador y Sistemas.
+            var configurados = ObtenerAlmacenesConfigurados()
+                .Select(x => Norm(x.Id))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var login = UsuarioActual();
             if (string.IsNullOrWhiteSpace(login))
@@ -728,14 +721,44 @@ namespace Plataforma_CG.Controllers
                 return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
 
-            var usuario = await _context.UsuarioSQL
+            var loginNormalizado = login.Trim();
+            var loginSinDominio = loginNormalizado.Contains('\\')
+                ? loginNormalizado.Split('\\').Last()
+                : loginNormalizado;
+            var loginSinCorreo = loginSinDominio.Contains('@')
+                ? loginSinDominio.Split('@')[0]
+                : loginSinDominio;
+
+            var candidatos = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                loginNormalizado,
+                loginSinDominio,
+                loginSinCorreo
+            };
+
+            if (!string.IsNullOrWhiteSpace(loginSinCorreo) &&
+                !loginSinCorreo.Contains('@'))
+            {
+                candidatos.Add($"{loginSinCorreo}@carnesg.net");
+            }
+
+            // Se cargan los usuarios y la comparación se hace normalizada en memoria
+            // para soportar login, correo y DOMINIO\usuario sin depender del formato
+            // con el que IIS/Windows Authentication entregue Identity.Name.
+            var usuarios = await _context.UsuarioSQL
                 .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    x => x.Usuario == login || x.Nombre == login,
-                    ct);
+                .ToListAsync(ct);
+
+            var usuario = usuarios.FirstOrDefault(x =>
+                candidatos.Contains((x.Usuario ?? "").Trim()) ||
+                candidatos.Contains((x.Nombre ?? "").Trim()));
 
             if (usuario == null)
             {
+                _logger.LogWarning(
+                    "No se encontró el usuario {Usuario} en UsuarioSQL para resolver AlmacenesPermitidos.",
+                    loginNormalizado);
+
                 return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
 
@@ -745,14 +768,22 @@ namespace Plataforma_CG.Controllers
                 ids = JsonSerializer.Deserialize<List<string>>(
                     usuario.AlmacenesPermitidos ?? "[]") ?? new List<string>();
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                ids = new List<string>();
+                _logger.LogWarning(
+                    ex,
+                    "AlmacenesPermitidos de {Usuario} no contiene JSON válido.",
+                    usuario.Usuario);
+
+                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
 
+            // Además de respetar UsuarioSQL, sólo regresamos IDs que realmente
+            // existan en appsettings:Warehouses.
             return ids
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(Norm)
+                .Where(configurados.Contains)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 

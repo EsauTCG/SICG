@@ -1640,58 +1640,1261 @@ ORDER BY
 
 
 
+        //   [HttpPost]
+        //   public async Task<IActionResult> GuardarPedido(
+        //PedidoViewModel model,
+        //string accion,
+        //bool esMuestra = false,
+        //CancellationToken ct = default)
+        //   {
+        //       if (!model.FechaEntrega.HasValue)
+        //       {
+        //           TempData["Error"] = "Debes seleccionar una fecha de entrega válida.";
+        //           return View("OrdenVenta", model);
+        //       }
+
+        //       static string Norm(string? s) => (s ?? "").Trim().ToUpperInvariant();
+
+        //       // =========================================================
+        //       // VALIDACIÓN / DEPURACIÓN DE LÍNEAS DEL PEDIDO
+        //       // =========================================================
+        //       // La pantalla precarga productos permitidos con Peso=0 y Cajas=0.
+        //       // Esas filas son catálogo visual, NO forman parte de la orden.
+        //       //
+        //       // Reglas:
+        //       // 1) Peso=0 y Cajas=0 -> se ignora y NO se guarda.
+        //       // 2) Peso>0 y Cajas>0 -> línea válida.
+        //       // 3) Solo uno de los dos >0, o algún valor negativo -> bloquear.
+        //       // 4) Cantidad capturada sin SKU -> bloquear.
+        //       //
+        //       // Esta validación está en BACKEND para que siga protegida aunque
+        //       // falle/manipulen el JavaScript del navegador.
+        //       var productosRecibidos =
+        //           model.Productos ??
+        //           new List<PedidoProductoViewModel>();
+
+        //       bool hayCantidadSinSku =
+        //           productosRecibidos.Any(p =>
+        //               string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+        //               (p.Peso > 0m || p.Cajas > 0)
+        //           );
+
+        //       bool hayCantidadInconsistente =
+        //           productosRecibidos.Any(p =>
+        //               !string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+        //               (
+        //                   p.Peso < 0m ||
+        //                   p.Cajas < 0 ||
+        //                   ((p.Peso > 0m) != (p.Cajas > 0))
+        //               )
+        //           );
+
+        //       if (hayCantidadSinSku)
+        //       {
+        //           TempData["Error"] =
+        //               "Hay una línea con cantidad capturada pero sin un SKU válido. Selecciona el producto desde la lista.";
+
+        //           return View(
+        //               "~/Views/Comercial/OrdenVenta.cshtml",
+        //               model
+        //           );
+        //       }
+
+        //       if (hayCantidadInconsistente)
+        //       {
+        //           TempData["Error"] =
+        //               "Hay productos con cantidad incompleta. Cada producto solicitado debe tener Cajas y Peso mayores a cero.";
+
+        //           return View(
+        //               "~/Views/Comercial/OrdenVenta.cshtml",
+        //               model
+        //           );
+        //       }
+
+        //       var productosValidos =
+        //           productosRecibidos
+        //               .Where(p =>
+        //                   !string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+        //                   p.Peso > 0m &&
+        //                   p.Cajas > 0
+        //               )
+        //               .ToList();
+
+        //       if (productosValidos.Count == 0)
+        //       {
+        //           TempData["Error"] =
+        //               "La orden debe contener al menos un producto con Cajas y Peso mayores a cero.";
+
+        //           return View(
+        //               "~/Views/Comercial/OrdenVenta.cshtml",
+        //               model
+        //           );
+        //       }
+
+        //       // A partir de aquí TODA la lógica del método trabaja sólo con
+        //       // líneas realmente solicitadas. Los SKU precargados en cero
+        //       // desaparecen antes de presupuesto, crédito, precio e INSERT.
+        //       model.Productos = productosValidos;
+
+        //       // Lee ClienteCodigo o Cliente si existen en el DTO
+        //       // para no depender del nombre exacto
+        //       static string GetClienteFromDto(PresupuestoConsumoDto dto)
+        //       {
+        //           var t = dto.GetType();
+        //           var p = t.GetProperty("ClienteCodigo") ?? t.GetProperty("Cliente");
+        //           var v = p?.GetValue(dto)?.ToString();
+
+        //           return Norm(v);
+        //       }
+
+
+        //       var modoPresupuesto = GetModoPresupuestoActual(); // "VENDEDOR" | "CLIENTE"
+
+        //       string clienteUp = Norm(model.Cliente);
+
+        //       decimal totalPedido =
+        //           model.Productos?.Sum(p => p.Peso * p.Precio) ?? 0m;
+
+
+        //       // =========================================================
+        //       // INFO CRÉDITO
+        //       // =========================================================
+
+        //       decimal credito = model.Credito;
+        //       decimal saldo = model.Saldo;
+        //       decimal otrosPedidos = model.OtrosPedidos;
+
+        //       decimal totalDisponible =
+        //           credito - saldo - otrosPedidos;
+
+        //       const decimal TOL = 0.01m;
+
+
+        //       bool requiereAutorizacionPrecio = false;
+        //       bool requiereAutorizacionPresupuesto = false;
+        //       bool sapDisponible = true;
+
+
+        //       // =========================================================
+        //       // SKUs DEL PEDIDO + KILOS POR SKU
+        //       // =========================================================
+
+        //       var kilosPedidoPorSku =
+        //           (model.Productos ?? new List<PedidoProductoViewModel>())
+        //           .Where(p => !string.IsNullOrWhiteSpace(p.ProductoCodigo))
+        //           .GroupBy(p => Norm(p.ProductoCodigo))
+        //           .ToDictionary(
+        //               g => g.Key,
+        //               g => g.Sum(x => x.Peso)
+        //           );
+
+        //       var skusPedido = kilosPedidoPorSku.Keys.ToList();
+
+
+        //       // =========================================================
+        //       // DATOS CLIENTE / CANAL / VENDEDOR
+        //       // =========================================================
+
+        //       var cliSap = await _context.ClienteSap
+        //           .AsNoTracking()
+        //           .Where(c =>
+        //               ((c.Cliente ?? "").Trim().ToUpper()) == clienteUp
+        //           )
+        //           .Select(c => new
+        //           {
+        //               Canal = c.U_CANAL,
+        //               VendedorId = (int?)c.VendedorId
+        //           })
+        //           .FirstOrDefaultAsync(ct);
+
+
+        //       string canalClienteUp = Norm(cliSap?.Canal);
+
+        //       bool esCanalCedis =
+        //           canalClienteUp.StartsWith("CEDIS");
+
+
+        //       int? vendedorId =
+        //           (cliSap?.VendedorId.HasValue == true &&
+        //            cliSap.VendedorId.Value > 0)
+        //               ? cliSap.VendedorId.Value
+        //               : (int?)null;
+
+
+        //       // =========================================================
+        //       // SUCURSAL DE LA SERIE
+        //       // =========================================================
+
+        //       var serieInfo = await _context.Series
+        //           .AsNoTracking()
+        //           .Where(s => s.NombreSerie == model.Serie)
+        //           .Select(s => new
+        //           {
+        //               s.Sucursal
+        //           })
+        //           .FirstOrDefaultAsync(ct);
+
+
+        //       string sucursalSerieUp =
+        //           Norm(serieInfo?.Sucursal);
+
+        //       bool esSerieMatriz =
+        //           sucursalSerieUp == "MATRIZ";
+
+
+        //       // Regla:
+        //       // Si cliente es CEDIS y serie NO es MATRIZ
+        //       // NO validar presupuesto
+        //       bool aplicarValidacionPresupuesto =
+        //           !(esCanalCedis && !esSerieMatriz);
+
+
+        //       // =========================================================
+        //       // 1) VALIDACIÓN PRESUPUESTO
+        //       // =========================================================
+
+        //       if (aplicarValidacionPresupuesto &&
+        //           skusPedido.Count > 0)
+        //       {
+        //           try
+        //           {
+        //               var sucursalParam = model.Serie;
+        //               var modoUp = Norm(modoPresupuesto);
+
+
+        //               foreach (var sku in skusPedido)
+        //               {
+        //                   var kilosPedidoSku =
+        //                       kilosPedidoPorSku.TryGetValue(
+        //                           sku,
+        //                           out var kp
+        //                       )
+        //                           ? kp
+        //                           : 0m;
+
+
+        //                   if (kilosPedidoSku <= 0m)
+        //                       continue;
+
+
+        //                   var rows =
+        //                       await ObtenerPresupuestoDetalleAsync(
+        //                           sucursal: sucursalParam,
+        //                           sku: sku,
+        //                           fechaSolicitud: model.FechaEntrega.Value,
+        //                           vendedorId: vendedorId,
+        //                           esCanalCedis: esCanalCedis,
+        //                           canalCliente: canalClienteUp,
+        //                           ct: ct
+        //                       );
+
+
+        //                   PresupuestoConsumoDto? detSel = null;
+
+
+        //                   if (rows != null &&
+        //                       rows.Count > 0)
+        //                   {
+        //                       // =========================================
+        //                       // CEDIS
+        //                       // =========================================
+
+        //                       if (esCanalCedis)
+        //                       {
+        //                           detSel =
+        //                               rows.FirstOrDefault(r =>
+        //                                   Norm(r.Origen) == "CEDIS" &&
+        //                                   Norm(r.Canal) == canalClienteUp
+        //                               );
+        //                       }
+
+        //                       // =========================================
+        //                       // NO CEDIS
+        //                       // =========================================
+
+        //                       else
+        //                       {
+        //                           if (modoUp == "CLIENTE")
+        //                           {
+        //                               detSel =
+        //                                   rows.FirstOrDefault(r =>
+        //                                       Norm(r.Origen) == "CLIENTE" &&
+        //                                       GetClienteFromDto(r) == clienteUp
+        //                                   );
+        //                           }
+        //                           else
+        //                           {
+        //                               // VENDEDOR
+
+        //                               if (vendedorId.HasValue)
+        //                               {
+        //                                   detSel =
+        //                                       rows.FirstOrDefault(r =>
+        //                                           Norm(r.Origen) == "VENDEDOR" &&
+        //                                           r.VendedorId == vendedorId.Value
+        //                                       );
+        //                               }
+        //                               else
+        //                               {
+        //                                   detSel =
+        //                                       rows.FirstOrDefault(r =>
+        //                                           Norm(r.Origen) == "VENDEDOR"
+        //                                       );
+        //                               }
+        //                           }
+        //                       }
+        //                   }
+
+
+        //                   // Sin presupuesto:
+        //                   // Fail-open
+        //                   if (detSel == null ||
+        //                       detSel.DisponibleVenta == null)
+        //                   {
+        //                       continue;
+        //                   }
+
+
+        //                   var disp =
+        //                       detSel.DisponibleVenta.Value;
+
+
+        //                   if (disp <= 0m ||
+        //                       kilosPedidoSku > (disp + TOL))
+        //                   {
+        //                       requiereAutorizacionPresupuesto = true;
+
+
+        //                       _logger.LogWarning(
+        //                           "PRESUP AUT => SKU={Sku} PedidoKg={PedidoKg} Disp={Disp} Pres={Pres} KgPed={KgPed} KgSur={KgSur} Origen={Origen} Canal={Canal} VendId={VendId}",
+        //                           sku,
+        //                           kilosPedidoSku,
+        //                           disp,
+        //                           detSel.PresupuestoAsignado,
+        //                           detSel.KgPedidosMes,
+        //                           detSel.KgSurtidoReal,
+        //                           detSel.Origen,
+        //                           detSel.Canal,
+        //                           detSel.VendedorId
+        //                       );
+
+
+        //                       // Con uno que exceda es suficiente
+        //                       break;
+        //                   }
+        //               }
+        //           }
+        //           catch (Exception ex)
+        //           {
+        //               // FAIL-OPEN
+        //               requiereAutorizacionPresupuesto = false;
+
+        //               _logger.LogError(
+        //                   ex,
+        //                   "Error validando presupuesto (SQL). Cliente={Cliente} Serie={Serie}",
+        //                   model.Cliente,
+        //                   model.Serie
+        //               );
+        //           }
+        //       }
+
+
+        //       // =========================================================
+        //       // 2) VALIDACIÓN PRECIO SAP
+        //       // =========================================================
+
+        //       try
+        //       {
+        //           foreach (
+        //               var p in
+        //               model.Productos ??
+        //               new List<PedidoProductoViewModel>())
+        //           {
+        //               var sku =
+        //                   Norm(p.ProductoCodigo);
+
+
+        //               if (string.IsNullOrWhiteSpace(sku))
+        //                   continue;
+
+
+        //               var productoSap =
+        //                   await _sap.ObtenerPrecioArticuloPorClienteAsync(
+        //                       model.Cliente,
+        //                       sku
+        //                   );
+
+
+        //               if (productoSap != null)
+        //               {
+        //                   var precioOV =
+        //                       decimal.Round(
+        //                           p.Precio,
+        //                           2,
+        //                           MidpointRounding.AwayFromZero
+        //                       );
+
+
+        //                   var precioLista =
+        //                       decimal.Round(
+        //                           productoSap.Precio,
+        //                           2,
+        //                           MidpointRounding.AwayFromZero
+        //                       );
+
+
+        //                   if (precioOV < precioLista - TOL)
+        //                   {
+        //                       requiereAutorizacionPrecio = true;
+        //                   }
+        //               }
+        //           }
+        //       }
+        //       catch (Exception ex)
+        //       {
+        //           sapDisponible = false;
+
+        //           _logger.LogError(
+        //               ex,
+        //               "Error consultando precios SAP. Cliente={Cliente}",
+        //               model.Cliente
+        //           );
+
+        //           // Si quieres fail-close:
+        //           // requiereAutorizacionPrecio = true;
+        //       }
+
+
+        //       // =========================================================
+        //       // VALIDACIÓN CRÉDITO
+        //       // =========================================================
+
+        //       bool requiereAutorizacionCredito =
+        //           sapDisponible &&
+        //           (totalPedido > totalDisponible);
+
+
+        //       // =========================================================
+        //       // ESTATUS PEDIDO
+        //       // =========================================================
+
+        //       int estatusPedido =
+        //           (
+        //               requiereAutorizacionPrecio ||
+        //               requiereAutorizacionPresupuesto ||
+        //               requiereAutorizacionCredito
+        //           )
+        //               ? 2
+        //               : 1;
+
+
+        //       // =========================================================
+        //       // PROPIEDADES / DOCUMENTACIÓN CLIENTE SAP
+        //       // =========================================================
+
+        //       string documentacionConcatenada =
+        //           string.Empty;
+
+
+        //       if (sapDisponible)
+        //       {
+        //           try
+        //           {
+        //               var props =
+        //                   await _sap.ObtenerPropiedadesClienteAsync(
+        //                       model.Cliente
+        //                   );
+
+
+        //               documentacionConcatenada =
+        //                   string.Join(
+        //                       " | ",
+        //                       props
+        //                           .Where(p =>
+        //                               p.Valor != null &&
+        //                               p.Valor
+        //                                   .ToString()
+        //                                   .ToLower() == "true"
+        //                           )
+        //                           .Select(p => p.Nombre)
+        //                   );
+        //           }
+        //           catch
+        //           {
+        //               sapDisponible = false;
+        //           }
+        //       }
+
+
+        //       // =========================================================
+        //       // ✅ NUEVO: USUARIO QUE REGISTRA LA ORDEN
+        //       // =========================================================
+
+        //       var usuarioRegistro =
+        //           User.Identity?.Name;
+
+
+        //       // Si Identity.Name no tiene valor,
+        //       // intenta obtenerlo de los Claims
+        //       if (string.IsNullOrWhiteSpace(usuarioRegistro))
+        //       {
+        //           usuarioRegistro =
+        //               User.FindFirst(
+        //                   System.Security.Claims.ClaimTypes.Name
+        //               )?.Value;
+        //       }
+
+
+        //       // Segundo respaldo: correo
+        //       if (string.IsNullOrWhiteSpace(usuarioRegistro))
+        //       {
+        //           usuarioRegistro =
+        //               User.FindFirst(
+        //                   System.Security.Claims.ClaimTypes.Email
+        //               )?.Value;
+        //       }
+
+
+        //       // Último respaldo para que nunca quede vacío
+        //       usuarioRegistro ??= "SIN_USUARIO";
+
+
+        //       // =========================================================
+        //       // TRANSACCIÓN
+        //       // =========================================================
+
+        //       string consecutivoTemporal =
+        //           $"TMP-{Guid.NewGuid():N}";
+
+
+        //       await using var tx =
+        //           await _context.Database
+        //               .BeginTransactionAsync(ct);
+
+
+        //       // =========================================================
+        //       // 1) CABECERA ORDEN DE VENTA
+        //       // =========================================================
+
+        //       var pedido = new OrdenVenta
+        //       {
+        //           Consecutivo = consecutivoTemporal,
+
+        //           Serie = model.Serie,
+
+        //           FechaEntrega =
+        //               model.FechaEntrega.Value,
+
+        //           FechaEmbarque =
+        //               model.FechaEmbarque,
+
+        //           HoraEmbarque =
+        //               model.HoraEmbarque,
+
+        //           Cliente =
+        //               model.Cliente,
+
+        //           Vendedor =
+        //               model.Vendedor,
+
+        //           VendedorId =
+        //               vendedorId,
+
+        //           Ruta =
+        //               string.IsNullOrWhiteSpace(model.Ruta)
+        //                   ? "Sin Dirección"
+        //                   : model.Ruta,
+
+        //           Presentacion =
+        //               model.Presentacion,
+
+        //           Observacion =
+        //               model.Observacion,
+
+        //           ModoPresupuesto =
+        //               modoPresupuesto,
+
+
+        //           // =============================================
+        //           // INFORMACIÓN FINANCIERA
+        //           // =============================================
+
+        //           Saldo =
+        //               sapDisponible
+        //                   ? model.Saldo
+        //                   : 0m,
+
+        //           OtrosPedidos =
+        //               sapDisponible
+        //                   ? model.OtrosPedidos
+        //                   : 0m,
+
+        //           Credito =
+        //               sapDisponible
+        //                   ? model.Credito
+        //                   : 0m,
+
+
+        //           // =============================================
+        //           // ESTATUS / REGISTRO
+        //           // =============================================
+
+        //           Estatus =
+        //               estatusPedido,
+
+        //           FechaRegistro =
+        //               DateTime.Now,
+
+
+        //           // =============================================
+        //           // ✅ NUEVO
+        //           // USUARIO QUE REGISTRÓ LA ORDEN
+        //           // =============================================
+
+        //           UsuarioRegistro =
+        //               usuarioRegistro,
+
+
+        //           Documentacion =
+        //               sapDisponible
+        //                   ? documentacionConcatenada
+        //                   : string.Empty,
+
+
+        //           // =============================================
+        //           // AUTORIZACIONES
+        //           // =============================================
+
+        //           AutorizacionCredito =
+        //               !requiereAutorizacionCredito,
+
+        //           // Actualmente lo tienes forzado a true
+        //           // AutorizacionPresupuesto =
+        //           //     !requiereAutorizacionPresupuesto,
+
+        //           AutorizacionPresupuesto =
+        //               true,
+
+        //           AutorizacionPrecio =
+        //               !requiereAutorizacionPrecio
+        //       };
+
+
+        //       // Guardar cabecera
+        //       _context.OrdenVenta.Add(pedido);
+
+        //       await _context.SaveChangesAsync(ct);
+
+
+        //       // =========================================================
+        //       // 2) CONSECUTIVO DEFINITIVO
+        //       // =========================================================
+
+        //       pedido.Consecutivo =
+        //           $"OV-{pedido.Id:D8}";
+
+
+        //       const int maxIntentos = 2;
+
+
+        //       for (
+        //           int intento = 1;
+        //           intento <= maxIntentos;
+        //           intento++)
+        //       {
+        //           try
+        //           {
+        //               _context.OrdenVenta.Update(pedido);
+
+        //               await _context.SaveChangesAsync(ct);
+
+        //               break;
+        //           }
+        //           catch (DbUpdateException ex)
+        //               when (EsDuplicadoConsecutivo(ex))
+        //           {
+        //               pedido.Consecutivo =
+        //                   $"OV-{pedido.Id:D8}-{intento}";
+
+
+        //               if (intento == maxIntentos)
+        //               {
+        //                   throw;
+        //               }
+        //           }
+        //       }
+
+
+        //       // =========================================================
+        //       // 3) DETALLE DE PRODUCTOS
+        //       // =========================================================
+
+        //       if (model.Productos != null &&
+        //           model.Productos.Any())
+        //       {
+        //           foreach (var p in model.Productos)
+        //           {
+        //               // Segunda barrera de seguridad:
+        //               // jamás insertar una línea sin SKU o con cantidad en cero.
+        //               if (string.IsNullOrWhiteSpace(p.ProductoCodigo) ||
+        //                   p.Peso <= 0m ||
+        //                   p.Cajas <= 0)
+        //               {
+        //                   continue;
+        //               }
+
+        //               var det =
+        //                   new OrdenVentaProducto
+        //                   {
+        //                       PedidoId =
+        //                           pedido.Id,
+
+        //                       ProductoCodigo =
+        //                           Norm(p.ProductoCodigo),
+
+        //                       ProductoNombre =
+        //                           p.ProductoNombre?.Trim(),
+
+        //                       Peso =
+        //                           p.Peso,
+
+        //                       Precio =
+        //                           p.Precio,
+
+        //                       Cajas =
+        //                           p.Cajas
+        //                   };
+
+
+        //               _context
+        //                   .OrdenVentaProducto
+        //                   .Add(det);
+        //           }
+
+
+        //           await _context.SaveChangesAsync(ct);
+        //       }
+
+
+        //       // =========================================================
+        //       // 4) SI ES MUESTRA
+        //       // =========================================================
+
+        //       if (esMuestra)
+        //       {
+        //           var ovMuestra =
+        //               new OrdenVentaMuestra
+        //               {
+        //                   OrdenVentaId =
+        //                       pedido.Id,
+
+        //                   EsMuestra =
+        //                       true,
+
+        //                   FechaCreacion =
+        //                       DateTime.Now
+        //               };
+
+
+        //           _context
+        //               .OrdenVentaMuestra
+        //               .Add(ovMuestra);
+
+
+        //           await _context.SaveChangesAsync(ct);
+        //       }
+
+
+        //       // =========================================================
+        //       // COMMIT
+        //       // =========================================================
+
+        //       await tx.CommitAsync(ct);
+
+
+        //       // =========================================================
+        //       // MENSAJE
+        //       // =========================================================
+
+        //       TempData["Success"] =
+        //           sapDisponible
+        //               ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
+        //               : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
+
+
+        //       // =========================================================
+        //       // REDIRECCIÓN
+        //       // =========================================================
+
+        //       return RedirectToAction(
+        //           nameof(VistaPreviaOrden),
+        //           new
+        //           {
+        //               id = pedido.Id,
+        //               siguiente = accion
+        //           }
+        //       );
+        //   }
+
+
+        // =========================================================
+        // GUARDAR PEDIDO
+        // INCLUYE:
+        //
+        // - VALIDACIÓN DE PRODUCTOS
+        // - PRESUPUESTO
+        // - PRECIOS SAP
+        // - CRÉDITO
+        // - FACTURAS VENCIDAS
+        // - COMPROMISO DE PAGO
+        // - EVIDENCIA
+        // - SNAPSHOT DE FACTURAS PARA COBRANZA
+        // =========================================================
         [HttpPost]
         public async Task<IActionResult> GuardarPedido(
-     PedidoViewModel model,
-     string accion,
-     bool esMuestra = false,
-     CancellationToken ct = default)
+            PedidoViewModel model,
+            string accion,
+            bool esMuestra = false,
+            DateTime? fechaCompromisoPago = null,
+            string? motivoCompromisoPago = null,
+            IFormFile? evidenciaCompromisoPago = null,
+            CancellationToken ct = default)
         {
+            // =========================================================
+            // FECHA DE ENTREGA
+            // =========================================================
             if (!model.FechaEntrega.HasValue)
             {
-                TempData["Error"] = "Debes seleccionar una fecha de entrega válida.";
-                return View("OrdenVenta", model);
+                TempData["Error"] =
+                    "Debes seleccionar una fecha de entrega válida.";
+
+                return View(
+                    "~/Views/Comercial/OrdenVenta.cshtml",
+                    model
+                );
             }
 
-            static string Norm(string? s) => (s ?? "").Trim().ToUpperInvariant();
 
-            // Lee ClienteCodigo o Cliente si existen en el DTO
-            // para no depender del nombre exacto
-            static string GetClienteFromDto(PresupuestoConsumoDto dto)
+            static string Norm(string? s) =>
+                (s ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+
+            // =========================================================
+            // VALIDACIÓN / DEPURACIÓN DE LÍNEAS DEL PEDIDO
+            // =========================================================
+
+            var productosRecibidos =
+                model.Productos ??
+                new List<PedidoProductoViewModel>();
+
+
+            bool hayCantidadSinSku =
+                productosRecibidos.Any(p =>
+                    string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+                    (
+                        p.Peso > 0m ||
+                        p.Cajas > 0
+                    )
+                );
+
+
+            bool hayCantidadInconsistente =
+                productosRecibidos.Any(p =>
+                    !string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+                    (
+                        p.Peso < 0m ||
+                        p.Cajas < 0 ||
+                        (
+                            (p.Peso > 0m) !=
+                            (p.Cajas > 0)
+                        )
+                    )
+                );
+
+
+            if (hayCantidadSinSku)
             {
-                var t = dto.GetType();
-                var p = t.GetProperty("ClienteCodigo") ?? t.GetProperty("Cliente");
-                var v = p?.GetValue(dto)?.ToString();
+                TempData["Error"] =
+                    "Hay una línea con cantidad capturada pero sin un SKU válido. " +
+                    "Selecciona el producto desde la lista.";
+
+                return View(
+                    "~/Views/Comercial/OrdenVenta.cshtml",
+                    model
+                );
+            }
+
+
+            if (hayCantidadInconsistente)
+            {
+                TempData["Error"] =
+                    "Hay productos con cantidad incompleta. " +
+                    "Cada producto solicitado debe tener Cajas y Peso mayores a cero.";
+
+                return View(
+                    "~/Views/Comercial/OrdenVenta.cshtml",
+                    model
+                );
+            }
+
+
+            var productosValidos =
+                productosRecibidos
+                .Where(p =>
+                    !string.IsNullOrWhiteSpace(p.ProductoCodigo) &&
+                    p.Peso > 0m &&
+                    p.Cajas > 0
+                )
+                .ToList();
+
+
+            if (productosValidos.Count == 0)
+            {
+                TempData["Error"] =
+                    "La orden debe contener al menos un producto con Cajas y Peso mayores a cero.";
+
+                return View(
+                    "~/Views/Comercial/OrdenVenta.cshtml",
+                    model
+                );
+            }
+
+
+            // Solamente trabajamos con productos realmente solicitados
+            model.Productos =
+                productosValidos;
+
+
+            // =========================================================
+            // HELPER CLIENTE DTO PRESUPUESTO
+            // =========================================================
+            static string GetClienteFromDto(
+                PresupuestoConsumoDto dto)
+            {
+                var t =
+                    dto.GetType();
+
+                var p =
+                    t.GetProperty("ClienteCodigo") ??
+                    t.GetProperty("Cliente");
+
+                var v =
+                    p?.GetValue(dto)?.ToString();
 
                 return Norm(v);
             }
 
 
-            var modoPresupuesto = GetModoPresupuestoActual(); // "VENDEDOR" | "CLIENTE"
+            // =========================================================
+            // INFORMACIÓN GENERAL
+            // =========================================================
+            var modoPresupuesto =
+                GetModoPresupuestoActual();
 
-            string clienteUp = Norm(model.Cliente);
+            string clienteUp =
+                Norm(model.Cliente);
 
             decimal totalPedido =
-                model.Productos?.Sum(p => p.Peso * p.Precio) ?? 0m;
+                model.Productos?
+                    .Sum(p =>
+                        p.Peso * p.Precio
+                    )
+                ?? 0m;
+
+
+            // =========================================================
+            // COBRANZA
+            //
+            // CONSULTAR FACTURAS VENCIDAS REALES EN SAP
+            // =========================================================
+
+            var facturasVencidasAlGuardar =
+                new List<FacturaPendienteSapViewModel>();
+
+            decimal saldoVencidoReal =
+                0m;
+
+            bool requiereCompromisoCobranza =
+                false;
+
+
+            // Evidencia
+            byte[]? evidenciaBytes =
+                null;
+
+            string? evidenciaNombre =
+                null;
+
+            string? evidenciaTipo =
+                null;
+
+            string? evidenciaExtension =
+                null;
+
+            long evidenciaTamano =
+                0;
+
+
+            // =========================================================
+            // LAS MUESTRAS NO GENERAN COMPROMISO DE COBRANZA
+            // =========================================================
+            if (!esMuestra)
+            {
+                try
+                {
+                    // =================================================
+                    // CONSULTAR FACTURAS VENCIDAS DIRECTAMENTE EN SAP
+                    // =================================================
+                    facturasVencidasAlGuardar =
+                        await _sap
+                            .ObtenerFacturasVencidasClienteAsync(
+                                model.Cliente
+                            );
+
+
+                    saldoVencidoReal =
+                        facturasVencidasAlGuardar
+                            .Sum(x =>
+                                x.Pendiente
+                            );
+
+
+                    saldoVencidoReal =
+                        decimal.Round(
+                            saldoVencidoReal,
+                            2,
+                            MidpointRounding.AwayFromZero
+                        );
+
+
+                    requiereCompromisoCobranza =
+                        saldoVencidoReal > 0.01m;
+
+
+                    // =================================================
+                    // ACTUALIZAR EL MODELO CON EL VALOR REAL DE SAP
+                    // NO CONFIAMOS EN EL VALOR ENVIADO POR HTML
+                    // =================================================
+                    model.SaldoVencido =
+                        saldoVencidoReal;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "No se pudo validar saldo vencido antes de guardar OV. Cliente={Cliente}",
+                        model.Cliente
+                    );
+
+                    TempData["Error"] =
+                        "No fue posible validar las facturas vencidas del cliente en SAP. " +
+                        "La orden NO fue guardada. Intenta nuevamente.";
+
+                    return RedirectToAction(
+                        nameof(OrdenVenta)
+                    );
+                }
+
+
+                // =====================================================
+                // SI HAY FACTURAS VENCIDAS,
+                // EL COMPROMISO ES OBLIGATORIO
+                // =====================================================
+                if (requiereCompromisoCobranza)
+                {
+                    motivoCompromisoPago =
+                        (motivoCompromisoPago ?? "")
+                        .Trim();
+
+
+                    // =================================================
+                    // FECHA COMPROMISO
+                    // =================================================
+                    if (!fechaCompromisoPago.HasValue)
+                    {
+                        TempData["Error"] =
+                            "El cliente tiene facturas vencidas. " +
+                            "Debes capturar una fecha compromiso de pago.";
+
+                        return RedirectToAction(
+                            nameof(OrdenVenta)
+                        );
+                    }
+
+
+                    if (fechaCompromisoPago.Value.Date <
+                        DateTime.Today)
+                    {
+                        TempData["Error"] =
+                            "La fecha compromiso de pago no puede ser anterior a hoy.";
+
+                        return RedirectToAction(
+                            nameof(OrdenVenta)
+                        );
+                    }
+
+
+                    // =================================================
+                    // MOTIVO
+                    // =================================================
+                    if (string.IsNullOrWhiteSpace(
+                            motivoCompromisoPago))
+                    {
+                        TempData["Error"] =
+                            "El cliente tiene facturas vencidas. " +
+                            "Debes capturar el motivo/comentario del compromiso de pago.";
+
+                        return RedirectToAction(
+                            nameof(OrdenVenta)
+                        );
+                    }
+
+
+                    if (motivoCompromisoPago.Length < 5)
+                    {
+                        TempData["Error"] =
+                            "El motivo/comentario debe contener al menos 5 caracteres.";
+
+                        return RedirectToAction(
+                            nameof(OrdenVenta)
+                        );
+                    }
+
+
+                    if (motivoCompromisoPago.Length > 1000)
+                    {
+                        TempData["Error"] =
+                            "El motivo no puede exceder 1000 caracteres.";
+
+                        return RedirectToAction(
+                            nameof(OrdenVenta)
+                        );
+                    }
+
+
+                    // =================================================
+                    // EVIDENCIA OPCIONAL
+                    // =================================================
+                    if (evidenciaCompromisoPago != null &&
+                        evidenciaCompromisoPago.Length > 0)
+                    {
+                        const long MAX_EVIDENCIA =
+                            8L * 1024L * 1024L;
+
+
+                        var ext =
+                            Path.GetExtension(
+                                evidenciaCompromisoPago.FileName ?? ""
+                            )
+                            .ToLowerInvariant();
+
+
+                        var extensionesPermitidas =
+                            new HashSet<string>(
+                                StringComparer.OrdinalIgnoreCase
+                            )
+                            {
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".pdf"
+                            };
+
+
+                        if (!extensionesPermitidas.Contains(ext))
+                        {
+                            TempData["Error"] =
+                                "La evidencia debe ser JPG, JPEG, PNG, WEBP o PDF.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        if (evidenciaCompromisoPago.Length >
+                            MAX_EVIDENCIA)
+                        {
+                            TempData["Error"] =
+                                "La evidencia no puede superar 8 MB.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        using var ms =
+                            new MemoryStream();
+
+
+                        await evidenciaCompromisoPago
+                            .CopyToAsync(
+                                ms,
+                                ct
+                            );
+
+
+                        evidenciaBytes =
+                            ms.ToArray();
+
+
+                        evidenciaNombre =
+                            Path.GetFileName(
+                                evidenciaCompromisoPago.FileName
+                            );
+
+
+                        evidenciaTipo =
+                            evidenciaCompromisoPago.ContentType;
+
+
+                        evidenciaExtension =
+                            ext;
+
+
+                        evidenciaTamano =
+                            evidenciaCompromisoPago.Length;
+                    }
+                }
+            }
 
 
             // =========================================================
             // INFO CRÉDITO
             // =========================================================
 
-            decimal credito = model.Credito;
-            decimal saldo = model.Saldo;
-            decimal otrosPedidos = model.OtrosPedidos;
+            decimal credito =
+                model.Credito;
+
+            decimal saldo =
+                model.Saldo;
+
+            decimal otrosPedidos =
+                model.OtrosPedidos;
+
 
             decimal totalDisponible =
-                credito - saldo - otrosPedidos;
+                credito
+                - saldo
+                - otrosPedidos;
 
-            const decimal TOL = 0.01m;
+
+            const decimal TOL =
+                0.01m;
 
 
-            bool requiereAutorizacionPrecio = false;
-            bool requiereAutorizacionPresupuesto = false;
-            bool sapDisponible = true;
+            bool requiereAutorizacionPrecio =
+                false;
+
+            bool requiereAutorizacionPresupuesto =
+                false;
+
+            bool sapDisponible =
+                true;
 
 
             // =========================================================
@@ -1699,43 +2902,83 @@ ORDER BY
             // =========================================================
 
             var kilosPedidoPorSku =
-                (model.Productos ?? new List<PedidoProductoViewModel>())
-                .Where(p => !string.IsNullOrWhiteSpace(p.ProductoCodigo))
-                .GroupBy(p => Norm(p.ProductoCodigo))
+                (
+                    model.Productos ??
+                    new List<PedidoProductoViewModel>()
+                )
+                .Where(p =>
+                    !string.IsNullOrWhiteSpace(
+                        p.ProductoCodigo
+                    )
+                )
+                .GroupBy(p =>
+                    Norm(
+                        p.ProductoCodigo
+                    )
+                )
                 .ToDictionary(
                     g => g.Key,
-                    g => g.Sum(x => x.Peso)
+                    g => g.Sum(x =>
+                        x.Peso
+                    )
                 );
 
-            var skusPedido = kilosPedidoPorSku.Keys.ToList();
+
+            var skusPedido =
+                kilosPedidoPorSku
+                .Keys
+                .ToList();
 
 
             // =========================================================
             // DATOS CLIENTE / CANAL / VENDEDOR
             // =========================================================
 
-            var cliSap = await _context.ClienteSap
-                .AsNoTracking()
-                .Where(c =>
-                    ((c.Cliente ?? "").Trim().ToUpper()) == clienteUp
-                )
-                .Select(c => new
-                {
-                    Canal = c.U_CANAL,
-                    VendedorId = (int?)c.VendedorId
-                })
-                .FirstOrDefaultAsync(ct);
+            var cliSap =
+                await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(c =>
+                        (
+                            (c.Cliente ?? "")
+                            .Trim()
+                            .ToUpper()
+                        )
+                        ==
+                        clienteUp
+                    )
+                    .Select(c => new
+                    {
+                        Canal =
+                            c.U_CANAL,
+
+                        VendedorId =
+                            (int?)c.VendedorId,
+
+                        // =============================================
+                        // NECESARIO PARA COBRANZA
+                        // =============================================
+                        Nombre =
+                            c.Nombrecliente
+                    })
+                    .FirstOrDefaultAsync(ct);
 
 
-            string canalClienteUp = Norm(cliSap?.Canal);
+            string canalClienteUp =
+                Norm(
+                    cliSap?.Canal
+                );
+
 
             bool esCanalCedis =
-                canalClienteUp.StartsWith("CEDIS");
+                canalClienteUp
+                    .StartsWith("CEDIS");
 
 
             int? vendedorId =
-                (cliSap?.VendedorId.HasValue == true &&
-                 cliSap.VendedorId.Value > 0)
+                (
+                    cliSap?.VendedorId.HasValue == true &&
+                    cliSap.VendedorId.Value > 0
+                )
                     ? cliSap.VendedorId.Value
                     : (int?)null;
 
@@ -1744,28 +2987,38 @@ ORDER BY
             // SUCURSAL DE LA SERIE
             // =========================================================
 
-            var serieInfo = await _context.Series
-                .AsNoTracking()
-                .Where(s => s.NombreSerie == model.Serie)
-                .Select(s => new
-                {
-                    s.Sucursal
-                })
-                .FirstOrDefaultAsync(ct);
+            var serieInfo =
+                await _context.Series
+                    .AsNoTracking()
+                    .Where(s =>
+                        s.NombreSerie ==
+                        model.Serie
+                    )
+                    .Select(s => new
+                    {
+                        s.Sucursal
+                    })
+                    .FirstOrDefaultAsync(ct);
 
 
             string sucursalSerieUp =
-                Norm(serieInfo?.Sucursal);
+                Norm(
+                    serieInfo?.Sucursal
+                );
+
 
             bool esSerieMatriz =
-                sucursalSerieUp == "MATRIZ";
+                sucursalSerieUp ==
+                "MATRIZ";
 
 
-            // Regla:
-            // Si cliente es CEDIS y serie NO es MATRIZ
-            // NO validar presupuesto
+            // Si cliente es CEDIS y serie NO es MATRIZ,
+            // no validar presupuesto
             bool aplicarValidacionPresupuesto =
-                !(esCanalCedis && !esSerieMatriz);
+                !(
+                    esCanalCedis &&
+                    !esSerieMatriz
+                );
 
 
             // =========================================================
@@ -1777,8 +3030,13 @@ ORDER BY
             {
                 try
                 {
-                    var sucursalParam = model.Serie;
-                    var modoUp = Norm(modoPresupuesto);
+                    var sucursalParam =
+                        model.Serie;
+
+                    var modoUp =
+                        Norm(
+                            modoPresupuesto
+                        );
 
 
                     foreach (var sku in skusPedido)
@@ -1798,17 +3056,31 @@ ORDER BY
 
                         var rows =
                             await ObtenerPresupuestoDetalleAsync(
-                                sucursal: sucursalParam,
-                                sku: sku,
-                                fechaSolicitud: model.FechaEntrega.Value,
-                                vendedorId: vendedorId,
-                                esCanalCedis: esCanalCedis,
-                                canalCliente: canalClienteUp,
-                                ct: ct
+                                sucursal:
+                                    sucursalParam,
+
+                                sku:
+                                    sku,
+
+                                fechaSolicitud:
+                                    model.FechaEntrega.Value,
+
+                                vendedorId:
+                                    vendedorId,
+
+                                esCanalCedis:
+                                    esCanalCedis,
+
+                                canalCliente:
+                                    canalClienteUp,
+
+                                ct:
+                                    ct
                             );
 
 
-                        PresupuestoConsumoDto? detSel = null;
+                        PresupuestoConsumoDto? detSel =
+                            null;
 
 
                         if (rows != null &&
@@ -1817,47 +3089,55 @@ ORDER BY
                             // =========================================
                             // CEDIS
                             // =========================================
-
                             if (esCanalCedis)
                             {
                                 detSel =
                                     rows.FirstOrDefault(r =>
-                                        Norm(r.Origen) == "CEDIS" &&
-                                        Norm(r.Canal) == canalClienteUp
+                                        Norm(r.Origen) ==
+                                            "CEDIS"
+                                        &&
+                                        Norm(r.Canal) ==
+                                            canalClienteUp
                                     );
                             }
 
                             // =========================================
                             // NO CEDIS
                             // =========================================
-
                             else
                             {
-                                if (modoUp == "CLIENTE")
+                                if (modoUp ==
+                                    "CLIENTE")
                                 {
                                     detSel =
                                         rows.FirstOrDefault(r =>
-                                            Norm(r.Origen) == "CLIENTE" &&
-                                            GetClienteFromDto(r) == clienteUp
+                                            Norm(r.Origen) ==
+                                                "CLIENTE"
+                                            &&
+                                            GetClienteFromDto(r) ==
+                                                clienteUp
                                         );
                                 }
                                 else
                                 {
                                     // VENDEDOR
-
                                     if (vendedorId.HasValue)
                                     {
                                         detSel =
                                             rows.FirstOrDefault(r =>
-                                                Norm(r.Origen) == "VENDEDOR" &&
-                                                r.VendedorId == vendedorId.Value
+                                                Norm(r.Origen) ==
+                                                    "VENDEDOR"
+                                                &&
+                                                r.VendedorId ==
+                                                    vendedorId.Value
                                             );
                                     }
                                     else
                                     {
                                         detSel =
                                             rows.FirstOrDefault(r =>
-                                                Norm(r.Origen) == "VENDEDOR"
+                                                Norm(r.Origen) ==
+                                                    "VENDEDOR"
                                             );
                                     }
                                 }
@@ -1865,8 +3145,7 @@ ORDER BY
                         }
 
 
-                        // Sin presupuesto:
-                        // Fail-open
+                        // Sin presupuesto = fail-open
                         if (detSel == null ||
                             detSel.DisponibleVenta == null)
                         {
@@ -1879,9 +3158,11 @@ ORDER BY
 
 
                         if (disp <= 0m ||
-                            kilosPedidoSku > (disp + TOL))
+                            kilosPedidoSku >
+                            (disp + TOL))
                         {
-                            requiereAutorizacionPresupuesto = true;
+                            requiereAutorizacionPresupuesto =
+                                true;
 
 
                             _logger.LogWarning(
@@ -1898,7 +3179,6 @@ ORDER BY
                             );
 
 
-                            // Con uno que exceda es suficiente
                             break;
                         }
                     }
@@ -1906,7 +3186,9 @@ ORDER BY
                 catch (Exception ex)
                 {
                     // FAIL-OPEN
-                    requiereAutorizacionPresupuesto = false;
+                    requiereAutorizacionPresupuesto =
+                        false;
+
 
                     _logger.LogError(
                         ex,
@@ -1930,7 +3212,9 @@ ORDER BY
                     new List<PedidoProductoViewModel>())
                 {
                     var sku =
-                        Norm(p.ProductoCodigo);
+                        Norm(
+                            p.ProductoCodigo
+                        );
 
 
                     if (string.IsNullOrWhiteSpace(sku))
@@ -1938,10 +3222,11 @@ ORDER BY
 
 
                     var productoSap =
-                        await _sap.ObtenerPrecioArticuloPorClienteAsync(
-                            model.Cliente,
-                            sku
-                        );
+                        await _sap
+                            .ObtenerPrecioArticuloPorClienteAsync(
+                                model.Cliente,
+                                sku
+                            );
 
 
                     if (productoSap != null)
@@ -1962,25 +3247,26 @@ ORDER BY
                             );
 
 
-                        if (precioOV < precioLista - TOL)
+                        if (precioOV <
+                            precioLista - TOL)
                         {
-                            requiereAutorizacionPrecio = true;
+                            requiereAutorizacionPrecio =
+                                true;
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                sapDisponible = false;
+                sapDisponible =
+                    false;
+
 
                 _logger.LogError(
                     ex,
                     "Error consultando precios SAP. Cliente={Cliente}",
                     model.Cliente
                 );
-
-                // Si quieres fail-close:
-                // requiereAutorizacionPrecio = true;
             }
 
 
@@ -1990,7 +3276,10 @@ ORDER BY
 
             bool requiereAutorizacionCredito =
                 sapDisponible &&
-                (totalPedido > totalDisponible);
+                (
+                    totalPedido >
+                    totalDisponible
+                );
 
 
             // =========================================================
@@ -2020,9 +3309,10 @@ ORDER BY
                 try
                 {
                     var props =
-                        await _sap.ObtenerPropiedadesClienteAsync(
-                            model.Cliente
-                        );
+                        await _sap
+                            .ObtenerPropiedadesClienteAsync(
+                                model.Cliente
+                            );
 
 
                     documentacionConcatenada =
@@ -2033,49 +3323,54 @@ ORDER BY
                                     p.Valor != null &&
                                     p.Valor
                                         .ToString()
-                                        .ToLower() == "true"
+                                        .ToLower() ==
+                                    "true"
                                 )
-                                .Select(p => p.Nombre)
+                                .Select(p =>
+                                    p.Nombre
+                                )
                         );
                 }
                 catch
                 {
-                    sapDisponible = false;
+                    sapDisponible =
+                        false;
                 }
             }
 
 
             // =========================================================
-            // ✅ NUEVO: USUARIO QUE REGISTRA LA ORDEN
+            // USUARIO QUE REGISTRA
             // =========================================================
 
             var usuarioRegistro =
                 User.Identity?.Name;
 
 
-            // Si Identity.Name no tiene valor,
-            // intenta obtenerlo de los Claims
-            if (string.IsNullOrWhiteSpace(usuarioRegistro))
+            if (string.IsNullOrWhiteSpace(
+                    usuarioRegistro))
             {
                 usuarioRegistro =
                     User.FindFirst(
-                        System.Security.Claims.ClaimTypes.Name
+                        System.Security.Claims
+                            .ClaimTypes.Name
                     )?.Value;
             }
 
 
-            // Segundo respaldo: correo
-            if (string.IsNullOrWhiteSpace(usuarioRegistro))
+            if (string.IsNullOrWhiteSpace(
+                    usuarioRegistro))
             {
                 usuarioRegistro =
                     User.FindFirst(
-                        System.Security.Claims.ClaimTypes.Email
+                        System.Security.Claims
+                            .ClaimTypes.Email
                     )?.Value;
             }
 
 
-            // Último respaldo para que nunca quede vacío
-            usuarioRegistro ??= "SIN_USUARIO";
+            usuarioRegistro ??=
+                "SIN_USUARIO";
 
 
             // =========================================================
@@ -2091,260 +3386,521 @@ ORDER BY
                     .BeginTransactionAsync(ct);
 
 
-            // =========================================================
-            // 1) CABECERA ORDEN DE VENTA
-            // =========================================================
-
-            var pedido = new OrdenVenta
+            try
             {
-                Consecutivo = consecutivoTemporal,
+                // =====================================================
+                // 1) CABECERA ORDEN DE VENTA
+                // =====================================================
 
-                Serie = model.Serie,
-
-                FechaEntrega =
-                    model.FechaEntrega.Value,
-
-                FechaEmbarque =
-                    model.FechaEmbarque,
-
-                HoraEmbarque =
-                    model.HoraEmbarque,
-
-                Cliente =
-                    model.Cliente,
-
-                Vendedor =
-                    model.Vendedor,
-
-                VendedorId =
-                    vendedorId,
-
-                Ruta =
-                    string.IsNullOrWhiteSpace(model.Ruta)
-                        ? "Sin Dirección"
-                        : model.Ruta,
-
-                Presentacion =
-                    model.Presentacion,
-
-                Observacion =
-                    model.Observacion,
-
-                ModoPresupuesto =
-                    modoPresupuesto,
-
-
-                // =============================================
-                // INFORMACIÓN FINANCIERA
-                // =============================================
-
-                Saldo =
-                    sapDisponible
-                        ? model.Saldo
-                        : 0m,
-
-                OtrosPedidos =
-                    sapDisponible
-                        ? model.OtrosPedidos
-                        : 0m,
-
-                Credito =
-                    sapDisponible
-                        ? model.Credito
-                        : 0m,
-
-
-                // =============================================
-                // ESTATUS / REGISTRO
-                // =============================================
-
-                Estatus =
-                    estatusPedido,
-
-                FechaRegistro =
-                    DateTime.Now,
-
-
-                // =============================================
-                // ✅ NUEVO
-                // USUARIO QUE REGISTRÓ LA ORDEN
-                // =============================================
-
-                UsuarioRegistro =
-                    usuarioRegistro,
-
-
-                Documentacion =
-                    sapDisponible
-                        ? documentacionConcatenada
-                        : string.Empty,
-
-
-                // =============================================
-                // AUTORIZACIONES
-                // =============================================
-
-                AutorizacionCredito =
-                    !requiereAutorizacionCredito,
-
-                // Actualmente lo tienes forzado a true
-                // AutorizacionPresupuesto =
-                //     !requiereAutorizacionPresupuesto,
-
-                AutorizacionPresupuesto =
-                    true,
-
-                AutorizacionPrecio =
-                    !requiereAutorizacionPrecio
-            };
-
-
-            // Guardar cabecera
-            _context.OrdenVenta.Add(pedido);
-
-            await _context.SaveChangesAsync(ct);
-
-
-            // =========================================================
-            // 2) CONSECUTIVO DEFINITIVO
-            // =========================================================
-
-            pedido.Consecutivo =
-                $"OV-{pedido.Id:D8}";
-
-
-            const int maxIntentos = 2;
-
-
-            for (
-                int intento = 1;
-                intento <= maxIntentos;
-                intento++)
-            {
-                try
-                {
-                    _context.OrdenVenta.Update(pedido);
-
-                    await _context.SaveChangesAsync(ct);
-
-                    break;
-                }
-                catch (DbUpdateException ex)
-                    when (EsDuplicadoConsecutivo(ex))
-                {
-                    pedido.Consecutivo =
-                        $"OV-{pedido.Id:D8}-{intento}";
-
-
-                    if (intento == maxIntentos)
+                var pedido =
+                    new OrdenVenta
                     {
-                        throw;
-                    }
-                }
-            }
+                        Consecutivo =
+                            consecutivoTemporal,
+
+                        Serie =
+                            model.Serie,
+
+                        FechaEntrega =
+                            model.FechaEntrega.Value,
+
+                        FechaEmbarque =
+                            model.FechaEmbarque,
+
+                        HoraEmbarque =
+                            model.HoraEmbarque,
+
+                        Cliente =
+                            model.Cliente,
+
+                        Vendedor =
+                            model.Vendedor,
+
+                        VendedorId =
+                            vendedorId,
+
+                        Ruta =
+                            string.IsNullOrWhiteSpace(
+                                model.Ruta
+                            )
+                                ? "Sin Dirección"
+                                : model.Ruta,
+
+                        Presentacion =
+                            model.Presentacion,
+
+                        Observacion =
+                            model.Observacion,
+
+                        ModoPresupuesto =
+                            modoPresupuesto,
 
 
-            // =========================================================
-            // 3) DETALLE DE PRODUCTOS
-            // =========================================================
+                        // =============================================
+                        // INFORMACIÓN FINANCIERA
+                        // =============================================
 
-            if (model.Productos != null &&
-                model.Productos.Any())
-            {
-                foreach (var p in model.Productos)
-                {
-                    var det =
-                        new OrdenVentaProducto
-                        {
-                            PedidoId =
-                                pedido.Id,
+                        Saldo =
+                            sapDisponible
+                                ? model.Saldo
+                                : 0m,
 
-                            ProductoCodigo =
-                                p.ProductoCodigo,
+                        OtrosPedidos =
+                            sapDisponible
+                                ? model.OtrosPedidos
+                                : 0m,
 
-                            ProductoNombre =
-                                p.ProductoNombre,
-
-                            Peso =
-                                p.Peso,
-
-                            Precio =
-                                p.Precio,
-
-                            Cajas =
-                                p.Cajas
-                        };
+                        Credito =
+                            sapDisponible
+                                ? model.Credito
+                                : 0m,
 
 
-                    _context
-                        .OrdenVentaProducto
-                        .Add(det);
-                }
+                        // =============================================
+                        // ESTATUS / REGISTRO
+                        // =============================================
+
+                        Estatus =
+                            estatusPedido,
+
+                        FechaRegistro =
+                            DateTime.Now,
+
+                        UsuarioRegistro =
+                            usuarioRegistro,
+
+                        Documentacion =
+                            sapDisponible
+                                ? documentacionConcatenada
+                                : string.Empty,
 
 
-                await _context.SaveChangesAsync(ct);
-            }
+                        // =============================================
+                        // AUTORIZACIONES
+                        // =============================================
 
+                        AutorizacionCredito =
+                            !requiereAutorizacionCredito,
 
-            // =========================================================
-            // 4) SI ES MUESTRA
-            // =========================================================
-
-            if (esMuestra)
-            {
-                var ovMuestra =
-                    new OrdenVentaMuestra
-                    {
-                        OrdenVentaId =
-                            pedido.Id,
-
-                        EsMuestra =
+                        // Actualmente lo tienes forzado
+                        // a autorizado.
+                        AutorizacionPresupuesto =
                             true,
 
-                        FechaCreacion =
-                            DateTime.Now
+                        AutorizacionPrecio =
+                            !requiereAutorizacionPrecio
                     };
 
 
                 _context
-                    .OrdenVentaMuestra
-                    .Add(ovMuestra);
+                    .OrdenVenta
+                    .Add(pedido);
 
 
-                await _context.SaveChangesAsync(ct);
-            }
+                await _context
+                    .SaveChangesAsync(ct);
 
 
-            // =========================================================
-            // COMMIT
-            // =========================================================
+                // =====================================================
+                // 2) CONSECUTIVO DEFINITIVO
+                // =====================================================
 
-            await tx.CommitAsync(ct);
-
-
-            // =========================================================
-            // MENSAJE
-            // =========================================================
-
-            TempData["Success"] =
-                sapDisponible
-                    ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
-                    : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
+                pedido.Consecutivo =
+                    $"OV-{pedido.Id:D8}";
 
 
-            // =========================================================
-            // REDIRECCIÓN
-            // =========================================================
+                const int maxIntentos =
+                    2;
 
-            return RedirectToAction(
-                nameof(VistaPreviaOrden),
-                new
+
+                for (
+                    int intento = 1;
+                    intento <= maxIntentos;
+                    intento++)
                 {
-                    id = pedido.Id,
-                    siguiente = accion
+                    try
+                    {
+                        _context
+                            .OrdenVenta
+                            .Update(pedido);
+
+
+                        await _context
+                            .SaveChangesAsync(ct);
+
+
+                        break;
+                    }
+                    catch (DbUpdateException ex)
+                        when (
+                            EsDuplicadoConsecutivo(ex)
+                        )
+                    {
+                        pedido.Consecutivo =
+                            $"OV-{pedido.Id:D8}-{intento}";
+
+
+                        if (intento ==
+                            maxIntentos)
+                        {
+                            throw;
+                        }
+                    }
                 }
-            );
+
+
+                // =====================================================
+                // 3) COBRANZA - GUARDAR COMPROMISO
+                // =====================================================
+
+                if (requiereCompromisoCobranza)
+                {
+                    var compromiso =
+                        new CobranzaCompromiso
+                        {
+                            OrdenVentaId =
+                                pedido.Id,
+
+                            OrdenVentaConsecutivo =
+                                pedido.Consecutivo ??
+                                $"OV-{pedido.Id:D8}",
+
+                            ClienteCodigo =
+                                model.Cliente ?? "",
+
+                            ClienteNombre =
+                                cliSap?.Nombre ??
+                                model.Cliente ??
+                                "",
+
+                            SaldoVencidoInicial =
+                                decimal.Round(
+                                    saldoVencidoReal,
+                                    2,
+                                    MidpointRounding.AwayFromZero
+                                ),
+
+                            SaldoPendienteActual =
+                                decimal.Round(
+                                    saldoVencidoReal,
+                                    2,
+                                    MidpointRounding.AwayFromZero
+                                ),
+
+                            FechaCompromiso =
+                                fechaCompromisoPago!
+                                    .Value
+                                    .Date,
+
+                            Motivo =
+                                motivoCompromisoPago!,
+
+                            Estatus =
+                                "PENDIENTE",
+
+                            UsuarioRegistro =
+                                usuarioRegistro,
+
+                            FechaRegistro =
+                                DateTime.Now
+                        };
+
+
+                    _context
+                        .CobranzaCompromisos
+                        .Add(compromiso);
+
+
+                    // Necesitamos ID para relacionar facturas
+                    await _context
+                        .SaveChangesAsync(ct);
+
+
+                    // =================================================
+                    // SNAPSHOT DE FACTURAS VENCIDAS
+                    // =================================================
+
+                    foreach (
+                        var factura in
+                        facturasVencidasAlGuardar)
+                    {
+                        var detalleFactura =
+                            new CobranzaCompromisoFactura
+                            {
+                                CobranzaCompromisoId =
+                                    compromiso.Id,
+
+                                SapDocEntry =
+                                    factura.DocEntry,
+
+                                SapDocNum =
+                                    factura.DocNum,
+
+                                FechaFactura =
+                                    factura.FechaFactura,
+
+                                FechaVencimiento =
+                                    factura.FechaVencimiento,
+
+                                Moneda =
+                                    factura.Moneda,
+
+                                Importe =
+                                    factura.Importe,
+
+                                PagadoInicial =
+                                    factura.Pagado,
+
+                                PendienteInicial =
+                                    factura.Pendiente,
+
+                                PendienteActual =
+                                    factura.Pendiente,
+
+                                Pagada =
+                                    false
+                            };
+
+
+                        _context
+                            .CobranzaCompromisoFacturas
+                            .Add(
+                                detalleFactura
+                            );
+                    }
+
+
+                    // =================================================
+                    // EVIDENCIA OPCIONAL
+                    // =================================================
+
+                    if (evidenciaBytes != null &&
+                        evidenciaBytes.Length > 0)
+                    {
+                        var archivo =
+                            new CobranzaCompromisoArchivo
+                            {
+                                CobranzaCompromisoId =
+                                    compromiso.Id,
+
+                                NombreOriginal =
+                                    evidenciaNombre ??
+                                    "evidencia",
+
+                                TipoContenido =
+                                    evidenciaTipo,
+
+                                Extension =
+                                    evidenciaExtension,
+
+                                TamanoBytes =
+                                    evidenciaTamano,
+
+                                Contenido =
+                                    evidenciaBytes,
+
+                                UsuarioRegistro =
+                                    usuarioRegistro,
+
+                                FechaRegistro =
+                                    DateTime.Now
+                            };
+
+
+                        _context
+                            .CobranzaCompromisoArchivos
+                            .Add(
+                                archivo
+                            );
+                    }
+
+
+                    await _context
+                        .SaveChangesAsync(ct);
+                }
+
+
+                // =====================================================
+                // 4) DETALLE DE PRODUCTOS
+                // =====================================================
+
+                if (model.Productos != null &&
+                    model.Productos.Any())
+                {
+                    foreach (var p in model.Productos)
+                    {
+                        // Segunda barrera de seguridad
+                        if (
+                            string.IsNullOrWhiteSpace(
+                                p.ProductoCodigo
+                            )
+                            ||
+                            p.Peso <= 0m
+                            ||
+                            p.Cajas <= 0)
+                        {
+                            continue;
+                        }
+
+
+                        var det =
+                            new OrdenVentaProducto
+                            {
+                                PedidoId =
+                                    pedido.Id,
+
+                                ProductoCodigo =
+                                    Norm(
+                                        p.ProductoCodigo
+                                    ),
+
+                                ProductoNombre =
+                                    p.ProductoNombre?
+                                        .Trim(),
+
+                                Peso =
+                                    p.Peso,
+
+                                Precio =
+                                    p.Precio,
+
+                                Cajas =
+                                    p.Cajas
+                            };
+
+
+                        _context
+                            .OrdenVentaProducto
+                            .Add(det);
+                    }
+
+
+                    await _context
+                        .SaveChangesAsync(ct);
+                }
+
+
+                // =====================================================
+                // 5) SI ES MUESTRA
+                // =====================================================
+
+                if (esMuestra)
+                {
+                    var ovMuestra =
+                        new OrdenVentaMuestra
+                        {
+                            OrdenVentaId =
+                                pedido.Id,
+
+                            EsMuestra =
+                                true,
+
+                            FechaCreacion =
+                                DateTime.Now
+                        };
+
+
+                    _context
+                        .OrdenVentaMuestra
+                        .Add(
+                            ovMuestra
+                        );
+
+
+                    await _context
+                        .SaveChangesAsync(ct);
+                }
+
+
+                // =====================================================
+                // COMMIT
+                // =====================================================
+
+                await tx
+                    .CommitAsync(ct);
+
+
+                // =====================================================
+                // MENSAJE
+                // =====================================================
+
+                if (requiereCompromisoCobranza)
+                {
+                    TempData["Success"] =
+                        $"Pedido guardado. Consecutivo: {pedido.Consecutivo}. " +
+                        $"Se generó compromiso de cobranza por saldo vencido de " +
+                        $"{saldoVencidoReal:C2}.";
+                }
+                else
+                {
+                    TempData["Success"] =
+                        sapDisponible
+                            ? $"Pedido guardado. Consecutivo: {pedido.Consecutivo}"
+                            : $"Pedido guardado (sin datos de SAP). Consecutivo: {pedido.Consecutivo}";
+                }
+
+
+                // =====================================================
+                // REDIRECCIÓN
+                // =====================================================
+
+                return RedirectToAction(
+                    nameof(VistaPreviaOrden),
+                    new
+                    {
+                        id =
+                            pedido.Id,
+
+                        siguiente =
+                            accion
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                // =====================================================
+                // ROLLBACK
+                // =====================================================
+
+                try
+                {
+                    await tx.RollbackAsync(ct);
+                }
+                catch
+                {
+                    // No ocultar excepción original
+                }
+
+
+                _logger.LogError(
+                    ex,
+                    "Error guardando OV. Cliente={Cliente}",
+                    model.Cliente
+                );
+
+
+                TempData["Error"] =
+                    "Ocurrió un error al guardar la orden. " +
+                    ex.GetBaseException().Message;
+
+
+                return View(
+                    "~/Views/Comercial/OrdenVenta.cshtml",
+                    model
+                );
+            }
         }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6472,72 +8028,870 @@ OPTION (RECOMPILE);
 
 
 
+        //[HttpPost]
+        //[ValidateAntiForgeryToken]
+        //public async Task<IActionResult> AutorizarCredito([FromForm] string idOrdenVenta)
+        //{
+        //    try
+        //    {
+        //        if (string.IsNullOrWhiteSpace(idOrdenVenta))
+        //            return BadRequest(new { mensaje = "El parámetro 'idOrdenVenta' es requerido." });
+
+        //        var consecutivo = idOrdenVenta.Trim();
+
+        //        var orden = await _context.OrdenVenta
+        //            .AsTracking()
+        //            .FirstOrDefaultAsync(o => o.Consecutivo == consecutivo);
+
+        //        if (orden == null)
+        //            return NotFound(new { mensaje = $"Orden con consecutivo '{consecutivo}' no encontrada." });
+
+        //        // Recargar por seguridad para tener valores frescos de BD
+        //        await _context.Entry(orden).ReloadAsync();
+
+        //        if (!orden.AutorizacionPrecio || !orden.AutorizacionPresupuesto)
+        //            return BadRequest(new
+        //            {
+        //                mensaje = "Primero debe autorizar el PRECIO y el PRESUPUESTO antes de autorizar el CRÉDITO."
+        //            });
+
+        //        bool huboCambios = false;
+
+        //        if (!orden.AutorizacionCredito)
+        //        {
+        //            orden.AutorizacionCredito = true;
+        //            _context.Entry(orden).Property(x => x.AutorizacionCredito).IsModified = true;
+        //            huboCambios = true;
+        //        }
+
+        //        // Volver a evaluar ya con crédito en true
+        //        var cerrar = orden.AutorizacionPrecio && orden.AutorizacionPresupuesto && true;
+
+        //        var nuevoEstatus = cerrar ? 3 : 2;
+
+        //        if (orden.Estatus != nuevoEstatus)
+        //        {
+        //            orden.Estatus = nuevoEstatus;
+        //            _context.Entry(orden).Property(x => x.Estatus).IsModified = true;
+        //            huboCambios = true;
+        //        }
+
+        //        if (huboCambios)
+        //            await _context.SaveChangesAsync();
+
+        //        return Ok(new
+        //        {
+        //            mensaje = cerrar
+        //                ? "Crédito autorizado correctamente. La OV quedó liberada."
+        //                : "Crédito autorizado correctamente.",
+        //            ordenId = orden.Id,
+        //            estatus = orden.Estatus,
+        //            autorizacionCredito = orden.AutorizacionCredito,
+        //            autorizacionPrecio = orden.AutorizacionPrecio,
+        //            autorizacionPresupuesto = orden.AutorizacionPresupuesto
+        //        });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return BadRequest(new { error = ex.Message });
+        //    }
+        //}
+
+
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AutorizarCredito([FromForm] string idOrdenVenta)
+        public async Task<IActionResult> AutorizarCredito(
+         [FromForm] string idOrdenVenta,
+         [FromForm] string? motivo)
         {
+            await using var tx =
+                await _context.Database.BeginTransactionAsync();
+
             try
             {
+                // =====================================================
+                // VALIDAR ORDEN DE VENTA
+                // =====================================================
                 if (string.IsNullOrWhiteSpace(idOrdenVenta))
-                    return BadRequest(new { mensaje = "El parámetro 'idOrdenVenta' es requerido." });
+                {
+                    await tx.RollbackAsync();
 
-                var consecutivo = idOrdenVenta.Trim();
-
-                var orden = await _context.OrdenVenta
-                    .AsTracking()
-                    .FirstOrDefaultAsync(o => o.Consecutivo == consecutivo);
-
-                if (orden == null)
-                    return NotFound(new { mensaje = $"Orden con consecutivo '{consecutivo}' no encontrada." });
-
-                // Recargar por seguridad para tener valores frescos de BD
-                await _context.Entry(orden).ReloadAsync();
-
-                if (!orden.AutorizacionPrecio || !orden.AutorizacionPresupuesto)
                     return BadRequest(new
                     {
-                        mensaje = "Primero debe autorizar el PRECIO y el PRESUPUESTO antes de autorizar el CRÉDITO."
+                        mensaje = "El parámetro 'idOrdenVenta' es requerido."
                     });
-
-                bool huboCambios = false;
-
-                if (!orden.AutorizacionCredito)
-                {
-                    orden.AutorizacionCredito = true;
-                    _context.Entry(orden).Property(x => x.AutorizacionCredito).IsModified = true;
-                    huboCambios = true;
                 }
 
-                // Volver a evaluar ya con crédito en true
-                var cerrar = orden.AutorizacionPrecio && orden.AutorizacionPresupuesto && true;
+                // =====================================================
+                // VALIDAR MOTIVO
+                // =====================================================
+                motivo = (motivo ?? "").Trim();
 
-                var nuevoEstatus = cerrar ? 3 : 2;
+                if (string.IsNullOrWhiteSpace(motivo))
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje = "Debes capturar el motivo de la autorización de crédito."
+                    });
+                }
+
+                if (motivo.Length < 3)
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje = "El motivo debe contener al menos 3 caracteres."
+                    });
+                }
+
+                if (motivo.Length > 500)
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje = "El motivo no puede exceder los 500 caracteres."
+                    });
+                }
+
+                var consecutivo =
+                    idOrdenVenta.Trim();
+
+                // =====================================================
+                // BUSCAR ORDEN
+                // =====================================================
+                var orden =
+                    await _context.OrdenVenta
+                        .AsTracking()
+                        .FirstOrDefaultAsync(o =>
+                            o.Consecutivo == consecutivo
+                        );
+
+                if (orden == null)
+                {
+                    await tx.RollbackAsync();
+
+                    return NotFound(new
+                    {
+                        mensaje =
+                            $"Orden con consecutivo '{consecutivo}' no encontrada."
+                    });
+                }
+
+                // Volver a cargar para trabajar con valores frescos
+                await _context.Entry(orden)
+                    .ReloadAsync();
+
+                // =====================================================
+                // VALIDAR FLUJO PREVIO
+                // =====================================================
+                if (!orden.AutorizacionPrecio ||
+                    !orden.AutorizacionPresupuesto)
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje =
+                            "Primero debe autorizar el PRECIO y el PRESUPUESTO antes de autorizar el CRÉDITO."
+                    });
+                }
+
+                // =====================================================
+                // EVITAR DOBLE AUTORIZACIÓN / DOBLE HISTÓRICO
+                // =====================================================
+                if (orden.AutorizacionCredito)
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje =
+                            "Esta orden ya tiene el crédito autorizado."
+                    });
+                }
+
+                // =====================================================
+                // USUARIO QUE AUTORIZA
+                // =====================================================
+                var usuarioActual =
+                    User.Identity?.Name;
+
+                if (string.IsNullOrWhiteSpace(usuarioActual))
+                {
+                    usuarioActual =
+                        User.FindFirst(
+                            System.Security.Claims.ClaimTypes.Name
+                        )?.Value;
+                }
+
+                if (string.IsNullOrWhiteSpace(usuarioActual))
+                {
+                    usuarioActual =
+                        User.FindFirst(
+                            System.Security.Claims.ClaimTypes.Email
+                        )?.Value;
+                }
+
+                usuarioActual ??=
+                    "SIN_USUARIO";
+
+                // =====================================================
+                // INFORMACIÓN DEL CLIENTE
+                // =====================================================
+                var cliente =
+                    await _context.ClienteSap
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c =>
+                            c.Cliente == orden.Cliente
+                        );
+
+                var clienteNombre =
+                    cliente?.Nombrecliente ??
+                    orden.Cliente ??
+                    "-";
+
+                // =====================================================
+                // IMPORTE REAL DE LA OV
+                // =====================================================
+                var lineas =
+                    await _context.OrdenVentaProducto
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.PedidoId == orden.Id &&
+                            (
+                                x.Eliminado == false ||
+                                x.Eliminado == null
+                            )
+                        )
+                        .ToListAsync();
+
+                decimal importePedido =
+                    lineas.Sum(x =>
+                        x.Importe > 0m
+                            ? x.Importe
+                            : x.Peso * x.Precio
+                    );
+
+                // =====================================================
+                // SNAPSHOT DE CRÉDITO DESDE SAP
+                //
+                // IMPORTANTE:
+                // Estos valores son los que existían exactamente
+                // al momento de realizar la autorización.
+                // =====================================================
+                decimal limiteCredito = 0m;
+                decimal saldoActual = 0m;
+                decimal otrosPedidos = 0m;
+
+                bool sapConsultado = false;
+
+                try
+                {
+                    var codigoCliente =
+                        (orden.Cliente ?? "")
+                        .Trim();
+
+                    var clienteSAP =
+                        await _sap.ObtenerClientePorCodigoAsync(
+                            codigoCliente
+                        );
+
+                    if (clienteSAP != null)
+                    {
+                        limiteCredito =
+                            clienteSAP.CreditLimit;
+
+                        saldoActual =
+                            clienteSAP.CurrentAccountBalance;
+
+                        otrosPedidos =
+                            clienteSAP.TotalPendiente;
+
+                        sapConsultado = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Error obteniendo crédito SAP al autorizar OV {OV}. Cliente={Cliente}",
+                        orden.Consecutivo,
+                        orden.Cliente
+                    );
+                }
+
+                // =====================================================
+                // SI SAP NO RESPONDE, NO AUTORIZAMOS
+                //
+                // Esto evita guardar crédito/saldo/disponible falsos
+                // en cero dentro del histórico.
+                // =====================================================
+                if (!sapConsultado)
+                {
+                    await tx.RollbackAsync();
+
+                    return BadRequest(new
+                    {
+                        mensaje =
+                            "No fue posible consultar el crédito actual del cliente en SAP. " +
+                            "La autorización NO fue aplicada. Intente nuevamente."
+                    });
+                }
+
+                // =====================================================
+                // CÁLCULOS FINANCIEROS
+                // =====================================================
+                decimal disponible =
+                    limiteCredito
+                    - saldoActual
+                    - otrosPedidos;
+
+                decimal excedente =
+                    importePedido
+                    - disponible;
+
+                decimal montoExcedido =
+                    excedente > 0m
+                        ? excedente
+                        : 0m;
+
+                // =====================================================
+                // ESTATUS ANTERIOR
+                // =====================================================
+                var estatusAnterior =
+                    orden.Estatus;
+
+                // =====================================================
+                // AUTORIZAR CRÉDITO
+                // =====================================================
+                orden.AutorizacionCredito =
+                    true;
+
+                _context.Entry(orden)
+                    .Property(x =>
+                        x.AutorizacionCredito
+                    )
+                    .IsModified = true;
+
+                // Precio y presupuesto ya fueron validados arriba.
+                var cerrar =
+                    orden.AutorizacionPrecio &&
+                    orden.AutorizacionPresupuesto &&
+                    orden.AutorizacionCredito;
+
+                var nuevoEstatus =
+                    cerrar
+                        ? 3
+                        : 2;
 
                 if (orden.Estatus != nuevoEstatus)
                 {
-                    orden.Estatus = nuevoEstatus;
-                    _context.Entry(orden).Property(x => x.Estatus).IsModified = true;
-                    huboCambios = true;
+                    orden.Estatus =
+                        nuevoEstatus;
+
+                    _context.Entry(orden)
+                        .Property(x =>
+                            x.Estatus
+                        )
+                        .IsModified = true;
                 }
 
-                if (huboCambios)
-                    await _context.SaveChangesAsync();
+                // =====================================================
+                // GUARDAR HISTÓRICO DE AUTORIZACIÓN DE CRÉDITO
+                // =====================================================
+                var historico =
+                    new Plataforma_CG.Models.CreditoAutorizacionHistorico
+                    {
+                        FechaRegistro =
+                            DateTime.Now,
 
+                        OrdenVentaId =
+                            orden.Id,
+
+                        OrdenVentaConsecutivo =
+                            orden.Consecutivo ?? "-",
+
+                        Serie =
+                            orden.Serie,
+
+                        ClienteId =
+                            orden.Cliente,
+
+                        ClienteNombre =
+                            clienteNombre,
+
+                        // ---------------------------------------------
+                        // INFORMACIÓN FINANCIERA AL MOMENTO DE AUTORIZAR
+                        // ---------------------------------------------
+                        ImportePedido =
+                            importePedido,
+
+                        LimiteCredito =
+                            limiteCredito,
+
+                        SaldoActual =
+                            saldoActual,
+
+                        OtrosPedidos =
+                            otrosPedidos,
+
+                        Disponible =
+                            disponible,
+
+                        MontoExcedido =
+                            montoExcedido,
+
+                        // ---------------------------------------------
+                        // QUIÉN AUTORIZÓ
+                        // ---------------------------------------------
+                        Usuario =
+                            usuarioActual,
+
+                        Accion =
+                            "AUTORIZADO",
+
+                        // ---------------------------------------------
+                        // MOTIVO CAPTURADO POR EL USUARIO
+                        // ---------------------------------------------
+                        Motivo =
+                            motivo,
+
+                        // ---------------------------------------------
+                        // TRAZABILIDAD DEL ESTATUS
+                        // ---------------------------------------------
+                        EstatusAnterior =
+                            estatusAnterior,
+
+                        EstatusNuevo =
+                            nuevoEstatus
+                    };
+
+                _context.CreditoAutorizacionHistorico
+                    .Add(historico);
+
+                // =====================================================
+                // GUARDAR TODO EN LA MISMA TRANSACCIÓN
+                // =====================================================
+                await _context.SaveChangesAsync();
+
+                await tx.CommitAsync();
+
+                // =====================================================
+                // RESPUESTA
+                // =====================================================
                 return Ok(new
                 {
-                    mensaje = cerrar
-                        ? "Crédito autorizado correctamente. La OV quedó liberada."
-                        : "Crédito autorizado correctamente.",
-                    ordenId = orden.Id,
-                    estatus = orden.Estatus,
-                    autorizacionCredito = orden.AutorizacionCredito,
-                    autorizacionPrecio = orden.AutorizacionPrecio,
-                    autorizacionPresupuesto = orden.AutorizacionPresupuesto
+                    mensaje =
+                        cerrar
+                            ? "Crédito autorizado correctamente. La OV quedó liberada."
+                            : "Crédito autorizado correctamente.",
+
+                    ordenId =
+                        orden.Id,
+
+                    consecutivo =
+                        orden.Consecutivo,
+
+                    estatus =
+                        orden.Estatus,
+
+                    autorizacionCredito =
+                        orden.AutorizacionCredito,
+
+                    autorizacionPrecio =
+                        orden.AutorizacionPrecio,
+
+                    autorizacionPresupuesto =
+                        orden.AutorizacionPresupuesto,
+
+                    limiteCredito =
+                        limiteCredito,
+
+                    saldoActual =
+                        saldoActual,
+
+                    otrosPedidos =
+                        otrosPedidos,
+
+                    disponible =
+                        disponible,
+
+                    importePedido =
+                        importePedido,
+
+                    montoExcedido =
+                        montoExcedido,
+
+                    autorizadoPor =
+                        usuarioActual,
+
+                    motivo =
+                        motivo
                 });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                try
+                {
+                    await tx.RollbackAsync();
+                }
+                catch
+                {
+                    // Evitar ocultar la excepción original
+                }
+
+                _logger.LogError(
+                    ex,
+                    "Error al autorizar crédito. OV={OV}",
+                    idOrdenVenta
+                );
+
+                return BadRequest(new
+                {
+                    error =
+                        ex.Message
+                });
+            }
+        }
+
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult>
+    ObtenerHistoricoAutorizacionCredito(
+        string fechaInicio,
+        string fechaFin)
+        {
+            DateTime? inicio = null;
+            DateTime? fin = null;
+
+            if (!string.IsNullOrWhiteSpace(fechaInicio) &&
+                DateTime.TryParse(fechaInicio, out var fi))
+            {
+                inicio = fi.Date;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fechaFin) &&
+                DateTime.TryParse(fechaFin, out var ff))
+            {
+                fin = ff.Date
+                    .AddDays(1)
+                    .AddTicks(-1);
+            }
+
+            // =========================================
+            // MISMA SEGURIDAD POR SERIES QUE PRECIOS
+            // =========================================
+
+            var verTodasSeries =
+                UsuarioPuedeVerTodasLasSeries();
+
+            var seriesPermitidas =
+                new List<string>();
+
+            if (!verTodasSeries)
+            {
+                var idsSeries =
+                    await ObtenerSeriesIdsUsuarioActualAsync();
+
+                if (idsSeries == null ||
+                    !idsSeries.Any())
+                {
+                    return Json(
+                        Array.Empty<object>()
+                    );
+                }
+
+                seriesPermitidas =
+                    await _context.Series
+                        .AsNoTracking()
+                        .Where(s =>
+                            idsSeries.Contains(s.Id)
+                        )
+                        .Select(s => s.NombreSerie)
+                        .ToListAsync();
+
+                seriesPermitidas =
+                    seriesPermitidas
+                        .Where(s =>
+                            !string.IsNullOrWhiteSpace(s)
+                        )
+                        .Select(s =>
+                            s.Trim().ToUpper()
+                        )
+                        .Distinct()
+                        .ToList();
+            }
+
+            var query =
+                _context
+                    .CreditoAutorizacionHistorico
+                    .AsNoTracking()
+                    .AsQueryable();
+
+            if (inicio.HasValue)
+            {
+                query =
+                    query.Where(x =>
+                        x.FechaRegistro >= inicio.Value
+                    );
+            }
+
+            if (fin.HasValue)
+            {
+                query =
+                    query.Where(x =>
+                        x.FechaRegistro <= fin.Value
+                    );
+            }
+
+            if (!verTodasSeries)
+            {
+                query =
+                    query.Where(x =>
+                        x.Serie != null &&
+                        seriesPermitidas.Contains(
+                            x.Serie.Trim().ToUpper()
+                        )
+                    );
+            }
+
+            var data =
+                await query
+                    .OrderByDescending(x =>
+                        x.FechaRegistro
+                    )
+                    .Select(x => new
+                    {
+                        x.OrdenVentaConsecutivo,
+                        x.Serie,
+                        x.ClienteId,
+                        x.ClienteNombre,
+
+                        x.ImportePedido,
+                        x.LimiteCredito,
+                        x.SaldoActual,
+                        x.OtrosPedidos,
+                        x.Disponible,
+                        x.MontoExcedido,
+
+                        x.Usuario,
+                        x.Accion,
+                        x.Motivo,
+                        x.FechaRegistro
+                    })
+                    .ToListAsync();
+
+            return Json(data);
+        }
+
+
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult>
+    DescargarHistoricoAutorizacionCreditoExcel(
+        string fechaInicio,
+        string fechaFin)
+        {
+            try
+            {
+                DateTime? inicio = null;
+                DateTime? fin = null;
+
+                if (!string.IsNullOrWhiteSpace(fechaInicio) &&
+                    DateTime.TryParse(fechaInicio, out var fi))
+                {
+                    inicio = fi.Date;
+                }
+
+                if (!string.IsNullOrWhiteSpace(fechaFin) &&
+                    DateTime.TryParse(fechaFin, out var ff))
+                {
+                    fin = ff.Date
+                        .AddDays(1)
+                        .AddTicks(-1);
+                }
+
+                var query =
+                    _context
+                        .CreditoAutorizacionHistorico
+                        .AsNoTracking()
+                        .AsQueryable();
+
+                if (inicio.HasValue)
+                {
+                    query = query.Where(x =>
+                        x.FechaRegistro >= inicio.Value
+                    );
+                }
+
+                if (fin.HasValue)
+                {
+                    query = query.Where(x =>
+                        x.FechaRegistro <= fin.Value
+                    );
+                }
+
+                var data =
+                    await query
+                        .OrderByDescending(x =>
+                            x.FechaRegistro
+                        )
+                        .ToListAsync();
+
+                using var workbook =
+                    new ClosedXML.Excel.XLWorkbook();
+
+                var ws =
+                    workbook.Worksheets.Add(
+                        "Historico Credito"
+                    );
+
+                ws.Cell(1, 1).Value =
+                    "Orden de venta";
+
+                ws.Cell(1, 2).Value =
+                    "Serie";
+
+                ws.Cell(1, 3).Value =
+                    "Cliente";
+
+                ws.Cell(1, 4).Value =
+                    "Importe Pedido";
+
+                ws.Cell(1, 5).Value =
+                    "Límite Crédito";
+
+                ws.Cell(1, 6).Value =
+                    "Saldo Actual";
+
+                ws.Cell(1, 7).Value =
+                    "Otros Pedidos";
+
+                ws.Cell(1, 8).Value =
+                    "Disponible";
+
+                ws.Cell(1, 9).Value =
+                    "Excedente";
+
+                ws.Cell(1, 10).Value =
+                    "Autorizó";
+
+                ws.Cell(1, 11).Value =
+                    "Acción";
+
+                ws.Cell(1, 12).Value =
+                    "Motivo";
+
+                ws.Cell(1, 13).Value =
+                    "Fecha Registro";
+
+                var row = 2;
+
+                foreach (var x in data)
+                {
+                    ws.Cell(row, 1).Value =
+                        x.OrdenVentaConsecutivo;
+
+                    ws.Cell(row, 2).Value =
+                        x.Serie ?? "";
+
+                    ws.Cell(row, 3).Value =
+                        x.ClienteNombre ?? "";
+
+                    ws.Cell(row, 4).Value =
+                        x.ImportePedido;
+
+                    ws.Cell(row, 5).Value =
+                        x.LimiteCredito;
+
+                    ws.Cell(row, 6).Value =
+                        x.SaldoActual;
+
+                    ws.Cell(row, 7).Value =
+                        x.OtrosPedidos;
+
+                    ws.Cell(row, 8).Value =
+                        x.Disponible;
+
+                    ws.Cell(row, 9).Value =
+                        x.MontoExcedido;
+
+                    ws.Cell(row, 10).Value =
+                        x.Usuario;
+
+                    ws.Cell(row, 11).Value =
+                        x.Accion;
+
+                    ws.Cell(row, 12).Value =
+                        x.Motivo ?? "";
+
+                    ws.Cell(row, 13).Value =
+                        x.FechaRegistro;
+
+                    row++;
+                }
+
+                var encabezado =
+                    ws.Range(
+                        1,
+                        1,
+                        1,
+                        13
+                    );
+
+                encabezado.Style.Font.Bold = true;
+
+                encabezado.Style.Fill.BackgroundColor =
+                    ClosedXML.Excel.XLColor.DarkRed;
+
+                encabezado.Style.Font.FontColor =
+                    ClosedXML.Excel.XLColor.White;
+
+                for (var col = 4; col <= 9; col++)
+                {
+                    ws.Column(col)
+                        .Style
+                        .NumberFormat
+                        .Format = "$#,##0.00";
+                }
+
+                ws.Column(13)
+                    .Style
+                    .DateFormat
+                    .Format =
+                        "dd/MM/yyyy HH:mm:ss";
+
+                ws.Columns()
+                    .AdjustToContents();
+
+                using var stream =
+                    new MemoryStream();
+
+                workbook.SaveAs(stream);
+
+                stream.Position = 0;
+
+                var nombreArchivo =
+                    $"HistoricoAutorizacionCredito_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                return File(
+                    stream.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    nombreArchivo
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    $"Error al generar Excel: {ex.Message}"
+                );
             }
         }
 
@@ -19805,6 +22159,8 @@ ORDER BY
        string fechaInicio,
        string fechaFin,
        string tipo = "",
+       string embarque = "",
+       string ruta = "",
        CancellationToken ct = default)
         {
             try
@@ -19891,6 +22247,7 @@ SurtidoTR AS (
 ),
 ResumenFinal AS (
     SELECT
+        c.Id AS DocumentoId,
         p.ConsecutivoOV AS Folio,
         LTRIM(RTRIM(ISNULL(c.Serie, ''))) AS Serie,
         d.Nombrecliente AS Cliente,
@@ -19898,21 +22255,30 @@ ResumenFinal AS (
         p.CajasPedidas,
         p.KgSurtidos,
         p.CajasSurtidas,
-        ROUND((ISNULL(p.KgSurtidos, 0) * 100.0) / NULLIF(p.KgPedidos, 0), 2) AS GAPKg,
-        ROUND((ISNULL(p.CajasSurtidas, 0) * 100.0) / NULLIF(p.CajasPedidas, 0), 2) AS GAPCajas,
+        ROUND(
+            (ISNULL(p.KgSurtidos, 0) * 100.0)
+            / NULLIF(p.KgPedidos, 0),
+            2
+        ) AS GAPKg,
+        ROUND(
+            (ISNULL(p.CajasSurtidas, 0) * 100.0)
+            / NULLIF(p.CajasPedidas, 0),
+            2
+        ) AS GAPCajas,
         c.FechaEntrega AS Fecha,
         'OV' AS Tipo
     FROM PedidosOV p
-    INNER JOIN OrdenVenta c 
+    INNER JOIN OrdenVenta c
         ON p.OrdenVentaId = c.Id
-    INNER JOIN ClienteSap d 
+    INNER JOIN ClienteSap d
         ON p.Cliente = d.Cliente
-AND ISNULL(d.AplicaPresupuesto, 0) = 1
+       AND ISNULL(d.AplicaPresupuesto, 0) = 1
     WHERE c.Estatus <> 0
 
     UNION ALL
 
     SELECT
+        c.Id AS DocumentoId,
         c.Consecutivo AS Folio,
         '' AS Serie,
         p.Destino AS Cliente,
@@ -19920,8 +22286,16 @@ AND ISNULL(d.AplicaPresupuesto, 0) = 1
         p.CajasPedidas,
         ISNULL(s.KgSurtidos, 0) AS KgSurtidos,
         ISNULL(s.CajasSurtidas, 0) AS CajasSurtidas,
-        ROUND((ISNULL(s.KgSurtidos, 0) * 100.0) / NULLIF(p.KgPedidos, 0), 2) AS GAPKg,
-        ROUND((ISNULL(s.CajasSurtidas, 0) * 100.0) / NULLIF(p.CajasPedidas, 0), 2) AS GAPCajas,
+        ROUND(
+            (ISNULL(s.KgSurtidos, 0) * 100.0)
+            / NULLIF(p.KgPedidos, 0),
+            2
+        ) AS GAPKg,
+        ROUND(
+            (ISNULL(s.CajasSurtidas, 0) * 100.0)
+            / NULLIF(p.CajasPedidas, 0),
+            2
+        ) AS GAPCajas,
         c.FechaSolicitud AS Fecha,
         'TR' AS Tipo
     FROM Transferencias c
@@ -19931,49 +22305,108 @@ AND ISNULL(d.AplicaPresupuesto, 0) = 1
         ON c.Id = s.TransferenciaId
     WHERE c.Estatus <> 0
 )
-SELECT *
-FROM ResumenFinal
-WHERE (@Cliente IS NULL OR @Cliente = '' OR Cliente LIKE '%' + @Cliente + '%')
-  AND (@Folio IS NULL OR @Folio = '' OR Folio LIKE '%' + @Folio + '%')
-  AND (@Tipo IS NULL OR @Tipo = '' OR Tipo = @Tipo)
-  AND (@FechaInicio IS NULL OR CONVERT(date, Fecha) >= CONVERT(date, @FechaInicio))
-  AND (@FechaFin IS NULL OR CONVERT(date, Fecha) <= CONVERT(date, @FechaFin))
 
-  -- Filtro seleccionado en pantalla:
-  -- OV sí filtra por serie seleccionada.
-  -- TR siempre pasa.
-  AND (
-        @Serie IS NULL
-        OR @Serie = ''
-        OR Tipo = 'TR'
-        OR (
-            Tipo = 'OV'
-            AND EXISTS (
-                SELECT 1
-                FROM STRING_SPLIT(@Serie, ',') S
-                WHERE UPPER(LTRIM(RTRIM(S.value))) = UPPER(LTRIM(RTRIM(Serie)))
-            )
-        )
-  )
+SELECT
+    r.Folio,
+    r.Serie,
+    r.Cliente,
+    r.KgPedidos,
+    r.CajasPedidas,
+    r.KgSurtidos,
+    r.CajasSurtidas,
+    r.GAPKg,
+    r.GAPCajas,
+    r.Fecha,
+    r.Tipo,
 
-  -- Seguridad por series configuradas al usuario:
-  -- OV sí filtra por UsuarioSerie.
-  -- TR siempre pasa.
-  AND (
-        @SeriesUsuario IS NULL
-        OR @SeriesUsuario = ''
-        OR Tipo = 'TR'
-        OR (
-            Tipo = 'OV'
-            AND EXISTS (
-                SELECT 1
-                FROM STRING_SPLIT(@SeriesUsuario, ',') SU
-                WHERE UPPER(LTRIM(RTRIM(SU.value))) = UPPER(LTRIM(RTRIM(Serie)))
-            )
+    ISNULL(emp.Consecutivo, '') AS Embarque,
+    ISNULL(emp.NombreEmbarque, '') AS Ruta
+
+FROM ResumenFinal r
+
+OUTER APPLY (
+    SELECT TOP (1)
+        e.Consecutivo,
+        e.NombreEmbarque
+    FROM EmbarqueDocumento ed
+    INNER JOIN Embarque e
+        ON e.Id = ed.EmbarqueId
+    WHERE ed.DocumentoId = r.DocumentoId
+      AND (
+            (r.Tipo = 'OV'
+             AND UPPER(LTRIM(RTRIM(ed.TipoDocumento))) = 'OV')
+
+            OR
+
+            (r.Tipo = 'TR'
+             AND UPPER(LTRIM(RTRIM(ed.TipoDocumento))) = 'TRANSFERENCIA')
+          )
+    ORDER BY e.Id DESC
+) emp
+
+WHERE
+    (@Cliente IS NULL OR @Cliente = ''
+        OR r.Cliente LIKE '%' + @Cliente + '%')
+
+AND (@Folio IS NULL OR @Folio = ''
+        OR r.Folio LIKE '%' + @Folio + '%')
+
+AND (@Tipo IS NULL OR @Tipo = ''
+        OR r.Tipo = @Tipo)
+
+AND (@FechaInicio IS NULL
+        OR CONVERT(date, r.Fecha) >= CONVERT(date, @FechaInicio))
+
+AND (@FechaFin IS NULL
+        OR CONVERT(date, r.Fecha) <= CONVERT(date, @FechaFin))
+
+-- NUEVO: filtro por embarque
+AND (
+    @Embarque IS NULL
+    OR @Embarque = ''
+    OR ISNULL(emp.Consecutivo, '') LIKE '%' + @Embarque + '%'
+)
+
+-- NUEVO: filtro por ruta
+AND (
+    @Ruta IS NULL
+    OR @Ruta = ''
+    OR ISNULL(emp.NombreEmbarque, '') LIKE '%' + @Ruta + '%'
+)
+
+-- Serie seleccionada
+AND (
+    @Serie IS NULL
+    OR @Serie = ''
+    OR r.Tipo = 'TR'
+    OR (
+        r.Tipo = 'OV'
+        AND EXISTS (
+            SELECT 1
+            FROM STRING_SPLIT(@Serie, ',') S
+            WHERE UPPER(LTRIM(RTRIM(S.value)))
+                = UPPER(LTRIM(RTRIM(r.Serie)))
         )
-  )
-ORDER BY Fecha DESC, Folio;
-";
+    )
+)
+
+-- Seguridad por serie del usuario
+AND (
+    @SeriesUsuario IS NULL
+    OR @SeriesUsuario = ''
+    OR r.Tipo = 'TR'
+    OR (
+        r.Tipo = 'OV'
+        AND EXISTS (
+            SELECT 1
+            FROM STRING_SPLIT(@SeriesUsuario, ',') SU
+            WHERE UPPER(LTRIM(RTRIM(SU.value)))
+                = UPPER(LTRIM(RTRIM(r.Serie)))
+        )
+    )
+)
+
+ORDER BY r.Fecha DESC, r.Folio;";
 
                 using var cmd = new SqlCommand(sql, cn);
 
@@ -19998,6 +22431,16 @@ ORDER BY Fecha DESC, Folio;
                 cmd.Parameters.Add("@FechaFin", SqlDbType.DateTime).Value =
                     ff.HasValue ? ff.Value : DBNull.Value;
 
+                cmd.Parameters.Add("@Embarque", SqlDbType.VarChar).Value =
+    string.IsNullOrWhiteSpace(embarque)
+        ? DBNull.Value
+        : embarque.Trim();
+
+                cmd.Parameters.Add("@Ruta", SqlDbType.VarChar).Value =
+                    string.IsNullOrWhiteSpace(ruta)
+                        ? DBNull.Value
+                        : ruta.Trim();
+
                 var list = new List<object>();
 
                 using var dr = cmd.ExecuteReader();
@@ -20009,14 +22452,47 @@ ORDER BY Fecha DESC, Folio;
                         folio = dr.IsDBNull(0) ? "" : dr.GetString(0),
                         serie = dr.IsDBNull(1) ? "" : dr.GetString(1),
                         cliente = dr.IsDBNull(2) ? "" : dr.GetString(2),
-                        kgPedidos = dr.IsDBNull(3) ? 0m : Convert.ToDecimal(dr.GetValue(3)),
-                        cajasPedidas = dr.IsDBNull(4) ? 0m : Convert.ToDecimal(dr.GetValue(4)),
-                        kgSurtidos = dr.IsDBNull(5) ? 0m : Convert.ToDecimal(dr.GetValue(5)),
-                        cajasSurtidas = dr.IsDBNull(6) ? 0m : Convert.ToDecimal(dr.GetValue(6)),
-                        gapKg = dr.IsDBNull(7) ? 0m : Convert.ToDecimal(dr.GetValue(7)),
-                        gapCajas = dr.IsDBNull(8) ? 0m : Convert.ToDecimal(dr.GetValue(8)),
-                        fecha = dr.IsDBNull(9) ? (DateTime?)null : Convert.ToDateTime(dr.GetValue(9)),
-                        tipo = dr.IsDBNull(10) ? "" : dr.GetString(10)
+
+                        kgPedidos = dr.IsDBNull(3)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(3)),
+
+                        cajasPedidas = dr.IsDBNull(4)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(4)),
+
+                        kgSurtidos = dr.IsDBNull(5)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(5)),
+
+                        cajasSurtidas = dr.IsDBNull(6)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(6)),
+
+                        gapKg = dr.IsDBNull(7)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(7)),
+
+                        gapCajas = dr.IsDBNull(8)
+        ? 0m
+        : Convert.ToDecimal(dr.GetValue(8)),
+
+                        fecha = dr.IsDBNull(9)
+        ? (DateTime?)null
+        : Convert.ToDateTime(dr.GetValue(9)),
+
+                        tipo = dr.IsDBNull(10)
+        ? ""
+        : dr.GetString(10),
+
+                        // NUEVO
+                        embarque = dr.IsDBNull(11)
+        ? ""
+        : dr.GetString(11),
+
+                        ruta = dr.IsDBNull(12)
+        ? ""
+        : dr.GetString(12)
                     });
                 }
 
@@ -29795,9 +32271,260 @@ ORDER BY
 
 
 
+        // ============================================================================
+        // COMERCIALCONTROLLER - AJUSTES DE COBRANZA
+        // Requiere:
+        // using Microsoft.AspNetCore.Http;
+        // using Plataforma_CG.Models;
+        // using Plataforma_CG.ViewModels;
+        // ============================================================================
 
+        // 1) Endpoint que usa el modal de la OV.
+        [Authorize]
+        [HttpGet("Comercial/ObtenerFacturasVencidasCliente")]
+        public async Task<IActionResult> ObtenerFacturasVencidasCliente(
+            [FromQuery] string cardCode,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(cardCode))
+                return BadRequest(new { ok = false, mensaje = "cardCode es requerido." });
 
+            try
+            {
+                var facturas = await _sap.ObtenerFacturasVencidasClienteAsync(cardCode);
 
+                return Json(new
+                {
+                    ok = true,
+                    cardCode,
+                    saldoVencido = facturas.Sum(x => x.Pendiente),
+                    facturas = facturas.Select(x => new
+                    {
+                        docEntry = x.DocEntry,
+                        docNum = x.DocNum,
+                        fechaFactura = x.FechaFactura,
+                        fechaVencimiento = x.FechaVencimiento,
+                        moneda = x.Moneda,
+                        importe = x.Importe,
+                        pagado = x.Pagado,
+                        pendiente = x.Pendiente,
+                        diasVencidos = x.DiasVencidos
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error consultando facturas vencidas SAP. Cliente={Cliente}", cardCode);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "No fue posible consultar las facturas vencidas en SAP.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+        // ============================================================================
+        // 2) CAMBIA LA FIRMA DE GuardarPedido A ESTA:
+        // ============================================================================
+        /*
+        [HttpPost]
+        public async Task<IActionResult> GuardarPedido(
+            PedidoViewModel model,
+            string accion,
+            bool esMuestra = false,
+            DateTime? fechaCompromisoPago = null,
+            string? motivoCompromisoPago = null,
+            IFormFile? evidenciaCompromisoPago = null,
+            CancellationToken ct = default)
+        */
+
+        // ============================================================================
+        // 3) DENTRO DE GuardarPedido, DESPUÉS DE:
+        // string clienteUp = Norm(model.Cliente);
+        // decimal totalPedido = ...;
+        // PEGA ESTE BLOQUE:
+        // ============================================================================
+        /*
+        var facturasVencidasAlGuardar = new List<FacturaPendienteSapViewModel>();
+        decimal saldoVencidoReal = 0m;
+        bool requiereCompromisoCobranza = false;
+
+        byte[]? evidenciaBytes = null;
+        string? evidenciaNombre = null;
+        string? evidenciaTipo = null;
+        string? evidenciaExtension = null;
+        long evidenciaTamano = 0;
+
+        if (!esMuestra)
+        {
+            try
+            {
+                facturasVencidasAlGuardar =
+                    await _sap.ObtenerFacturasVencidasClienteAsync(model.Cliente);
+
+                saldoVencidoReal =
+                    facturasVencidasAlGuardar.Sum(x => x.Pendiente);
+
+                requiereCompromisoCobranza =
+                    saldoVencidoReal > 0.01m;
+
+                // El backend usa el dato REAL de SAP, no el valor manipulable del navegador.
+                model.SaldoVencido =
+                    decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "No se pudo validar saldo vencido antes de guardar OV. Cliente={Cliente}",
+                    model.Cliente);
+
+                TempData["Error"] =
+                    "No fue posible validar las facturas vencidas del cliente en SAP. " +
+                    "La orden NO fue guardada. Intenta nuevamente.";
+
+                return RedirectToAction(nameof(OrdenVenta));
+            }
+
+            if (requiereCompromisoCobranza)
+            {
+                motivoCompromisoPago = (motivoCompromisoPago ?? "").Trim();
+
+                if (!fechaCompromisoPago.HasValue ||
+                    fechaCompromisoPago.Value.Date < DateTime.Today)
+                {
+                    TempData["Error"] =
+                        "El cliente tiene facturas vencidas. Captura una fecha compromiso de pago válida.";
+                    return RedirectToAction(nameof(OrdenVenta));
+                }
+
+                if (string.IsNullOrWhiteSpace(motivoCompromisoPago) ||
+                    motivoCompromisoPago.Length < 5)
+                {
+                    TempData["Error"] =
+                        "El cliente tiene facturas vencidas. Captura el motivo/comentario del compromiso de pago.";
+                    return RedirectToAction(nameof(OrdenVenta));
+                }
+
+                if (motivoCompromisoPago.Length > 1000)
+                {
+                    TempData["Error"] = "El motivo no puede exceder 1000 caracteres.";
+                    return RedirectToAction(nameof(OrdenVenta));
+                }
+
+                if (evidenciaCompromisoPago != null && evidenciaCompromisoPago.Length > 0)
+                {
+                    const long MAX_EVIDENCIA = 8L * 1024L * 1024L; // 8 MB
+                    var ext = Path.GetExtension(evidenciaCompromisoPago.FileName ?? "").ToLowerInvariant();
+                    var permitidas = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ".jpg", ".jpeg", ".png", ".webp", ".pdf"
+                    };
+
+                    if (!permitidas.Contains(ext))
+                    {
+                        TempData["Error"] =
+                            "La evidencia debe ser JPG, JPEG, PNG, WEBP o PDF.";
+                        return RedirectToAction(nameof(OrdenVenta));
+                    }
+
+                    if (evidenciaCompromisoPago.Length > MAX_EVIDENCIA)
+                    {
+                        TempData["Error"] = "La evidencia no puede superar 8 MB.";
+                        return RedirectToAction(nameof(OrdenVenta));
+                    }
+
+                    using var ms = new MemoryStream();
+                    await evidenciaCompromisoPago.CopyToAsync(ms, ct);
+
+                    evidenciaBytes = ms.ToArray();
+                    evidenciaNombre = Path.GetFileName(evidenciaCompromisoPago.FileName);
+                    evidenciaTipo = evidenciaCompromisoPago.ContentType;
+                    evidenciaExtension = ext;
+                    evidenciaTamano = evidenciaCompromisoPago.Length;
+                }
+            }
+        }
+        */
+
+        // ============================================================================
+        // 4) EN TU SELECT DE cliSap AGREGA Nombrecliente:
+        // ============================================================================
+        /*
+        .Select(c => new
+        {
+            Canal = c.U_CANAL,
+            VendedorId = (int?)c.VendedorId,
+            AplicaPresupuesto = c.AplicaPresupuesto,
+            Nombre = c.Nombrecliente
+        })
+        */
+
+        // ============================================================================
+        // 5) DESPUÉS DE GENERAR EL CONSECUTIVO DEFINITIVO Y ANTES DE GUARDAR
+        //    EL DETALLE DE PRODUCTOS, PEGA ESTE BLOQUE:
+        // ============================================================================
+        /*
+        if (requiereCompromisoCobranza)
+        {
+            var compromiso = new CobranzaCompromiso
+            {
+                OrdenVentaId = pedido.Id,
+                OrdenVentaConsecutivo = pedido.Consecutivo ?? $"OV-{pedido.Id:D8}",
+                ClienteCodigo = model.Cliente ?? "",
+                ClienteNombre = cliSap?.Nombre ?? model.Cliente ?? "",
+                SaldoVencidoInicial = decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero),
+                SaldoPendienteActual = decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero),
+                FechaCompromiso = fechaCompromisoPago!.Value.Date,
+                Motivo = motivoCompromisoPago!,
+                Estatus = "PENDIENTE",
+                UsuarioRegistro = usuarioRegistro,
+                FechaRegistro = DateTime.Now
+            };
+
+            _context.CobranzaCompromisos.Add(compromiso);
+            await _context.SaveChangesAsync(ct);
+
+            foreach (var f in facturasVencidasAlGuardar)
+            {
+                _context.CobranzaCompromisoFacturas.Add(
+                    new CobranzaCompromisoFactura
+                    {
+                        CobranzaCompromisoId = compromiso.Id,
+                        SapDocEntry = f.DocEntry,
+                        SapDocNum = f.DocNum,
+                        FechaFactura = f.FechaFactura,
+                        FechaVencimiento = f.FechaVencimiento,
+                        Moneda = f.Moneda,
+                        Importe = f.Importe,
+                        PagadoInicial = f.Pagado,
+                        PendienteInicial = f.Pendiente,
+                        PendienteActual = f.Pendiente,
+                        Pagada = false
+                    });
+            }
+
+            if (evidenciaBytes != null && evidenciaBytes.Length > 0)
+            {
+                _context.CobranzaCompromisoArchivos.Add(
+                    new CobranzaCompromisoArchivo
+                    {
+                        CobranzaCompromisoId = compromiso.Id,
+                        NombreOriginal = evidenciaNombre ?? "evidencia",
+                        TipoContenido = evidenciaTipo,
+                        Extension = evidenciaExtension,
+                        TamanoBytes = evidenciaTamano,
+                        Contenido = evidenciaBytes,
+                        UsuarioRegistro = usuarioRegistro,
+                        FechaRegistro = DateTime.Now
+                    });
+            }
+
+            await _context.SaveChangesAsync(ct);
+        }
+        */
 
 
     }

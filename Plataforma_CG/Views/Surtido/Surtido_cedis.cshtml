@@ -48,11 +48,18 @@
         font-family:"Segoe UI",Tahoma,Arial,sans-serif;
     }
 
+    /* IMPORTANTE:
+       No forzamos width:100% sobre el contenedor principal del Layout.
+       _Layout2 puede reservar espacio para menú/sidebar; sobrescribir su ancho
+       provoca que la vista termine más ancha que el área realmente visible. */
     body:has(.op-wrap) .layout-main-content,
-    body:has(.op-wrap) .layout-container-fluid,
-    .container,
-    .container-fluid {
-        width:100% !important;
+    body:has(.op-wrap) .layout-container-fluid {
+        max-width:100% !important;
+        min-width:0 !important;
+    }
+
+    body:has(.op-wrap) .container,
+    body:has(.op-wrap) .container-fluid {
         max-width:100% !important;
         min-width:0 !important;
     }
@@ -63,15 +70,73 @@
     }
 
     .op-wrap {
-        width:100%;
-        max-width:100%;
+        /*
+           El _Layout2 deja un menú lateral. El contenedor padre puede medir
+           más que el área visible, así que 100% no garantiza quedar dentro
+           del viewport. Este límite usa el ancho REAL de la ventana.
+        */
+        --op-viewport-reserve:140px;
+        --op-safe-right:24px;
+
+        width:100% !important;
+        max-width:calc(100vw - var(--op-viewport-reserve)) !important;
         min-width:0;
-        padding:8px;
+        margin-left:0;
+        margin-right:auto;
+        padding:8px 14px;
+        overflow-x:hidden;
+    }
+
+    /* Evita que contenidos internos obliguen al layout a crecer */
+    .op-shell,
+    .op-top,
+    .op-top-grid,
+    .op-panel,
+    .op-section,
+    .op-section-head,
+    .op-actions,
+    .op-extra,
+    .op-card,
+    .op-link-card,
+    .op-note-card {
+        min-width:0;
+        max-width:100%;
+    }
+
+    .op-top-grid > *,
+    .op-panel > *,
+    .op-actions > *,
+    .op-extra > *,
+    .op-section-head > * {
+        min-width:0;
+    }
+
+    .op-title,
+    .op-user,
+    .op-sub,
+    .op-step strong,
+    .op-step small,
+    .op-box-value,
+    .op-mini,
+    .op-card h5,
+    .op-card p,
+    .op-card li,
+    .op-link-card strong,
+    .op-link-card span,
+    .op-note-card li,
+    .op-alert {
+        overflow-wrap:anywhere;
+        word-break:break-word;
+    }
+
+    img, svg, canvas, video {
+        max-width:100%;
+        height:auto;
     }
 
     .op-shell {
         width:100%;
-        max-width:none;
+        max-width:100%;
         min-width:0;
         margin:0;
         display:grid;
@@ -220,6 +285,7 @@
     .op-box-value {
         display:block;
         margin-top:2px;
+        max-width:100%;
         overflow:hidden;
         text-overflow:ellipsis;
         white-space:nowrap;
@@ -243,6 +309,8 @@
     }
 
     .op-chip {
+        max-width:100%;
+        min-width:0;
         padding:4px 7px;
         display:inline-flex;
         align-items:center;
@@ -252,7 +320,8 @@
         background:rgba(255,255,255,.10);
         font-size:7.5px;
         font-weight:800;
-        white-space:nowrap;
+        white-space:normal;
+        overflow-wrap:anywhere;
     }
 
     /* =========================================================
@@ -518,8 +587,9 @@
     }
 
     .op-link-action {
-        flex:0 0 auto;
-        min-width:120px;
+        flex:0 1 160px;
+        min-width:0;
+        max-width:100%;
         padding:9px 10px;
         border:1px solid rgba(255,255,255,.22);
         border-radius:9px;
@@ -567,23 +637,53 @@
     }
 
     /* =========================================================
+       ESCRITORIO ANCHO - margen de seguridad lateral
+       ========================================================= */
+    @@media (min-width:1201px) {
+        .op-wrap {
+            max-width:calc(100vw - 140px) !important;
+        }
+
+        .op-section,
+        .op-top {
+            width:100%;
+            max-width:100%;
+        }
+
+        .op-actions {
+            padding-left:14px;
+            padding-right:14px;
+            gap:10px;
+        }
+
+        .op-extra {
+            padding-left:14px;
+            padding-right:14px;
+        }
+    }
+
+    /* =========================================================
        LAPTOP / ESCRITORIO
        ========================================================= */
     @@media (min-width:901px) {
+        /* No bloqueamos la altura: distintos equipos/layouts pueden tener
+           encabezados más altos. Permitimos scroll vertical si hace falta. */
         body:has(.op-wrap) {
-            overflow-y:hidden !important;
+            overflow-y:auto !important;
         }
 
         .op-wrap {
-            height:calc(100dvh - 82px);
-            max-height:calc(100dvh - 82px);
-            overflow:hidden;
+            min-height:calc(100dvh - 82px);
+            height:auto;
+            max-height:none;
+            overflow:visible;
         }
 
         .op-shell {
-            height:100%;
-            grid-template-rows:auto minmax(0,1fr);
-            overflow:hidden;
+            min-height:0;
+            height:auto;
+            grid-template-rows:auto auto;
+            overflow:visible;
         }
 
         .op-section {
@@ -647,6 +747,11 @@
        TABLET HORIZONTAL / LAPTOP ANGOSTA
        ========================================================= */
     @@media (max-width:1200px) {
+        .op-wrap {
+            --op-viewport-reserve:120px;
+            --op-safe-right:20px;
+        }
+
         .op-top-grid {
             grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);
         }
@@ -677,7 +782,9 @@
         }
 
         .op-wrap {
-            padding:6px;
+            --op-viewport-reserve:96px;
+            --op-safe-right:14px;
+            padding:6px 10px;
         }
 
         .op-top {
@@ -736,17 +843,23 @@
         }
 
         .op-note-card ul {
-            grid-template-columns:repeat(4,minmax(0,1fr));
+            grid-template-columns:repeat(2,minmax(0,1fr));
         }
     }
 
     @@media (max-width:650px) {
+        .op-wrap {
+            --op-viewport-reserve:24px;
+            --op-safe-right:8px;
+            padding:4px 6px;
+        }
+
         .op-top-grid,
         .op-steps,
         .op-panel,
         .op-actions,
         .op-note-card ul {
-            grid-template-columns:1fr;
+            grid-template-columns:minmax(0,1fr);
         }
 
         .op-panel h3,
@@ -754,20 +867,121 @@
             grid-column:auto;
         }
 
+        .op-top {
+            padding:8px;
+            border-radius:11px;
+        }
+
+        .op-title {
+            font-size:clamp(22px,8vw,30px);
+            line-height:1.05;
+        }
+
+        .op-user {
+            font-size:11px;
+        }
+
+        .op-sub {
+            font-size:9px;
+        }
+
+        .op-step {
+            grid-template-columns:26px minmax(0,1fr);
+        }
+
+        .op-panel {
+            padding:7px;
+        }
+
+        .op-chips {
+            align-items:stretch;
+        }
+
+        .op-chip {
+            width:100%;
+            border-radius:9px;
+        }
+
+        .op-section-head {
+            align-items:flex-start;
+            flex-direction:column;
+            gap:6px;
+        }
+
+        .op-counter {
+            max-width:100%;
+            white-space:normal;
+        }
+
+        .op-actions {
+            padding:6px;
+            gap:6px;
+        }
+
         .op-card {
             min-height:116px;
+            padding:9px;
+        }
+
+        .op-card-top {
+            align-items:flex-start;
+            flex-wrap:wrap;
+        }
+
+        .op-state {
+            max-width:100%;
+            white-space:normal;
+            text-align:center;
         }
 
         .op-link-card {
             flex-direction:column;
-            align-items:flex-start;
+            align-items:stretch;
+        }
+
+        .op-link-card > div:first-child {
+            min-width:0;
+            width:100%;
         }
 
         .op-link-action {
             width:100%;
             min-width:0;
+            flex-basis:auto;
         }
     }
+
+    @@media (max-width:380px) {
+        .op-wrap {
+            --op-viewport-reserve:16px;
+            --op-safe-right:6px;
+            padding:3px 4px;
+        }
+
+        .op-top,
+        .op-section {
+            border-radius:10px;
+        }
+
+        .op-title {
+            font-size:21px;
+        }
+
+        .op-section-head h4 {
+            font-size:14px;
+        }
+
+        .op-icon {
+            width:38px;
+            height:38px;
+            font-size:20px;
+        }
+
+        .op-card h5 {
+            font-size:14px;
+        }
+    }
+
 </style>
 
 <div class="op-wrap">

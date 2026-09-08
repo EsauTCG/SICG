@@ -1,0 +1,167 @@
+@* Interfaz de captura solamente. Conserva los IDs consumidos por el guardado actual de Factor Crítico. *@
+
+<div id="modalHueso" role="dialog" aria-modal="true" aria-labelledby="fc-title-hueso" class="modal-overlay fc-capture-overlay" data-factor="hueso">
+    <div class="modal-content-sap fc-capture-modal">
+        <header class="fc-capture-head">
+            <div>
+                <span class="fc-eyebrow">CALIDAD · FACTOR CRÍTICO</span>
+                <h3 id="fc-title-hueso">Captura de hueso</h3>
+                <p>Lote <strong id="lote-hueso"></strong> <span class="badge-sap" id="badge-prueba-hueso"></span></p>
+            </div>
+            <button class="fc-icon-button" type="button" onclick="cerrarModal('modalHueso')" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+        </header>
+
+        <div class="fc-stepper" aria-label="Flujo de captura">
+            <span class="done"><b>1</b> Lote</span><i>→</i><span class="active"><b>2</b> Selección</span><i>→</i><span><b>3</b> Peso</span><i>→</i><span><b>4</b> Confirmar</span>
+        </div>
+
+        <div class="modal-body-scroll fc-capture-body">
+            <nav class="fc-factor-switch" aria-label="Cambiar factor">
+                <button class="active" type="button"><img src="/images/Hueso.png" alt="" /><span>Hueso</span></button>
+                <button type="button" onclick="cambiarFactorCaptura('recorte')"><img src="/images/Recorte-80-20.png" alt="" /><span>Recorte</span></button>
+                <button type="button" onclick="cambiarFactorCaptura('grasa')"><img src="/images/Rib con Grasa.jpeg" alt="" /><span>Grasa</span></button>
+            </nav>
+
+            <div class="fc-workstation">
+                <section class="fc-panel fc-catalog-panel">
+                    <div class="fc-panel-head"><div><span>PASO 2</span><h4>¿Qué hueso vas a pesar?</h4></div><small>Selecciona una tarjeta</small></div>
+                    <div id="catalogoHueso" class="fc-item-grid"><div class="fc-catalog-loading">Cargando tipos de hueso…</div></div>
+                </section>
+
+                <section class="fc-panel fc-scale-panel">
+                    <div class="fc-panel-head">
+                        <div><span>PASO 3</span><h4>Lectura de peso</h4></div>
+                        <button class="fc-mode-button" type="button" data-scale-mode onclick="alternarModoPesoFactor('hueso')">Manual</button>
+                    </div>
+                    <div class="fc-weight-target" role="group" aria-label="Tipo de peso">
+                        <button class="active" type="button" data-weight-target="entrada" onclick="seleccionarTipoPesoFactor('hueso','entrada')"><span>Entrada</span><strong data-current-entry>0.000 kg</strong></button>
+                        <button type="button" data-weight-target="salida" onclick="seleccionarTipoPesoFactor('hueso','salida')"><span>Salida</span><strong data-current-exit>0.000 kg</strong></button>
+                    </div>
+                    <div class="fc-scale-shell">
+                        <div class="fc-scale-handle"></div>
+                        <div class="fc-scale-screen"><div class="fc-scale-value" data-scale-value>0.000</div><span>kg</span></div>
+                        <input class="fc-manual-input" data-manual-weight aria-label="Peso manual en kilogramos" type="number" min="0" step="0.001" inputmode="decimal" placeholder="0.000" oninput="actualizarPesoManualFactor('hueso', this.value)" />
+                        <div class="fc-scale-feet"><i></i><i></i></div>
+                    </div>
+                    <div class="fc-scale-status"><span><i></i><b data-scale-status>Modo manual</b></span><button type="button" onclick="abrirConfiguracionBasculaFactor()"><i class="bi bi-gear"></i> Configurar báscula</button></div>
+                    <button class="fc-use-weight" type="button" data-apply-weight onclick="aplicarPesoFactor('hueso')"><i class="bi bi-arrow-down-circle"></i> Usar este peso</button>
+                    <p class="fc-scale-help" role="status" data-scale-help>Selecciona primero un tipo de hueso.</p>
+                </section>
+
+                <aside class="fc-panel fc-preview-panel">
+                    <div class="fc-panel-head"><div><span>SELECCIÓN ACTUAL</span><h4 data-selected-name>Ningún hueso seleccionado</h4></div></div>
+                    <div class="fc-preview-image"><img data-selected-image src="/images/Hueso.png" alt="Hueso seleccionado" /></div>
+                    <dl class="fc-selection-data"><div><dt>Objetivo</dt><dd data-selected-objective>—</dd></div><div><dt>Entrada</dt><dd data-current-entry>0.000 kg</dd></div><div><dt>Salida</dt><dd data-current-exit>0.000 kg</dd></div></dl>
+                </aside>
+            </div>
+
+            <details class="fc-summary" open>
+                <summary><span><i class="bi bi-list-check"></i> Resumen de huesos</span><small>Desliza la tabla para ver todos los pesos</small></summary>
+                <div class="fc-summary-scroll" tabindex="0" role="region" aria-label="Resumen de pesos"><table class="sap-table fc-summary-table"><thead><tr><th>Hueso</th><th>% Obj.</th><th>% Part.</th><th>% Dif.</th><th>Entrada</th><th>Salida</th><th></th></tr></thead><tbody id="tabla-hueso"></tbody></table></div>
+            </details>
+        </div>
+
+        <footer class="modal-footer fc-capture-footer">
+            <span><i class="bi bi-info-circle"></i> Revisa los pesos antes de confirmar la captura.</span>
+            <div><button class="tbtn" type="button" onclick="cerrarModal('modalHueso')">Cancelar</button><button id="btnGuardarTodosHueso" class="tbtn primary" type="button" onclick="prepararConfirmacionFactor('hueso')"><i class="bi bi-check2-circle"></i> Revisar y confirmar</button></div>
+        </footer>
+    </div>
+</div>
+
+<div id="modalRecorte" role="dialog" aria-modal="true" aria-labelledby="fc-title-recorte" class="modal-overlay fc-capture-overlay" data-factor="recorte">
+    <div class="modal-content-sap fc-capture-modal">
+        <header class="fc-capture-head">
+            <div><span class="fc-eyebrow">CALIDAD · FACTOR CRÍTICO</span><h3 id="fc-title-recorte">Captura de recorte</h3><p>Lote <strong id="lote-Recorte"></strong> <span class="badge-sap" id="badge-prueba-recorte"></span></p></div>
+            <button class="fc-icon-button" type="button" onclick="cerrarModal('modalRecorte')" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+        </header>
+
+        <div class="fc-stepper" aria-label="Flujo de captura"><span class="done"><b>1</b> Lote</span><i>→</i><span class="active"><b>2</b> Selección</span><i>→</i><span><b>3</b> Peso</span><i>→</i><span><b>4</b> Confirmar</span></div>
+
+        <div class="modal-body-scroll fc-capture-body">
+            <nav class="fc-factor-switch" aria-label="Cambiar factor">
+                <button type="button" onclick="cambiarFactorCaptura('hueso')"><img src="/images/Hueso.png" alt="" /><span>Hueso</span></button>
+                <button class="active" type="button"><img src="/images/Recorte-80-20.png" alt="" /><span>Recorte</span></button>
+                <button type="button" onclick="cambiarFactorCaptura('grasa')"><img src="/images/Rib con Grasa.jpeg" alt="" /><span>Grasa</span></button>
+            </nav>
+
+            <div class="fc-workstation">
+                <section class="fc-panel fc-catalog-panel">
+                    <div class="fc-panel-head"><div><span>PASO 2</span><h4>Selecciona la receta</h4></div><small>El objetivo cambia con la receta</small></div>
+                    <div id="catalogoRecorte" class="fc-item-grid"><div class="fc-catalog-loading">Cargando recetas…</div></div>
+                </section>
+
+                <section class="fc-panel fc-scale-panel">
+                    <div class="fc-panel-head"><div><span>PASO 3</span><h4>Lectura de peso</h4></div><button class="fc-mode-button" type="button" data-scale-mode onclick="alternarModoPesoFactor('recorte')">Manual</button></div>
+                    <div class="fc-weight-target" role="group" aria-label="Tipo de peso"><button class="active" type="button" data-weight-target="entrada" onclick="seleccionarTipoPesoFactor('recorte','entrada')"><span>Entrada</span><strong data-current-entry>0.000 kg</strong></button><button type="button" data-weight-target="salida" onclick="seleccionarTipoPesoFactor('recorte','salida')"><span>Salida</span><strong data-current-exit>0.000 kg</strong></button></div>
+                    <div class="fc-scale-shell"><div class="fc-scale-handle"></div><div class="fc-scale-screen"><div class="fc-scale-value" data-scale-value>0.000</div><span>kg</span></div><input class="fc-manual-input" data-manual-weight aria-label="Peso manual en kilogramos" type="number" min="0" step="0.001" inputmode="decimal" placeholder="0.000" oninput="actualizarPesoManualFactor('recorte', this.value)" /><div class="fc-scale-feet"><i></i><i></i></div></div>
+                    <div class="fc-scale-status"><span><i></i><b data-scale-status>Modo manual</b></span><button type="button" onclick="abrirConfiguracionBasculaFactor()"><i class="bi bi-gear"></i> Configurar báscula</button></div>
+                    <button class="fc-use-weight" type="button" data-apply-weight onclick="aplicarPesoFactor('recorte')"><i class="bi bi-arrow-down-circle"></i> Usar este peso</button>
+                    <p class="fc-scale-help" role="status" data-scale-help>Selecciona primero una receta.</p>
+                </section>
+
+                <aside class="fc-panel fc-preview-panel"><div class="fc-panel-head"><div><span>SELECCIÓN ACTUAL</span><h4 data-selected-name>Ninguna receta seleccionada</h4></div></div><div class="fc-preview-image"><img data-selected-image src="/images/Recorte-80-20.png" alt="Recorte seleccionado" /></div><dl class="fc-selection-data"><div><dt>Objetivo</dt><dd data-selected-objective>—</dd></div><div><dt>Entrada</dt><dd data-current-entry>0.000 kg</dd></div><div><dt>Salida</dt><dd data-current-exit>0.000 kg</dd></div></dl></aside>
+            </div>
+
+            <details class="fc-summary" open><summary><span><i class="bi bi-list-check"></i> Resumen de recorte</span><small>Desliza la tabla para ver todos los pesos</small></summary><div class="fc-summary-scroll" tabindex="0" role="region" aria-label="Resumen de pesos"><table class="sap-table fc-summary-table"><thead><tr><th>Receta</th><th>% Obj.</th><th>% Part.</th><th>% Dif.</th><th>Entrada</th><th>Salida</th></tr></thead><tbody id="tabla-Recorte"></tbody></table></div></details>
+        </div>
+
+        <footer class="modal-footer fc-capture-footer"><span><i class="bi bi-info-circle"></i> Revisa los pesos antes de confirmar la captura.</span><div><button class="tbtn" type="button" onclick="cerrarModal('modalRecorte')">Cancelar</button><button id="btnGuardarRecorte" class="tbtn primary" type="button" onclick="prepararConfirmacionFactor('recorte')"><i class="bi bi-check2-circle"></i> Revisar y confirmar</button></div></footer>
+    </div>
+</div>
+
+<div id="modalGrasa" role="dialog" aria-modal="true" aria-labelledby="fc-title-grasa" class="modal-overlay fc-capture-overlay" data-factor="grasa">
+    <div class="modal-content-sap fc-capture-modal">
+        <header class="fc-capture-head">
+            <div><span class="fc-eyebrow">CALIDAD · FACTOR CRÍTICO</span><h3 id="fc-title-grasa">Captura de grasa</h3><p>Lote <strong id="lote-Grasa"></strong> <span class="badge-sap" id="badge-prueba-grasa"></span></p></div>
+            <button class="fc-icon-button" type="button" onclick="cerrarModal('modalGrasa')" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+        </header>
+
+        <div class="fc-stepper" aria-label="Flujo de captura"><span class="done"><b>1</b> Lote</span><i>→</i><span class="active"><b>2</b> Selección</span><i>→</i><span><b>3</b> Peso</span><i>→</i><span><b>4</b> Confirmar</span></div>
+
+        <div class="modal-body-scroll fc-capture-body">
+            <nav class="fc-factor-switch" aria-label="Cambiar factor">
+                <button type="button" onclick="cambiarFactorCaptura('hueso')"><img src="/images/Hueso.png" alt="" /><span>Hueso</span></button>
+                <button type="button" onclick="cambiarFactorCaptura('recorte')"><img src="/images/Recorte-80-20.png" alt="" /><span>Recorte</span></button>
+                <button class="active" type="button"><img src="/images/Rib con Grasa.jpeg" alt="" /><span>Grasa</span></button>
+            </nav>
+
+            <div class="fc-workstation">
+                <section class="fc-panel fc-catalog-panel">
+                    <div class="fc-panel-head"><div><span>PASO 2</span><h4>Material a pesar</h4></div><small>Factor único</small></div>
+                    <div id="catalogoGrasa" class="fc-item-grid"><div class="fc-catalog-loading">Preparando captura…</div></div>
+                </section>
+
+                <section class="fc-panel fc-scale-panel">
+                    <div class="fc-panel-head"><div><span>PASO 3</span><h4>Lectura de peso</h4></div><button class="fc-mode-button" type="button" data-scale-mode onclick="alternarModoPesoFactor('grasa')">Manual</button></div>
+                    <div class="fc-weight-target" role="group" aria-label="Tipo de peso"><button class="active" type="button" data-weight-target="entrada" onclick="seleccionarTipoPesoFactor('grasa','entrada')"><span>Entrada</span><strong data-current-entry>0.000 kg</strong></button><button type="button" data-weight-target="salida" onclick="seleccionarTipoPesoFactor('grasa','salida')"><span>Salida</span><strong data-current-exit>0.000 kg</strong></button></div>
+                    <div class="fc-scale-shell"><div class="fc-scale-handle"></div><div class="fc-scale-screen"><div class="fc-scale-value" data-scale-value>0.000</div><span>kg</span></div><input class="fc-manual-input" data-manual-weight aria-label="Peso manual en kilogramos" type="number" min="0" step="0.001" inputmode="decimal" placeholder="0.000" oninput="actualizarPesoManualFactor('grasa', this.value)" /><div class="fc-scale-feet"><i></i><i></i></div></div>
+                    <div class="fc-scale-status"><span><i></i><b data-scale-status>Modo manual</b></span><button type="button" onclick="abrirConfiguracionBasculaFactor()"><i class="bi bi-gear"></i> Configurar báscula</button></div>
+                    <button class="fc-use-weight" type="button" data-apply-weight onclick="aplicarPesoFactor('grasa')"><i class="bi bi-arrow-down-circle"></i> Usar este peso</button>
+                    <p class="fc-scale-help" role="status" data-scale-help>La grasa está lista para pesarse.</p>
+                </section>
+
+                <aside class="fc-panel fc-preview-panel"><div class="fc-panel-head"><div><span>SELECCIÓN ACTUAL</span><h4 data-selected-name>Grasa</h4></div></div><div class="fc-preview-image"><img data-selected-image src="/images/Rib con Grasa.jpeg" alt="Grasa" /></div><dl class="fc-selection-data"><div><dt>Objetivo</dt><dd data-selected-objective>6.5%</dd></div><div><dt>Entrada</dt><dd data-current-entry>0.000 kg</dd></div><div><dt>Salida</dt><dd data-current-exit>0.000 kg</dd></div></dl></aside>
+            </div>
+
+            <details class="fc-summary" open><summary><span><i class="bi bi-list-check"></i> Resumen de grasa</span><small>Desliza la tabla para ver todos los pesos</small></summary><div class="fc-summary-scroll" tabindex="0" role="region" aria-label="Resumen de pesos"><table class="sap-table fc-summary-table"><thead><tr><th>% Obj.</th><th>% Part.</th><th>% Dif.</th><th>Entrada</th><th>Salida</th></tr></thead><tbody id="tabla-Grasa"></tbody></table></div></details>
+        </div>
+
+        <footer class="modal-footer fc-capture-footer"><span><i class="bi bi-info-circle"></i> Revisa los pesos antes de confirmar la captura.</span><div><button class="tbtn" type="button" onclick="cerrarModal('modalGrasa')">Cancelar</button><button id="btnGuardarGrasa" class="tbtn primary" type="button" onclick="prepararConfirmacionFactor('grasa')"><i class="bi bi-check2-circle"></i> Revisar y confirmar</button></div></footer>
+    </div>
+</div>
+
+<div id="modalBasculaFactor" role="dialog" aria-modal="true" aria-label="Configurar báscula" class="modal-overlay fc-dialog-overlay">
+    <div class="modal-content-sap fc-dialog">
+        <header class="fc-dialog-head"><div class="fc-dialog-icon"><i class="bi bi-speedometer2"></i></div><div><span>CONFIGURACIÓN LOCAL</span><h3>Báscula de Factor Crítico</h3><p>Configura la conexión de esta tableta a la báscula.</p></div><button class="fc-icon-button" type="button" onclick="cerrarModal('modalBasculaFactor')" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button></header>
+        <div class="fc-dialog-body"><label>Dirección IP<input id="fcIpBascula" class="sap-input" type="text" placeholder="Ej. 192.168.1.10" /></label><label>Comando<input id="fcComandoBascula" class="sap-input" type="text" placeholder="P" /></label><div class="fc-dialog-note"><i class="bi bi-info-circle"></i><span>Esta configuración se comparte con Inyecciones en este dispositivo.</span></div></div>
+        <footer class="modal-footer"><button class="tbtn" type="button" onclick="cerrarModal('modalBasculaFactor')">Cancelar</button><button class="tbtn primary" type="button" onclick="guardarConfiguracionBasculaFactor()">Guardar configuración</button></footer>
+    </div>
+</div>
+
+<div id="modalConfirmarFactor" role="dialog" aria-modal="true" aria-label="Confirmar captura" class="modal-overlay fc-dialog-overlay">
+    <div class="modal-content-sap fc-dialog fc-confirm-dialog">
+        <header class="fc-dialog-head"><div class="fc-dialog-icon success"><i class="bi bi-clipboard2-check"></i></div><div><span>PASO 4</span><h3>Confirma la captura</h3><p>Revisa los pesos antes de continuar.</p></div><button class="fc-icon-button" type="button" onclick="cerrarModal('modalConfirmarFactor')" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button></header>
+        <div class="fc-dialog-body"><div class="fc-confirm-grid"><div><span>Lote</span><strong id="fcConfirmLote">—</strong></div><div><span>Factor</span><strong id="fcConfirmFactor">—</strong></div><div class="wide"><span>Selección</span><strong id="fcConfirmSeleccion">—</strong></div><div class="weight"><span>Entrada</span><strong id="fcConfirmEntrada">0.000 kg</strong></div><div class="weight"><span>Salida</span><strong id="fcConfirmSalida">0.000 kg</strong></div></div><div class="fc-confirm-note"><i class="bi bi-exclamation-triangle"></i><span>Confirma que el lote, el factor y los pesos sean correctos.</span></div></div>
+        <footer class="modal-footer"><button class="tbtn" type="button" onclick="cerrarModal('modalConfirmarFactor')">Volver a revisar</button><button id="fcBtnConfirmarGuardado" class="tbtn primary" type="button" onclick="confirmarGuardadoFactor()"><i class="bi bi-check2-circle"></i> Confirmar captura</button></footer>
+    </div>
+</div>

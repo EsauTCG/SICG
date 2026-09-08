@@ -5829,6 +5829,150 @@
     width: 100% !important;
     }
     }
+
+
+    /* ============================================================
+       COBRANZA - MODAL DE COMPROMISO DE PAGO
+       ============================================================ */
+    #compromisoPagoModal .modal-dialog {
+        width: min(1120px, 96vw) !important;
+        max-width: min(1120px, 96vw) !important;
+    }
+
+    #compromisoPagoModal .modal-header {
+        background: linear-gradient(180deg, #6f1820 0%, #57141a 58%, #401015 100%) !important;
+        color: #fff !important;
+    }
+
+    #compromisoPagoModal .modal-body {
+        background: #f7f9fa !important;
+        padding: 8px !important;
+    }
+
+    #compromisoPagoModal .cob-alerta {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 7px 9px;
+        margin-bottom: 7px;
+        border: 1px solid #dfa0a7;
+        background: #fdebed;
+        color: #7e1d29;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    #compromisoPagoModal .cob-alerta strong {
+        font-size: 14px;
+        color: #9a1d2b;
+    }
+
+    #compromisoPagoModal .cob-facturas-wrap {
+        max-height: 260px;
+        overflow: auto;
+        border: 1px solid #bdc8ce;
+        background: #fff;
+        margin-bottom: 8px;
+    }
+
+    #compromisoPagoModal .cob-facturas {
+        width: 100% !important;
+        min-width: 820px !important;
+        border-collapse: collapse !important;
+        margin: 0 !important;
+        font-size: 9px !important;
+    }
+
+    #compromisoPagoModal .cob-facturas th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg,#dce4e8,#ccd7dc) !important;
+        color: #25323a !important;
+        border: 1px solid #aebbc3 !important;
+        padding: 5px !important;
+        white-space: nowrap !important;
+    }
+
+    #compromisoPagoModal .cob-facturas td {
+        background: #fff !important;
+        color: #263238 !important;
+        border: 1px solid #ccd5da !important;
+        padding: 4px 5px !important;
+        white-space: nowrap !important;
+    }
+
+    #compromisoPagoModal .cob-facturas .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    #compromisoPagoModal .cob-captura {
+        display: grid;
+        grid-template-columns: 210px minmax(0,1fr) 320px;
+        gap: 8px;
+        align-items: start;
+    }
+
+    #compromisoPagoModal .cob-captura label {
+        display: block;
+        font-size: 9px;
+        font-weight: 800;
+        margin-bottom: 3px;
+        color: #29343a !important;
+    }
+
+    #compromisoPagoModal .cob-captura input,
+    #compromisoPagoModal .cob-captura textarea {
+        width: 100% !important;
+        border: 1px solid #aebbc3 !important;
+        background: #fff !important;
+        color: #222 !important;
+        font-size: 10px !important;
+        border-radius: 2px !important;
+    }
+
+    #compromisoPagoModal .cob-captura textarea {
+        min-height: 72px !important;
+        resize: vertical !important;
+    }
+
+    #compromisoPagoModal .cob-help {
+        margin-top: 3px;
+        color: #68757c !important;
+        font-size: 8.5px;
+    }
+
+    #compromisoPagoModal .cob-error {
+        display: none;
+        margin-top: 7px;
+        padding: 6px 8px;
+        border: 1px solid #d89aa1;
+        background: #fdebed;
+        color: #9d1d2c !important;
+        font-size: 9.5px;
+        font-weight: 700;
+    }
+
+    body[data-theme="dark"] #compromisoPagoModal .modal-body,
+    body[data-theme="dark"] #compromisoPagoModal .cob-facturas td,
+    body[data-theme="dark"] #compromisoPagoModal .cob-captura input,
+    body[data-theme="dark"] #compromisoPagoModal .cob-captura textarea {
+        background: #111827 !important;
+        color: #e5e7eb !important;
+    }
+
+    body[data-theme="dark"] #compromisoPagoModal .cob-captura label {
+        color: #f9fafb !important;
+    }
+
+    @@media (max-width: 850px) {
+        #compromisoPagoModal .cob-captura {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
 </style>
 
 <div class="container-fluid legacy-border ov-page">
@@ -7079,7 +7223,7 @@
         </div>
 
         <div class="content">
-            <form id="formOV" asp-action="GuardarPedido" method="post">
+            <form id="formOV" asp-action="GuardarPedido" method="post" enctype="multipart/form-data">
                 <!-- Encabezado -->
                 <div class="ov-guidance">
                     <div class="ov-guidance-main">
@@ -7939,6 +8083,95 @@
     </div>
 </div>
 
+
+
+<!-- =========================================================
+     MODAL: CLIENTE CON FACTURAS VENCIDAS / COMPROMISO DE PAGO
+     ========================================================= -->
+<div class="modal fade" id="compromisoPagoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Cliente con facturas vencidas - Compromiso de pago
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="cob-alerta">
+                    <div>
+                        El cliente presenta facturas vencidas. Para continuar con la OV debes registrar una
+                        <b>fecha compromiso</b> y un <b>motivo/comentario</b>. La evidencia es opcional.
+                    </div>
+                    <strong id="cobSaldoVencidoTotal">$0.00</strong>
+                </div>
+
+                <div class="cob-facturas-wrap">
+                    <table class="cob-facturas">
+                        <thead>
+                            <tr>
+                                <th>Factura</th>
+                                <th>Fecha factura</th>
+                                <th>Vencimiento</th>
+                                <th class="num">Importe</th>
+                                <th class="num">Pagado</th>
+                                <th class="num">Pendiente</th>
+                                <th class="num">Días vencidos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cobFacturasVencidasBody">
+                            <tr><td colspan="7" class="text-center">Consultando SAP...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="cob-captura">
+                    <div>
+                        <label for="fechaCompromisoPago">Fecha compromiso de pago *</label>
+                        <input type="date"
+                               id="fechaCompromisoPago"
+                               name="fechaCompromisoPago"
+                               form="formOV" />
+                        <div class="cob-help">Debe ser hoy o una fecha futura.</div>
+                    </div>
+
+                    <div>
+                        <label for="motivoCompromisoPago">Motivo / comentario *</label>
+                        <textarea id="motivoCompromisoPago"
+                                  name="motivoCompromisoPago"
+                                  form="formOV"
+                                  maxlength="1000"
+                                  placeholder="Ej. Cliente confirma transferencia el viernes; envía comprobante al realizar el pago."></textarea>
+                        <div class="cob-help">Quedará visible para el área de Cobranza.</div>
+                    </div>
+
+                    <div>
+                        <label for="evidenciaCompromisoPago">Evidencia (opcional)</label>
+                        <input type="file"
+                               id="evidenciaCompromisoPago"
+                               name="evidenciaCompromisoPago"
+                               form="formOV"
+                               accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" />
+                        <div class="cob-help">JPG, PNG, WEBP o PDF. Máximo 8 MB.</div>
+                    </div>
+                </div>
+
+                <div id="cobCompromisoError" class="cob-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnAceptarCompromisoPago">
+                    <i class="bi bi-check2-circle me-1"></i>
+                    Guardar compromiso y continuar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Contenedor global de toasts -->
 <div aria-live="polite" aria-atomic="true"
      class="position-fixed top-0 end-0 p-3" style="z-index:1080">
@@ -8479,14 +8712,15 @@
                 return found;
                 }
 
-                // Cuenta filas válidas: con código y (peso > 0 o cajas > 0)
+                // Cuenta únicamente líneas realmente solicitadas.
+                // Para guardar, Cajas y Peso deben ser ambos mayores a cero.
                 function contarProductosValidos() {
                 let n = 0;
                 $("#productosBody tr").each(function () {
                 const codigo = ($(this).find(".productoCodigo").val() || "").trim();
                 const peso = parseFloat($(this).find(".peso").val()) || 0;
                 const cajas = parseFloat($(this).find(".cajas").val()) || 0;
-                if (codigo && (peso > 0 || cajas > 0)) n++;
+                if (codigo && peso > 0 && cajas > 0) n++;
                 });
                 return n;
                 }
@@ -10723,6 +10957,64 @@
                 actualizarTotales();
                 }
 
+
+                // ==========================================================
+                // VALIDACIÓN DE CANTIDAD ANTES DE GUARDAR
+                // ==========================================================
+                // Una fila precargada con 0 cajas y 0 kg NO es un producto
+                // solicitado y se elimina únicamente al momento de guardar.
+                //
+                // Si el usuario capturó sólo cajas o sólo kg, se bloquea para
+                // evitar que la línea se pierda o llegue inconsistente al servidor.
+                function filasConCantidadIncompleta() {
+                const malas = [];
+
+                $("#productosBody tr").each(function (i) {
+                const $row = $(this);
+                const codigo = ($row.find(".productoCodigo").val() || "").trim();
+
+                if (!codigo) return;
+
+                const peso = parseFloat($row.find(".peso").val()) || 0;
+                const cajas = parseFloat($row.find(".cajas").val()) || 0;
+
+                $row.find(".peso, .cajas").removeClass("is-invalid");
+
+                const pesoPositivo = peso > 0;
+                const cajasPositivas = cajas > 0;
+                const hayNegativo = peso < 0 || cajas < 0;
+
+                if (hayNegativo || (pesoPositivo !== cajasPositivas)) {
+                malas.push(i + 1);
+                $row.find(".peso, .cajas").addClass("is-invalid");
+                }
+                });
+
+                return malas;
+                }
+
+                function quitarProductosSinCantidadAntesDeGuardar() {
+                $("#productosBody tr").each(function () {
+                const $row = $(this);
+
+                const peso = parseFloat($row.find(".peso").val()) || 0;
+                const cajas = parseFloat($row.find(".cajas").val()) || 0;
+
+                // Producto precargado/no solicitado: no debe viajar en el POST.
+                if (peso <= 0 && cajas <= 0) {
+                $row.remove();
+                }
+                });
+
+                if (typeof actualizarIndices === "function") {
+                actualizarIndices();
+                }
+
+                if (typeof actualizarTotales === "function") {
+                actualizarTotales();
+                }
+                }
+
                 function filasConPrecioCero() {
                 const malas = [];
                 $("#productosBody tr").each(function (i) {
@@ -10735,7 +11027,7 @@
 
                 $precio.removeClass("is-invalid");
 
-                if (codigo && (peso > 0 || cajas > 0)) {
+                if (codigo && peso > 0 && cajas > 0) {
                 if (!isFinite(precio) || precio <= 0) {
                 malas.push(i + 1);
                 $precio.addClass("is-invalid");
@@ -10777,75 +11069,255 @@
                 let pendingSubmitAction = null;
                 let pendingSubmitButton = null;
                 let bypassConfirmSubmit = false;
+                let compromisoPagoConfirmado = false;
 
-        $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[type='submit']", function (e) {
-            if (isLoading) return;
-
-            if (!validarSKUsCapturados(true)) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-
-                if (bypassConfirmSubmit) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
+                function cobMoney(v) {
+                    return new Intl.NumberFormat('es-MX', {
+                        style: 'currency',
+                        currency: 'MXN'
+                    }).format(Number(v || 0));
                 }
 
-                e.preventDefault();
-                e.stopPropagation();
+                function cobFecha(v) {
+                    if (!v) return '-';
+                    const d = new Date(v);
+                    if (Number.isNaN(d.getTime())) return '-';
+                    return d.toLocaleDateString('es-MX');
+                }
 
-                pendingSubmitAction = $(this).val();
-                pendingSubmitButton = this;
+                function cobEsc(v) {
+                    return String(v ?? '').replace(/[&<>"']/g, c => ({
+                        '&': '&amp;', '<': '&lt;', '>': '&gt;',
+                        '"': '&quot;', "'": '&#39;'
+                    }[c]));
+                }
 
-                const modalEl = document.getElementById("confirmarGuardarModal");
-                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                modal.show();
+                function mostrarErrorCompromiso(msg) {
+                    const $e = $('#cobCompromisoError');
+                    $e.text(msg || '').toggle(!!msg);
+                }
+
+                async function abrirCompromisoPagoModal() {
+                    const cardCode = ($('#clienteHidden').val() || '').trim();
+                    if (!cardCode) {
+                        alert('Selecciona un cliente primero.');
+                        return;
+                    }
+
+                    compromisoPagoConfirmado = false;
+                    mostrarErrorCompromiso('');
+
+                    const hoy = new Date();
+                    const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+                    $('#fechaCompromisoPago').attr('min', hoyIso);
+
+                    $('#cobFacturasVencidasBody').html(
+                        '<tr><td colspan="7" class="text-center">Consultando facturas vencidas en SAP...</td></tr>'
+                    );
+                    $('#cobSaldoVencidoTotal').text(cobMoney(valNum('#saldoVencidoInput')));
+
+                    const modalEl = document.getElementById('compromisoPagoModal');
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+                    try {
+                        const data = await $.getJSON('/Comercial/ObtenerFacturasVencidasCliente', { cardCode });
+                        if (!data || data.ok === false) throw new Error(data?.mensaje || 'SAP no devolvió información.');
+
+                        const facturas = Array.isArray(data.facturas) ? data.facturas : [];
+                        $('#cobSaldoVencidoTotal').text(cobMoney(data.saldoVencido || 0));
+
+                        if (!facturas.length) {
+                            $('#cobFacturasVencidasBody').html(
+                                '<tr><td colspan="7" class="text-center">SAP no devolvió facturas vencidas abiertas. Vuelve a seleccionar el cliente antes de guardar.</td></tr>'
+                            );
+                            return;
+                        }
+
+                        $('#cobFacturasVencidasBody').html(facturas.map(f => `
+                            <tr>
+                                <td><b>${cobEsc(f.docNum)}</b></td>
+                                <td>${cobFecha(f.fechaFactura)}</td>
+                                <td>${cobFecha(f.fechaVencimiento)}</td>
+                                <td class="num">${cobMoney(f.importe)}</td>
+                                <td class="num">${cobMoney(f.pagado)}</td>
+                                <td class="num"><b>${cobMoney(f.pendiente)}</b></td>
+                                <td class="num">${Number(f.diasVencidos || 0)}</td>
+                            </tr>
+                        `).join(''));
+                    } catch (err) {
+                        console.error('Error obteniendo facturas vencidas:', err);
+                        $('#cobFacturasVencidasBody').html(
+                            '<tr><td colspan="7" class="text-center text-danger">No fue posible consultar las facturas vencidas en SAP. No continúes hasta que la consulta responda correctamente.</td></tr>'
+                        );
+                        mostrarErrorCompromiso(err?.message || 'Error consultando SAP.');
+                    }
+                }
+
+                function abrirConfirmacionGuardar() {
+                    const modalEl = document.getElementById('confirmarGuardarModal');
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
+
+                $(document).on("click", "button[type='submit'][form='formOV'], #formOV button[type='submit']", function (e) {
+                    if (isLoading) return;
+
+                    if (!validarSKUsCapturados(true)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }
+
+                    const filasCantidadIncompleta = filasConCantidadIncompleta();
+                    if (filasCantidadIncompleta.length > 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert(
+                            "No puedes guardar la orden.\n\n" +
+                            "Las siguientes filas tienen Cajas/Peso incompletos o inválidos: " +
+                            filasCantidadIncompleta.join(", ") +
+                            ".\n\nCaptura Cajas y Peso mayores a cero, o deja ambos en 0 para omitir el producto."
+                        );
+                        return false;
+                    }
+
+                    if (contarProductosValidos() === 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert(
+                            "No puedes guardar la orden.\n\n" +
+                            "Debes capturar al menos un producto con Cajas y Peso mayores a cero."
+                        );
+                        return false;
+                    }
+
+                    if (bypassConfirmSubmit) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    pendingSubmitAction = $(this).val();
+                    pendingSubmitButton = this;
+
+                    const esMuestra = !!document.getElementById('chkEsMuestra')?.checked;
+                    const saldoVencido = valNum('#saldoVencidoInput');
+
+                    if (!esMuestra && saldoVencido > 0.01 && !compromisoPagoConfirmado) {
+                        abrirCompromisoPagoModal();
+                        return;
+                    }
+
+                    abrirConfirmacionGuardar();
+                });
+
+                $('#btnAceptarCompromisoPago').on('click', function () {
+                    const fecha = ($('#fechaCompromisoPago').val() || '').trim();
+                    const motivo = ($('#motivoCompromisoPago').val() || '').trim();
+                    const archivo = document.getElementById('evidenciaCompromisoPago')?.files?.[0] || null;
+
+                    if (!fecha) {
+                        mostrarErrorCompromiso('Debes capturar la fecha compromiso de pago.');
+                        $('#fechaCompromisoPago').trigger('focus');
+                        return;
+                    }
+
+                    const hoy = new Date(); hoy.setHours(0,0,0,0);
+                    const fc = new Date(fecha + 'T00:00:00');
+                    if (fc < hoy) {
+                        mostrarErrorCompromiso('La fecha compromiso no puede ser anterior a hoy.');
+                        return;
+                    }
+
+                    if (motivo.length < 5) {
+                        mostrarErrorCompromiso('Captura un motivo/comentario de al menos 5 caracteres.');
+                        $('#motivoCompromisoPago').trigger('focus');
+                        return;
+                    }
+
+                    if (archivo) {
+                        const max = 8 * 1024 * 1024;
+                        const nombre = (archivo.name || '').toLowerCase();
+                        const valido = /\.(jpg|jpeg|png|webp|pdf)$/.test(nombre);
+                        if (!valido) {
+                            mostrarErrorCompromiso('La evidencia debe ser JPG, JPEG, PNG, WEBP o PDF.');
+                            return;
+                        }
+                        if (archivo.size > max) {
+                            mostrarErrorCompromiso('La evidencia no puede superar 8 MB.');
+                            return;
+                        }
+                    }
+
+                    mostrarErrorCompromiso('');
+                    compromisoPagoConfirmado = true;
+
+                    const modalEl = document.getElementById('compromisoPagoModal');
+                    modalEl.addEventListener('hidden.bs.modal', abrirConfirmacionGuardar, { once: true });
+                    bootstrap.Modal.getInstance(modalEl)?.hide();
+                });
+
+                $('#clienteHidden').on('change', function () {
+                    compromisoPagoConfirmado = false;
+                    $('#fechaCompromisoPago').val('');
+                    $('#motivoCompromisoPago').val('');
+                    $('#evidenciaCompromisoPago').val('');
                 });
 
                 $("#btnConfirmarGuardar").on("click", function () {
-                if (!pendingSubmitAction) return;
+                    if (!pendingSubmitAction) return;
 
-                const form = document.getElementById("formOV");
+                    const form = document.getElementById("formOV");
 
-                let hidden = form.querySelector("input[name='accion'].__confirm_submit");
-                if (!hidden) {
-                hidden = document.createElement("input");
-                hidden.type = "hidden";
-                hidden.name = "accion";
-                hidden.className = "__confirm_submit";
-                form.appendChild(hidden);
-                }
+                    let hidden = form.querySelector("input[name='accion'].__confirm_submit");
+                    if (!hidden) {
+                        hidden = document.createElement("input");
+                        hidden.type = "hidden";
+                        hidden.name = "accion";
+                        hidden.className = "__confirm_submit";
+                        form.appendChild(hidden);
+                    }
 
-                hidden.value = pendingSubmitAction;
+                    hidden.value = pendingSubmitAction;
 
-                const modalEl = document.getElementById("confirmarGuardarModal");
-                bootstrap.Modal.getInstance(modalEl)?.hide();
+                    const modalEl = document.getElementById("confirmarGuardarModal");
+                    bootstrap.Modal.getInstance(modalEl)?.hide();
 
-                bypassConfirmSubmit = true;
+                    quitarProductosSinCantidadAntesDeGuardar();
 
-                // Renombrar índices una sola vez antes de guardar, no en cada tecla.
-                if (typeof actualizarIndices === "function") actualizarIndices();
-                if (typeof actualizarTotales === "function") actualizarTotales();
+                    if (contarProductosValidos() === 0) {
+                        bypassConfirmSubmit = false;
+                        alert(
+                            "No puedes guardar la orden.\n\n" +
+                            "Debes capturar al menos un producto con Cajas y Peso mayores a cero."
+                        );
+                        return;
+                    }
 
-                try {
-                if (form.requestSubmit) form.requestSubmit();
-                else form.submit();
-                } finally {
-                setTimeout(() => {
-                bypassConfirmSubmit = false;
-                }, 300);
-                }
+                    bypassConfirmSubmit = true;
+
+                    if (typeof actualizarIndices === "function") actualizarIndices();
+                    if (typeof actualizarTotales === "function") actualizarTotales();
+
+                    try {
+                        if (form.requestSubmit) form.requestSubmit();
+                        else form.submit();
+                    } finally {
+                        setTimeout(() => {
+                            bypassConfirmSubmit = false;
+                        }, 300);
+                    }
                 });
 
                 document.getElementById("confirmarGuardarModal").addEventListener("hidden.bs.modal", function () {
-                pendingSubmitAction = null;
-                pendingSubmitButton = null;
+                    pendingSubmitAction = null;
+                    pendingSubmitButton = null;
 
-                if (!isLoading) {
-                bypassConfirmSubmit = false;
-                }
+                    if (!isLoading) {
+                        bypassConfirmSubmit = false;
+                    }
                 });
 
                 $("#formOV").on("keydown", function (e) {
