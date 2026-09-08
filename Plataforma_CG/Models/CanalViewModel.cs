@@ -12,6 +12,9 @@ namespace Plataforma_CG.Models
         public string Shift { get; set; }
         public string Lot { get; set; }
 
+        public string FotoRealEXT { get; set; }
+        public string FotoRealINT { get; set; }
+
         public bool RevisionRealizada { get; set; }
         public bool? RevisionCorrecta { get; set; }
         public string RevisionHallazgos { get; set; }
