@@ -1,0 +1,162 @@
+﻿@model Plataforma_CG.Models.ObjetivoViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Nuevo Objetivo";
+}
+
+<style>
+    :root {
+        --brand-main: #8b0000;
+        --bg-page: #e9edf2;
+    }
+
+    body {
+        background-color: var(--bg-page) !important;
+    }
+
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(70,12,12,.15);
+    }
+
+    .section-title {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: var(--brand-main);
+        text-transform: uppercase;
+        border-bottom: 2px solid #f1dede;
+        padding-bottom: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #4a4a4a;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <!-- Banner Superior -->
+    <div class="top-banner d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-plus-circle-dotted me-2"></i>Crear Nuevo Objetivo</h3>
+            <p class="mb-0" style="opacity: 0.9; font-size: 0.85rem;">Configura las metas y métricas esperadas para un área.</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Tablero", "Objetivos")" class="btn btn-outline-light fw-bold shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Volver al Tablero
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulario -->
+    <form asp-action="GuardarNuevo" asp-controller="Objetivos" method="post" id="formNuevoObjetivo">
+        <div class="row g-4">
+            <!-- Columna Izquierda: Datos Generales -->
+            <div class="col-md-7">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <h6 class="section-title"><i class=""></i>1. Información General</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="ID_Perfil" class="form-label">Área Responsable (Perfil) *</label>
+                                <select asp-for="ID_Perfil" class="form-select form-select-sm" required>
+                                    <option value="">-- Selecciona el Área --</option>
+                                    @if (ViewBag.Perfiles != null)
+                                    {
+                                        foreach (var p in ViewBag.Perfiles)
+                                        {
+                                            <option value="@p.Id">@p.Nombre</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="ID_Tipo_Objetivo" class="form-label">Tipo de Objetivo / KPI *</label>
+                                <select asp-for="ID_Tipo_Objetivo" class="form-select form-select-sm" required>
+                                    <option value="">-- Selecciona el KPI --</option>
+                                    @if (ViewBag.TiposObjetivo != null)
+                                    {
+                                        foreach (var t in ViewBag.TiposObjetivo)
+                                        {
+                                            <option value="@t.ID">@t.Nombre</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label asp-for="Descripcion_Objetivo" class="form-label">Descripción / Notas (Opcional)</label>
+                                <textarea asp-for="Descripcion_Objetivo" class="form-control form-control-sm" rows="3" placeholder="Detalles específicos sobre cómo se medirá este objetivo..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: Vigencia y Metas -->
+            <div class="col-md-5">
+                <!-- Tarjeta Vigencia -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <h6 class="section-title"><i class=""></i>2. Vigencia y Frecuencia</h6>
+                        <div class="mb-3">
+                            <label asp-for="Tipo_Periodo_Cumplimiento" class="form-label">Frecuencia de Evaluación *</label>
+                            <select asp-for="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm" required>
+                                <option value="SEMANAL">Semanal</option>
+                                <option value="MENSUAL">Mensual</option>
+                                <option value="ANUAL">Anual</option>
+                            </select>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label asp-for="Fecha_Desde" class="form-label">Fecha Inicio *</label>
+                                <input asp-for="Fecha_Desde" type="date" class="form-control form-control-sm" required />
+                            </div>
+                            <div class="col-6">
+                                <label asp-for="Fecha_Hasta" class="form-label">Fecha Fin (Opcional)</label>
+                                <input asp-for="Fecha_Hasta" type="date" class="form-control form-control-sm" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta Valor Esperado -->
+                <div class="card border-0 shadow-sm" style="background-color: #fcf8f8;">
+                    <div class="card-body p-4">
+                        <h6 class="section-title"><i class=""></i>3. Meta Principal</h6>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-5">
+                                <label class="form-label mb-1" style="font-size: 0.75rem;">¿Qué medimos?</label>
+                                <input name="ValoresConfigurados[0].Tipo_Valor" type="text" class="form-control form-control-sm" placeholder="Ej. Porcentaje" required />
+                            </div>
+                            <div class="col-3">
+                                <label class="form-label mb-1" style="font-size: 0.75rem;">Unidad</label>
+                                <input name="ValoresConfigurados[0].Unidad_Medida" type="text" class="form-control form-control-sm" placeholder="Ej. % o KG" required />
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label mb-1" style="font-size: 0.75rem;">Valor Meta *</label>
+                                <input name="ValoresConfigurados[0].Valor_Objetivo" type="number" step="0.01" class="form-control form-control-sm fw-bold text-danger" required />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botonera -->
+        <div class="text-end mt-4">
+            <button type="button" class="btn btn-outline-secondary me-2" onclick="window.history.back();">Cancelar</button>
+            <button type="submit" class="btn btn-danger px-5 fw-bold shadow-sm" style="background-color: var(--brand-main); border-color: var(--brand-main);">
+                <i class="bi bi-save me-1"></i> Guardar Objetivo
+            </button>
+        </div>
+    </form>
+</div>
