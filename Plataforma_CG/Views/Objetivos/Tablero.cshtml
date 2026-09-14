@@ -1,0 +1,212 @@
+﻿@model IEnumerable<Plataforma_CG.Models.ObjetivoViewModel>
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Gestión de Objetivos";
+}
+
+<style>
+    :root {
+        --brand-main: #8b0000;
+        --bg-page: #e9edf2;
+        --border-color: #d8bcbc;
+    }
+
+    body {
+        background-color: var(--bg-page) !important;
+    }
+
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(70,12,12,.15);
+    }
+
+    .filter-bar {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .table-custom th {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 100%) !important;
+        color: white !important;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .table-custom td {
+        vertical-align: middle;
+        font-size: 0.85rem;
+        background: #fff;
+    }
+</style>
+
+<div class="container-fluid py-4">
+
+    <!-- Banner Superior -->
+    <div class="top-banner d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="fw-bold mb-1"><i class=""></i>Gestión de Objetivos</h3>
+            <p class="mb-0" style="opacity: 0.9; font-size: 0.85rem;">Configuración y listado de metas operativas por área.</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Nuevo", "Objetivos")" class="btn btn-light fw-bold text-danger shadow-sm">
+                <i class="bi bi-plus-circle-fill me-1"></i> Crear Nuevo Objetivo
+            </a>
+        </div>
+    </div>
+
+    <!-- Barra de Filtros Inteligentes -->
+    <div class="filter-bar shadow-sm">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Buscar</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="filtroTexto" class="form-control" placeholder="Buscar por KPI, Folio..." />
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Filtrar por Área</label>
+                <select id="filtroArea" class="form-select form-select-sm">
+                    <option value="">Todas las Áreas</option>
+                    @if (ViewBag.Perfiles != null)
+                    {
+                        foreach (var p in ViewBag.Perfiles)
+                        {
+                            <option value="@p.Nombre">@p.Nombre</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Filtrar por Estado</label>
+                <select id="filtroEstado" class="form-select form-select-sm">
+                    <option value="">Todos los Estados</option>
+                    <option value="Activo">Activos</option>
+                    <option value="Inactivo">Inactivos</option>
+                    <option value="Cancelado">Cancelados</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Objetivos -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-custom table-hover mb-0" id="tablaObjetivos">
+                    <thead>
+                        <tr>
+                            <th class="ps-3">ID</th>
+                            <th>Área / Perfil</th>
+                            <th>Tipo de Objetivo</th>
+                            <th>Periodo</th>
+                            <th>Vigencia</th>
+                            <th>Valores Configurados</th>
+                            <th>Estado</th>
+                            <th class="text-center pe-3">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var item in Model)
+                            {
+                                <tr class="fila-objetivo">
+                                    <td class="ps-3 fw-bold text-muted">#@item.ID</td>
+                                    <td class="col-area"><span class="badge bg-secondary">@item.NombrePerfil</span></td>
+                                    <td class="fw-bold text-dark">@item.NombreTipoObjetivo</td>
+                                    <td><i class="bi bi-calendar-range me-1 text-muted"></i>@item.Tipo_Periodo_Cumplimiento</td>
+                                    <td>
+                                        <small class="d-block text-muted">Desde: <strong class="text-dark">@item.Fecha_Desde.ToString("dd/MMM/yyyy")</strong></small>
+                                        <small class="d-block text-muted">Hasta: <strong class="text-dark">@(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</strong></small>
+                                    </td>
+                                    <td>
+                                        @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
+                                        {
+                                            foreach (var val in item.ValoresConfigurados)
+                                            {
+                                                <div class="badge bg-light text-dark border mb-1">
+                                                    @val.Tipo_Valor: @val.Valor_Objetivo @val.Unidad_Medida
+                                                </div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted fst-italic" style="font-size: 0.75rem;">Sin valores</span>
+                                        }
+                                    </td>
+                                    <td class="col-estado">
+                                        @if (item.Estado == "Activo")
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">@item.Estado</span>
+                                        }
+                                    </td>
+                                    <td class="text-center pe-3">
+                                        <button class="btn btn-sm btn-outline-primary" title="Ver Detalles"><i class="bi bi-pencil-square"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr id="filaVacia">
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    Aún no hay objetivos registrados en la base de datos.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Evaluamos cada vez que el usuario teclee o cambie un select
+            $('#filtroTexto, #filtroArea, #filtroEstado').on('input change', function () {
+
+                var textoBuscado = $('#filtroTexto').val().toLowerCase();
+                var areaSeleccionada = $('#filtroArea').val().toLowerCase();
+                var estadoSeleccionado = $('#filtroEstado').val().toLowerCase();
+
+                // Iteramos por cada fila de la tabla
+                $('.fila-objetivo').each(function () {
+                    var $fila = $(this);
+
+                    var textoFila = $fila.text().toLowerCase();
+                    var textoArea = $fila.find('.col-area').text().toLowerCase();
+                    var textoEstado = $fila.find('.col-estado').text().toLowerCase();
+
+                    // Validaciones logicas de filtro
+                    var coincideTexto = textoFila.indexOf(textoBuscado) > -1;
+                    var coincideArea = areaSeleccionada === "" || textoArea.indexOf(areaSeleccionada) > -1;
+                    var coincideEstado = estadoSeleccionado === "" || textoEstado.indexOf(estadoSeleccionado) > -1;
+
+                    if (coincideTexto && coincideArea && coincideEstado) {
+                        $fila.show();
+                    } else {
+                        $fila.hide();
+                    }
+                });
+            });
+        });
+    </script>
+}
