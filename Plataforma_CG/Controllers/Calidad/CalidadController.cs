@@ -170,7 +170,7 @@ namespace Plataforma_CG.Controllers
                             }
                         }
                     }
-                    catch { /* PCC1B_Fotos aún no existe */ }
+                    catch { /* PCC1B_Fotos aún no existe */ } 
 
                     foreach (var canal in listaCanales)
                     {

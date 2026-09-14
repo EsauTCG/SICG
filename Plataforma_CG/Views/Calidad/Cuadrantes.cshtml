@@ -2854,11 +2854,17 @@
                 fd.append('archivo', blob, `foto_${vista}.jpg`);
                 fd.append('canalId', canalId);
                 fd.append('vista', vista);
-                const res = await fetch('/Calidad/SubirFotoCanal', { method: 'POST', body: fd });
-                if (!res.ok) throw new Error('Error de red al subir la foto.');
-                const json = await res.json();
-                if (!json.success) throw new Error(json.message || 'No se pudo guardar la foto.');
-                return json.ruta;
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 30000);
+                try {
+                    const res = await fetch('/Calidad/SubirFotoCanal', { method: 'POST', body: fd, signal: controller.signal });
+                    if (!res.ok) throw new Error(`Error HTTP ${res.status} al subir la foto ${vista}.`);
+                    const json = await res.json();
+                    if (!json.success) throw new Error(json.message || `No se pudo guardar la foto ${vista}.`);
+                    return json.ruta;
+                } finally {
+                    clearTimeout(timer);
+                }
             }
 
             let pendingFoto = { canalId: null, vista: 'EXT', fotos: { EXT: { blob: null, url: null }, INT: { blob: null, url: null } } };
@@ -2918,6 +2924,7 @@ function updateFotoPreview() {
                     for (const vista of ['EXT', 'INT']) {
                         const f = pendingFoto.fotos[vista];
                         if (f.blob) {
+                            toast(`Subiendo foto ${vista}...`, 'info');
                             const ruta = await subirFotoBlob(c.id, vista, f.blob);
                             f.url = ruta;
                         }
@@ -2926,8 +2933,10 @@ function updateFotoPreview() {
                     c.fotoRealINT = pendingFoto.fotos.INT.url;
                     finalizarEntradaInspeccion(c);
                 } catch (err) {
-                    toast(err.message || 'Error al guardar las fotos.', 'danger');
+                    console.error('Error subiendo fotos:', err);
+                    toast(err.message || 'Error al guardar las fotos. Verifique la conexión y vuelva a intentar.', 'danger');
                     boton.disabled = false;
+                    boton.textContent = 'Usar fotos y continuar';
                     updateModalEstados();
                 }
             }
@@ -3662,7 +3671,6 @@ function updateFotoPreview() {
                                 return toast('Especifique los hallazgos y cuadrantes omitidos.', 'warning');
                             }
 
-                            // ... (El resto del codigo hacia abajo se queda exactamente igual) ...
 
                     // Combinamos la vista con los cuadrantes para guardar un solo texto claro
                     const cuadrantesFinales = cuadrantesRaw ? `${vista} (Cuad: ${cuadrantesRaw})` : '';
@@ -3706,7 +3714,7 @@ function updateFotoPreview() {
             const mobileNavButtons=$$('.mobile-nav [data-step]');
             mobileNavButtons.forEach(button=>button.addEventListener('click',()=>setStep(+button.dataset.step)));
 
-            if('IntersectionObserver' in window){
+            if('IntersectionObserver' in window){  
                 const navObserver=new IntersectionObserver(entries=>{
                     const visible=entries.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
                     if(!visible) return;
