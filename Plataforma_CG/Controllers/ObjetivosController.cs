@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Plataforma_CG.Models;
@@ -76,38 +77,40 @@ namespace Plataforma_CG.Controllers
            
             return View(listaObjetivos);
         }
+
+
+
         [HttpGet]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
-            try
+            using (var conn = new SqlConnection(connectionString))
             {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    await conn.OpenAsync();
+                await conn.OpenAsync();
 
-                    // Cargamos los catálogos para los menús desplegables (Dropdowns)
-                    // Nota: Si la tabla Perfiles se llama diferente, ajusta la consulta
-                    ViewBag.Perfiles = await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles");
+                ViewBag.Perfiles = await conn.QueryAsync(
+                    "SELECT Id, Nombre FROM dbo.Perfiles"
+                );
 
-                    // Usamos TRY CATCH interno por si la tabla Tipo_Objetivo aun está vacía o no existe
-                    try
-                    {
-                        ViewBag.TiposObjetivo = await conn.QueryAsync("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1");
-                    }
-                    catch
-                    {
-                        ViewBag.TiposObjetivo = new List<dynamic>();
-                    }
-                }
+                var tipoObjetivo = await conn.QueryAsync<TipoObjetivoViewModel>(
+                    "SELECT ID, Nombre, Descripcion, Activo FROM dbo.Tipo_Objetivo WHERE Activo = 1"
+                );
+
+                ViewBag.TiposObjetivo = tipoObjetivo;
+
+                ViewBag.Clientes = await conn.QueryAsync(
+                    "SELECT Cliente, Nombrecliente FROM dbo.ClienteSap ORDER BY Nombrecliente"
+                );
+
+                ViewBag.Vendedores = await conn.QueryAsync(
+                    "SELECT Id, Nombre FROM dbo.UsuarioSQL where EsVendedor = 1 ORDER  By Nombre"
+                );
+
+                ViewBag.Articulos = await conn.QueryAsync(
+                    "SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
             }
-            catch (Exception ex)
-            {
-                ModelState.AddModelError("", "Error al cargar catálogos: " + ex.Message);
-            }
 
-            // Inicializamos el modelo con la fecha de hoy por defecto
             var modeloNuevo = new ObjetivoViewModel
             {
                 Fecha_Desde = DateTime.Today
@@ -116,87 +119,143 @@ namespace Plataforma_CG.Controllers
             return View(modeloNuevo);
         }
 
+
+
         [HttpPost]
         public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString =
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
 
-                    // 1. Insertamos el Objetivo (Cabecera) y recuperamos el ID generado
                     string sqlObjetivo = @"
-                        INSERT INTO dbo.Objetivos (
-                            ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento, 
-                            Fecha_Desde, Fecha_Hasta, Descripcion_Objetivo, 
-                            Estado, UsuarioID_Creacion, Fecha_Creacion
-                        ) 
-                        VALUES (
-                            @ID_Perfil, @ID_Tipo_Objetivo, @Tipo_Periodo_Cumplimiento, 
-                            @Fecha_Desde, @Fecha_Hasta, @Descripcion_Objetivo, 
-                            'Activo', @UsuarioCreacion, GETDATE()
-                        );
-                        
-                        -- Recupera el ID recién insertado
-                        SELECT CAST(SCOPE_IDENTITY() as int);";
+                        INSERT INTO dbo.Objetivos
+                            (
+	                            ID_Perfil,
+	                            ID_Tipo_Objetivo,
+	                            Tipo_Periodo_Cumplimiento,
+	                            Fecha_Desde,
+	                            Fecha_Hasta,
+	                            Proveedor,
+	                            ID_Cliente,
+	                            UsuarioID_Vendedor,
+	                            SKU,
+	                            CC,
+	                            LINEA,
+	                            Descripcion_Objetivo,
+	                            Estado,
+	                            UsuarioID_Creacion,
+	                            Fecha_Creacion
+                            )
+                            VALUES
+                            (
+	                            @ID_Perfil,
+                                @ID_Tipo_Objetivo,
+                                @Tipo_Periodo_Cumplimiento,
+                                @Fecha_Desde,
+                                @Fecha_Hasta,
+                                @Proveedor,
+                                @ID_Cliente,
+                                @UsuarioID_Vendedor,
+                                @SKU,
+                                @CC,
+                                @LINEA,
+                                @Descripcion_Objetivo,
+                                'Activo',
+                                @UsuarioID_Creacion,
+                                GETDATE()
 
-                    var parametrosObjetivo = new
+                            );
+
+                            SELECT CAST(SCOPE_IDENTITY() AS INT);";
+                    var parametrosObjetivos = new
                     {
                         modelo.ID_Perfil,
                         modelo.ID_Tipo_Objetivo,
                         modelo.Tipo_Periodo_Cumplimiento,
                         modelo.Fecha_Desde,
                         modelo.Fecha_Hasta,
+
+                        modelo.Proveedor,
+
+                        modelo.ID_Cliente,
+                        modelo.UsuarioID_Vendedor,
+                        modelo.SKU,
+                        modelo.CC,
+
+                        LINEA = modelo.Linea,
+
                         modelo.Descripcion_Objetivo,
 
-                        // NOTA: Aquí puse 1 por defecto, pero puedes cambiarlo por el ID de sesión de tu usuario
-                        UsuarioCreacion = 1
+                        //Temporalmente usamos mi usuario luego se cambia al autenticado automatico
+
+                        UsuarioID_Creacion = 2060
                     };
 
-                    // Ejecutamos la consulta y guardamos el nuevo ID en una variable
-                    int nuevoObjetivoId = await conn.QuerySingleAsync<int>(sqlObjetivo, parametrosObjetivo);
-
-                    // 2. Insertamos la Meta (Detalle en Objetivo_Valor)
-                    if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
+                    int nuevoObjetivoID =
+                        await conn.QuerySingleAsync<int>(
+                            sqlObjetivo,
+                            parametrosObjetivos
+                        );
+                    if (modelo.ValoresConfigurados != null &&
+                        modelo.ValoresConfigurados.Any())
                     {
-                        var valorMeta = modelo.ValoresConfigurados.First(); // Tomamos la meta que viene del formulario
-
                         string sqlValor = @"
-                            INSERT INTO dbo.Objetivo_Valor (
-                                ID_Objetivo, Tipo_Valor, Unidad_Medida, Valor_Objetivo
-                            ) VALUES (
-                                @ID_Objetivo, @Tipo_Valor, @Unidad_Medida, @Valor_Objetivo
+                            INSERT INTO dbo.Objetivo_Valor
+                            (
+                                ID_Objetivo,
+                                Tipo_Valor,
+                                Unidad_Medida,
+                                Valor_Minimo,
+                                Valor_Maximo,
+                                Valor_Objetivo
+                            )
+                            VALUES
+                            (
+                                @ID_Objetivo,
+                                @Tipo_Valor,
+                                @Unidad_Medida,
+                                @Valor_Minimo,
+                                @Valor_Maximo,
+                                @Valor_Objetivo
                             )";
 
-                        var parametrosValor = new
+                        foreach (var valor in modelo.ValoresConfigurados)
                         {
-                            ID_Objetivo = nuevoObjetivoId, // Usamos el ID que acabamos de recuperar
-                            valorMeta.Tipo_Valor,
-                            valorMeta.Unidad_Medida,
-                            valorMeta.Valor_Objetivo
-                        };
+                            var parametrosValor = new
+                            {
+                                ID_Objetivo = nuevoObjetivoID,
+                                valor.Tipo_Valor,
+                                valor.Unidad_Medida,
+                                valor.Valor_Minimo,
+                                valor.Valor_Maximo,
+                                valor.Valor_Objetivo
+                            };
 
-                        await conn.ExecuteAsync(sqlValor, parametrosValor);
+                            await conn.ExecuteAsync(sqlValor, parametrosValor);
+                        }
                     }
-                }
 
-                // 3. Si todo salió bien, redirigimos de vuelta a la tabla
-                return RedirectToAction("Tablero");
+                    return Json(new
+                    {
+                        mensaje = "Objetivo y valores creados correctamente",
+                        id = nuevoObjetivoID,
+                        cantidadValores = modelo.ValoresConfigurados?.Count ?? 0
+                    });
+                }
             }
+
             catch (Exception ex)
             {
-                // Si algo falla, recargamos los catálogos y devolvemos la vista con el error
-                ModelState.AddModelError("", "Ocurrió un error al guardar: " + ex.Message);
-
-                using (var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
-                {
-                    ViewBag.Perfiles = conn.Query("SELECT Id, Nombre FROM dbo.Perfiles");
-                    try { ViewBag.TiposObjetivo = conn.Query("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1"); }
-                    catch { ViewBag.TiposObjetivo = new List<dynamic>(); }
-                }
+                ModelState.AddModelError(
+                    "",
+                    "Ocurrió un error al guardar: " + ex.Message
+                );
 
                 return View("Nuevo", modelo);
             }
