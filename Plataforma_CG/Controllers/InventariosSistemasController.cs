@@ -1049,22 +1049,10 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _context.UsuarioSQL
-                join p in _context.Perfiles on u.PerfilId equals p.Id
-                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "MODULOIPS"
-                      && ppm.Activo
-                      && m.Activo
-                select new { ppm.PuedeLeer, ppm.PuedeEscribir, ppm.PuedeEliminar }
-            ).FirstOrDefaultAsync();
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "MODULOIPS");
 
-            if (permiso == null)
-                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
-
-            return Json(new { puedeLeer = permiso.PuedeLeer, puedeEscribir = permiso.PuedeEscribir, puedeEliminar = permiso.PuedeEliminar });
+            return Json(new { puedeLeer = puedeLeer, puedeEscribir = puedeEscribir, puedeEliminar = puedeEliminar });
         }
 
         // =========================================================================================
@@ -1625,31 +1613,14 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _context.UsuarioSQL
-                join p in _context.Perfiles on u.PerfilId equals p.Id
-                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "INVENTARIOSISTEMAS"
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "INVENTARIOSISTEMAS");
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
 
@@ -2284,38 +2255,14 @@ END;";
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _context.UsuarioSQL
-                join p in _context.Perfiles on u.PerfilId equals p.Id
-                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == MODULO_COMPRAS_TI
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-            {
-                return Json(new
-                {
-                    puedeLeer = false,
-                    puedeEscribir = false,
-                    puedeEliminar = false
-                });
-            }
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, MODULO_COMPRAS_TI);
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
 

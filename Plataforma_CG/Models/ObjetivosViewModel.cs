@@ -12,12 +12,12 @@ namespace Plataforma_CG.Models
         public string Tipo_Periodo_Cumplimiento { get; set; }
         public DateTime Fecha_Desde { get; set; }
         public DateTime? Fecha_Hasta { get; set; }
-        public int? ID_Proveedor { get; set; }
-        public string ID_Cliente { get; set; }
+        public string? Proveedor { get; set; }
+        public string? ID_Cliente { get; set; }
         public int? UsuarioID_Vendedor { get; set; }
-        public string SKU { get; set; }
-        public string CC { get; set; }
-        public string Linea { get; set; }
+        public string? SKU { get; set; }
+        public string? CC { get; set; }
+        public string? Linea { get; set; }
         public string Descripcion_Objetivo { get; set; }
         public string Estado { get; set; }
         public int UsuarioID_Creacion { get; set; }
@@ -26,6 +26,7 @@ namespace Plataforma_CG.Models
         public DateTime? Fecha_Modificacion { get; set; }
         public int? UsuarioID_Aprueba { get; set; }
         public DateTime? Fecha_Aprueba { get; set; }
+        public string LINEA { get; set; }
 
         // Propiedades extendidas para las vistas (JOINs)
         public string NombrePerfil { get; set; }
