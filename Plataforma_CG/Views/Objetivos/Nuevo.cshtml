@@ -1,0 +1,502 @@
+﻿@model Plataforma_CG.Models.ObjetivoViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Nuevo Objetivo";
+
+    // Obtenemos los datos de sesion para filtrar la vista
+    bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+    string miPerfilId = User.FindFirst("PerfilId")?.Value;
+}
+
+<style>
+    :root {
+        --brand-main: #8b0000;
+        --bg-page: #e9edf2;
+    }
+
+    body {
+        background-color: var(--bg-page) !important;
+    }
+
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        color: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(70,12,12,.15);
+    }
+
+    .section-title {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: var(--brand-main);
+        text-transform: uppercase;
+        border-bottom: 2px solid #f1dede;
+        padding-bottom: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #4a4a4a;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <!-- Banner Superior -->
+    <div class="top-banner d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-plus-circle-dotted me-2"></i>Crear Nuevo Objetivo</h3>
+            <p class="mb-0" style="opacity: 0.9; font-size: 0.85rem;">Configura las metas y métricas esperadas para un área.</p>
+        </div>
+        <div>
+            <a href="@Url.Action("Tablero", "Objetivos")" class="btn btn-outline-light fw-bold shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Volver al Tablero
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulario -->
+    <form asp-action="GuardarNuevo" asp-controller="Objetivos" method="post" id="formNuevoObjetivo">
+        <div asp-validation-summary="All" class="alert alert-danger py-2" style="font-size: 0.85rem;"></div>
+
+        <div class="row g-3">
+
+            <!-- PERFIL (Filtrado por Rol) -->
+            <div class="col-md-6">
+                <label asp-for="ID_Perfil" class="form-label">
+                    Perfil *
+                </label>
+
+                <select asp-for="ID_Perfil" class="form-select form-select-sm" id="comboArea" required>
+                    @if (esAdmin)
+                    {
+                        <option value="">-- Selecciona el perfil --</option>
+                    }
+
+                    @if (ViewBag.Perfiles != null)
+                    {
+                        foreach (var p in ViewBag.Perfiles)
+                        {
+                            // Solo muestra el perfil si es Admin, o si el ID coincide con el del usuario logueado
+                            if (esAdmin || p.Id.ToString() == miPerfilId)
+                            {
+                                if (!esAdmin)
+                                {
+                                    <option value="@p.Id" selected>@p.Nombre</option>
+                                }
+                                else
+                                {
+                                    <option value="@p.Id">@p.Nombre</option>
+                                }
+                            }
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- Tipo de Objetivo con Boton para Modal -->
+            <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label asp-for="ID_Tipo_Objetivo" class="form-label mb-0">Tipo de Objetivo *</label>
+                    @if (ViewBag.PuedeEliminarObjetivos == true)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoKpi" style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
+                            <i class="bi bi-plus-lg"></i> Crear KPI
+                        </button>
+                    }
+                </div>
+
+                <select asp-for="ID_Tipo_Objetivo" class="form-select form-select-sm" id="tipoObjetivo" required disabled>
+                    <option value="">-- Esperando área... --</option>
+                </select>
+            </div>
+
+
+            <!-- PERIODO DE CUMPLIMIENTO -->
+            <div class="col-md-4">
+                <label asp-for="Tipo_Periodo_Cumplimiento" class="form-label">
+                    Periodo de cumplimiento
+                </label>
+
+                <select asp-for="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm">
+                    <option value="">Seleccione un periodo</option>
+                    <option value="Diario">Diario</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Mensual">Mensual</option>
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Anual">Anual</option>
+                </select>
+            </div>
+
+            <!-- Fecha desde -->
+            <div class="col-md-4">
+                <label asp-for="Fecha_Desde" class="form-label">Fecha Desde</label>
+                <input asp-for="Fecha_Desde" type="date" class="form-control form-control-sm" />
+            </div>
+
+            <!-- Fecha hasta -->
+            <div class="col-md-4">
+                <label asp-for="Fecha_Hasta" class="form-label">Fecha Hasta</label>
+                <input asp-for="Fecha_Hasta" type="date" class="form-control form-control-sm" />
+            </div>
+
+            <!-- CLIENTE -->
+            <div class="col-md-6">
+                <label asp-for="ID_Cliente" class="form-label">Cliente</label>
+                <select asp-for="ID_Cliente" class="form-select form-select-sm" id="cliente">
+                    <option value="">-- Selecciona un Cliente --</option>
+                    @if (ViewBag.Clientes != null)
+                    {
+                        foreach (var c in ViewBag.Clientes)
+                        {
+                            <option value="@c.Cliente">@c.Nombrecliente</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- VENDEDOR -->
+            <div class="col-md-6">
+                <label asp-for="UsuarioID_Vendedor" class="form-label">Vendedor</label>
+                <select asp-for="UsuarioID_Vendedor" class="form-select form-select-sm" id="vendedor">
+                    <option value="">-- Selecciona un Vendedor --</option>
+                    @if (ViewBag.Vendedores != null)
+                    {
+                        foreach (var v in ViewBag.Vendedores)
+                        {
+                            if (ViewBag.MiUsuarioId != null && v.Id.ToString() == ViewBag.MiUsuarioId.ToString())
+                            {
+                                <option value="@v.Id" selected>@v.Nombre</option>
+                            }
+                            else
+                            {
+                                <option value="@v.Id">@v.Nombre</option>
+                            }
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- PROVEEDOR -->
+            <div class="col-md-6">
+                <label asp-for="Proveedor" class="form-label">Proveedor</label>
+                <input asp-for="Proveedor" class="form-control form-control-sm" placeholder="Proveedor" />
+            </div>
+
+            <!-- SKU -->
+            <div class="col-md-6">
+                <label asp-for="SKU" class="form-label">SKU</label>
+                <select asp-for="SKU" class="form-select form-select-sm" id="sku">
+                    <option value="">-- Selecciona un SKU --</option>
+                    @if (ViewBag.Articulos != null)
+                    {
+                        foreach (var a in ViewBag.Articulos)
+                        {
+                            <option value="@a.ProductoCodigo">@a.ProductoCodigo - @a.ProductoNombre</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- CENTRO DE COSTOS -->
+            <div class="col-md-6">
+                <label asp-for="CC" class="form-label">Centro de Costos</label>
+                <input asp-for="CC" class="form-control form-control-sm" placeholder="Centro de costos" />
+            </div>
+
+            <!-- LINEA -->
+            <div class="col-md-6">
+                <label asp-for="Linea" class="form-label">Línea</label>
+                <input asp-for="Linea" class="form-control form-control-sm" placeholder="Línea" />
+            </div>
+
+            <!-- DESCRIPCIÓN -->
+            <div class="col-12">
+                <label asp-for="Descripcion_Objetivo" class="form-label">Descripción / Notas</label>
+                <textarea asp-for="Descripcion_Objetivo" class="form-control form-control-sm" rows="3" placeholder="Detalles específicos sobre cómo se medirá este objetivo..."></textarea>
+            </div>
+        </div>
+
+        <!-- SECCION META / VALORES -->
+        <div class="mt-4">
+            <div class="section-title">Metas / Valores</div>
+            <div id="valoresContainer">
+                <!-- FILA DE VALORES -->
+                <div class="row g-2 align-items-end valor-row mb-2">
+                    <div class="col-md-3">
+                        <label class="form-label">¿Qué medimos?</label>
+                        <input type="text" name="ValoresConfigurados[0].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Unidad</label>
+                        <input type="text" name="ValoresConfigurados[0].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Mínimo</label>
+                        <input type="number" name="ValoresConfigurados[0].Valor_Minimo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Máximo</label>
+                        <input type="number" name="ValoresConfigurados[0].Valor_Maximo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Objetivo</label>
+                        <input type="number" name="ValoresConfigurados[0].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" required />
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor" title="Eliminar valor">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agregar valor -->
+            <div class="mt-3">
+                <button type="button" id="btnAgregarValor" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-plus-circle me-1"></i> Agregar valor
+                </button>
+            </div>
+        </div>
+
+        <!-- Botonera -->
+        <div class="mt-4 d-flex justify-content-end gap-2">
+            <a asp-action="Tablero" asp-controller="Objetivos" class="btn btn-secondary">
+                <i class="bi bi-x-circle me-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-save me-1"></i> Guardar Objetivo
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal para Crear Nuevo KPI -->
+<div class="modal fade" id="modalNuevoKpi" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h6 class="modal-title fw-bold"><i class="bi bi-graph-up-arrow me-2"></i>Registrar Nuevo KPI</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Área del KPI *</label>
+                    <select id="kpiPerfil" class="form-select form-select-sm" required>
+                        @if (esAdmin)
+                        {
+                            <option value="">-- Selecciona el área --</option>
+                        }
+
+                        @if (ViewBag.Perfiles != null)
+                        {
+                            foreach (var p in ViewBag.Perfiles)
+                            {
+                                if (esAdmin || p.Id.ToString() == miPerfilId)
+                                {
+                                    if (!esAdmin)
+                                    {
+                                        <option value="@p.Id" selected>@p.Nombre</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@p.Id">@p.Nombre</option>
+                                    }
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Nombre del Indicador *</label>
+                    <input type="text" id="kpiNombre" class="form-control form-control-sm" placeholder="Ej. Rotación de Personal" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Descripción de lo que mide</label>
+                    <textarea id="kpiDesc" class="form-control form-control-sm" rows="2" placeholder="Opcional..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm fw-bold" id="btnGuardarKpi">
+                    <i class="bi bi-save me-1"></i> Guardar y Usar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Carga de KPIs segun el Area seleccionada
+            $('#comboArea').change(function () {
+                var areaId = $(this).val();
+                var $comboKpi =$('#tipoObjetivo');
+
+                $comboKpi.empty().append('<option value="">-- Selecciona el Tipo --</option>').prop('disabled', true);
+
+                if (areaId) {
+                    $.getJSON('@Url.Action("ObtenerKpisPorArea", "Objetivos")', { idPerfil: areaId }, function (data) {
+                        if (data && data.length > 0) {
+                            $.each(data, function (index, item) {
+                                // Usamos item.Valor y item.Texto segun retorna el controlador
+                                $comboKpi.append($('<option/>', { value: item.Valor, text: item.Texto }));
+                            });
+                            $comboKpi.prop('disabled', false);
+                        } else {
+                            $comboKpi.empty().append('<option value="">No hay KPIs para esta área</option>');
+                        }
+                    });
+                } else {
+                    $comboKpi.empty().append('<option value="">-- Esperando área... --</option>');
+                }
+            });
+
+            // Dispara el evento al inicio por si el area ya viene seleccionada (usuarios sin permisos de Admin)
+            if ($('#comboArea').val()) {
+                $('#comboArea').trigger('change');
+            }
+
+            // Logica para crear KPI en tiempo real (AJAX)
+            $('#btnGuardarKpi').click(function () {
+                var idPerfil = $('#kpiPerfil').val();
+                var nombre = $('#kpiNombre').val();
+                var desc = $('#kpiDesc').val();
+
+                if (!idPerfil || !nombre) {
+                    alert("Por favor, selecciona un área y escribe el nombre del KPI.");
+                    return;
+                }
+
+                var $btn = $(this);$btn.html('<i class="spinner-border spinner-border-sm"></i> Guardando...').prop('disabled', true);
+
+                $.post('@Url.Action("CrearTipoObjetivo", "Objetivos")', {
+                    idPerfil: idPerfil,
+                    nombre: nombre,
+                    descripcion: desc
+                }, function (response) {
+                    if (response.success) {
+                        $('#kpiNombre').val('');
+                        $('#kpiDesc').val('');
+                        $('#modalNuevoKpi').modal('hide');
+
+                        // Si el area en la que se creo es la misma que la del formulario principal, lo agregamos
+                        if ($('#comboArea').val() == idPerfil) {
+                            $('#tipoObjetivo').append($('<option/>', { value: response.id, text: response.nombre }));$('#tipoObjetivo').val(response.id).prop('disabled', false);
+                        } else {
+                            alert("KPI creado exitosamente.");
+                        }
+
+                    } else {
+                        alert("Error al guardar: " + response.message);
+                    }
+                }).always(function() {
+                    $btn.html('<i class="bi bi-save me-1"></i> Guardar y Usar').prop('disabled', false);
+                });
+            });
+
+            // Carga dinamica de clientes segun el vendedor seleccionado
+            function cargarClientesPorVendedor(idVendedor) {
+                var $comboCliente = $('#cliente');
+                $comboCliente.empty().append('<option value="">Cargando clientes...</option>');
+                $.getJSON('@Url.Action("ObtenerClientesPorVendedor", "Objetivos")', { idVendedor: idVendedor }, function (data) {
+                    $comboCliente.empty().append('<option value="">-- Selecciona un Cliente --</option>');
+                    if (data && data.length > 0) {
+                        $.each(data, function (index, item) {
+                            $comboCliente.append($('<option/>', { value: item.Cliente, text: item.Nombrecliente }));
+                        });
+                    } else {
+                        $comboCliente.append('<option value="">No hay clientes para este vendedor</option>');
+                    }
+                });
+            }
+
+            $('#vendedor').change(function () {
+                cargarClientesPorVendedor($(this).val() || 0);
+            });
+
+            // Al iniciar, si ya viene un vendedor preseleccionado, cargar sus clientes
+            if ($('#vendedor').val()) {
+                $('#vendedor').trigger('change');
+            }
+        });
+
+        // Logica de Filas Dinamicas
+        let indiceValor = 1;
+
+        function renumerarValores(){
+            const filas = document.querySelectorAll(".valor-row");
+
+            filas.forEach((fila, indice) => {
+                const inputs = fila.querySelectorAll("input");
+                inputs.forEach(input => {
+                    const nombre = input.name;
+                    if (!nombre) return;
+                    input.name = nombre.replace(
+                        /ValoresConfigurados\[\d+\]/,
+                        `ValoresConfigurados[${indice}]`
+                    );
+                });
+            });
+
+            indiceValor = filas.length;
+        }
+
+        document.getElementById("btnAgregarValor").addEventListener("click", function () {
+            const container = document.getElementById("valoresContainer");
+            const nuevaFila = document.createElement("div");
+
+            nuevaFila.className = "row g-2 align-items-end valor-row mb-2";
+
+            nuevaFila.innerHTML = `
+                <div class="col-md-3">
+                    <label class="form-label">¿Qué medimos?</label>
+                    <input type="text" name="ValoresConfigurados[${indiceValor}].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Unidad</label>
+                    <input type="text" name="ValoresConfigurados[${indiceValor}].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Mínimo</label>
+                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Minimo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Máximo</label>
+                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Maximo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Objetivo</label>
+                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" required />
+                </div>
+                <div class='col-md-1'>
+                    <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor" title="Eliminar valor">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `;
+
+            container.appendChild(nuevaFila);
+            indiceValor++;
+        });
+
+        document.getElementById("valoresContainer").addEventListener("click", function (e) {
+            const botonEliminar = e.target.closest(".btn-eliminar-valor");
+
+            if(!botonEliminar) return;
+
+            const filas = document.querySelectorAll(".valor-row");
+
+            // Mantener al menos una fila
+            if (filas.length <= 1) return;
+
+            botonEliminar.closest(".valor-row").remove();
+            renumerarValores();
+        });
+    </script>
+}

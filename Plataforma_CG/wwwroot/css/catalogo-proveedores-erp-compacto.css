@@ -1,0 +1,1031 @@
+/* ==========================================================================
+   CATÁLOGO DE PROVEEDORES — ERP TINTO / POPPINS / COMPACTO
+   - conserva AJAX, filtros, paginación, Excel, sincronización SAP y modal
+   - filtros en una sola línea en escritorio
+   - sin scroll horizontal de toda la página
+   - tabla con scroll interno
+   - títulos legibles: tinto = blanco, gris = negro
+   - texto compacto pero no demasiado pequeño
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --cp-bg: #eef2f4;
+    --cp-panel: #ffffff;
+    --cp-panel2: #f7f9fa;
+    --cp-line: #bec9cf;
+    --cp-line-soft: #d7dfe3;
+    --cp-text: #30373b;
+    --cp-muted: #66747c;
+
+    --cp-tinto: #7a2029;
+    --cp-tinto-dark: #5e1820;
+    --cp-tinto-deep: #351014;
+    --cp-tinto-soft: #f4e8ea;
+
+    --cp-green: #25824d;
+    --cp-green-dark: #1c633a;
+    --cp-blue: #45657d;
+    --cp-blue-soft: #eaf0f4;
+    --cp-red: #a22e3a;
+    --cp-red-soft: #f7e5e7;
+    --cp-amber: #9c7318;
+    --cp-amber-soft: #f8f0dc;
+}
+
+@media screen {
+
+    /* ======================================================================
+       FUENTE / CONTENCIÓN GENERAL
+       ====================================================================== */
+
+    #catalogoProveedoresApp,
+    #catalogoProveedoresApp *,
+    #detailModal,
+    #detailModal * {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        box-sizing: border-box !important;
+    }
+
+    #catalogoProveedoresApp .bi,
+    #catalogoProveedoresApp .bi::before,
+    #detailModal .bi,
+    #detailModal .bi::before {
+        font-family: "bootstrap-icons" !important;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) {
+        background: var(--cp-bg) !important;
+    }
+
+    body:has(#catalogoProveedoresApp) .layout-main-content,
+    body:has(#catalogoProveedoresApp) .layout-container-fluid {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(#catalogoProveedoresApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(#catalogoProveedoresApp) .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(#catalogoProveedoresApp) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp.supplier-window {
+        width: calc(100% - 8px) !important;
+        max-width: calc(100% - 8px) !important;
+        min-width: 0 !important;
+
+        height: calc(100dvh - 66px) !important;
+        min-height: 560px !important;
+
+        margin: 4px auto 8px !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        background: var(--cp-bg) !important;
+
+        border: 0 !important;
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    /* ======================================================================
+       HEADER
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-header {
+        min-height: 43px !important;
+        height: 43px !important;
+
+        margin: 0 0 4px !important;
+        padding: 5px 8px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+        color: #fff !important;
+
+        border: 1px solid #351014 !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title {
+        min-width: 0 !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title-icon {
+        width: 29px !important;
+        min-width: 29px !important;
+        height: 29px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        background: rgba(255,255,255,.10) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.24) !important;
+        border-radius: 3px !important;
+
+        font-size: 13px !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title > div:last-child {
+        min-width: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title h1 {
+        margin: 0 !important;
+
+        color: #fff !important;
+
+        font-size: 13px !important;
+        line-height: 1.05 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title small {
+        display: block !important;
+
+        margin-top: 2px !important;
+
+        color: #eadbdd !important;
+
+        font-size: 8.8px !important;
+        line-height: 1 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .header-source {
+        min-height: 27px !important;
+        padding: 0 7px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+
+        background: rgba(255,255,255,.08) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.20) !important;
+        border-radius: 3px !important;
+
+        font-size: 8.6px !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+    }
+
+    /* ======================================================================
+       TOOLBAR / FILTROS — UNA SOLA LÍNEA SIN SCROLL
+       Buscar | Estatus | Grupo | Moneda | Acciones
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        min-height: 43px !important;
+
+        display: grid !important;
+        grid-template-columns:
+            minmax(260px, 1.45fr)
+            115px
+            minmax(155px, .82fr)
+            95px
+            325px !important;
+
+        grid-template-rows: 39px !important;
+
+        gap: 4px !important;
+        align-items: end !important;
+
+        margin: 0 0 4px !important;
+        padding: 4px 5px !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--cp-line) !important;
+        border-radius: 3px !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar > .field,
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar-actions {
+        min-width: 0 !important;
+        width: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .field label {
+        display: block !important;
+
+        height: 10px !important;
+        margin: 0 0 1px !important;
+
+        color: #465158 !important;
+
+        font-size: 8.4px !important;
+        line-height: 10px !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .field input,
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .field select {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+
+        min-height: 26px !important;
+        height: 26px !important;
+
+        margin: 0 !important;
+        padding: 2px 6px !important;
+
+        background: #fff !important;
+        color: var(--cp-text) !important;
+
+        border: 1px solid #b8c4ca !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        outline: none !important;
+
+        font-size: 9.2px !important;
+        line-height: 1 !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .field input:focus,
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .field select:focus {
+        border-color: #9e7479 !important;
+        box-shadow: 0 0 0 2px rgba(122,32,41,.08) !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar-actions {
+        display: grid !important;
+        grid-template-columns: 82px 66px 112px 58px !important;
+        gap: 3px !important;
+        align-items: end !important;
+    }
+
+    /* ======================================================================
+       BOTONES
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .tool-btn,
+    body:not([data-theme="dark"]) #detailModal .tool-btn {
+        min-width: 0 !important;
+        min-height: 26px !important;
+        height: 26px !important;
+
+        padding: 0 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 8.3px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .tool-btn.primary {
+        background: var(--cp-tinto) !important;
+        color: #fff !important;
+        border-color: var(--cp-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .tool-btn.success {
+        background: var(--cp-green) !important;
+        color: #fff !important;
+        border-color: var(--cp-green-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .loading-inline {
+        min-height: 26px !important;
+        height: 26px !important;
+
+        padding: 0 4px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        color: var(--cp-muted) !important;
+
+        font-size: 7.7px !important;
+        line-height: 1 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ======================================================================
+       CONTENT
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        flex: 1 1 auto !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 4px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+
+        overflow: hidden !important;
+    }
+
+    /* ======================================================================
+       KPIs — UNA SOLA FILA, LEGIBLES
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(120px,1fr)) !important;
+        gap: 4px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi {
+        min-width: 0 !important;
+        min-height: 52px !important;
+        height: 52px !important;
+
+        padding: 5px 7px !important;
+
+        display: grid !important;
+        grid-template-rows: auto 1fr auto !important;
+        align-items: center !important;
+        justify-items: center !important;
+
+        text-align: center !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--cp-line) !important;
+        border-top: 3px solid var(--cp-tinto) !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi small {
+        width: 100% !important;
+
+        color: #30373b !important;
+
+        font-size: 8.2px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi strong {
+        width: 100% !important;
+
+        color: var(--cp-tinto-dark) !important;
+
+        font-size: 15px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi span {
+        width: 100% !important;
+
+        color: var(--cp-muted) !important;
+
+        font-size: 7.4px !important;
+        line-height: 1 !important;
+
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ======================================================================
+       SECCIÓN DE TABLA
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .section {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        flex: 1 1 auto !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        margin: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--cp-line) !important;
+        border-radius: 3px !important;
+
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .section-title {
+        min-height: 27px !important;
+        height: 27px !important;
+
+        padding: 4px 7px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+        color: #fff !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid #351014 !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .section-title *,
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .section-title span {
+        color: #fff !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .section-title .status {
+        min-height: 20px !important;
+
+        padding: 3px 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+
+        background: rgba(255,255,255,.10) !important;
+        color: #fff !important;
+
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: 999px !important;
+
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+    }
+
+    /* ======================================================================
+       TABLA — SCROLL SOLO INTERNO
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        flex: 1 1 auto !important;
+
+        overflow: auto !important;
+        scrollbar-gutter: stable !important;
+        overscroll-behavior-inline: contain !important;
+
+        background: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable {
+        width: max-content !important;
+        min-width: 100% !important;
+        max-width: none !important;
+
+        margin: 0 !important;
+
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        table-layout: auto !important;
+
+        background: #fff !important;
+
+        font-size: 9.8px !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable thead th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 5 !important;
+
+        height: 30px !important;
+        padding: 5px 6px !important;
+
+        background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+        color: #111 !important;
+
+        border: 0 !important;
+        border-right: 1px solid #aebbc3 !important;
+        border-bottom: 1px solid #aebbc3 !important;
+
+        font-size: 9px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody td {
+        height: 31px !important;
+        padding: 5px 6px !important;
+
+        background: #fff !important;
+        color: #344047 !important;
+
+        border: 0 !important;
+        border-right: 1px solid #e0e6e9 !important;
+        border-bottom: 1px solid #d7dfe3 !important;
+
+        font-size: 9.8px !important;
+        line-height: 1.05 !important;
+        vertical-align: middle !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody tr:nth-child(even) td {
+        background: #f8fafb !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody tr:hover td {
+        background: #f4eaec !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody td:nth-child(2),
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody td:nth-child(4),
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody td:nth-child(6),
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable tbody td:nth-child(9) {
+        max-width: 240px !important;
+
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp #supplierTable a {
+        color: var(--cp-tinto) !important;
+        text-decoration: none !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .provider-code {
+        color: var(--cp-tinto-dark) !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .num {
+        text-align: right !important;
+    }
+
+    /* Estatus */
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .status-badge {
+        min-height: 20px !important;
+        padding: 3px 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+
+        border-radius: 999px !important;
+
+        font-size: 8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .status-badge.active {
+        background: #e8f3ed !important;
+        color: #17623d !important;
+        border: 1px solid #a7cfb8 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .status-badge.inactive {
+        background: var(--cp-red-soft) !important;
+        color: #84242f !important;
+        border: 1px solid #d7a3aa !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .status-badge.frozen {
+        background: var(--cp-blue-soft) !important;
+        color: #35566d !important;
+        border: 1px solid #b8c8d2 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .detail-btn {
+        min-height: 23px !important;
+        height: 23px !important;
+
+        padding: 0 6px !important;
+
+        background: #fff !important;
+        color: var(--cp-tinto) !important;
+
+        border: 1px solid #cba9ae !important;
+        border-radius: 2px !important;
+
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .detail-btn:hover {
+        background: var(--cp-tinto) !important;
+        color: #fff !important;
+        border-color: var(--cp-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .empty-row {
+        height: 80px !important;
+
+        color: var(--cp-muted) !important;
+
+        font-size: 9.5px !important;
+        text-align: center !important;
+    }
+
+    /* ======================================================================
+       PAGINADOR
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .pager {
+        min-height: 34px !important;
+        height: 34px !important;
+
+        padding: 4px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+
+        background: #f7f9fa !important;
+
+        border-top: 1px solid var(--cp-line) !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .page-info {
+        min-width: 0 !important;
+
+        color: #4f5b62 !important;
+
+        font-size: 8.5px !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .pager-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp .pager-actions .tool-btn {
+        width: auto !important;
+        min-width: 78px !important;
+    }
+
+    /* ======================================================================
+       MODAL DETALLE
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #detailModal.modal-overlay {
+        z-index: 99999 !important;
+
+        padding: 10px !important;
+
+        background: rgba(20,24,27,.72) !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .provider-modal {
+        width: min(950px, 94vw) !important;
+        max-width: min(950px, 94vw) !important;
+        max-height: 90vh !important;
+
+        background: #fff !important;
+
+        border: 1px solid #9eabb2 !important;
+        border-radius: 4px !important;
+
+        box-shadow: 0 16px 42px rgba(0,0,0,.28) !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .modal-head {
+        min-height: 41px !important;
+        height: 41px !important;
+
+        padding: 5px 8px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+        color: #fff !important;
+
+        border-bottom: 1px solid #351014 !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .modal-head h3 {
+        min-width: 0 !important;
+        margin: 0 !important;
+
+        color: #fff !important;
+
+        font-size: 11px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .modal-head .tool-btn {
+        width: auto !important;
+        min-width: 64px !important;
+
+        background: #fff !important;
+        color: var(--cp-tinto) !important;
+
+        border-color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .modal-body {
+        max-height: calc(90vh - 41px) !important;
+
+        padding: 6px !important;
+
+        background: var(--cp-bg) !important;
+
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .detail-grid {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .detail-field {
+        min-width: 0 !important;
+        min-height: 48px !important;
+
+        padding: 5px 6px !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--cp-line-soft) !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .detail-field.full {
+        grid-column: 1 / -1 !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .detail-field label {
+        display: block !important;
+        margin-bottom: 3px !important;
+
+        color: var(--cp-muted) !important;
+
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #detailModal .detail-field > div {
+        color: #30373b !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.2 !important;
+        font-weight: 500 !important;
+
+        overflow-wrap: anywhere !important;
+    }
+
+    /* ======================================================================
+       RESPONSIVE
+       ====================================================================== */
+
+    @media (max-width: 1350px) {
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar {
+            grid-template-columns:
+                minmax(230px,1.40fr)
+                105px
+                minmax(140px,.82fr)
+                88px
+                296px !important;
+            gap: 3px !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar-actions {
+            grid-template-columns: 74px 60px 102px 52px !important;
+            gap: 2px !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .tool-btn {
+            font-size: 7.8px !important;
+            padding: 0 4px !important;
+        }
+    }
+
+    @media (max-width: 1100px) {
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar {
+            grid-template-columns:
+                minmax(190px,1.25fr)
+                96px
+                minmax(125px,.78fr)
+                82px
+                270px !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar-actions {
+            grid-template-columns: 68px 56px 94px 46px !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi-grid {
+            grid-template-columns: repeat(5, minmax(105px,1fr)) !important;
+        }
+    }
+
+    @media (max-width: 850px) {
+        body:not([data-theme="dark"]) #catalogoProveedoresApp.supplier-window {
+            height: auto !important;
+            min-height: calc(100dvh - 66px) !important;
+
+            overflow: visible !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .toolbar {
+            min-width: 760px !important;
+            overflow-x: auto !important;
+        }
+
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .kpi-grid {
+            grid-template-columns: repeat(5, 115px) !important;
+            overflow-x: auto !important;
+        }
+
+        body:not([data-theme="dark"]) #detailModal .detail-grid {
+            grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+        }
+    }
+
+    @media (max-width: 560px) {
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .supplier-title small,
+        body:not([data-theme="dark"]) #catalogoProveedoresApp .header-source {
+            display: none !important;
+        }
+
+        body:not([data-theme="dark"]) #detailModal .detail-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* Scrollbars compactos */
+    body:not([data-theme="dark"]) #catalogoProveedoresApp *::-webkit-scrollbar,
+    body:not([data-theme="dark"]) #detailModal *::-webkit-scrollbar {
+        width: 7px !important;
+        height: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp *::-webkit-scrollbar-track,
+    body:not([data-theme="dark"]) #detailModal *::-webkit-scrollbar-track {
+        background: #edf1f3 !important;
+    }
+
+    body:not([data-theme="dark"]) #catalogoProveedoresApp *::-webkit-scrollbar-thumb,
+    body:not([data-theme="dark"]) #detailModal *::-webkit-scrollbar-thumb {
+        background: #aeb9bf !important;
+        border-radius: 2px !important;
+    }
+}
+
+/* Dark básico */
+@media screen {
+    body[data-theme="dark"] #catalogoProveedoresApp .supplier-header,
+    body[data-theme="dark"] #catalogoProveedoresApp .section-title,
+    body[data-theme="dark"] #detailModal .modal-head {
+        background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+    }
+}

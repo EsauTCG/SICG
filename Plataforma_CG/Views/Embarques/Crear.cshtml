@@ -1,13 +1,12 @@
-﻿@model IEnumerable<Plataforma_CG.Models.OrdenVenta>
+﻿@model Plataforma_CG.ViewModels.CrearEmbarqueViewModel
 @using Plataforma_CG.Models
 
 @{
     ViewData["Title"] = "Nuevo Embarque";
     Layout = "~/Views/Shared/_Layout2.cshtml";
 
-    var transferencias = ViewBag.Transferencias as List<Transferencia> ?? new List<Transferencia>();
-    var totalOV = Model?.Count() ?? 0;
-    var totalTR = transferencias.Count;
+    var totalOV = Model?.TotalOrdenes ?? 0;
+    var totalTR = Model?.TotalTransferencias ?? 0;
 }
 
 <style>
@@ -537,7 +536,7 @@
 
     .filters-grid {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat( auto-fit, minmax(190px, 1fr) );
         gap: .8rem;
         margin-bottom: 1rem;
         align-items: end;
@@ -1080,6 +1079,55 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
     border-radius: 999px;
 }
 
+    .embarque-loader[hidden] {
+        display: none !important;
+    }
+
+    .embarque-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(15, 23, 42, .68);
+        backdrop-filter: blur(6px);
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+    }
+
+    .embarque-loader-card {
+        width: min(420px, 100%);
+        background: var(--bg-card);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+        padding: 2rem;
+        text-align: center;
+    }
+
+        .embarque-loader-card .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .embarque-loader-card h5 {
+            margin-bottom: .6rem;
+            font-weight: 800;
+        }
+
+        .embarque-loader-card p {
+            margin: 0;
+            color: var(--text-soft);
+        }
+
+    body[data-theme="dark"] .embarque-loader-card {
+        background: #111827;
+        color: #f9fafb;
+        border-color: rgba(255, 255, 255, .12);
+    }
+
 </style>
 
 <div class="embarque-page">
@@ -1142,14 +1190,36 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
         </div>
     </div>
 
-    <form asp-action="Crear" method="post">
+    <form asp-action="Crear"
+          method="post"
+          id="formCrearEmbarque">
+
+        @Html.AntiForgeryToken()
+
+        <div id="documentosSeleccionadosPost"></div>
 
         <div class="floating-toolbar">
             <div class="toolbar-left">
-                <button type="submit" class="btn-ui btn-primary-ui">
+                <button type="submit"
+                        id="btnCrearEmbarque"
+                        class="btn-ui btn-primary-ui">
                     <i class="bi bi-save"></i>
                     Crear Embarque
                 </button>
+
+                <span class="header-chip"
+                      style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
+                    <i class="bi bi-bag-check"></i>
+                    OV:
+                    <strong id="cantidadSeleccionadaOV">0</strong>
+                </span>
+
+                <span class="header-chip"
+                      style="color:var(--text); background:var(--bg-card); border:1px solid var(--border);">
+                    <i class="bi bi-arrow-left-right"></i>
+                    TR:
+                    <strong id="cantidadSeleccionadaTR">0</strong>
+                </span>
             </div>
 
             <div class="toolbar-right">
@@ -1256,15 +1326,6 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                 </div>
 
                 <div class="filters-grid" id="filtrosOV">
-                    <div class="filter-field">
-                        <label for="buscarOV">Búsqueda general</label>
-                        <input type="text" id="buscarOV" class="input-search" placeholder="Cliente, consecutivo o ruta..." autocomplete="off" />
-                    </div>
-
-                    <div class="filter-field">
-                        <label for="filtroClienteOV">Cliente</label>
-                        <input type="text" id="filtroClienteOV" placeholder="Filtrar por cliente..." autocomplete="off" />
-                    </div>
 
                     <div class="filter-field">
                         <label for="filtroConsecutivoOV">Consecutivo</label>
@@ -1306,37 +1367,25 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                 <th>Ruta</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @if (Model != null && Model.Any())
-                            {
-                                @foreach (var ov in Model)
-                                {
-                                    <tr data-cliente="@ov.NombreCliente"
-                                        data-consecutivo="@ov.Consecutivo"
-                                        data-ruta="@ov.Ruta">
-                                        <td data-label="Seleccionar">
-                                            <input type="checkbox"
-                                                   class="check-ui"
-                                                   name="ordenesSeleccionadas"
-                                                   value="@ov.Id" />
-                                        </td>
-                                        <td data-label="ID"><span class="id-badge">#@ov.Id</span></td>
-                                        <td data-label="Cliente">@ov.NombreCliente</td>
-                                        <td data-label="Consecutivo">@ov.Consecutivo</td>
-                                        <td data-label="Ruta">@ov.Ruta</td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="5" class="empty-note">
-                                        No hay órdenes disponibles para mostrar.
-                                    </td>
-                                </tr>
-                            }
+                        <tbody id="tbodyOV">
+                            <tr>
+                                <td colspan="5" class="empty-note">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    Consultando órdenes disponibles...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="text-center mt-3">
+                    <button type="button"
+                            id="btnCargarMasOV"
+                            class="btn-ui btn-soft"
+                            style="display:none;">
+                        <i class="bi bi-chevron-down"></i>
+                        Cargar más órdenes
+                    </button>
                 </div>
             </div>
         </div>
@@ -1363,9 +1412,10 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                 </div>
 
                 <div class="filters-grid" id="filtrosTR">
+
                     <div class="filter-field">
-                        <label for="buscarTR">Búsqueda general</label>
-                        <input type="text" id="buscarTR" class="input-search" placeholder="Sucursal, consecutivo o fecha..." />
+                        <label for="filtroConsecutivoTR">Consecutivo</label>
+                        <input type="text" id="filtroConsecutivoTR" placeholder="Filtrar por consecutivo..." />
                     </div>
 
                     <div class="filter-field">
@@ -1373,10 +1423,6 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                         <input type="text" id="filtroSucursalTR" placeholder="Filtrar por sucursal..." />
                     </div>
 
-                    <div class="filter-field">
-                        <label for="filtroConsecutivoTR">Consecutivo</label>
-                        <input type="text" id="filtroConsecutivoTR" placeholder="Filtrar por consecutivo..." />
-                    </div>
 
                     <div class="filter-field">
                         <label for="filtroFechaTR">Fecha</label>
@@ -1413,252 +1459,802 @@ body[data-theme="dark"] textarea::-webkit-scrollbar-thumb {
                                 <th>Fecha Solicitud</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @if (transferencias.Any())
-                            {
-                                @foreach (var tr in transferencias)
-                                {
-                                    <tr data-sucursal="@tr.Sucursal"
-                                        data-consecutivo="@tr.Consecutivo"
-                                        data-fecha="@tr.FechaSolicitud?.ToShortDateString()">
-                                        <td data-label="Seleccionar">
-                                            <input type="checkbox"
-                                                   class="check-ui"
-                                                   name="transferenciasSeleccionadas"
-                                                   value="@tr.Id" />
-                                        </td>
-                                        <td data-label="ID"><span class="id-badge">#@tr.Id</span></td>
-                                        <td data-label="Sucursal">@tr.Sucursal</td>
-                                        <td data-label="Consecutivo">@tr.Consecutivo</td>
-                                        <td data-label="Fecha">@tr.FechaSolicitud?.ToShortDateString()</td>
-                                    </tr>
-                                }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="5" class="empty-note">
-                                        No hay transferencias disponibles para mostrar.
-                                    </td>
-                                </tr>
-                            }
+                        <tbody id="tbodyTR">
+                            <tr>
+                                <td colspan="5" class="empty-note">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    Consultando transferencias disponibles...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="text-center mt-3">
+                    <button type="button"
+                            id="btnCargarMasTR"
+                            class="btn-ui btn-soft"
+                            style="display:none;">
+                        <i class="bi bi-chevron-down"></i>
+                        Cargar más transferencias
+                    </button>
                 </div>
             </div>
         </div>
     </form>
+
+    <div id="loaderCrearEmbarque"
+         class="embarque-loader"
+         hidden>
+        <div class="embarque-loader-card">
+            <div class="spinner-border" role="status"></div>
+
+            <h5>Creando embarque</h5>
+
+            <p>
+                Estamos registrando los documentos seleccionados.
+                No cierres esta ventana.
+            </p>
+        </div>
+    </div>
+
+
 </div>
 
 <script>
+    const PAGE_SIZE = 50;
 
-    function irASeccion(id) {
-        const seccion = document.getElementById(id);
+    const urlOrdenes =
+        '@Url.Action("ObtenerOrdenesDisponibles", "Embarques")';
 
-        if (!seccion) {
-            console.warn("No se encontró la sección:", id);
-            return;
-        }
+    const urlTransferencias =
+        '@Url.Action("ObtenerTransferenciasDisponibles", "Embarques")';
 
-        const toolbar = document.querySelector(".floating-toolbar");
-        const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+    const seleccionadasOV = new Map();
+    const seleccionadasTR = new Map();
 
-        const extraOffset = 18;
+    const estadoOV = {
+        pagina: 0,
+        total: 0,
+        hayMas: true,
+        cargando: false,
+        abortController: null,
+        idsRenderizados: new Set()
+    };
 
-        const posicion =
-            seccion.getBoundingClientRect().top +
-            window.pageYOffset -
-            toolbarHeight -
-            extraOffset;
+    const estadoTR = {
+        pagina: 0,
+        total: 0,
+        hayMas: true,
+        cargando: false,
+        abortController: null,
+        idsRenderizados: new Set()
+    };
 
-        window.scrollTo({
-            top: posicion,
-            behavior: "smooth"
-        });
+    function escaparHtml(valor) {
+        const elemento = document.createElement("div");
+        elemento.textContent = valor ?? "";
+        return elemento.innerHTML;
     }
 
     function normalizar(valor) {
-        return (valor || "").toString().trim().toLowerCase();
+        return (valor ?? "")
+            .toString()
+            .trim()
+            .toLowerCase();
     }
 
-    function actualizarContador(tableId, counterId) {
-        const table = document.getElementById(tableId);
-        const counter = document.getElementById(counterId);
-        if (!table || !counter) return;
+    function irASeccion(idSeccion) {
+        const seccion = document.getElementById(idSeccion);
 
-        const filas = [...table.querySelectorAll("tbody tr")]
-            .filter(f => !f.querySelector(".empty-note") && f.style.display !== "none");
+        if (!seccion) {
+            return;
+        }
 
-        counter.textContent = `Mostrando ${filas.length} registro(s)`;
+        seccion.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
     }
 
-    function filtrarOV() {
-        const table = document.getElementById("tablaOV");
-        if (!table) return;
+    function debounce(funcion, espera) {
+        let timeout;
 
-        const general = normalizar(document.getElementById("buscarOV").value);
-        const cliente = normalizar(document.getElementById("filtroClienteOV").value);
-        const consecutivo = normalizar(document.getElementById("filtroConsecutivoOV").value);
-        const ruta = normalizar(document.getElementById("filtroRutaOV").value);
-        const modo = document.getElementById("soloSeleccionadasOV").value;
+        return function (...args) {
+            clearTimeout(timeout);
 
-        const filas = table.querySelectorAll("tbody tr");
+            timeout = setTimeout(() => {
+                funcion.apply(this, args);
+            }, espera);
+        };
+    }
 
-        filas.forEach(fila => {
-            if (fila.querySelector(".empty-note")) return;
+    function actualizarCantidadSeleccionada() {
+        const contadorOV =
+            document.getElementById("cantidadSeleccionadaOV");
 
-            const txtCliente = normalizar(fila.dataset.cliente);
-            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
-            const txtRuta = normalizar(fila.dataset.ruta);
-            const textoCompleto = normalizar(fila.innerText);
-            const check = fila.querySelector('input[type="checkbox"]');
-            const seleccionada = check ? check.checked : false;
+        const contadorTR =
+            document.getElementById("cantidadSeleccionadaTR");
 
-            const cumpleGeneral = !general || textoCompleto.includes(general);
-            const cumpleCliente = !cliente || txtCliente.includes(cliente);
-            const cumpleConsecutivo = !consecutivo || txtConsecutivo.includes(consecutivo);
-            const cumpleRuta = !ruta || txtRuta.includes(ruta);
+        if (contadorOV) {
+            contadorOV.textContent = seleccionadasOV.size;
+        }
 
-            let cumpleSeleccion = true;
-            if (modo === "seleccionadas") cumpleSeleccion = seleccionada;
-            if (modo === "noseleccionadas") cumpleSeleccion = !seleccionada;
+        if (contadorTR) {
+            contadorTR.textContent = seleccionadasTR.size;
+        }
+    }
 
-            fila.style.display =
-                cumpleGeneral &&
-                cumpleCliente &&
-                cumpleConsecutivo &&
-                cumpleRuta &&
-                cumpleSeleccion
-                    ? ""
-                    : "none";
+    function mostrarCargando(tbodyId, columnas, mensaje) {
+        const tbody = document.getElementById(tbodyId);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    ${escaparHtml(mensaje)}
+                </td>
+            </tr>
+        `;
+    }
+
+    function mostrarVacio(tbodyId, columnas, mensaje) {
+        const tbody = document.getElementById(tbodyId);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note">
+                    <i class="bi bi-inbox"></i>
+                    ${escaparHtml(mensaje)}
+                </td>
+            </tr>
+        `;
+    }
+
+    function mostrarError(tbodyId, columnas) {
+        const tbody = document.getElementById(tbodyId);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${columnas}" class="empty-note text-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    No fue posible consultar los registros.
+                </td>
+            </tr>
+        `;
+    }
+
+    function crearFilaOV(item) {
+        const fila = document.createElement("tr");
+        fila.dataset.id = item.id;
+
+        fila.innerHTML = `
+            <td data-label="Seleccionar">
+                <input type="checkbox"
+                       class="check-ui check-ov"
+                       value="${item.id}" />
+            </td>
+
+            <td data-label="ID">
+                <span class="id-badge">#${item.id}</span>
+            </td>
+
+            <td data-label="Cliente">
+                ${escaparHtml(item.nombreCliente)}
+            </td>
+
+            <td data-label="Consecutivo">
+                ${escaparHtml(item.consecutivo)}
+            </td>
+
+            <td data-label="Ruta">
+                ${escaparHtml(item.ruta)}
+            </td>
+        `;
+
+        const checkbox = fila.querySelector(".check-ov");
+
+        checkbox.checked = seleccionadasOV.has(item.id);
+
+        checkbox.addEventListener("change", function () {
+            if (this.checked) {
+                seleccionadasOV.set(item.id, item);
+            } else {
+                seleccionadasOV.delete(item.id);
+            }
+
+            actualizarCantidadSeleccionada();
+
+            const modo =
+                document.getElementById("soloSeleccionadasOV").value;
+
+            if (modo === "seleccionadas") {
+                renderizarSeleccionadasOV();
+            }
+
+            if (modo === "noseleccionadas" && this.checked) {
+                fila.remove();
+                actualizarContadorOV();
+            }
         });
 
-        actualizarContador("tablaOV", "contadorOV");
+        return fila;
     }
 
-    function filtrarTR() {
-        const table = document.getElementById("tablaTR");
-        if (!table) return;
+    function crearFilaTR(item) {
+        const fila = document.createElement("tr");
+        fila.dataset.id = item.id;
 
-        const general = normalizar(document.getElementById("buscarTR").value);
-        const sucursal = normalizar(document.getElementById("filtroSucursalTR").value);
-        const consecutivo = normalizar(document.getElementById("filtroConsecutivoTR").value);
-        const fecha = normalizar(document.getElementById("filtroFechaTR").value);
-        const modo = document.getElementById("soloSeleccionadasTR").value;
+        fila.innerHTML = `
+            <td data-label="Seleccionar">
+                <input type="checkbox"
+                       class="check-ui check-tr"
+                       value="${item.id}" />
+            </td>
 
-        const filas = table.querySelectorAll("tbody tr");
+            <td data-label="ID">
+                <span class="id-badge">#${item.id}</span>
+            </td>
 
-        filas.forEach(fila => {
-            if (fila.querySelector(".empty-note")) return;
+            <td data-label="Sucursal">
+                ${escaparHtml(item.sucursal)}
+            </td>
 
-            const txtSucursal = normalizar(fila.dataset.sucursal);
-            const txtConsecutivo = normalizar(fila.dataset.consecutivo);
-            const txtFecha = normalizar(fila.dataset.fecha);
-            const textoCompleto = normalizar(fila.innerText);
-            const check = fila.querySelector('input[type="checkbox"]');
-            const seleccionada = check ? check.checked : false;
+            <td data-label="Consecutivo">
+                ${escaparHtml(item.consecutivo)}
+            </td>
 
-            const cumpleGeneral = !general || textoCompleto.includes(general);
-            const cumpleSucursal = !sucursal || txtSucursal.includes(sucursal);
-            const cumpleConsecutivo = !consecutivo || txtConsecutivo.includes(consecutivo);
-            const cumpleFecha = !fecha || txtFecha.includes(fecha);
+            <td data-label="Fecha">
+                ${escaparHtml(item.fechaSolicitudTexto)}
+            </td>
+        `;
 
-            let cumpleSeleccion = true;
-            if (modo === "seleccionadas") cumpleSeleccion = seleccionada;
-            if (modo === "noseleccionadas") cumpleSeleccion = !seleccionada;
+        const checkbox = fila.querySelector(".check-tr");
 
-            fila.style.display =
-                cumpleGeneral &&
-                cumpleSucursal &&
-                cumpleConsecutivo &&
-                cumpleFecha &&
-                cumpleSeleccion
-                    ? ""
-                    : "none";
+        checkbox.checked = seleccionadasTR.has(item.id);
+
+        checkbox.addEventListener("change", function () {
+            if (this.checked) {
+                seleccionadasTR.set(item.id, item);
+            } else {
+                seleccionadasTR.delete(item.id);
+            }
+
+            actualizarCantidadSeleccionada();
+
+            const modo =
+                document.getElementById("soloSeleccionadasTR").value;
+
+            if (modo === "seleccionadas") {
+                renderizarSeleccionadasTR();
+            }
+
+            if (modo === "noseleccionadas" && this.checked) {
+                fila.remove();
+                actualizarContadorTR();
+            }
         });
 
-        actualizarContador("tablaTR", "contadorTR");
+        return fila;
     }
+
+    function actualizarContadorOV() {
+        const visibles =
+            document.querySelectorAll("#tbodyOV tr[data-id]").length;
+
+        document.getElementById("contadorOV").textContent =
+            `Mostrando ${visibles} de ${estadoOV.total} registro(s). ` +
+            `Seleccionadas: ${seleccionadasOV.size}`;
+    }
+
+    function actualizarContadorTR() {
+        const visibles =
+            document.querySelectorAll("#tbodyTR tr[data-id]").length;
+
+        document.getElementById("contadorTR").textContent =
+            `Mostrando ${visibles} de ${estadoTR.total} registro(s). ` +
+            `Seleccionadas: ${seleccionadasTR.size}`;
+    }
+
+    function cumpleFiltrosLocalesOV(item) {
+        const consecutivo = normalizar(
+            document.getElementById("filtroConsecutivoOV")?.value
+        );
+
+        const ruta = normalizar(
+            document.getElementById("filtroRutaOV")?.value
+        );
+
+        return (
+            !consecutivo ||
+            normalizar(item.consecutivo).includes(consecutivo)
+        ) && (
+            !ruta ||
+            normalizar(item.ruta).includes(ruta)
+        );
+    }
+
+        function cumpleFiltrosLocalesTR(item) {
+        const sucursal = normalizar(
+            document.getElementById("filtroSucursalTR")?.value
+        );
+
+        const consecutivo = normalizar(
+            document.getElementById("filtroConsecutivoTR")?.value
+        );
+
+        const fecha = normalizar(
+            document.getElementById("filtroFechaTR")?.value
+        );
+
+        return (
+            !sucursal ||
+            normalizar(item.sucursal).includes(sucursal)
+        ) && (
+            !consecutivo ||
+            normalizar(item.consecutivo).includes(consecutivo)
+        ) && (
+            !fecha ||
+            normalizar(item.fechaSolicitudTexto).includes(fecha)
+        );
+    }
+
+    function renderizarSeleccionadasOV() {
+        const tbody = document.getElementById("tbodyOV");
+        tbody.innerHTML = "";
+
+        const items = Array
+            .from(seleccionadasOV.values())
+            .filter(cumpleFiltrosLocalesOV);
+
+        items.forEach(item => {
+            tbody.appendChild(crearFilaOV(item));
+        });
+
+        if (!items.length) {
+            mostrarVacio(
+                "tbodyOV",
+                5,
+                "No hay órdenes seleccionadas con estos filtros."
+            );
+        }
+
+        document.getElementById("btnCargarMasOV").style.display = "none";
+        actualizarContadorOV();
+    }
+
+    function renderizarSeleccionadasTR() {
+        const tbody = document.getElementById("tbodyTR");
+        tbody.innerHTML = "";
+
+        const items = Array
+            .from(seleccionadasTR.values())
+            .filter(cumpleFiltrosLocalesTR);
+
+        items.forEach(item => {
+            tbody.appendChild(crearFilaTR(item));
+        });
+
+        if (!items.length) {
+            mostrarVacio(
+                "tbodyTR",
+                5,
+                "No hay transferencias seleccionadas con estos filtros."
+            );
+        }
+
+        document.getElementById("btnCargarMasTR").style.display = "none";
+        actualizarContadorTR();
+    }
+
+    async function cargarOV(reiniciar = false) {
+        const modo =
+            document.getElementById("soloSeleccionadasOV").value;
+
+        if (modo === "seleccionadas") {
+            renderizarSeleccionadasOV();
+            return;
+        }
+
+        if (!reiniciar && (estadoOV.cargando || !estadoOV.hayMas)) {
+            return;
+        }
+
+        if (reiniciar) {
+            estadoOV.abortController?.abort();
+
+            estadoOV.pagina = 0;
+            estadoOV.total = 0;
+            estadoOV.hayMas = true;
+            estadoOV.idsRenderizados.clear();
+
+            mostrarCargando(
+                "tbodyOV",
+                5,
+                "Consultando órdenes disponibles..."
+            );
+        }
+
+        const controladorActual = new AbortController();
+
+        estadoOV.abortController = controladorActual;
+        estadoOV.cargando = true;
+
+        const boton = document.getElementById("btnCargarMasOV");
+        boton.disabled = true;
+
+        try {
+            const paginaSiguiente = estadoOV.pagina + 1;
+
+        const parametros = new URLSearchParams({
+            pagina: paginaSiguiente,
+            tamanoPagina: PAGE_SIZE,
+            consecutivo:
+                document.getElementById("filtroConsecutivoOV")?.value ?? "",
+            ruta:
+                document.getElementById("filtroRutaOV")?.value ?? ""
+        });
+
+            const respuesta = await fetch(
+                `${urlOrdenes}?${parametros.toString()}`,
+                {
+                    signal: controladorActual.signal,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                }
+            );
+
+            if (!respuesta.ok) {
+                throw new Error("Error consultando órdenes.");
+            }
+
+            const resultado = await respuesta.json();
+            const tbody = document.getElementById("tbodyOV");
+
+            if (reiniciar) {
+                tbody.innerHTML = "";
+            }
+
+            resultado.items.forEach(item => {
+                if (
+                    modo === "noseleccionadas" &&
+                    seleccionadasOV.has(item.id)
+                ) {
+                    return;
+                }
+
+                if (estadoOV.idsRenderizados.has(item.id)) {
+                    return;
+                }
+
+                estadoOV.idsRenderizados.add(item.id);
+                tbody.appendChild(crearFilaOV(item));
+            });
+
+            estadoOV.pagina = resultado.pagina;
+            estadoOV.total = resultado.total;
+            estadoOV.hayMas = resultado.hayMas;
+
+            if (!tbody.querySelector("tr[data-id]")) {
+                mostrarVacio(
+                    "tbodyOV",
+                    5,
+                    "No hay órdenes disponibles con estos filtros."
+                );
+            }
+
+            boton.style.display =
+                estadoOV.hayMas ? "inline-flex" : "none";
+
+            actualizarContadorOV();
+        }
+        catch (error) {
+            if (error.name !== "AbortError") {
+                mostrarError("tbodyOV", 5);
+            }
+        }
+        finally {
+            if (estadoOV.abortController === controladorActual) {
+                estadoOV.cargando = false;
+                boton.disabled = false;
+            }
+        }
+    }
+
+    async function cargarTR(reiniciar = false) {
+        const modo =
+            document.getElementById("soloSeleccionadasTR").value;
+
+        if (modo === "seleccionadas") {
+            renderizarSeleccionadasTR();
+            return;
+        }
+
+        if (!reiniciar && (estadoTR.cargando || !estadoTR.hayMas)) {
+            return;
+        }
+
+        if (reiniciar) {
+            estadoTR.abortController?.abort();
+
+            estadoTR.pagina = 0;
+            estadoTR.total = 0;
+            estadoTR.hayMas = true;
+            estadoTR.idsRenderizados.clear();
+
+            mostrarCargando(
+                "tbodyTR",
+                5,
+                "Consultando transferencias disponibles..."
+            );
+        }
+
+        const controladorActual = new AbortController();
+
+        estadoTR.abortController = controladorActual;
+        estadoTR.cargando = true;
+
+        const boton = document.getElementById("btnCargarMasTR");
+        boton.disabled = true;
+
+        try {
+            const paginaSiguiente = estadoTR.pagina + 1;
+
+        const parametros = new URLSearchParams({
+            pagina: paginaSiguiente,
+            tamanoPagina: PAGE_SIZE,
+            sucursal:
+                document.getElementById("filtroSucursalTR")?.value ?? "",
+            consecutivo:
+                document.getElementById("filtroConsecutivoTR")?.value ?? "",
+            fecha:
+                document.getElementById("filtroFechaTR")?.value ?? ""
+        });
+
+            const respuesta = await fetch(
+                `${urlTransferencias}?${parametros.toString()}`,
+                {
+                    signal: controladorActual.signal,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                }
+            );
+
+            if (!respuesta.ok) {
+                throw new Error("Error consultando transferencias.");
+            }
+
+            const resultado = await respuesta.json();
+            const tbody = document.getElementById("tbodyTR");
+
+            if (reiniciar) {
+                tbody.innerHTML = "";
+            }
+
+            resultado.items.forEach(item => {
+                if (
+                    modo === "noseleccionadas" &&
+                    seleccionadasTR.has(item.id)
+                ) {
+                    return;
+                }
+
+                if (estadoTR.idsRenderizados.has(item.id)) {
+                    return;
+                }
+
+                estadoTR.idsRenderizados.add(item.id);
+                tbody.appendChild(crearFilaTR(item));
+            });
+
+            estadoTR.pagina = resultado.pagina;
+            estadoTR.total = resultado.total;
+            estadoTR.hayMas = resultado.hayMas;
+
+            if (!tbody.querySelector("tr[data-id]")) {
+                mostrarVacio(
+                    "tbodyTR",
+                    5,
+                    "No hay transferencias disponibles con estos filtros."
+                );
+            }
+
+            boton.style.display =
+                estadoTR.hayMas ? "inline-flex" : "none";
+
+            actualizarContadorTR();
+        }
+        catch (error) {
+            if (error.name !== "AbortError") {
+                mostrarError("tbodyTR", 5);
+            }
+        }
+        finally {
+            if (estadoTR.abortController === controladorActual) {
+                estadoTR.cargando = false;
+                boton.disabled = false;
+            }
+        }
+    }
+
+    const aplicarFiltrosOV = debounce(() => {
+        cargarOV(true);
+    }, 350);
+
+    const aplicarFiltrosTR = debounce(() => {
+        cargarTR(true);
+    }, 350);
 
     function limpiarFiltrosOV() {
-        document.getElementById("buscarOV").value = "";
-        document.getElementById("filtroClienteOV").value = "";
-        document.getElementById("filtroConsecutivoOV").value = "";
-        document.getElementById("filtroRutaOV").value = "";
-        document.getElementById("soloSeleccionadasOV").value = "todas";
-        filtrarOV();
+        const consecutivo =
+            document.getElementById("filtroConsecutivoOV");
+
+        const ruta =
+            document.getElementById("filtroRutaOV");
+
+        const modo =
+            document.getElementById("soloSeleccionadasOV");
+
+        if (consecutivo) {
+            consecutivo.value = "";
+        }
+
+        if (ruta) {
+            ruta.value = "";
+        }
+
+        if (modo) {
+            modo.value = "todas";
+        }
+
+        cargarOV(true);
     }
 
     function limpiarFiltrosTR() {
-        document.getElementById("buscarTR").value = "";
-        document.getElementById("filtroSucursalTR").value = "";
-        document.getElementById("filtroConsecutivoTR").value = "";
-        document.getElementById("filtroFechaTR").value = "";
-        document.getElementById("soloSeleccionadasTR").value = "todas";
-        filtrarTR();
+        const sucursal =
+            document.getElementById("filtroSucursalTR");
+
+        const consecutivo =
+            document.getElementById("filtroConsecutivoTR");
+
+        const fecha =
+            document.getElementById("filtroFechaTR");
+
+        const modo =
+            document.getElementById("soloSeleccionadasTR");
+
+        if (sucursal) {
+            sucursal.value = "";
+        }
+
+        if (consecutivo) {
+            consecutivo.value = "";
+        }
+
+        if (fecha) {
+            fecha.value = "";
+        }
+
+        if (modo) {
+            modo.value = "todas";
+        }
+
+        cargarTR(true);
     }
 
-    function enlazarEventosOV() {
-        ["buscarOV", "filtroClienteOV", "filtroConsecutivoOV", "filtroRutaOV", "soloSeleccionadasOV"]
-            .forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.addEventListener("input", filtrarOV);
-                    el.addEventListener("change", filtrarOV);
-                }
-            });
+    function agregarInputOculto(contenedor, nombre, valor) {
+        const input = document.createElement("input");
 
-        document.querySelectorAll('#tablaOV input[type="checkbox"]').forEach(chk => {
-            chk.addEventListener("change", filtrarOV);
-        });
-    }
+        input.type = "hidden";
+        input.name = nombre;
+        input.value = valor;
 
-    function enlazarEventosTR() {
-        ["buscarTR", "filtroSucursalTR", "filtroConsecutivoTR", "filtroFechaTR", "soloSeleccionadasTR"]
-            .forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.addEventListener("input", filtrarTR);
-                    el.addEventListener("change", filtrarTR);
-                }
-            });
-
-        document.querySelectorAll('#tablaTR input[type="checkbox"]').forEach(chk => {
-            chk.addEventListener("change", filtrarTR);
-        });
+        contenedor.appendChild(input);
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        enlazarEventosOV();
-        enlazarEventosTR();
-
-        document.getElementById("buscarOV").value = "";
-        document.getElementById("filtroClienteOV").value = "";
-        document.getElementById("filtroConsecutivoOV").value = "";
-        document.getElementById("filtroRutaOV").value = "";
-        document.getElementById("soloSeleccionadasOV").value = "todas";
-
-        document.getElementById("buscarTR").value = "";
-        document.getElementById("filtroSucursalTR").value = "";
-        document.getElementById("filtroConsecutivoTR").value = "";
-        document.getElementById("filtroFechaTR").value = "";
-        document.getElementById("soloSeleccionadasTR").value = "todas";
-
-        filtrarOV();
-        filtrarTR();
-    });
-
-    window.addEventListener("pageshow", function () {
-        filtrarOV();
-        filtrarTR();
-    });
-
-    const inputNombreEmbarque = document.getElementById("nombreEmbarque");
-    const contadorNombreEmbarque = document.getElementById("contadorNombreEmbarque");
-
-    if (inputNombreEmbarque && contadorNombreEmbarque) {
-        inputNombreEmbarque.addEventListener("input", function () {
-            contadorNombreEmbarque.textContent = this.value.length;
+        [
+            "filtroConsecutivoOV",
+            "filtroRutaOV"
+        ].forEach(id => {
+            document
+                .getElementById(id)
+                ?.addEventListener("input", aplicarFiltrosOV);
         });
-    }
+
+        [
+            "filtroSucursalTR",
+            "filtroConsecutivoTR",
+            "filtroFechaTR"
+        ].forEach(id => {
+            document
+                .getElementById(id)
+                ?.addEventListener("input", aplicarFiltrosTR);
+        });
+
+        document
+            .getElementById("soloSeleccionadasOV")
+            ?.addEventListener("change", () => cargarOV(true));
+
+        document
+            .getElementById("soloSeleccionadasTR")
+            ?.addEventListener("change", () => cargarTR(true));
+
+        document
+            .getElementById("btnCargarMasOV")
+            ?.addEventListener("click", () => cargarOV(false));
+
+        document
+            .getElementById("btnCargarMasTR")
+            ?.addEventListener("click", () => cargarTR(false));
+
+        const form = document.getElementById("formCrearEmbarque");
+        const botonCrear = document.getElementById("btnCrearEmbarque");
+        const loader = document.getElementById("loaderCrearEmbarque");
+        const contenedorInputs =
+            document.getElementById("documentosSeleccionadosPost");
+
+        let enviando = false;
+
+        form.addEventListener("submit", function (event) {
+            if (enviando) {
+                event.preventDefault();
+                return;
+            }
+
+            if (
+                seleccionadasOV.size === 0 &&
+                seleccionadasTR.size === 0
+            ) {
+                event.preventDefault();
+
+                alert(
+                    "Debes seleccionar al menos una orden o transferencia."
+                );
+
+                return;
+            }
+
+            contenedorInputs.innerHTML = "";
+
+            seleccionadasOV.forEach((item, id) => {
+                agregarInputOculto(
+                    contenedorInputs,
+                    "ordenesSeleccionadas",
+                    id
+                );
+            });
+
+            seleccionadasTR.forEach((item, id) => {
+                agregarInputOculto(
+                    contenedorInputs,
+                    "transferenciasSeleccionadas",
+                    id
+                );
+            });
+
+            enviando = true;
+            botonCrear.disabled = true;
+            loader.hidden = false;
+        });
+
+        const inputNombre =
+            document.getElementById("nombreEmbarque");
+
+        const contadorNombre =
+            document.getElementById("contadorNombreEmbarque");
+
+        inputNombre?.addEventListener("input", function () {
+            contadorNombre.textContent = this.value.length;
+        });
+
+        actualizarCantidadSeleccionada();
+
+        // Ambas consultas se lanzan al abrir la página.
+        // Cada una carga solamente 50 registros.
+        cargarOV(true);
+        cargarTR(true);
+    });
 </script>

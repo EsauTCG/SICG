@@ -1,154 +1,586 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.ViewModels.CategoriaViewModel>
+@using System.Linq
+@using System.Collections.Generic
+
 @{
     ViewData["Title"] = "Administrar Categorías";
     Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var categorias = Model?.ToList() ?? new List<Plataforma_CG.Models.ViewModels.CategoriaViewModel>();
+    var totalCategorias = categorias.Count;
 }
 
+@await Html.PartialAsync("_KpiAdminTheme")
+
 <style>
-    :root {
-        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --pane: #fff;
-        --radius: 10px;
-        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
+    /* ============================================================
+           ADMINISTRAR CATEGORÍAS SIDEBAR - NUEVO DISEÑO
+        ============================================================ */
+
+    .sidebar-categorias-page .dashboard-panel {
+        overflow: visible;
     }
 
-    .container-sap {
-        max-width: 900px;
-        margin: 1.25rem auto 2rem;
+    .categoria-form-panel {
+        background: var(--kpi-panel-soft);
+        border: 1px solid var(--kpi-border);
+        border-radius: 14px;
+        padding: 1rem;
     }
 
-    .sap-titlebar {
-        background: linear-gradient(#eef1f6,#e7ebf2);
-        border: 1px solid var(--bar-2);
-        border-radius: var(--radius);
-        padding: .85rem 1rem;
+    .categorias-list {
+        border: 1px solid var(--kpi-border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--kpi-card-bg);
+        box-shadow: var(--kpi-shadow);
+    }
+
+    .categoria-item {
+        background: var(--kpi-card-bg);
+        color: var(--kpi-text);
+        border-color: var(--kpi-border);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: .75rem;
-        box-shadow: var(--shadow);
+        gap: 0.85rem;
+        flex-wrap: wrap;
+        padding: 0.9rem 1rem;
+        transition: background .2s ease, border-color .2s ease, transform .2s ease, opacity .25s ease;
     }
 
-    .sap-card {
-        background: var(--pane);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin-top: 1rem;
-    }
+        .categoria-item:hover {
+            background: var(--kpi-active-bg);
+            border-color: var(--kpi-border-strong);
+            transform: translateY(-1px);
+        }
 
-    .sap-card-head {
-        padding: .75rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        font-weight: 800;
-        color: #2b3642;
+    .categoria-main {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 0.8rem;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .categoria-icon-box {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(122,11,11,0.10);
+        color: var(--brand-main);
+        border: 1px solid rgba(122,11,11,0.18);
+        flex-shrink: 0;
+    }
+
+    body[data-theme="dark"] .categoria-icon-box {
+        background: rgba(248,113,113,0.12);
+        color: #fca5a5;
+        border-color: rgba(248,113,113,0.30);
+    }
+
+    .categoria-title {
+        color: var(--kpi-text-strong);
+        font-weight: 900;
+        line-height: 1.15;
+        margin: 0;
+        word-break: break-word;
+    }
+
+    .categoria-sub {
+        color: var(--kpi-text-muted);
+        font-size: 0.78rem;
+        margin: 0.25rem 0 0;
+        font-weight: 700;
+        word-break: break-all;
+    }
+
+    .categoria-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-shrink: 0;
+    }
+
+    .search-categoria-wrap {
+        min-width: 280px;
+        max-width: 420px;
+    }
+
+    .sidebar-alert {
+        display: none;
+    }
+
+    .preview-icon-card {
+        background: var(--kpi-card-bg);
+        border: 1px solid var(--kpi-border);
+        border-radius: 14px;
+        padding: 1rem;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        box-shadow: var(--kpi-shadow);
+    }
+
+    .preview-icon-box {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(122,11,11,0.10);
+        color: var(--brand-main);
+        border: 1px solid rgba(122,11,11,0.18);
+        flex-shrink: 0;
+    }
+
+        .preview-icon-box i {
+            font-size: 1.7rem;
+        }
+
+    body[data-theme="dark"] .preview-icon-box {
+        background: rgba(248,113,113,0.12);
+        color: #fca5a5;
+        border-color: rgba(248,113,113,0.30);
+    }
+
+    .modal-content {
+        border-radius: 14px;
+        border: 1px solid var(--kpi-border);
+        overflow: hidden;
+        background: var(--kpi-card-bg);
+        color: var(--kpi-text);
+    }
+
+    .modal-header {
+        background: var(--kpi-panel-bg);
+        border-bottom: 1px solid var(--kpi-border);
+        color: var(--kpi-text-strong);
+    }
+
+    .modal-footer {
+        background: var(--kpi-panel-soft);
+        border-top: 1px solid var(--kpi-border);
+    }
+
+    body[data-theme="dark"] .btn-close {
+        filter: invert(1);
+    }
+
+    @@media (max-width: 768px) {
+        .categoria-item {
+            align-items: flex-start;
+        }
+
+        .categoria-actions {
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .search-categoria-wrap {
+            min-width: 100%;
+            max-width: 100%;
+        }
     }
 </style>
 
-<div class="container-sap">
+<div class="container-fluid py-4 px-3 px-md-4 container-custom sidebar-categorias-page">
 
-    <!-- Titlebar -->
-    <div class="sap-titlebar">
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
         <div>
-            <h4 class="m-0"><i class="bi bi-folder2-open"></i> Administración de Categorías</h4>
-            <p class="mb-0 text-muted small">Crea, edita o elimina categorías que agrupan los módulos del sidebar.</p>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-folder2-open me-2"></i> Administración de Categorías
+            </h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">
+                Crea o elimina categorías que agrupan los módulos del sidebar.
+            </p>
         </div>
+
         <div>
-            <a class="btn btn-secondary btn-sm" href="@Url.Action("Administrar", "Sidebar")">
+            <a class="btn btn-sm btn-outline-light fw-bold px-3 border-2" href="@Url.Action("Administrar", "Sidebar")">
                 <i class="bi bi-arrow-left-circle me-1"></i> Volver a módulos
             </a>
         </div>
     </div>
 
-    <!-- Formulario -->
-    <div class="sap-card p-3 mt-3">
-        <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle"></i> Crear nueva categoría</h6>
+    <div class="d-flex flex-wrap gap-3 mb-4">
 
-        <form id="formCategoria">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Nombre de la categoría</label>
-                    <input type="text" id="nombre" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Ícono (Bootstrap Icons)</label>
-                    <input type="text" id="icono" class="form-control" placeholder="bi bi-folder">
-                </div>
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-sliders me-1"></i> Acciones
             </div>
 
-            <div class="text-end mt-3">
-                <button type="submit" class="btn btn-outline-primary">
-                    <i class="bi bi-save me-1"></i> Guardar categoría
+            <div class="d-flex gap-2">
+                <button class="btn-rojo" type="button" onclick="document.getElementById('formCategoria').scrollIntoView({ behavior: 'smooth', block: 'start' })">
+                    <i class="bi bi-plus-circle"></i> Nueva categoría
+                </button>
+
+                <button type="button" class="btn-rojo" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refrescar
+                </button>
+
+                <button type="button" class="btn-rojo" onclick="location.href='@Url.Action("Administrar", "Sidebar")'">
+                    <i class="bi bi-ui-checks-grid"></i> Módulos
                 </button>
             </div>
-        </form>
+        </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-search me-1"></i> Buscar
+            </div>
+
+            <div class="search-categoria-wrap">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi bi-funnel"></i>
+                    </span>
+                    <input id="searchCategoria"
+                           type="search"
+                           class="form-control"
+                           placeholder="Buscar categoría o ícono..." />
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <div class="stat-card">
+                <div class="stat-label">Categorías</div>
+                <div class="stat-value" id="totalCategorias">@totalCategorias</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Tipo</div>
+                <div class="stat-value" style="font-size:1rem;">Sidebar</div>
+            </div>
+        </div>
+
     </div>
 
-    <!-- Lista -->
-    <div class="sap-card mt-4">
-        <div class="sap-card-head">
-            <span><i class="bi bi-list-ul me-2"></i> Categorías existentes</span>
+    <div id="categoriaAlert" class="alert sidebar-alert"></div>
+
+    <div class="dashboard-panel mb-4">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-plus-circle me-1"></i> Crear nueva categoría
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Define el nombre y el ícono Bootstrap que agrupará los módulos en el menú lateral.
+                </p>
+            </div>
         </div>
-        <ul class="list-group list-group-flush" id="lista-categorias">
-            @foreach (var cat in Model)
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap" data-id="@cat.Id">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="@cat.Icono"></i>
-                        <strong>@cat.Nombre</strong>
+
+        <div class="p-3 p-md-4">
+            <form id="formCategoria">
+                @Html.AntiForgeryToken()
+
+                <div class="categoria-form-panel">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold text-muted small">NOMBRE DE LA CATEGORÍA</label>
+                            <input type="text"
+                                   id="nombre"
+                                   class="form-control"
+                                   placeholder="Ej. Reportes"
+                                   required />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-muted small">ÍCONO BOOTSTRAP ICONS</label>
+                            <input type="text"
+                                   id="icono"
+                                   class="form-control"
+                                   placeholder="bi bi-folder" />
+                            <small class="text-muted">Ejemplo: <code>bi bi-folder</code></small>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="preview-icon-card">
+                                <div class="preview-icon-box">
+                                    <i id="previewIcon" class="bi bi-folder"></i>
+                                </div>
+
+                                <div>
+                                    <div class="fw-bold text-dark">Vista previa</div>
+                                    <small class="text-muted">Ícono de categoría</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-brand fw-bold px-4">
+                                <i class="bi bi-save me-1"></i> Guardar categoría
+                            </button>
+                        </div>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger btn-eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </li>
-            }
-        </ul>
+                </div>
+            </form>
+        </div>
     </div>
+
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-list-ul me-1"></i> Categorías existentes
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Estas categorías se utilizan para organizar los módulos del sidebar.
+                </p>
+            </div>
+        </div>
+
+        <div class="p-3">
+            <ul class="list-group list-group-flush categorias-list" id="lista-categorias">
+                @if (!categorias.Any())
+                {
+                    <li class="list-group-item">
+                        <div class="empty-state w-100">
+                            <i class="bi bi-folder-x"></i>
+                            <span class="fw-bold">No hay categorías registradas.</span><br />
+                            <small>Crea la primera categoría desde el formulario superior.</small>
+                        </div>
+                    </li>
+                }
+                else
+                {
+                    @foreach (var cat in categorias)
+                    {
+                        var icono = string.IsNullOrWhiteSpace(cat.Icono) ? "bi bi-folder" : cat.Icono;
+
+                        <li class="list-group-item categoria-item sidebar-search-item"
+                            data-id="@cat.Id"
+                            data-search="@($"{cat.Nombre} {icono}".ToLowerInvariant())">
+
+                            <div class="categoria-main">
+                                <div class="categoria-icon-box">
+                                    <i class="@icono"></i>
+                                </div>
+
+                                <div>
+                                    <p class="categoria-title">@cat.Nombre</p>
+                                    <p class="categoria-sub">@icono</p>
+                                </div>
+                            </div>
+
+                            <div class="categoria-actions">
+                                <button type="button" class="btn btn-sm btn-outline-danger fw-bold btn-eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </li>
+                    }
+                }
+            </ul>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalEliminarCategoria" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                        Confirmar eliminación
+                    </h5>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <p class="mb-1 fw-bold text-dark">
+                        ¿Seguro que deseas eliminar la categoría <span id="categoriaEliminarNombre"></span>?
+                    </p>
+                    <p class="text-muted small mb-0">
+                        Esta acción no se puede deshacer. Si la categoría está relacionada con módulos, podría fallar la eliminación.
+                    </p>
+                </div>
+
+                <div class="modal-footer gap-2">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i> Cancelar
+                    </button>
+
+                    <button type="button" class="btn btn-danger fw-bold" id="btnConfirmarEliminarCategoria">
+                        <i class="bi bi-trash me-1"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @section Scripts {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
     <script>
+        const tokenCategoria = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        let categoriaAEliminar = null;
+
+        function mostrarCategoriaAlert(mensaje, tipo = "info") {
+            const alert = document.getElementById("categoriaAlert");
+            if (!alert) return;
+
+            const icono = tipo === "danger"
+                ? "bi-exclamation-triangle-fill"
+                : tipo === "success"
+                    ? "bi-check-circle-fill"
+                    : "bi-info-circle-fill";
+
+            alert.className = `alert alert-${tipo} sidebar-alert`;
+            alert.innerHTML = `<i class="bi ${icono} me-2"></i>${mensaje}`;
+            alert.style.display = "block";
+
+            setTimeout(() => {
+                alert.style.display = "none";
+            }, 3500);
+        }
+
+        async function leerRespuestaJson(response) {
+            try {
+                return await response.json();
+            } catch {
+                return {};
+            }
+        }
+
+        const iconoInput = document.getElementById("icono");
+        const previewIcon = document.getElementById("previewIcon");
+
+        iconoInput?.addEventListener("input", () => {
+            const icono = (iconoInput.value || "bi bi-folder").trim();
+            previewIcon.className = icono || "bi bi-folder";
+        });
+
         document.getElementById("formCategoria").addEventListener("submit", async e => {
             e.preventDefault();
 
+            const btn = e.target.querySelector("button[type='submit']");
+            const original = btn.innerHTML;
+
             const data = {
                 Nombre: document.getElementById("nombre").value,
-                Icono: document.getElementById("icono").value
+                Icono: document.getElementById("icono").value || "bi bi-folder"
             };
 
-            const res = await fetch("/Sidebar/CrearCategoria", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            });
+            btn.disabled = true;
+            btn.innerHTML = `<i class="bi bi-hourglass-split me-1"></i> Guardando...`;
 
-            const result = await res.json();
-            alert(result.mensaje);
-            if (res.ok) location.reload();
+            try {
+                const res = await fetch("@Url.Action("CrearCategoria", "Sidebar")", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": tokenCategoria || ""
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await leerRespuestaJson(res);
+
+                if (!res.ok) {
+                    mostrarCategoriaAlert(result.mensaje || "No se pudo crear la categoría.", "danger");
+                    return;
+                }
+
+                mostrarCategoriaAlert(result.mensaje || "Categoría creada correctamente.", "success");
+
+                setTimeout(() => {
+                    location.reload();
+                }, 650);
+            }
+            catch (error) {
+                console.error(error);
+                mostrarCategoriaAlert("Ocurrió un error al guardar la categoría.", "danger");
+            }
+            finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
         });
 
-        document.querySelectorAll(".btn-eliminar").forEach(btn => {
-            btn.addEventListener("click", async () => {
-                const li = btn.closest("li");
-                const id = li.dataset.id;
-                const nombre = li.querySelector("strong").innerText;
+        function inicializarEliminarCategorias() {
+            document.querySelectorAll(".btn-eliminar").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const li = btn.closest("li");
+                    const id = li.dataset.id;
+                    const nombre = li.querySelector(".categoria-title")?.innerText || "esta categoría";
 
-                if (!confirm(`¿Seguro que deseas eliminar la categoría "${nombre}"?`)) return;
+                    categoriaAEliminar = li;
 
-                const res = await fetch(`/Sidebar/EliminarCategoria?id=${id}`, { method: "POST" });
-                const result = await res.json();
-                alert(result.mensaje);
-                if (res.ok) li.remove();
+                    document.getElementById("categoriaEliminarNombre").textContent = `"${nombre}"`;
+
+                    const modal = new bootstrap.Modal(document.getElementById("modalEliminarCategoria"));
+                    modal.show();
+                });
+            });
+        }
+
+        inicializarEliminarCategorias();
+
+        document.getElementById("btnConfirmarEliminarCategoria")?.addEventListener("click", async () => {
+            if (!categoriaAEliminar) return;
+
+            const id = categoriaAEliminar.dataset.id;
+            const modal = bootstrap.Modal.getInstance(document.getElementById("modalEliminarCategoria"));
+
+            modal?.hide();
+
+            try {
+                const res = await fetch(`@Url.Action("EliminarCategoria", "Sidebar")?id=${id}`, {
+                    method: "POST",
+                    headers: {
+                        "RequestVerificationToken": tokenCategoria || ""
+                    }
+                });
+
+                const result = await leerRespuestaJson(res);
+
+                if (!res.ok) {
+                    mostrarCategoriaAlert(result.mensaje || "No se pudo eliminar la categoría.", "danger");
+                    return;
+                }
+
+                mostrarCategoriaAlert(result.mensaje || "Categoría eliminada correctamente.", "success");
+
+                categoriaAEliminar.style.opacity = "0";
+                categoriaAEliminar.style.transform = "translateX(20px)";
+
+                setTimeout(() => {
+                    categoriaAEliminar.remove();
+
+                    const total = document.querySelectorAll("#lista-categorias .categoria-item").length;
+                    const totalSpan = document.getElementById("totalCategorias");
+
+                    if (totalSpan) {
+                        totalSpan.textContent = total;
+                    }
+                }, 250);
+            }
+            catch (error) {
+                console.error(error);
+                mostrarCategoriaAlert("Ocurrió un error al eliminar la categoría.", "danger");
+            }
+            finally {
+                categoriaAEliminar = null;
+            }
+        });
+
+        const searchCategoria = document.getElementById("searchCategoria");
+
+        searchCategoria?.addEventListener("input", () => {
+            const txt = (searchCategoria.value || "").toLowerCase().trim();
+
+            document.querySelectorAll(".sidebar-search-item").forEach(item => {
+                const contenido = item.getAttribute("data-search") || item.textContent.toLowerCase();
+                item.style.display = !txt || contenido.includes(txt) ? "" : "none";
             });
         });
     </script>

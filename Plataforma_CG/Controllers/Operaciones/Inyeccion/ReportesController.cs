@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -9,18 +10,20 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
     public class ReportesController : Controller
     {
         private readonly HttpClient _http;
+        private readonly InyeccionAPI _api;
 
-        public ReportesController(IHttpClientFactory factory)
+        public ReportesController(IHttpClientFactory factory, InyeccionAPI api)
         {
             _http = factory.CreateClient();
+            _api = api;
         }
 
         [HttpGet("RendimientoFecha")]
         public async Task<IActionResult> ObtenerRendimientoPorFecha(DateTime? fechain,DateTime? fechafin)
         {
 
-            var url = $"http://10.1.1.2:252/Reporte/RendimientoFecha" +
-                      $"?fechain={fechain:yyyy-MM-dd}&fechafin={fechafin:yyyy-MM-dd}";
+            var url = $"{_api.BaseUrl}Reporte/RendimientoFecha" +
+                $"?fechain={fechain:yyyy-MM-dd}&fechafin={fechafin:yyyy-MM-dd}";
 
             var resp = await _http.GetAsync(url);
 
@@ -36,8 +39,8 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         public async Task<IActionResult> ObtenerReporteDetallado(DateTime? fechain,DateTime? fechafin)
         {
 
-            var url = $"http://10.1.1.2:252/Reporte/Consultar" +
-                      $"?fechain={fechain:yyyy-MM-dd}&fechafin={fechafin:yyyy-MM-dd}";
+            var url = $"{_api.BaseUrl}Reporte/Consultar" +
+                $"?fechain={fechain:yyyy-MM-dd}&fechafin={fechafin:yyyy-MM-dd}";
 
             var resp = await _http.GetAsync(url);
 
@@ -51,7 +54,7 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         [HttpGet("RendimientoActual")]
         public async Task<IActionResult> ObtenerRendimientoActual(long lote)
         {
-            var url = $"http://10.1.1.2:252/Reporte/RendimientoActual?lote={lote}";
+            var url = $"{_api.BaseUrl}Reporte/RendimientoActual?lote={lote}";
 
             var resp = await _http.GetAsync(url);
 

@@ -3,6 +3,7 @@
 // =====================
 
 using Microsoft.AspNetCore.Mvc;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -13,10 +14,12 @@ namespace Plataforma_CG.Controllers
     public class RecetasController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly InyeccionAPI _api;
 
-        public RecetasController(IHttpClientFactory httpClientFactory)
+        public RecetasController(IHttpClientFactory httpClientFactory, InyeccionAPI api)
         {
             _httpClientFactory = httpClientFactory;
+            _api = api;
         }
 
         // ===========================
@@ -35,7 +38,7 @@ namespace Plataforma_CG.Controllers
                 }
 
                 var client = _httpClientFactory.CreateClient();
-                var url = $"http://10.1.1.2:252/Receta/ListarPlantilla?busq=&plan={planId}";
+                var url = $"{_api.BaseUrl}Receta/ListarPlantilla?busq=&plan={planId}";
 
                 Console.WriteLine($"🔄 Llamando a API externa: {url}");
 
@@ -107,7 +110,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 var client = _httpClientFactory.CreateClient();
-                var url = "http://10.1.1.2:252/Receta/Listar"; // Ajusta la URL según tu API
+                var url = $"{_api.BaseUrl}Receta/Listar";
 
                 var response = await client.GetAsync(url);
 
@@ -148,7 +151,7 @@ namespace Plataforma_CG.Controllers
                 }
 
                 var client = _httpClientFactory.CreateClient();
-                var url = $"http://10.1.1.2:252/Receta/ConsultarReceta?sku={sku}";
+                var url = $"{_api.BaseUrl}Receta/ConsultarReceta?sku={sku}";
 
                 var response = await client.GetAsync(url);
 

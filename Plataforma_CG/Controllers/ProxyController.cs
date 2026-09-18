@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using Plataforma_CG.Models;
 using System.Text.Json;
 
@@ -9,18 +10,19 @@ namespace Plataforma_CG.Controllers
     public class ProxyController : ControllerBase
     {
         private readonly HttpClient _httpClient;
+        private readonly InyeccionAPI _api;
 
-        public ProxyController(IHttpClientFactory httpClientFactory)
+        public ProxyController(IHttpClientFactory httpClientFactory, InyeccionAPI api)
         {
             _httpClient = httpClientFactory.CreateClient();
-            // Configurar timeout
+            _api = api;
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
         [HttpGet("productos")]
         public async Task<IActionResult> GetProductos()
         {
-            var url = "http://10.1.1.2:252/Receta/ListarProducto";
+            var url = $"{_api.BaseUrl}Receta/ListarProducto";
 
             try
             {
@@ -55,7 +57,7 @@ namespace Plataforma_CG.Controllers
         [HttpGet("test-connection")]
         public async Task<IActionResult> TestConnection()
         {
-            var url = "http://10.1.1.2:252/Receta/ListarProducto";
+            var url = $"{_api.BaseUrl}Receta/ListarProducto";
 
             try
             {

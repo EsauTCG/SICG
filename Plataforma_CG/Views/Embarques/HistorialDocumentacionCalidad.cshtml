@@ -1,0 +1,160 @@
+@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Histórico de Documentación de Calidad";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var registros = Model?.ToList() ?? new List<Plataforma_CG.Models.Embarque>();
+    var buscoHistorial = Convert.ToBoolean(ViewBag.BuscoHistorialDocumentacionCalidad ?? false);
+    var busqueda = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFin = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var tiposDocumento = new[]
+    {
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_AVISO_MOVILIZACION", Nombre = "Aviso de movilización", Icono = "bi-truck" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_HOJA_TRABAJO", Nombre = "Hoja de trabajo", Icono = "bi-clipboard-check" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_GARANTIA", Nombre = "Carta Garantía", Icono = "bi-patch-check" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_CARTA_EEB", Nombre = "Carta Libre de EEB", Icono = "bi-file-earmark-medical" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_CLEMBUTEROL", Nombre = "Carta libre de Clembuterol", Icono = "bi-shield-check" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_LIBRE_RESIDUOS_TOXICOS", Nombre = "Carta libre de residuos tóxicos", Icono = "bi-shield-exclamation" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_MICROBIOLOGICOS", Nombre = "Microbiológicos", Icono = "bi-virus" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FICHA_TECNICA", Nombre = "Ficha Técnica", Icono = "bi-file-earmark-text" },
+        new { Grupo = "Expediente de calidad", Tipo = "CALIDAD_FACTURA", Nombre = "Factura", Icono = "bi-receipt" },
+        new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_ROMANEOS", Nombre = "Romaneos", Icono = "bi-box-seam" },
+        new { Grupo = "Documentos poco presentes", Tipo = "CALIDAD_REMISION", Nombre = "Remisión", Icono = "bi-journal-text" }
+    };
+}
+
+<link rel="stylesheet" href="~/css/embarques-historial.css" asp-append-version="true" />
+
+<div class="history-page">
+    <header class="history-header">
+        <div class="history-title-wrap">
+            <div class="history-title-icon"><i class="bi bi-shield-check"></i></div>
+            <div>
+                <h1 class="history-title">Histórico de Documentación de Calidad</h1>
+                <p class="history-subtitle">Consulta expedientes ya validados sin cargar la pantalla de captura documental.</p>
+            </div>
+        </div>
+
+        <div class="history-actions">
+            <a asp-action="DocumentacionCalidad" class="history-button">
+                <i class="bi bi-hourglass-split"></i> Ver pendientes
+            </a>
+            <a asp-action="Documentacion" class="history-button">
+                <i class="bi bi-folder2-open"></i> Documentación logística
+            </a>
+        </div>
+    </header>
+
+    <form method="get" asp-action="HistorialDocumentacionCalidad" class="history-filter">
+        <div class="history-field">
+            <label for="busquedaHistorial">Buscar embarque</label>
+            <input id="busquedaHistorial" name="busquedaHistorial" value="@busqueda"
+                   placeholder="Consecutivo, ID o nombre" />
+        </div>
+        <div class="history-field">
+            <label for="fechaInicioHistorial">Fecha de validación inicial</label>
+            <input id="fechaInicioHistorial" type="date" name="fechaInicioHistorial" value="@fechaInicio" required />
+        </div>
+        <div class="history-field">
+            <label for="fechaFinHistorial">Fecha de validación final</label>
+            <input id="fechaFinHistorial" type="date" name="fechaFinHistorial" value="@fechaFin" required />
+        </div>
+        <button type="submit" class="history-button primary">
+            <i class="bi bi-search"></i> Consultar
+        </button>
+        <a asp-action="HistorialDocumentacionCalidad" class="history-button">
+            <i class="bi bi-arrow-clockwise"></i> Limpiar
+        </a>
+    </form>
+
+    @if (!buscoHistorial)
+    {
+        <div class="history-empty">
+            <i class="bi bi-calendar-range"></i>
+            <h4>Selecciona un rango de fechas</h4>
+            <p class="mb-0">Los expedientes se consultan únicamente cuando indicas ambas fechas.</p>
+        </div>
+    }
+    else if (!registros.Any())
+    {
+        <div class="history-empty">
+            <i class="bi bi-search"></i>
+            <h4>No se encontraron registros</h4>
+            <p class="mb-0">No existen validaciones de documentación de calidad para los filtros seleccionados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="history-results">
+            @foreach (var embarque in registros)
+            {
+                var archivos = embarque.Archivos?.ToList() ?? new List<Plataforma_CG.Models.EmbarqueArchivo>();
+                var archivosCalidad = archivos.Where(a => tiposDocumento.Any(t => t.Tipo == a.Tipo)).ToList();
+                var consecutivo = string.IsNullOrWhiteSpace(embarque.Consecutivo)
+                    ? $"EMB-{embarque.Id}"
+                    : embarque.Consecutivo;
+
+                <details class="history-record">
+                    <summary>
+                        <div>
+                            <h2 class="history-record-title">
+                                <i class="bi bi-shield-check"></i>
+                                Embarque #@consecutivo
+                            </h2>
+                            <div class="history-meta">
+                                <span class="history-chip success"><i class="bi bi-check-circle-fill"></i> Validado</span>
+                                <span class="history-chip"><i class="bi bi-hash"></i> ID @embarque.Id</span>
+                                <span class="history-chip"><i class="bi bi-calendar-check"></i> @(embarque.FechaValidacionDocumentacionCalidad?.ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</span>
+                                <span class="history-chip"><i class="bi bi-person-check"></i> @(embarque.UsuarioValidaDocumentacionCalidad ?? "Sistema")</span>
+                            </div>
+                        </div>
+                        <span class="history-record-count">@archivosCalidad.Count archivo(s)</span>
+                    </summary>
+
+                    <div class="history-record-body">
+                        <div class="history-grid">
+                            <div class="history-data"><span>Nombre</span><strong>@(embarque.NombreEmbarque ?? "Sin nombre asignado")</strong></div>
+                            <div class="history-data"><span>Fecha de creación</span><strong>@embarque.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</strong></div>
+                            <div class="history-data"><span>Fecha de validación</span><strong>@(embarque.FechaValidacionDocumentacionCalidad?.ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</strong></div>
+                            <div class="history-data"><span>Usuario validador</span><strong>@(embarque.UsuarioValidaDocumentacionCalidad ?? "Sistema")</strong></div>
+                            <div class="history-data"><span>Tipos con archivo</span><strong>@tiposDocumento.Count(t => archivos.Any(a => a.Tipo == t.Tipo)) de @tiposDocumento.Length</strong></div>
+                            <div class="history-data"><span>Total de archivos</span><strong>@archivosCalidad.Count</strong></div>
+                        </div>
+
+                        @foreach (var grupo in tiposDocumento.GroupBy(t => t.Grupo))
+                        {
+                            <section class="history-section">
+                                <h3 class="history-section-title"><i class="bi bi-folder2-open"></i> @grupo.Key</h3>
+                                <div class="history-doc-grid">
+                                    @foreach (var tipo in grupo)
+                                    {
+                                        var archivosTipo = archivos.Where(x => x.Tipo == tipo.Tipo).ToList();
+                                        <div class="history-doc">
+                                            <div class="history-doc-name"><i class="bi @tipo.Icono me-1"></i>@tipo.Nombre</div>
+                                            @if (!archivosTipo.Any())
+                                            {
+                                                <span class="text-muted small">Sin archivo cargado</span>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var archivo in archivosTipo)
+                                                {
+                                                    <a class="history-file-link" href="@archivo.RutaArchivo" target="_blank" rel="noopener">
+                                                        <span>Archivo #@archivo.Id</span><i class="bi bi-box-arrow-up-right"></i>
+                                                    </a>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+                </details>
+            }
+        </div>
+    }
+</div>

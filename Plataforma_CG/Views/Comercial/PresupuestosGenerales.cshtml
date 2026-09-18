@@ -4,1533 +4,1016 @@
 }
 
 <style>
+    @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
     :root {
-        --brand: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --bg: linear-gradient(135deg,#eef2f6 0%,#e9edf2 50%,#d7dde3 100%);
-        --panel: #fff;
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --text: #20262e;
-        --muted: #636d7b;
-        --accent: #2d6cdf;
-        --radius: 8px;
-        --shadow: 0 1px 0 rgba(0,0,0,.04),0 12px 24px rgba(0,0,0,.06);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.05);
-        --focus: 0 0 0 .2rem rgba(45,108,223,.25);
-        --font: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";
+        --pres-font: "Poppins", "Segoe UI", Arial, sans-serif;
+        --pres-bg: #eadede;
+        --pres-surface: #fffafa;
+        --pres-surface-2: #f7eeee;
+        --pres-line: #d7bcbc;
+        --pres-line-dark: #a56d6d;
+        --pres-text: #361515;
+        --pres-muted: #765151;
+        --pres-brand: #8b0000;
+        --pres-brand-2: #6d0000;
+        --pres-brand-3: #4d0000;
+        --pres-ok: #176b3a;
+        --pres-danger: #b40000;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
     }
 
     body {
-        background: var(--bg) !important;
-        font-family: var(--font);
-        color: var(--text);
+        background: #ece6e6 !important;
+        color: var(--pres-text) !important;
+        font-family: var(--pres-font) !important;
     }
 
-    .shell {
-        width: 96%;
-        max-width: 1800px;
-        margin: 1.25rem auto;
-        background: #fff;
-        border-radius: var(--radius);
-        border: 1px solid var(--line);
-        box-shadow: var(--shadow);
-        overflow: hidden;
+    body:has(.presupuesto-app),
+    body:has(.presupuesto-app) .layout-main-content,
+    body:has(.presupuesto-app) .layout-main-content .layout-container-fluid,
+    body:has(.presupuesto-app) main[role="main"] {
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
     }
 
-    .module-titlebar {
-        background: var(--brand); /* ✅ tu gradiente rojo */
-        border-bottom: 1px solid rgba(255,255,255,.18);
-        color: #fff;
-        padding: 1rem 2rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-
+    body:has(.presupuesto-app) .layout-main-content {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
     }
 
-    .module-title {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        margin: 0;
-        font-weight: 700;
-    }
-
-    .module-subtitle {
-        margin: 0;
-        color: var(--muted);
-        font-size: .9rem;
-    }
-
-    .toolbar {
-        background: var(--bar);
-        border-bottom: 1px solid var(--bar-2);
-        padding: .4rem .6rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: .4rem;
-    }
-
-    .tbtn {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        height: 34px;
-        padding: 0 .6rem;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        background: #fff;
-        color: #1e2a35;
-        font-size: .9rem;
-        transition: .15s;
-    }
-
-        .tbtn:hover {
-            background: #f8fafc;
-            border-color: #cfd6e2;
-        }
-
-        .tbtn.primary {
-            background: var(--brand);
-            color: #fff;
-            border-color: transparent;
-        }
-
-            .tbtn.primary:hover {
-                filter: brightness(1.05);
-            }
-
-    .panel {
-        background: #fff;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .panel-head {
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        border-bottom: 1px solid var(--line);
-        padding: .6rem .8rem;
-        font-weight: 600;
-        color: #2b3642; /* ✅ typo corregido */
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-    }
-
-    .panel-body {
-        padding: .9rem;
-    }
-
-    .form-control, .form-select {
-        border-radius: 6px;
-        border-color: #cfd6e2;
-        font-size: .95rem;
-    }
-
-        .form-control:focus, .form-select:focus {
-            box-shadow: var(--focus);
-            border-color: var(--accent);
-            outline: none;
-        }
-
-    .table-sm > :not(caption) > * > * {
-        padding: .5rem .6rem;
-    }
-
-    .table-hover tbody tr:hover {
-        background: #f9fbff;
-    }
-
-    .text-end {
-        text-align: right;
-    }
-
-    .totales-sap {
-        background: #f6f8fb;
-        border-top: 1px solid var(--line);
-        padding: .5rem .75rem;
-    }
-
-    #loadingSpinnerCedis {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 2000;
-        backdrop-filter: blur(1.5px);
-        background: rgba(255,255,255,.72);
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-    }
-
-    .table-responsive > .table {
-        min-width: 1200px;
-    }
-
-    .table-responsive-sticky {
-        max-height: 65vh;
-        overflow: auto;
-        position: relative;
-        border-radius: 8px;
-        border: 1px solid #eee;
-    }
-
-        .table-responsive-sticky thead th {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: #f3f6fb; /* o tu var(--brand-soft) */
-            border-bottom: 1px solid var(--line);
-            box-shadow: 0 2px 0 rgba(0,0,0,.08);
-        }
-
-    /* ✅ contenedor scrolleable: aquí debe vivir el scroll */
-    .table-wrapper {
-        max-height: 65vh;
-        overflow: auto;
-        position: relative;
-    }
-
-    .nav-tabs {
-        border-bottom: 1px solid var(--bar-2);
-        background: #fff;
-        padding: 0 1rem;
-    }
-
-        .nav-tabs .nav-link {
-            border: none !important;
-            border-bottom: 3px solid transparent !important;
-            color: #334155;
-            font-weight: 600;
-            padding: .75rem 1rem;
-            border-radius: 0 !important;
-        }
-
-            .nav-tabs .nav-link.active {
-                color: #8B0000;
-                border-bottom-color: #8B0000 !important;
-                background: #fff !important;
-            }
-
-    @@media (max-width:1400px) {
-        .shell {
-            width: 98%;
-            max-width: 1600px;
-        }
-
-        .table-responsive > .table {
-            min-width: 1100px;
-        }
-    }
-
-    /* =========================================================
-         ✅ STICKY HEADER (NO TRANSPARENTE)
-    ========================================================= */
-    .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 10; /* arriba de filas */
-        background: #f3f6fb !important; /* tu tono azulito */
-        background-clip: padding-box;
-        border-bottom: 1px solid var(--line);
-        color: #2b3642;
-        font-weight: 700;
-        box-shadow: 0 2px 0 rgba(0,0,0,.08);
-        backdrop-filter: none !important;
-    }
-
-    /* Si quieres asegurar que todo el thead tenga fondo sólido */
-    .table thead {
-        position: sticky;
-        top: 0;
-        z-index: 9;
-        background: #f3f6fb !important;
-    }
-
-    /* Sticky columnas (si usas) */
-    .table .sticky-col {
-        position: sticky;
-        left: 0;
-        z-index: 11; /* encima del header si se cruzan */
-        background: #fff !important;
-    }
-
-    /* ===========================
-       ✅ Switch Modo Presupuesto
-    =========================== */
-    .modo-pill {
-        display: flex;
-        flex-direction: column;
-        gap: .35rem;
-        padding: .45rem .6rem;
-        border-radius: 10px;
-        background: rgba(255,255,255,.14);
-        border: 1px solid rgba(255,255,255,.22);
-        backdrop-filter: blur(2px);
-        box-shadow: 0 6px 14px rgba(0,0,0,.10);
-    }
-
-    .modo-title {
-        font-size: .78rem;
-        font-weight: 700;
-        line-height: 1;
-        color: #fff;
-        letter-spacing: .2px;
-    }
-
-    #modoPresupuestoBox .btn {
-        border-color: rgba(255,255,255,.25) !important;
-    }
-
-        #modoPresupuestoBox .btn.active {
-            background: #fff !important;
-            color: #111 !important;
-            font-weight: 700;
-        }
-
-        /* VISTA ROSITA / GRIS */
-html,
-body {
-    background: #e9edf2 !important;
-    overflow-x: hidden !important;
-}
-
-body,
-main,
-.main,
-.body-content,
-.container,
-.container-fluid {
-    background: #e9edf2 !important;
-}
-
-.shell {
-    width: min(100%, calc(100vw - 48px)) !important;
-    max-width: 1900px !important;
-    margin: 8px auto !important;
-    background: #f8eeee !important;
-    border: 1px solid #7e4a4a !important;
-    border-radius: 0 !important;
-    box-shadow: 0 8px 18px rgba(70,12,12,.14) !important;
-}
-
-.module-titlebar,
-.modal-header {
-    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
-    color: #fff !important;
-    border-bottom: 1px solid #5c0000 !important;
-}
-
-.content,
-.tab-content {
-    background: #f0dede !important;
-}
-
-.toolbar,
-.nav-tabs,
-.panel-head,
-.totales-sap {
-    background: #f1dede !important;
-    border-color: #c79d9d !important;
-}
-
-.panel,
-.modal-content {
-    background: #fffafa !important;
-    border: 1px solid #c79d9d !important;
-    border-radius: 0 !important;
-}
-
-.panel-body,
-.modal-body {
-    background: #fffafa !important;
-}
-
-.form-control,
-.form-select,
-.input-group-text {
-    background: #fffafa !important;
-    border: 1px solid #b48787 !important;
-    color: #421414 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-}
-
-.form-control:focus,
-.form-select:focus {
-    border-color: #8b0000 !important;
-    box-shadow: 0 0 0 .15rem rgba(139,0,0,.12) !important;
-}
-
-.tbtn,
-.btn-outline-secondary {
-    background: linear-gradient(#fffefe,#ecd7d7) !important;
-    border: 1px solid #b48787 !important;
-    color: #4a1111 !important;
-    border-radius: 0 !important;
-    font-weight: 700 !important;
-}
-
-.tbtn.primary,
-.btn-danger {
-    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
-    border: 1px solid #7a2d2d !important;
-    color: #fff !important;
-}
-
-.nav-tabs .nav-link {
-    background: linear-gradient(#fffefe,#ecd7d7) !important;
-    border: 1px solid #caa0a0 !important;
-    color: #5c1a1a !important;
-    border-radius: 0 !important;
-    margin-right: 4px !important;
-}
-
-.nav-tabs .nav-link.active {
-    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
-    color: #fff !important;
-    border-color: #7a2d2d !important;
-}
-
-.table-responsive-sticky,
-.table-wrapper {
-    background: #fffafa !important;
-    border: 1px solid #d9b8b8 !important;
-}
-
-.table {
-    background: #fffafa !important;
-    border-collapse: separate !important;
-    border-spacing: 0 !important;
-}
-
-.table thead,
-.table thead th {
-    background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
-    color: #fff !important;
-    border-right: 1px solid #8e3b3b !important;
-    border-bottom: 1px solid #5c0000 !important;
-}
-
-.table tbody td {
-    background: #fffafa !important;
-    border-right: 1px solid #d8bcbc !important;
-    border-bottom: 1px solid #d8bcbc !important;
-    color: #401515 !important;
-}
-
-.table tbody tr:nth-of-type(even) > * {
-    background: #f9eded !important;
-}
-
-.table-hover tbody tr:hover > * {
-    background: #f4dddd !important;
-}
-
-
-@@media (max-width: 768px) {
-    .shell {
+    body:has(.presupuesto-app) .layout-main-content .layout-container-fluid {
         width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         margin: 0 !important;
-        border-left: none !important;
-        border-right: none !important;
+        padding: 0 !important;
+        overflow: visible !important;
     }
 
-    .module-titlebar {
-        display: block !important;
-        padding: 10px !important;
+    body:has(.presupuesto-app) footer,
+    body:has(.presupuesto-app) .footer,
+    body:has(.presupuesto-app) .layout-footer {
+        position: static !important;
+        min-height: 29px !important;
+        height: auto !important;
+        margin-top: 4px !important;
+        padding: 4px 0 !important;
+        font-family: var(--pres-font) !important;
+        font-size: 10.5px !important;
+        line-height: 1.15 !important;
     }
 
-    .module-titlebar > div:last-child {
-        margin-top: 8px;
-        flex-wrap: wrap !important;
-    }
-
-    .toolbar {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 6px !important;
-    }
-
-    .tbtn,
-    .btn,
-    .form-control,
-    .form-select {
+    .presupuesto-app {
         width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-family: var(--pres-font) !important;
+        font-size: 11px !important;
+        line-height: 1.22 !important;
+        color: var(--pres-text) !important;
+        container-type: inline-size;
+        container-name: presupuesto;
+    }
+
+    .presupuesto-app,
+    .presupuesto-app *,
+    #modalGuardarCedis,
+    #modalGuardarCedis *,
+    #comentarioModalCedis,
+    #comentarioModalCedis *,
+    #comentarioModalVendedor,
+    #comentarioModalVendedor *,
+    #comentarioModalCliente,
+    #comentarioModalCliente *,
+    #modalAdminPres,
+    #modalAdminPres * {
+        font-family: var(--pres-font) !important;
+    }
+
+    .presupuesto-app > .shell,
+    .presupuesto-app .shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid #8d5555 !important;
+        border-radius: 0 !important;
+        background: var(--pres-surface) !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    /* ============================================================
+       CABECERA
+       ============================================================ */
+    .presupuesto-app .module-titlebar {
+        min-height: 39px !important;
+        padding: 4px 7px !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 6px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #5a0000 !important;
+        border-radius: 0 !important;
+        background: linear-gradient(180deg, #b30000 0%, #870000 56%, #5c0000 100%) !important;
+        box-shadow: none !important;
+        color: #fff !important;
+    }
+
+    .presupuesto-app .module-titlebar > div:first-child {
+        min-width: 0 !important;
+    }
+
+    .presupuesto-app .module-title {
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        color: #fff !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+    }
+
+    .presupuesto-app .module-title i {
         font-size: 12px !important;
     }
 
-    .nav-tabs {
+    .presupuesto-app .module-subtitle {
+        margin: 2px 0 0 !important;
+        color: #f8dddd !important;
+        font-size: 9px !important;
+        line-height: 1.05 !important;
+    }
+
+    .presupuesto-app .module-titlebar > .d-flex {
+        min-width: 0 !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-end !important;
+    }
+
+    .presupuesto-app .modo-pill {
+        min-height: 31px !important;
+        padding: 2px 4px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 4px !important;
+        border: 1px solid rgba(255,255,255,.28) !important;
+        border-radius: 2px !important;
+        background: rgba(255,255,255,.10) !important;
+        box-shadow: none !important;
+    }
+
+    .presupuesto-app .modo-pill center {
+        display: contents !important;
+    }
+
+    .presupuesto-app .modo-title {
+        margin: 0 !important;
+        color: #fff !important;
+        font-size: 8.2px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+        letter-spacing: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .presupuesto-app #modoPresupuestoBox .btn {
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 7px !important;
+        border: 1px solid rgba(255,255,255,.30) !important;
+        border-radius: 0 !important;
+        background: rgba(255,255,255,.11) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        font-size: 8.5px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+    }
+
+    .presupuesto-app #modoPresupuestoBox .btn.active {
+        background: #fff !important;
+        color: var(--pres-brand) !important;
+        border-color: #fff !important;
+    }
+
+    .presupuesto-app .module-titlebar .tbtn {
+        width: auto !important;
+        min-width: 0 !important;
+        min-height: 27px !important;
+        height: 27px !important;
+        padding: 0 8px !important;
+        border: 1px solid rgba(255,255,255,.32) !important;
+        border-radius: 0 !important;
+        background: rgba(255,255,255,.10) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        font-size: 8.8px !important;
+        font-weight: 600 !important;
+    }
+
+    .presupuesto-app .module-titlebar .tbtn:hover {
+        background: rgba(255,255,255,.19) !important;
+    }
+
+    /* ============================================================
+       WORKFLOW
+       ============================================================ */
+    .presupuesto-app .pp-workflow {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 3px !important;
+        padding: 4px !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--pres-line) !important;
+        background: #f2e5e5 !important;
+        box-shadow: none !important;
+    }
+
+    .presupuesto-app .pp-step-card {
+        min-width: 0 !important;
+        min-height: 38px !important;
+        padding: 4px 5px !important;
+        display: grid !important;
+        grid-template-columns: 23px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 5px !important;
+        border: 1px solid var(--pres-line) !important;
+        border-radius: 0 !important;
+        background: #fffafa !important;
+    }
+
+    .presupuesto-app .pp-step-num {
+        width: 22px !important;
+        height: 22px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        background: var(--pres-brand) !important;
+        color: #fff !important;
+        font-size: 8.5px !important;
+        font-weight: 700 !important;
+    }
+
+    .presupuesto-app .pp-step-title {
+        display: block !important;
+        color: var(--pres-text) !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .presupuesto-app .pp-step-help {
+        display: block !important;
+        margin-top: 1px !important;
+        color: var(--pres-muted) !important;
+        font-size: 7.8px !important;
+        line-height: 1.08 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ============================================================
+       CONTENIDO / TABS
+       ============================================================ */
+    .presupuesto-app .content,
+    .presupuesto-app .tab-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        background: var(--pres-bg) !important;
+    }
+
+    .presupuesto-app .content {
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    .presupuesto-app .content > .p-3:first-child {
+        padding: 3px 4px !important;
+        border-bottom: 0 !important;
+        background: var(--pres-bg) !important;
+    }
+
+    .presupuesto-app #alertsZone .alert,
+    .presupuesto-app .alert {
+        margin: 0 0 4px !important;
+        padding: 5px 7px !important;
+        border-radius: 0 !important;
+        font-size: 9.2px !important;
+        line-height: 1.15 !important;
+    }
+
+    .presupuesto-app .nav-tabs {
+        min-height: 32px !important;
+        padding: 3px 4px 0 !important;
+        display: flex !important;
+        gap: 3px !important;
         flex-wrap: nowrap !important;
         overflow-x: auto !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--pres-line) !important;
+        background: #f5eaea !important;
     }
 
-    .nav-tabs .nav-link {
+    .presupuesto-app .nav-tabs .nav-link {
         min-width: max-content !important;
-        font-size: 11px !important;
-        padding: 7px 10px !important;
-    }
-
-    .table-responsive-sticky,
-    .table-wrapper {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        max-height: 65vh !important;
-    }
-
-    .table {
-        min-width: 900px !important;
-        font-size: 10px !important;
-    }
-
-    .table th,
-    .table td {
-        font-size: 10px !important;
-        padding: 4px 3px !important;
-    }
-}
-
-
-
-/* Que el contenido no empuje hacia la derecha */
-.tab-content {
-    padding: 8px !important;
-}
-
-#pane-cedis .row,
-#pane-ven .row,
-#pane-cli .row {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-}
-
-/* Reducir panel izquierdo de filtros */
-@@media (min-width: 992px) {
-    #pane-cedis .col-xl-3,
-    #pane-ven .col-xl-3 {
-        width: 240px !important;
-        flex: 0 0 240px !important;
-    }
-
-    #pane-cedis .col-xl-9,
-    #pane-ven .col-xl-9 {
-        width: calc(100% - 240px) !important;
-        flex: 0 0 calc(100% - 240px) !important;
-    }
-}
-
-/* Tabla con scroll interno */
-.table-responsive-sticky,
-.table-wrapper {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-}
-
-/* Responsive */
-@@media (max-width: 768px) {
-    .shell {
-        width: 100% !important;
+        min-height: 27px !important;
+        height: 27px !important;
         margin: 0 !important;
+        padding: 0 10px !important;
+        border: 1px solid var(--pres-line-dark) !important;
+        border-radius: 0 !important;
+        background: linear-gradient(#fffefe, #ead6d6) !important;
+        color: #5a2020 !important;
+        box-shadow: none !important;
+        font-size: 9.5px !important;
+        font-weight: 600 !important;
+        line-height: 25px !important;
     }
 
-    #pane-cedis .col-xl-3,
-    #pane-cedis .col-xl-9,
-    #pane-ven .col-xl-3,
-    #pane-ven .col-xl-9 {
-        width: 100% !important;
-        flex: 0 0 100% !important;
-    }
-}
-
-/* CENTRAR Y EVITAR QUE SE VAYA A LA DERECHA */
-.shell {
-    width: 96% !important;
-    max-width: 1500px !important;
-    margin: 8px auto !important;
-}
-
-.container-fluid {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-
-/* Quitar regla que lo expande demasiado */
-@@media (min-width: 1400px) {
-    .shell {
-        width: 96% !important;
-        max-width: 1500px !important;
-    }
-}
-
-/* La tabla debe hacer scroll adentro, no empujar pantalla */
-.table-responsive-sticky,
-.table-wrapper {
-    overflow-x: auto !important;
-    max-width: 100% !important;
-}
-
-.table-responsive-sticky .table,
-.table-wrapper .table,
-#tablaCedis,
-#tablaVendedor,
-#tablaCliente {
-    min-width: 1200px !important;
-}
-
-/* RESPONSIVO REAL - PRESUPUESTOS */
-html,
-body {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: hidden !important;
-}
-
-.container-fluid {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-}
-
-.shell {
-    width: 100% !important;
-    max-width: 1800px !important;
-    margin: 8px auto !important;
-}
-
-/* Pantallas grandes */
-@@media (min-width: 1600px) {
-    .container-fluid {
-        padding-left: 32px !important;
-        padding-right: 32px !important;
+    .presupuesto-app .nav-tabs .nav-link.active {
+        border-color: #730000 !important;
+        background: linear-gradient(180deg, #ad0000 0%, #840000 58%, #620000 100%) !important;
+        color: #fff !important;
     }
 
-    .shell {
-        max-width: 1850px !important;
-    }
-}
-
-/* Laptop / monitor normal */
-@@media (max-width: 1400px) {
-    .shell {
-        max-width: 100% !important;
+    .presupuesto-app .tab-content {
+        padding: 4px !important;
     }
 
-    .container-fluid {
-        padding-left: 8px !important;
-        padding-right: 8px !important;
-    }
-}
-
-/* Que Bootstrap no empuje columnas */
-#pane-cedis .row,
-#pane-ven .row,
-#pane-cli .row {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-}
-
-/* Filtros más compactos en escritorio */
-@@media (min-width: 992px) {
-    #pane-cedis .col-xl-3,
-    #pane-ven .col-xl-3 {
-        flex: 0 0 250px !important;
-        width: 250px !important;
-        max-width: 250px !important;
+    /* ============================================================
+       TOOLBARS / BOTONES
+       ============================================================ */
+    .presupuesto-app .toolbar {
+        min-height: 34px !important;
+        margin-bottom: 4px !important;
+        padding: 3px 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 3px !important;
+        border: 1px solid var(--pres-line) !important;
+        border-radius: 0 !important;
+        background: #f6ebeb !important;
     }
 
-    #pane-cedis .col-xl-9,
-    #pane-ven .col-xl-9 {
+    .presupuesto-app .tbtn,
+    .presupuesto-app .btn-outline-secondary {
+        min-width: 0 !important;
+        min-height: 27px !important;
+        height: 27px !important;
+        padding: 0 8px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+        border: 1px solid var(--pres-line-dark) !important;
+        border-radius: 0 !important;
+        background: linear-gradient(#fffefe, #ecd7d7) !important;
+        color: #4c1919 !important;
+        box-shadow: none !important;
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    .presupuesto-app .tbtn:hover,
+    .presupuesto-app .btn-outline-secondary:hover {
+        background: #f7e7e7 !important;
+        color: #3f1010 !important;
+    }
+
+    .presupuesto-app .tbtn.primary,
+    .presupuesto-app .btn-danger {
+        border-color: #760000 !important;
+        background: linear-gradient(180deg, #b30000 0%, #870000 58%, #620000 100%) !important;
+        color: #fff !important;
+    }
+
+    .presupuesto-app .toolbar .ms-auto {
         flex: 1 1 auto !important;
-        width: calc(100% - 250px) !important;
-        max-width: calc(100% - 250px) !important;
-    }
-}
-
-/* La tabla NO debe agrandar la pantalla */
-.table-responsive-sticky,
-.table-wrapper {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-}
-
-/* La tabla conserva columnas y hace scroll dentro */
-#tablaCedis,
-#tablaVendedor,
-#tablaCliente {
-    width: max-content !important;
-    min-width: 1150px !important;
-}
-
-/* Móvil */
-@@media (max-width: 768px) {
-    .container-fluid {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
     }
 
-    .shell {
-        width: 100% !important;
-        max-width: 100% !important;
+    /* ============================================================
+       PANELES / FORMULARIOS
+       ============================================================ */
+    .presupuesto-app .row {
+        --bs-gutter-x: 4px !important;
+        --bs-gutter-y: 4px !important;
+    }
+
+    .presupuesto-app .panel {
+        height: 100% !important;
         margin: 0 !important;
-        border-left: none !important;
-        border-right: none !important;
+        border: 1px solid var(--pres-line) !important;
+        border-radius: 0 !important;
+        background: var(--pres-surface) !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
     }
 
-    .module-titlebar {
-        display: block !important;
-        padding: 10px !important;
+    .presupuesto-app .panel-head {
+        min-height: 28px !important;
+        padding: 5px 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #6c1e1e !important;
+        border-radius: 0 !important;
+        background: linear-gradient(180deg, #aa0000 0%, #820000 58%, #610000 100%) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        line-height: 1.05 !important;
     }
 
-    .module-titlebar > div:last-child {
-        margin-top: 8px !important;
-        display: grid !important;
-        grid-template-columns: 1fr !important;
-        gap: 6px !important;
+    .presupuesto-app .panel-head i {
+        color: #fff !important;
     }
 
-    .modo-pill,
-    .module-titlebar .tbtn {
-        width: 100% !important;
-    }
-
-    .toolbar {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 6px !important;
-    }
-
-    .toolbar .ms-auto {
-        display: none !important;
-    }
-
-    .tbtn,
-    .btn,
-    .form-control,
-    .form-select {
-        width: 100% !important;
-        font-size: 12px !important;
-    }
-
-    .tab-content {
+    .presupuesto-app .panel-body {
         padding: 6px !important;
+        background: #fffafa !important;
     }
 
-    #pane-cedis .col-xl-3,
-    #pane-cedis .col-xl-9,
-    #pane-ven .col-xl-3,
-    #pane-ven .col-xl-9,
-    #pane-cli .col-xl-4,
-    #pane-cli .col-xl-8 {
+    .presupuesto-app .form-label,
+    .presupuesto-app .sap-field label {
+        margin: 0 0 2px !important;
+        color: #5d2727 !important;
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        line-height: 1.05 !important;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    .presupuesto-app .form-control,
+    .presupuesto-app .form-select,
+    .presupuesto-app .input-group-text {
+        min-height: 28px !important;
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b88989 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #331414 !important;
+        box-shadow: none !important;
+        font-size: 10.2px !important;
+        line-height: 1.1 !important;
+    }
+
+    .presupuesto-app .form-control:focus,
+    .presupuesto-app .form-select:focus {
+        border-color: var(--pres-brand) !important;
+        box-shadow: 0 0 0 1px rgba(139,0,0,.12) !important;
+    }
+
+    .presupuesto-app .form-text,
+    .presupuesto-app .small,
+    .presupuesto-app small {
+        color: var(--pres-muted) !important;
+        font-size: 8.3px !important;
+        line-height: 1.12 !important;
+    }
+
+    .presupuesto-app hr {
+        margin: 6px 0 !important;
+        border-color: #dcc3c3 !important;
+        opacity: 1 !important;
+    }
+
+    .presupuesto-app .mb-2,
+    .presupuesto-app .mt-2,
+    .presupuesto-app .mt-3,
+    .presupuesto-app .mb-3,
+    .presupuesto-app .my-3 {
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .presupuesto-app #cliVendedores {
+        min-height: 76px !important;
+        height: 76px !important;
+    }
+
+    .presupuesto-app #cliListaClientes {
+        padding: 3px 5px !important;
+        background: #fff !important;
+        color: var(--pres-text) !important;
+        font-size: 9.2px !important;
+    }
+
+    .presupuesto-app #cliListaClientes label {
+        gap: 4px !important;
+        padding-top: 3px !important;
+        padding-bottom: 3px !important;
+        font-size: 9.2px !important;
+    }
+
+    .presupuesto-app .form-check-input,
+    .presupuesto-app input[type="checkbox"] {
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px !important;
+        min-height: 14px !important;
+    }
+
+    /* Escritorio: filtros compactos a la izquierda */
+    @@container presupuesto (min-width: 992px) {
+        .presupuesto-app #pane-cedis > form > .row,
+        .presupuesto-app #pane-ven > .row {
+            display: grid !important;
+            grid-template-columns: 245px minmax(0, 1fr) !important;
+            gap: 4px !important;
+            margin: 0 !important;
+        }
+
+        .presupuesto-app #pane-cedis > form > .row > [class*="col-"],
+        .presupuesto-app #pane-ven > .row > [class*="col-"] {
+            width: auto !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+        }
+
+        .presupuesto-app #pane-cli form > .row.g-3:first-of-type {
+            display: grid !important;
+            grid-template-columns: 240px minmax(0, 1fr) !important;
+            gap: 4px !important;
+            margin: 0 !important;
+        }
+
+        .presupuesto-app #pane-cli form > .row.g-3:first-of-type > [class*="col-"] {
+            width: auto !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+        }
+    }
+
+    /* ============================================================
+       TABLAS
+       ============================================================ */
+    .presupuesto-app .table-responsive-sticky,
+    .presupuesto-app .table-wrapper,
+    .presupuesto-app .table-responsive {
         width: 100% !important;
         max-width: 100% !important;
-        flex: 0 0 100% !important;
+        min-width: 0 !important;
+        max-height: none !important;
+        height: auto !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        scrollbar-gutter: auto !important;
     }
 
-    .table-responsive-sticky,
-    .table-wrapper {
-        max-height: 65vh !important;
-    }
-
-    #tablaCedis,
-    #tablaVendedor,
-    #tablaCliente {
-        min-width: 1050px !important;
-        font-size: 10px !important;
-    }
-
-    .table th,
-    .table td {
-        font-size: 10px !important;
-        padding: 4px 3px !important;
-    }
-
-    .totales-sap {
-        display: block !important;
-        font-size: 11px !important;
-    }
-}
-
-    /* =========================
-       🔽 REDUCCIÓN GLOBAL DE TEXTO
-    ========================= */
-    body {
-        font-size: 13px !important;
-    }
-
-    /* Títulos */
-    .module-title {
-        font-size: 15px !important;
-    }
-
-    .module-subtitle {
-        font-size: 11px !important;
-    }
-
-    /* Toolbar */
-    .tbtn {
-        font-size: 12px !important;
-        height: 30px !important;
-        padding: 0 .5rem !important;
-    }
-
-    /* Tabs */
-    .nav-tabs .nav-link {
-        font-size: 12px !important;
-        padding: .55rem .8rem !important;
-    }
-
-    /* Panel headers */
-    .panel-head {
-        font-size: 12.5px !important;
-        padding: .5rem .7rem !important;
-    }
-
-    /* Formularios */
-    .form-control,
-    .form-select {
-        font-size: 12px !important;
-        padding: .35rem .45rem !important;
-    }
-
-    /* =========================
-       📊 TABLAS (CLAVE)
-    ========================= */
-    .table {
-        font-size: 11.5px !important;
-    }
-
-        .table th {
-            font-size: 11.5px !important;
-            padding: .35rem .4rem !important;
-        }
-
-        .table td {
-            font-size: 11.5px !important;
-            padding: .30rem .4rem !important;
-        }
-
-    /* Totales */
-    .totales-sap {
-        font-size: 12px !important;
-    }
-
-    /* Botones pequeños dentro de tabla */
-    .table .btn {
-        font-size: 11px !important;
-        padding: 2px 6px !important;
-    }
-
-
-/* ============================================================
-   UX EJECUTIVO - PRESUPUESTOS CEDIS / VENDEDOR / CLIENTE
-   IMPORTANTE:
-   - No cambia endpoints.
-   - No cambia funciones JS.
-   - No cambia IDs.
-   - No cambia nombres de inputs ni formularios.
-   Solo mejora lectura, jerarquía visual y operación.
-============================================================ */
-
-:root {
-    --pp-bg: #f3f4f6;
-    --pp-surface: #ffffff;
-    --pp-surface-soft: #f9fafb;
-    --pp-ink: #111827;
-    --pp-muted: #6b7280;
-    --pp-border: #e5e7eb;
-    --pp-brand: #8B0000;
-    --pp-brand-dark: #450a0a;
-    --pp-brand-mid: #7f1d1d;
-    --pp-brand-soft: #fff1f2;
-    --pp-blue-soft: #eff6ff;
-    --pp-blue-border: #bfdbfe;
-    --pp-blue-ink: #1e3a8a;
-    --pp-warn-soft: #fffbeb;
-    --pp-warn-border: #fde68a;
-    --pp-warn-ink: #92400e;
-    --pp-ok-soft: #ecfdf5;
-    --pp-ok-border: #bbf7d0;
-    --pp-ok-ink: #166534;
-    --pp-radius-lg: 18px;
-    --pp-radius-md: 14px;
-    --pp-radius-sm: 10px;
-    --pp-shadow: 0 18px 44px rgba(17, 24, 39, .10);
-    --pp-shadow-sm: 0 10px 24px rgba(17, 24, 39, .08);
-}
-
-html,
-body,
-main,
-.main,
-.body-content,
-.container,
-.container-fluid {
-    background: var(--pp-bg) !important;
-    color: var(--pp-ink) !important;
-}
-
-body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
-}
-
-.container-fluid {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
-}
-
-.shell {
-    width: 100% !important;
-    max-width: 1850px !important;
-    margin: 10px auto 18px !important;
-    border: 0 !important;
-    border-radius: var(--pp-radius-lg) !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-}
-
-.module-titlebar {
-    position: relative;
-    overflow: hidden;
-    border: 0 !important;
-    border-radius: var(--pp-radius-lg) var(--pp-radius-lg) 0 0 !important;
-    padding: 20px 22px !important;
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.22), transparent 30%),
-        linear-gradient(135deg, #991b1b 0%, #7f1d1d 46%, #450a0a 100%) !important;
-    box-shadow: var(--pp-shadow) !important;
-}
-
-.module-titlebar::before {
-    content: "Control comercial";
-    position: absolute;
-    left: 22px;
-    top: 10px;
-    color: #fecaca;
-    font-size: 11px;
-    font-weight: 950;
-    text-transform: uppercase;
-    letter-spacing: .14em;
-}
-
-.module-titlebar > div:first-child {
-    margin-top: 16px;
-}
-
-.module-title {
-    color: #ffffff !important;
-    font-size: clamp(1.35rem, 1.1vw + 1rem, 2rem) !important;
-    line-height: 1.05 !important;
-    font-weight: 950 !important;
-    gap: 10px !important;
-}
-
-.module-title i {
-    width: 42px;
-    height: 42px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255,255,255,.14);
-    border: 1px solid rgba(255,255,255,.22);
-    border-radius: 999px;
-}
-
-.module-subtitle {
-    color: rgba(255,255,255,.84) !important;
-    font-size: 13px !important;
-    margin-top: 6px !important;
-}
-
-.module-titlebar .d-flex.align-items-center {
-    gap: 10px !important;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.modo-pill {
-    border-radius: var(--pp-radius-md) !important;
-    background: rgba(255,255,255,.14) !important;
-    border: 1px solid rgba(255,255,255,.24) !important;
-    box-shadow: none !important;
-    padding: 10px !important;
-}
-
-.modo-title {
-    color: #ffffff !important;
-    font-size: 11px !important;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    margin-bottom: 6px;
-}
-
-#modoPresupuestoBox .btn {
-    border-radius: 999px !important;
-    min-height: 34px;
-    font-weight: 900 !important;
-}
-
-#modoPresupuestoBox .btn.active {
-    background: #ffffff !important;
-    color: var(--pp-brand) !important;
-}
-
-.module-titlebar .tbtn {
-    min-height: 40px !important;
-    border-radius: 999px !important;
-    padding: 0 15px !important;
-    background: rgba(255,255,255,.12) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,.28) !important;
-    box-shadow: none !important;
-}
-
-.module-titlebar .tbtn:hover {
-    background: rgba(255,255,255,.20) !important;
-    color: #ffffff !important;
-}
-
-.pp-workflow {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-    background: #ffffff;
-    border: 1px solid var(--pp-border);
-    border-top: 0;
-    padding: 12px;
-    box-shadow: var(--pp-shadow-sm);
-}
-
-.pp-step-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    background: var(--pp-surface-soft);
-    border: 1px solid var(--pp-border);
-    border-radius: var(--pp-radius-md);
-    padding: 12px;
-}
-
-.pp-step-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    background: var(--pp-brand);
-    color: #ffffff;
-    font-weight: 950;
-}
-
-.pp-step-title {
-    display: block;
-    color: var(--pp-ink);
-    font-size: 13px;
-    font-weight: 950;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.pp-step-help {
-    display: block;
-    color: var(--pp-muted);
-    font-size: 11px;
-    line-height: 1.15;
-}
-
-.content,
-.tab-content {
-    background: #ffffff !important;
-}
-
-.content {
-    border: 1px solid var(--pp-border);
-    border-top: 0;
-    border-radius: 0 0 var(--pp-radius-lg) var(--pp-radius-lg);
-    box-shadow: var(--pp-shadow);
-    overflow: hidden;
-}
-
-.content > .p-3:first-child {
-    background: #ffffff !important;
-    padding: 12px 16px !important;
-    border-bottom: 1px solid var(--pp-border);
-}
-
-#alertsZone .alert {
-    margin-bottom: 0 !important;
-    border-radius: var(--pp-radius-md) !important;
-}
-
-.nav-tabs {
-    display: flex;
-    gap: 8px;
-    border: 0 !important;
-    background: #ffffff !important;
-    padding: 12px 16px 0 !important;
-    overflow-x: auto;
-}
-
-.nav-tabs .nav-link {
-    min-height: 42px;
-    border: 1px solid var(--pp-border) !important;
-    border-radius: 999px !important;
-    background: var(--pp-surface-soft) !important;
-    color: #374151 !important;
-    font-weight: 950 !important;
-    padding: 0 16px !important;
-    white-space: nowrap;
-}
-
-.nav-tabs .nav-link.active {
-    background: linear-gradient(180deg, #b30000 0%, #8b0000 58%, #6e0000 100%) !important;
-    color: #ffffff !important;
-    border-color: #7f1d1d !important;
-    box-shadow: 0 10px 20px rgba(139,0,0,.16);
-}
-
-.tab-content {
-    padding: 16px !important;
-}
-
-.toolbar {
-    background: var(--pp-surface-soft) !important;
-    border: 1px solid var(--pp-border) !important;
-    border-radius: var(--pp-radius-md) !important;
-    padding: 10px !important;
-    gap: 8px !important;
-}
-
-.tbtn,
-.btn-outline-secondary {
-    min-height: 38px !important;
-    border-radius: 999px !important;
-    border: 1px solid #d1d5db !important;
-    background: #ffffff !important;
-    color: #374151 !important;
-    font-weight: 950 !important;
-    font-size: 12px !important;
-    padding: 0 14px !important;
-    box-shadow: none !important;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-}
-
-.tbtn:hover,
-.btn-outline-secondary:hover {
-    background: #f9fafb !important;
-    color: #111827 !important;
-}
-
-.tbtn.primary,
-.btn-danger {
-    background: linear-gradient(180deg, #b30000 0%, #8b0000 58%, #6e0000 100%) !important;
-    border-color: #7f1d1d !important;
-    color: #ffffff !important;
-}
-
-.tbtn.primary:hover,
-.btn-danger:hover {
-    filter: brightness(1.06);
-    color: #ffffff !important;
-}
-
-.panel {
-    border: 1px solid var(--pp-border) !important;
-    border-radius: var(--pp-radius-lg) !important;
-    background: var(--pp-surface) !important;
-    box-shadow: var(--pp-shadow-sm) !important;
-    overflow: hidden;
-}
-
-.panel-head {
-    min-height: 54px;
-    background: #ffffff !important;
-    color: var(--pp-ink) !important;
-    border-bottom: 1px solid var(--pp-border) !important;
-    padding: 14px 16px !important;
-    font-size: 14px !important;
-    font-weight: 950 !important;
-}
-
-.panel-head i {
-    color: var(--pp-brand) !important;
-}
-
-.panel-body {
-    background: #ffffff !important;
-    padding: 16px !important;
-}
-
-.form-label,
-.sap-field label {
-    color: #374151 !important;
-    font-size: 11px !important;
-    font-weight: 950 !important;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-}
-
-.form-control,
-.form-select,
-.input-group-text {
-    min-height: 38px !important;
-    height: auto !important;
-    border-radius: var(--pp-radius-sm) !important;
-    border: 1px solid #d1d5db !important;
-    background: #ffffff !important;
-    color: var(--pp-ink) !important;
-    font-size: 13px !important;
-    padding: 7px 10px !important;
-    box-shadow: none !important;
-}
-
-.form-control:focus,
-.form-select:focus {
-    border-color: var(--pp-brand) !important;
-    box-shadow: 0 0 0 .2rem rgba(139,0,0,.12) !important;
-}
-
-.form-text {
-    color: var(--pp-muted) !important;
-    font-size: 12px !important;
-}
-
-hr {
-    border-color: var(--pp-border) !important;
-    opacity: 1 !important;
-}
-
-.alert-light,
-.alert {
-    border-radius: var(--pp-radius-md) !important;
-}
-
-.table-responsive-sticky,
-.table-wrapper {
-    width: 100% !important;
-    max-width: 100% !important;
-    background: #ffffff !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    overflow: auto !important;
-    max-height: 65vh !important;
-}
-
-.table {
-    background: #ffffff !important;
-    color: var(--pp-ink) !important;
-    font-size: 12px !important;
-    border-collapse: separate !important;
-    border-spacing: 0 !important;
-}
-
-#tablaCedis,
-#tablaVendedor,
-#tablaCliente {
-    width: max-content !important;
-    min-width: 1150px !important;
-}
-
-.table thead,
-.table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    background: #7f1d1d !important;
-    color: #ffffff !important;
-    border-color: #7f1d1d !important;
-    padding: 10px 8px !important;
-    font-size: 11px !important;
-    font-weight: 950 !important;
-    text-transform: uppercase;
-    letter-spacing: .035em;
-}
-
-.table tbody td {
-    background: #ffffff !important;
-    border-color: var(--pp-border) !important;
-    color: #1f2937 !important;
-    padding: 8px !important;
-    vertical-align: middle !important;
-}
-
-.table tbody tr:nth-of-type(even) > * {
-    background: #fafafa !important;
-}
-
-.table-hover tbody tr:hover > * {
-    background: #fff7ed !important;
-}
-
-.table input.form-control,
-.table .form-control-sm {
-    min-height: 34px !important;
-    font-weight: 800;
-}
-
-.table .btn {
-    border-radius: 999px !important;
-    min-height: 32px !important;
-    font-weight: 900 !important;
-}
-
-.totales-sap {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 18px !important;
-    background: var(--pp-surface-soft) !important;
-    border-top: 1px solid var(--pp-border) !important;
-    color: var(--pp-ink) !important;
-    padding: 12px 14px !important;
-    font-size: 13px !important;
-}
-
-.totales-sap span {
-    color: var(--pp-brand);
-    font-weight: 950;
-}
-
-#cliListaClientes {
-    background: #ffffff !important;
-}
-
-#pane-cli .border.rounded-3 {
-    border-color: var(--pp-border) !important;
-    border-radius: var(--pp-radius-md) !important;
-    background: #ffffff !important;
-}
-
-#loadingSpinnerCedis {
-    background: rgba(255,255,255,.72) !important;
-    backdrop-filter: blur(2px);
-}
-
-/* Modales */
-.modal-content {
-    border: 0 !important;
-    border-radius: var(--pp-radius-lg) !important;
-    box-shadow: 0 24px 70px rgba(17,24,39,.24) !important;
-    overflow: hidden;
-}
-
-.modal-header {
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 30%),
-        linear-gradient(135deg, #991b1b 0%, #7f1d1d 48%, #450a0a 100%) !important;
-    border: 0 !important;
-    padding: 16px 18px !important;
-}
-
-.modal-title {
-    color: #ffffff !important;
-    font-size: 15px !important;
-    font-weight: 950 !important;
-}
-
-.modal-body {
-    background: #ffffff !important;
-    color: var(--pp-ink) !important;
-}
-
-.modal-footer {
-    background: #f9fafb !important;
-    border-top: 1px solid var(--pp-border) !important;
-}
-
-/* Dark mode */
-body[data-theme="dark"],
-body[data-theme="dark"] html,
-body[data-theme="dark"] main,
-body[data-theme="dark"] .main,
-body[data-theme="dark"] .body-content,
-body[data-theme="dark"] .container,
-body[data-theme="dark"] .container-fluid {
-    background: #0f172a !important;
-    color: #e5e7eb !important;
-}
-
-body[data-theme="dark"] .content,
-body[data-theme="dark"] .tab-content,
-body[data-theme="dark"] .panel,
-body[data-theme="dark"] .panel-body,
-body[data-theme="dark"] .content > .p-3:first-child,
-body[data-theme="dark"] .pp-workflow,
-body[data-theme="dark"] .modal-body {
-    background: #111827 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(255,255,255,.12) !important;
-}
-
-body[data-theme="dark"] .pp-step-card,
-body[data-theme="dark"] .toolbar,
-body[data-theme="dark"] .nav-tabs .nav-link,
-body[data-theme="dark"] .totales-sap,
-body[data-theme="dark"] .modal-footer,
-body[data-theme="dark"] #pane-cli .border.rounded-3 {
-    background: #172033 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(255,255,255,.12) !important;
-}
-
-body[data-theme="dark"] .pp-step-title,
-body[data-theme="dark"] .panel-head,
-body[data-theme="dark"] .form-label {
-    color: #f9fafb !important;
-}
-
-body[data-theme="dark"] .pp-step-help,
-body[data-theme="dark"] .form-text,
-body[data-theme="dark"] .text-muted {
-    color: #cbd5e1 !important;
-}
-
-body[data-theme="dark"] .panel-head {
-    background: #111827 !important;
-    border-color: rgba(255,255,255,.12) !important;
-}
-
-body[data-theme="dark"] .form-control,
-body[data-theme="dark"] .form-select,
-body[data-theme="dark"] .input-group-text {
-    background: #0b1220 !important;
-    color: #f9fafb !important;
-    border-color: rgba(203,213,225,.28) !important;
-}
-
-body[data-theme="dark"] .table-responsive-sticky,
-body[data-theme="dark"] .table-wrapper,
-body[data-theme="dark"] .table,
-body[data-theme="dark"] .table tbody td {
-    background: #111827 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(255,255,255,.12) !important;
-}
-
-body[data-theme="dark"] .table tbody tr:nth-of-type(even) > * {
-    background: #172033 !important;
-}
-
-body[data-theme="dark"] .table-hover tbody tr:hover > * {
-    background: rgba(248,113,113,.13) !important;
-}
-
-body[data-theme="dark"] .tbtn,
-body[data-theme="dark"] .btn-outline-secondary {
-    background: #0b1220 !important;
-    color: #e5e7eb !important;
-    border-color: rgba(203,213,225,.28) !important;
-}
-
-body[data-theme="dark"] .totales-sap span {
-    color: #fca5a5;
-}
-
-/* Responsive */
-@@media (max-width: 1200px) {
-    .pp-workflow {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .module-titlebar {
-        display: grid !important;
-        gap: 12px;
-    }
-
-    .module-titlebar .d-flex.align-items-center {
-        justify-content: flex-start !important;
-    }
-}
-
-@@media (max-width: 768px) {
-    .container-fluid {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-    }
-
-    .shell {
+    .presupuesto-app #tablaCedis,
+    .presupuesto-app #tablaVendedor,
+    .presupuesto-app #tablaCliente {
+        width: max-content !important;
+        min-width: 1120px !important;
         margin: 0 !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        table-layout: auto !important;
+        background: #fff !important;
+        color: #241313 !important;
+        font-size: 10.5px !important;
+    }
+
+    .presupuesto-app .table thead,
+    .presupuesto-app .table thead th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 15 !important;
+        background: linear-gradient(180deg, #a90000 0%, #820000 58%, #610000 100%) !important;
+        color: #fff !important;
+        border-top: 1px solid #b64747 !important;
+        border-right: 1px solid #742727 !important;
+        border-bottom: 1px solid #540000 !important;
+        box-shadow: none !important;
+    }
+
+    .presupuesto-app .table thead th {
+        padding: 5px 4px !important;
+        font-size: 9.3px !important;
+        font-weight: 600 !important;
+        line-height: 1.08 !important;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .presupuesto-app .table thead th .small,
+    .presupuesto-app .table thead th .text-muted {
+        color: #f3cece !important;
+        font-size: 7.8px !important;
+    }
+
+    .presupuesto-app .table tbody td {
+        padding: 4px !important;
+        border-right: 1px solid #e0caca !important;
+        border-bottom: 1px solid #e0caca !important;
+        background: #fffafa !important;
+        color: #251313 !important;
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+    }
+
+    .presupuesto-app .table tbody tr:nth-of-type(even) > * {
+        background: #f9eeee !important;
+    }
+
+    .presupuesto-app .table-hover tbody tr:hover > * {
+        background: #f1dddd !important;
+    }
+
+    .presupuesto-app .table input.form-control,
+    .presupuesto-app .table .form-control-sm {
+        min-width: 82px !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 2px 4px !important;
+        font-size: 9.8px !important;
+        font-weight: 500 !important;
+    }
+
+    .presupuesto-app .table .btn,
+    .presupuesto-app .table .btn-sm {
+        min-width: 24px !important;
+        min-height: 23px !important;
+        height: 23px !important;
+        padding: 0 5px !important;
         border-radius: 0 !important;
+        font-size: 8.5px !important;
+        line-height: 1 !important;
     }
 
-    .module-titlebar {
-        border-radius: 0 !important;
-        padding: 16px !important;
-    }
-
-    .pp-workflow {
-        grid-template-columns: 1fr;
-        border-left: 0;
-        border-right: 0;
-    }
-
-    .content {
-        border-left: 0;
-        border-right: 0;
-        border-radius: 0;
-    }
-
-    .tab-content {
-        padding: 8px !important;
-    }
-
-    .toolbar {
-        display: grid !important;
-        grid-template-columns: 1fr !important;
-    }
-
-    .tbtn,
-    .btn,
-    .form-control,
-    .form-select,
-    .modo-pill {
-        width: 100% !important;
-    }
-
-    #pane-cedis .col-xl-3,
-    #pane-cedis .col-xl-9,
-    #pane-ven .col-xl-3,
-    #pane-ven .col-xl-9,
-    #pane-cli .col-xl-4,
-    #pane-cli .col-xl-8 {
-        width: 100% !important;
-        max-width: 100% !important;
-        flex: 0 0 100% !important;
-    }
-
-    .table-responsive-sticky,
-    .table-wrapper {
-        max-height: 65vh !important;
-    }
-
-    #tablaCedis,
-    #tablaVendedor,
-    #tablaCliente {
-        min-width: 1050px !important;
+    .presupuesto-app .totales-sap {
+        min-height: 28px !important;
+        padding: 5px 7px !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 5px 14px !important;
+        border-top: 1px solid var(--pres-line) !important;
+        background: #f3e5e5 !important;
+        color: #4a1a1a !important;
         font-size: 10px !important;
+        line-height: 1.1 !important;
     }
 
-    .totales-sap {
-        display: grid !important;
-        justify-content: stretch !important;
+    .presupuesto-app .totales-sap span {
+        color: var(--pres-brand) !important;
+        font-weight: 700 !important;
     }
-}
 
+    /* ============================================================
+       SPINNER
+       ============================================================ */
+    #loadingSpinnerCedis {
+        background: rgba(255,255,255,.78) !important;
+        backdrop-filter: blur(1px) !important;
+        font-family: var(--pres-font) !important;
+        font-size: 10.5px !important;
+    }
+
+    #loadingSpinnerCedis .spinner-border {
+        width: 2.2rem !important;
+        height: 2.2rem !important;
+    }
+
+    /* ============================================================
+       MODALES
+       ============================================================ */
+    #modalGuardarCedis .modal-content,
+    #comentarioModalCedis .modal-content,
+    #comentarioModalVendedor .modal-content,
+    #comentarioModalCliente .modal-content,
+    #modalAdminPres .modal-content {
+        border: 1px solid #844d4d !important;
+        border-radius: 0 !important;
+        background: #fffafa !important;
+        box-shadow: 0 8px 24px rgba(55,0,0,.18) !important;
+        overflow: hidden !important;
+    }
+
+    #modalGuardarCedis .modal-header,
+    #comentarioModalCedis .modal-header,
+    #comentarioModalVendedor .modal-header,
+    #comentarioModalCliente .modal-header,
+    #modalAdminPres .modal-header {
+        min-height: 36px !important;
+        padding: 5px 7px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #570000 !important;
+        background: linear-gradient(180deg, #af0000 0%, #830000 58%, #5e0000 100%) !important;
+        color: #fff !important;
+    }
+
+    #modalGuardarCedis .modal-title,
+    #comentarioModalCedis .modal-title,
+    #comentarioModalVendedor .modal-title,
+    #comentarioModalCliente .modal-title,
+    #modalAdminPres .modal-title {
+        color: #fff !important;
+        font-size: 11.5px !important;
+        font-weight: 600 !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalGuardarCedis .btn-close,
+    #comentarioModalCedis .btn-close,
+    #comentarioModalVendedor .btn-close,
+    #comentarioModalCliente .btn-close,
+    #modalAdminPres .btn-close {
+        filter: invert(1) grayscale(1) !important;
+        opacity: .95 !important;
+    }
+
+    #modalGuardarCedis .modal-body,
+    #comentarioModalCedis .modal-body,
+    #comentarioModalVendedor .modal-body,
+    #comentarioModalCliente .modal-body,
+    #modalAdminPres .modal-body {
+        padding: 7px !important;
+        background: #fffafa !important;
+        color: var(--pres-text) !important;
+        font-size: 10.3px !important;
+        line-height: 1.2 !important;
+    }
+
+    #modalGuardarCedis .form-control,
+    #modalGuardarCedis .form-select,
+    #comentarioModalCedis .form-control,
+    #comentarioModalVendedor .form-control,
+    #comentarioModalCliente .form-control,
+    #modalAdminPres .form-control,
+    #modalAdminPres .form-select {
+        min-height: 28px !important;
+        height: 28px !important;
+        padding: 3px 6px !important;
+        border: 1px solid #b88989 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #321313 !important;
+        box-shadow: none !important;
+        font-size: 10.3px !important;
+    }
+
+    #comentarioModalCedis textarea,
+    #comentarioModalVendedor textarea,
+    #comentarioModalCliente textarea {
+        min-height: 78px !important;
+        height: 78px !important;
+        resize: vertical !important;
+    }
+
+    #modalGuardarCedis .modal-footer,
+    #comentarioModalCedis .modal-footer,
+    #comentarioModalVendedor .modal-footer,
+    #comentarioModalCliente .modal-footer,
+    #modalAdminPres .modal-footer {
+        min-height: 34px !important;
+        padding: 4px 6px !important;
+        gap: 3px !important;
+        border-top: 1px solid var(--pres-line) !important;
+        background: #f4e6e6 !important;
+    }
+
+    #modalGuardarCedis .modal-footer .btn,
+    #comentarioModalCedis .modal-footer .btn,
+    #comentarioModalVendedor .modal-footer .btn,
+    #comentarioModalCliente .modal-footer .btn,
+    #modalAdminPres .btn {
+        min-height: 27px !important;
+        height: 27px !important;
+        padding: 0 7px !important;
+        border-radius: 0 !important;
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+    }
+
+    #modalAdminPres .modal-dialog {
+        width: min(1120px, 96vw) !important;
+        max-width: min(1120px, 96vw) !important;
+        margin: .5rem auto !important;
+    }
+
+    #modalAdminPres .row {
+        --bs-gutter-x: 5px !important;
+        --bs-gutter-y: 5px !important;
+    }
+
+    #modalAdminPres .form-label {
+        margin-bottom: 2px !important;
+        color: #5d2727 !important;
+        font-size: 8.8px !important;
+        font-weight: 600 !important;
+    }
+
+    #modalAdminPres .table-responsive-sticky {
+        max-height: 54vh !important;
+        overflow: auto !important;
+    }
+
+    #modalAdminPres .table {
+        min-width: 850px !important;
+        margin: 0 !important;
+        font-size: 9.8px !important;
+    }
+
+    #modalAdminPres .table thead th {
+        padding: 5px 4px !important;
+        background: linear-gradient(180deg, #aa0000 0%, #820000 58%, #610000 100%) !important;
+        color: #fff !important;
+        font-size: 8.8px !important;
+        white-space: nowrap !important;
+    }
+
+    #modalAdminPres .table tbody td {
+        padding: 4px !important;
+        font-size: 9.8px !important;
+        line-height: 1.1 !important;
+    }
+
+    body.modal-open {
+        overflow: hidden !important;
+    }
+
+    /* ============================================================
+       RESPONSIVO POR ANCHO REAL DISPONIBLE
+       ============================================================ */
+    @@container presupuesto (max-width: 1180px) {
+        .presupuesto-app .pp-workflow {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .presupuesto-app .module-titlebar {
+            grid-template-columns: 1fr !important;
+            align-items: start !important;
+        }
+
+        .presupuesto-app .module-titlebar > .d-flex {
+            justify-content: flex-start !important;
+            flex-wrap: wrap !important;
+        }
+    }
+
+    @@container presupuesto (max-width: 900px) {
+        .presupuesto-app .pp-workflow {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .presupuesto-app #pane-cedis > form > .row,
+        .presupuesto-app #pane-ven > .row,
+        .presupuesto-app #pane-cli form > .row.g-3:first-of-type {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 4px !important;
+            margin: 0 !important;
+        }
+
+        .presupuesto-app #pane-cedis > form > .row > [class*="col-"],
+        .presupuesto-app #pane-ven > .row > [class*="col-"],
+        .presupuesto-app #pane-cli form > .row.g-3:first-of-type > [class*="col-"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+        }
+    }
+
+    @@container presupuesto (max-width: 620px) {
+        .presupuesto-app .pp-workflow {
+            grid-template-columns: 1fr !important;
+        }
+
+        .presupuesto-app .module-titlebar {
+            padding: 5px !important;
+        }
+
+        .presupuesto-app .module-titlebar > .d-flex,
+        .presupuesto-app .toolbar {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            width: 100% !important;
+        }
+
+        .presupuesto-app .modo-pill {
+            grid-column: 1 / -1 !important;
+            width: 100% !important;
+        }
+
+        .presupuesto-app .module-titlebar .tbtn,
+        .presupuesto-app .toolbar .tbtn {
+            width: 100% !important;
+        }
+
+        .presupuesto-app .toolbar .ms-auto {
+            display: none !important;
+        }
+
+        .presupuesto-app .nav-tabs .nav-link {
+            font-size: 9px !important;
+        }
+
+        .presupuesto-app .tab-content {
+            padding: 3px !important;
+        }
+
+        .presupuesto-app #tablaCedis,
+        .presupuesto-app #tablaVendedor,
+        .presupuesto-app #tablaCliente {
+            min-width: 980px !important;
+        }
+
+        .presupuesto-app .totales-sap {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            justify-content: stretch !important;
+        }
+    }
+
+    /* Dark mode */
+    body[data-theme="dark"] .presupuesto-app,
+    body[data-theme="dark"] .presupuesto-app .content,
+    body[data-theme="dark"] .presupuesto-app .tab-content,
+    body[data-theme="dark"] .presupuesto-app .panel,
+    body[data-theme="dark"] .presupuesto-app .panel-body {
+        background: #151010 !important;
+        color: #f3e5e5 !important;
+    }
+
+    body[data-theme="dark"] .presupuesto-app .toolbar,
+    body[data-theme="dark"] .presupuesto-app .nav-tabs,
+    body[data-theme="dark"] .presupuesto-app .pp-workflow,
+    body[data-theme="dark"] .presupuesto-app .totales-sap {
+        background: #241818 !important;
+        border-color: #5f4141 !important;
+    }
+
+    body[data-theme="dark"] .presupuesto-app .pp-step-card,
+    body[data-theme="dark"] .presupuesto-app .form-control,
+    body[data-theme="dark"] .presupuesto-app .form-select,
+    body[data-theme="dark"] .presupuesto-app .input-group-text {
+        background: #1d1515 !important;
+        color: #f5e9e9 !important;
+        border-color: #654747 !important;
+    }
+
+    body[data-theme="dark"] .presupuesto-app .table tbody td {
+        background: #1a1313 !important;
+        color: #f5e9e9 !important;
+        border-color: #493434 !important;
+    }
+
+    body[data-theme="dark"] .presupuesto-app .table tbody tr:nth-of-type(even) > * {
+        background: #211717 !important;
+    }
 </style>
 
 
@@ -1538,7 +1021,696 @@ body[data-theme="dark"] .totales-sap span {
 
 
 
-<div class="container-fluid">
+
+<style id="presupuestos-erp-tinto-final">
+    /* ===============================================================
+       PRESUPUESTOS — ESTILO ERP FINAL
+       CEDIS / VENDEDOR / CLIENTE
+       Poppins marcada + gris neutro + tinto discreto
+       =============================================================== */
+
+    body:not([data-theme="dark"]) {
+        --pres-bg-final: #eef2f4;
+        --pres-panel-final: #ffffff;
+        --pres-panel-soft-final: #f7f9fa;
+
+        --pres-head-final: #dce4e8;
+        --pres-head2-final: #d1dbe0;
+
+        --pres-line-final: #bec9cf;
+        --pres-line-soft-final: #d3dce1;
+
+        --pres-text-final: #30373b;
+        --pres-muted-final: #66747c;
+
+        --pres-tinto-final: #7a2029;
+        --pres-tinto-dark-final: #5e1820;
+        --pres-tinto-soft-final: #f3e7e9;
+
+        --pres-bg: var(--pres-bg-final) !important;
+        --pres-surface: var(--pres-panel-final) !important;
+        --pres-surface-2: var(--pres-panel-soft-final) !important;
+        --pres-line: var(--pres-line-final) !important;
+        --pres-line-dark: #a77d83 !important;
+        --pres-text: var(--pres-text-final) !important;
+        --pres-muted: var(--pres-muted-final) !important;
+        --pres-brand: var(--pres-tinto-final) !important;
+        --pres-brand-2: var(--pres-tinto-dark-final) !important;
+        --pres-brand-3: #481318 !important;
+    }
+
+    /* ===============================================================
+       TIPOGRAFÍA + BOOTSTRAP ICONS
+       =============================================================== */
+    body:not([data-theme="dark"]),
+    body:not([data-theme="dark"]) button,
+    body:not([data-theme="dark"]) input,
+    body:not([data-theme="dark"]) select,
+    body:not([data-theme="dark"]) textarea,
+    body:not([data-theme="dark"]) table,
+    body:not([data-theme="dark"]) .presupuesto-app,
+    body:not([data-theme="dark"]) .presupuesto-app * {
+        font-family: "Poppins", sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
+    }
+
+    body:not([data-theme="dark"]) .bi,
+    body:not([data-theme="dark"]) .bi::before,
+    body:not([data-theme="dark"]) [class^="bi-"],
+    body:not([data-theme="dark"]) [class*=" bi-"] {
+        font-family: "bootstrap-icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        font-variant: normal !important;
+        text-transform: none !important;
+        line-height: 1 !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+    }
+
+    /* ===============================================================
+       ANCHO REAL CON SIDEBAR
+       Corrige el width:auto que trae la vista original.
+       =============================================================== */
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:has(.presupuesto-app) .layout-main-content {
+        flex: 1 1 auto !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+
+        box-sizing: border-box !important;
+    }
+
+    body:has(.presupuesto-app) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(.presupuesto-app)
+    .layout-main-content,
+
+    body:has(.layout-sidebar.layout-hidden):has(.presupuesto-app)
+    .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:has(.presupuesto-app)
+    .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+
+    /* ===============================================================
+       CONTENEDOR PRINCIPAL
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app {
+        width: calc(100% - 12px) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+
+        margin: 6px auto 12px !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+
+        font-size: 10.5px !important;
+        line-height: 1.2 !important;
+
+        box-sizing: border-box !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app > .shell,
+    body:not([data-theme="dark"]) .presupuesto-app .shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--pres-line-final) !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    /* ===============================================================
+       CABECERA
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .module-titlebar {
+        min-height: 40px !important;
+
+        padding: 5px 9px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid #351014 !important;
+        border-radius: 2px 2px 0 0 !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .module-title {
+        color: #fff !important;
+
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        line-height: 1.05 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .module-title i {
+        color: #fff !important;
+        font-size: 12px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .module-subtitle {
+        color: #e8d7da !important;
+
+        font-size: 9px !important;
+        font-weight: 400 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .modo-pill {
+        min-height: 30px !important;
+
+        padding: 2px 4px !important;
+
+        background: rgba(255,255,255,.07) !important;
+
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .modo-title {
+        font-size: 8.5px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app #modoPresupuestoBox .btn,
+    body:not([data-theme="dark"]) .presupuesto-app .module-titlebar .tbtn {
+        min-height: 27px !important;
+        height: 27px !important;
+
+        padding: 0 7px !important;
+
+        border-radius: 2px !important;
+
+        font-size: 8.8px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       WORKFLOW
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .pp-workflow {
+        gap: 4px !important;
+
+        padding: 4px !important;
+
+        background: #eef2f4 !important;
+
+        border-bottom: 1px solid var(--pres-line-final) !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .pp-step-card {
+        min-height: 40px !important;
+
+        padding: 5px 7px !important;
+
+        background: #fff !important;
+
+        border: 1px solid #cbd4d9 !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .pp-step-num {
+        width: 21px !important;
+        height: 21px !important;
+
+        background: #7a2029 !important;
+
+        font-size: 8.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .pp-step-title {
+        color: #30373b !important;
+
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .pp-step-help {
+        color: #69767d !important;
+
+        font-size: 8px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       TABS
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .content,
+    body:not([data-theme="dark"]) .presupuesto-app .tab-content {
+        background: var(--pres-bg-final) !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .nav-tabs {
+        min-height: 34px !important;
+
+        padding: 4px 5px 0 !important;
+
+        background: #e8edef !important;
+
+        border-bottom: 1px solid var(--pres-line-final) !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .nav-tabs .nav-link {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 10px !important;
+
+        background: #fff !important;
+        color: #4a5358 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px 2px 0 0 !important;
+
+        box-shadow: none !important;
+
+        font-size: 9.5px !important;
+        font-weight: 600 !important;
+        line-height: 27px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .nav-tabs .nav-link.active {
+        background: #7a2029 !important;
+        border-color: #5e1820 !important;
+        color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .tab-content {
+        padding: 5px !important;
+    }
+
+    /* ===============================================================
+       TOOLBARS / BOTONES
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .toolbar {
+        min-height: 36px !important;
+
+        padding: 4px 5px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+
+        border: 1px solid var(--pres-line-final) !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .tbtn,
+    body:not([data-theme="dark"]) .presupuesto-app .btn-outline-secondary {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 8px !important;
+
+        background: #fff !important;
+        color: #3f474b !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 9.3px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .tbtn:hover,
+    body:not([data-theme="dark"]) .presupuesto-app .btn-outline-secondary:hover {
+        background: #f3e7e9 !important;
+        border-color: #a67b81 !important;
+        color: #5e1820 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .tbtn.primary,
+    body:not([data-theme="dark"]) .presupuesto-app .btn-danger {
+        background: #7a2029 !important;
+        border-color: #5e1820 !important;
+        color: #fff !important;
+    }
+
+    /* ===============================================================
+       PANELES / CAMPOS
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .panel {
+        background: #fff !important;
+
+        border: 1px solid var(--pres-line-final) !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .panel-head {
+        min-height: 31px !important;
+
+        padding: 5px 7px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid var(--pres-line-final) !important;
+        border-left: 3px solid #7a2029 !important;
+
+        font-size: 9.8px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .panel-head i {
+        color: #7a2029 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .panel-body {
+        padding: 7px !important;
+
+        background: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .form-label,
+    body:not([data-theme="dark"]) .presupuesto-app .sap-field label {
+        color: #3f474b !important;
+
+        font-size: 9.4px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .form-control,
+    body:not([data-theme="dark"]) .presupuesto-app .form-select,
+    body:not([data-theme="dark"]) .presupuesto-app .input-group-text {
+        min-height: 30px !important;
+        height: 30px !important;
+
+        padding: 4px 7px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 10.2px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .form-control:focus,
+    body:not([data-theme="dark"]) .presupuesto-app .form-select:focus {
+        border-color: #9e7479 !important;
+        box-shadow: 0 0 0 2px rgba(122,32,41,.08) !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .form-text,
+    body:not([data-theme="dark"]) .presupuesto-app .small,
+    body:not([data-theme="dark"]) .presupuesto-app small {
+        color: #69767d !important;
+
+        font-size: 8.4px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       TABLAS — MÁS MARCADAS
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .table-responsive-sticky,
+    body:not([data-theme="dark"]) .presupuesto-app .table-wrapper,
+    body:not([data-theme="dark"]) .presupuesto-app .table-responsive {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-radius: 0 !important;
+
+        overflow-x: auto !important;
+        box-sizing: border-box !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app #tablaCedis,
+    body:not([data-theme="dark"]) .presupuesto-app #tablaVendedor,
+    body:not([data-theme="dark"]) .presupuesto-app #tablaCliente {
+        min-width: 1120px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        font-size: 10px !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table thead,
+    body:not([data-theme="dark"]) .presupuesto-app .table thead th {
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border-color: #aebbc3 !important;
+
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table thead th {
+        padding: 5px 4px !important;
+
+        font-size: 9.3px !important;
+        font-weight: 700 !important;
+        line-height: 1.08 !important;
+
+        text-shadow: 0 0 .01px currentColor !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table thead th .small,
+    body:not([data-theme="dark"]) .presupuesto-app .table thead th .text-muted {
+        color: #6a767d !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table tbody td {
+        padding: 4px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border-color: #c5d0d6 !important;
+
+        font-size: 10.2px !important;
+        font-weight: 500 !important;
+        line-height: 1.12 !important;
+
+        text-shadow: 0 0 .01px currentColor !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table tbody tr:nth-of-type(even) > * {
+        background: #f2f5f6 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table-hover tbody tr:hover > * {
+        background: #f3e7e9 !important;
+        color: #272d31 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table input.form-control,
+    body:not([data-theme="dark"]) .presupuesto-app .table .form-control-sm {
+        min-height: 26px !important;
+        height: 26px !important;
+
+        font-size: 9.8px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .table .btn,
+    body:not([data-theme="dark"]) .presupuesto-app .table .btn-sm {
+        min-height: 25px !important;
+        height: 25px !important;
+
+        padding: 0 5px !important;
+
+        border-radius: 2px !important;
+
+        font-size: 8.7px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       TOTALES
+       =============================================================== */
+    body:not([data-theme="dark"]) .presupuesto-app .totales-sap {
+        min-height: 30px !important;
+
+        padding: 5px 7px !important;
+
+        background: #e8edef !important;
+        color: #3f474b !important;
+
+        border-top: 1px solid var(--pres-line-final) !important;
+
+        font-size: 9.8px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .presupuesto-app .totales-sap span {
+        color: #7a2029 !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       MODALES
+       =============================================================== */
+    body:not([data-theme="dark"]) #modalGuardarCedis .modal-content,
+    body:not([data-theme="dark"]) #comentarioModalCedis .modal-content,
+    body:not([data-theme="dark"]) #comentarioModalVendedor .modal-content,
+    body:not([data-theme="dark"]) #comentarioModalCliente .modal-content,
+    body:not([data-theme="dark"]) #modalAdminPres .modal-content {
+        background: #fff !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 3px !important;
+
+        box-shadow: 0 14px 34px rgba(0,0,0,.18) !important;
+    }
+
+    body:not([data-theme="dark"]) #modalGuardarCedis .modal-header,
+    body:not([data-theme="dark"]) #comentarioModalCedis .modal-header,
+    body:not([data-theme="dark"]) #comentarioModalVendedor .modal-header,
+    body:not([data-theme="dark"]) #comentarioModalCliente .modal-header,
+    body:not([data-theme="dark"]) #modalAdminPres .modal-header {
+        min-height: 38px !important;
+
+        padding: 6px 8px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        border-bottom: 1px solid #351014 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalGuardarCedis .modal-title,
+    body:not([data-theme="dark"]) #comentarioModalCedis .modal-title,
+    body:not([data-theme="dark"]) #comentarioModalVendedor .modal-title,
+    body:not([data-theme="dark"]) #comentarioModalCliente .modal-title,
+    body:not([data-theme="dark"]) #modalAdminPres .modal-title {
+        color: #fff !important;
+
+        font-size: 11px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalGuardarCedis .modal-body,
+    body:not([data-theme="dark"]) #comentarioModalCedis .modal-body,
+    body:not([data-theme="dark"]) #comentarioModalVendedor .modal-body,
+    body:not([data-theme="dark"]) #comentarioModalCliente .modal-body,
+    body:not([data-theme="dark"]) #modalAdminPres .modal-body {
+        background: #fff !important;
+        color: #30373b !important;
+
+        font-size: 10px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalGuardarCedis .modal-footer,
+    body:not([data-theme="dark"]) #comentarioModalCedis .modal-footer,
+    body:not([data-theme="dark"]) #comentarioModalVendedor .modal-footer,
+    body:not([data-theme="dark"]) #comentarioModalCliente .modal-footer,
+    body:not([data-theme="dark"]) #modalAdminPres .modal-footer {
+        background: #eef2f4 !important;
+        border-top: 1px solid #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) #modalAdminPres .modal-dialog {
+        width: min(1050px, calc(100vw - 40px)) !important;
+        max-width: 1050px !important;
+
+        margin: 25px auto !important;
+    }
+
+    /* ===============================================================
+       RESPONSIVE
+       =============================================================== */
+    @@media (max-width: 768px) {
+        body:has(.presupuesto-app) .layout-main-content,
+        body:has(.presupuesto-app) .layout-main-content.layout-sidebar-open,
+        body:has(.layout-sidebar.layout-hidden):has(.presupuesto-app) .layout-main-content,
+        body:has(.layout-sidebar.layout-hidden):has(.presupuesto-app) .layout-main-content.layout-sidebar-open {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+        }
+
+        body:not([data-theme="dark"]) .presupuesto-app {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+    }
+</style>
+
+<div class="container-fluid presupuesto-app">
     <div class="shell">
         <div class="module-titlebar">
             <div>

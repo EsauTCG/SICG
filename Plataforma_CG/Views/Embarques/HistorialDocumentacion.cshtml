@@ -1,0 +1,149 @@
+@model IEnumerable<Plataforma_CG.Models.Embarque>
+
+@{
+    ViewData["Title"] = "Histórico de Documentación";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var registros = Model?.ToList() ?? new List<Plataforma_CG.Models.Embarque>();
+    var buscoHistorial = Convert.ToBoolean(ViewBag.BuscoHistorialDocumentacion ?? false);
+    var busqueda = Context.Request.Query["busquedaHistorial"].ToString();
+    var fechaInicio = Context.Request.Query["fechaInicioHistorial"].ToString();
+    var fechaFin = Context.Request.Query["fechaFinHistorial"].ToString();
+
+    var tiposDocumento = new[]
+    {
+        new { Tipo = "CARTA_PORTE", Nombre = "Carta Porte", Icono = "bi-truck" },
+        new { Tipo = "CERTIFICACION_LAVADO", Nombre = "Certificación de Lavado", Icono = "bi-droplet-half" },
+        new { Tipo = "CERTIFICACION_FUMIGACION", Nombre = "Certificación de Fumigación", Icono = "bi-bug" }
+    };
+}
+
+<link rel="stylesheet" href="~/css/embarques-historial.css" asp-append-version="true" />
+
+<div class="history-page">
+    <header class="history-header">
+        <div class="history-title-wrap">
+            <div class="history-title-icon"><i class="bi bi-folder-check"></i></div>
+            <div>
+                <h1 class="history-title">Histórico de Documentación</h1>
+                <p class="history-subtitle">Consulta los embarques validados por documentación logística sin cargar la pantalla de captura.</p>
+            </div>
+        </div>
+
+        <div class="history-actions">
+            <a asp-action="Documentacion" class="history-button">
+                <i class="bi bi-hourglass-split"></i> Ver pendientes
+            </a>
+            <a asp-action="Embarque" class="history-button">
+                <i class="bi bi-arrow-left"></i> Volver a embarques
+            </a>
+        </div>
+    </header>
+
+    <form method="get" asp-action="HistorialDocumentacion" class="history-filter">
+        <div class="history-field">
+            <label for="busquedaHistorial">Buscar embarque</label>
+            <input id="busquedaHistorial" name="busquedaHistorial" value="@busqueda"
+                   placeholder="Consecutivo, ID o nombre" />
+        </div>
+        <div class="history-field">
+            <label for="fechaInicioHistorial">Fecha de validación inicial</label>
+            <input id="fechaInicioHistorial" type="date" name="fechaInicioHistorial" value="@fechaInicio" required />
+        </div>
+        <div class="history-field">
+            <label for="fechaFinHistorial">Fecha de validación final</label>
+            <input id="fechaFinHistorial" type="date" name="fechaFinHistorial" value="@fechaFin" required />
+        </div>
+        <button type="submit" class="history-button primary">
+            <i class="bi bi-search"></i> Consultar
+        </button>
+        <a asp-action="HistorialDocumentacion" class="history-button">
+            <i class="bi bi-arrow-clockwise"></i> Limpiar
+        </a>
+    </form>
+
+    @if (!buscoHistorial)
+    {
+        <div class="history-empty">
+            <i class="bi bi-calendar-range"></i>
+            <h4>Selecciona un rango de fechas</h4>
+            <p class="mb-0">Los registros se consultan únicamente cuando indicas ambas fechas.</p>
+        </div>
+    }
+    else if (!registros.Any())
+    {
+        <div class="history-empty">
+            <i class="bi bi-search"></i>
+            <h4>No se encontraron registros</h4>
+            <p class="mb-0">No existen validaciones de documentación logística para los filtros seleccionados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="history-results">
+            @foreach (var embarque in registros)
+            {
+                var archivos = embarque.Archivos?.ToList() ?? new List<Plataforma_CG.Models.EmbarqueArchivo>();
+                var totalArchivos = archivos.Count;
+                var consecutivo = string.IsNullOrWhiteSpace(embarque.Consecutivo)
+                    ? $"EMB-{embarque.Id}"
+                    : embarque.Consecutivo;
+
+                <details class="history-record">
+                    <summary>
+                        <div>
+                            <h2 class="history-record-title">
+                                <i class="bi bi-folder-check"></i>
+                                Embarque #@consecutivo
+                            </h2>
+                            <div class="history-meta">
+                                <span class="history-chip success"><i class="bi bi-check-circle-fill"></i> Validado</span>
+                                <span class="history-chip"><i class="bi bi-hash"></i> ID @embarque.Id</span>
+                                <span class="history-chip"><i class="bi bi-calendar-check"></i> @(embarque.FechaValidacionDocumentacion?.ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</span>
+                                <span class="history-chip"><i class="bi bi-person-check"></i> @(embarque.UsuarioValidaDocumentacion ?? "Sistema")</span>
+                            </div>
+                        </div>
+                        <span class="history-record-count">@totalArchivos archivo(s)</span>
+                    </summary>
+
+                    <div class="history-record-body">
+                        <div class="history-grid">
+                            <div class="history-data"><span>Nombre</span><strong>@(embarque.NombreEmbarque ?? "Sin nombre asignado")</strong></div>
+                            <div class="history-data"><span>Fecha de creación</span><strong>@embarque.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</strong></div>
+                            <div class="history-data"><span>Carta Porte</span><strong>@(embarque.RequiereCartaPorte == false ? "No aplica" : embarque.RequiereCartaPorte == true ? "Aplica" : "Sin definir")</strong></div>
+                            <div class="history-data"><span>Llegada estimada</span><strong>@(embarque.FechaEstimadaLlegada?.ToString("dd/MM/yyyy HH:mm") ?? "Sin fecha")</strong></div>
+                            <div class="history-data"><span>Usuario validador</span><strong>@(embarque.UsuarioValidaDocumentacion ?? "Sistema")</strong></div>
+                            <div class="history-data"><span>Total de archivos</span><strong>@totalArchivos</strong></div>
+                        </div>
+
+                        <section class="history-section">
+                            <h3 class="history-section-title"><i class="bi bi-paperclip"></i> Documentos cargados</h3>
+                            <div class="history-doc-grid">
+                                @foreach (var tipo in tiposDocumento)
+                                {
+                                    var archivosTipo = archivos.Where(x => x.Tipo == tipo.Tipo).ToList();
+                                    <div class="history-doc">
+                                        <div class="history-doc-name"><i class="bi @tipo.Icono me-1"></i>@tipo.Nombre</div>
+                                        @if (!archivosTipo.Any())
+                                        {
+                                            <span class="text-muted small">Sin archivo cargado</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var archivo in archivosTipo)
+                                            {
+                                                <a class="history-file-link" href="@archivo.RutaArchivo" target="_blank" rel="noopener">
+                                                    <span>Archivo #@archivo.Id</span><i class="bi bi-box-arrow-up-right"></i>
+                                                </a>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    </div>
+                </details>
+            }
+        </div>
+    }
+</div>

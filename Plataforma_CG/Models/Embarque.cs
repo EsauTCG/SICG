@@ -11,6 +11,7 @@
         public string? Observaciones { get; set; }
         public DateTime? FechaEntrada { get; set; }
         public DateTime? FechaSalida { get; set; }
+        public DateTime? FechaEstimadaLlegada { get; set; }
         public ICollection<EmbarqueOrden> Ordenes { get; set; }
         public ICollection<EmbarqueArchivo> Archivos { get; set; } = new List<EmbarqueArchivo>();
         public EmbarqueQR? QR { get; set; }

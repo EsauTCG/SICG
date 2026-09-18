@@ -1,0 +1,393 @@
+@model Plataforma_CG.ViewModels.CobranzaReporteViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Compromisos de cobranza";
+}
+
+<style>
+    .cob-page {
+        font-family: "Poppins", sans-serif;
+    }
+
+    .cob-kpi {
+        border: 0;
+        border-radius: 14px;
+    }
+
+    .cob-kpi .card-body {
+        padding: 1rem 1.1rem;
+    }
+
+    .cob-title {
+        font-weight: 700;
+        letter-spacing: -.02em;
+    }
+
+    .cob-table th {
+        white-space: nowrap;
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+
+    .cob-table td {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .cob-table td.cob-cliente {
+        white-space: normal;
+        min-width: 230px;
+    }
+
+    .cob-badge {
+        min-width: 94px;
+        display: inline-block;
+        padding: .42rem .55rem;
+    }
+
+    .cob-filter-card,
+    .cob-table-card {
+        border: 0;
+        border-radius: 14px;
+    }
+
+    .cob-live {
+        font-size: .82rem;
+    }
+</style>
+
+<div class="container-fluid py-3 cob-page">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h3 class="mb-0 cob-title">
+                <i class="fa-solid fa-file-invoice-dollar me-2"></i>
+                Compromisos de cobranza
+            </h3>
+            <div class="text-muted cob-live">
+                Seguimiento automático contra SAP Business One.
+                Esta pantalla se actualiza cada 60 segundos.
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise me-1"></i>
+                Refrescar
+            </button>
+
+            <a class="btn btn-outline-success"
+               asp-controller="Cobranza"
+               asp-action="ExportarCsv"
+               asp-route-estatus="@Model.Estatus"
+               asp-route-cliente="@Model.Cliente"
+               asp-route-desde="@(Model.Desde?.ToString("yyyy-MM-dd"))"
+               asp-route-hasta="@(Model.Hasta?.ToString("yyyy-MM-dd"))">
+                <i class="bi bi-download me-1"></i>
+                Exportar CSV
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">
+            @TempData["Success"]
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">
+            @TempData["Error"]
+        </div>
+    }
+
+    <div class="row g-2 mb-3">
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Total</div>
+                    <div class="fs-3 fw-bold">@Model.Total</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Pendientes</div>
+                    <div class="fs-3 fw-bold">@Model.Pendientes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Incumplidos</div>
+                    <div class="fs-3 fw-bold text-danger">@Model.Incumplidos</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Parciales</div>
+                    <div class="fs-3 fw-bold text-warning">@Model.Parciales</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Cumplidos</div>
+                    <div class="fs-3 fw-bold text-success">@Model.Cumplidos</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-2">
+            <div class="card shadow-sm cob-kpi h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Saldo pendiente</div>
+                    <div class="fs-5 fw-bold">
+                        @Model.SaldoPendiente.ToString("C2")
+                    </div>
+                    @if (Model.Revisar > 0)
+                    {
+                        <small class="text-danger">
+                            @Model.Revisar requieren revisión
+                        </small>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <form method="get"
+          asp-controller="Cobranza"
+          asp-action="Compromisos"
+          class="card shadow-sm cob-filter-card mb-3">
+
+        <div class="card-body">
+
+            <div class="row g-2 align-items-end">
+
+                <div class="col-md-3">
+                    <label class="form-label">Estatus</label>
+
+                    <select name="estatus" class="form-select">
+
+                        @if (string.IsNullOrWhiteSpace(Model.Estatus) ||
+                             Model.Estatus.Equals("TODOS", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="TODOS" selected>Todos</option>
+                        }
+                        else
+                        {
+                            <option value="TODOS">Todos</option>
+                        }
+
+                        @foreach (var e in new[]
+                        {
+                            "PENDIENTE",
+                            "VENCE_HOY",
+                            "PARCIAL",
+                            "INCUMPLIDO",
+                            "CUMPLIDO",
+                            "REVISAR"
+                        })
+                        {
+                            if (string.Equals(
+                                    Model.Estatus,
+                                    e,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@e" selected>@e</option>
+                            }
+                            else
+                            {
+                                <option value="@e">@e</option>
+                            }
+                        }
+
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">
+                        Cliente / código / OV
+                    </label>
+
+                    <input name="cliente"
+                           value="@Model.Cliente"
+                           class="form-control"
+                           placeholder="Ej. C00123, cliente u OV-..." />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Desde</label>
+
+                    <input type="date"
+                           name="desde"
+                           value="@(Model.Desde?.ToString("yyyy-MM-dd"))"
+                           class="form-control" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Hasta</label>
+
+                    <input type="date"
+                           name="hasta"
+                           value="@(Model.Hasta?.ToString("yyyy-MM-dd"))"
+                           class="form-control" />
+                </div>
+
+                <div class="col-md-1 d-grid">
+                    <button class="btn btn-primary">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+
+                <div class="col-12 text-end">
+                    <a asp-controller="Cobranza"
+                       asp-action="Compromisos"
+                       class="btn btn-sm btn-light">
+                        Limpiar filtros
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </form>
+
+    <div class="card shadow-sm cob-table-card">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0 cob-table">
+
+                <thead class="table-light">
+                    <tr>
+                        <th>Estatus</th>
+                        <th>OV</th>
+                        <th>Cliente</th>
+                        <th class="text-end">Saldo inicial</th>
+                        <th class="text-end">Saldo actual</th>
+                        <th>Compromiso</th>
+                        <th class="text-center">Facturas</th>
+                        <th>Último pago SAP</th>
+                        <th>Última validación</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="10"
+                                class="text-center py-5 text-muted">
+                                No existen compromisos para los filtros seleccionados.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var x in Model.Items)
+                        {
+                            var badge =
+                                x.Estatus switch
+                                {
+                                    "CUMPLIDO" => "success",
+                                    "PARCIAL" => "warning",
+                                    "INCUMPLIDO" => "danger",
+                                    "VENCE_HOY" => "info",
+                                    "REVISAR" => "secondary",
+                                    _ => "primary"
+                                };
+
+                            <tr>
+
+                                <td>
+                                    <span class="badge bg-@badge cob-badge">
+                                        @x.Estatus
+                                    </span>
+                                </td>
+
+                                <td class="fw-semibold">
+                                    @x.OrdenVentaConsecutivo
+                                </td>
+
+                                <td class="cob-cliente">
+                                    <div class="fw-semibold">
+                                        @x.ClienteNombre
+                                    </div>
+                                    <small class="text-muted">
+                                        @x.ClienteCodigo
+                                    </small>
+                                </td>
+
+                                <td class="text-end">
+                                    @x.SaldoVencidoInicial.ToString("C2")
+                                </td>
+
+                                <td class="text-end fw-bold">
+                                    @x.SaldoPendienteActual.ToString("C2")
+                                </td>
+
+                                <td>
+                                    @x.FechaCompromiso.ToString("dd/MM/yyyy")
+                                </td>
+
+                                <td class="text-center">
+                                    @x.Facturas
+                                </td>
+
+                                <td>
+                                    @(x.UltimoPagoSap?.ToString("dd/MM/yyyy") ?? "—")
+                                </td>
+
+                                <td>
+                                    @(x.FechaUltimaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "Pendiente")
+                                </td>
+
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       asp-controller="Cobranza"
+                                       asp-action="Detalle"
+                                       asp-route-id="@x.Id">
+                                        Ver
+                                    </a>
+                                </td>
+
+                            </tr>
+                        }
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    // Refresca el reporte sin perder filtros porque conserva la URL actual.
+    setTimeout(function () {
+        window.location.reload();
+    }, 60000);
+</script>

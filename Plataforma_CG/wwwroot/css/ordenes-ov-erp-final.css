@@ -1,0 +1,1006 @@
+/* ==========================================================================
+   ÓRDENES DE VENTA — ERP TINTO / POPPINS
+   Override visual seguro.
+   Mantiene filtros, multi-dropdown, ordenamiento, PDF, modal, edición,
+   actualización automática y endpoints JavaScript existentes.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --ov-bg: #eef2f4;
+    --ov-panel: #ffffff;
+    --ov-panel-2: #f7f9fa;
+    --ov-line: #bec9cf;
+    --ov-line-soft: #d7dfe3;
+    --ov-text: #30373b;
+    --ov-muted: #68757d;
+
+    --ov-tinto: #7a2029;
+    --ov-tinto-dark: #5e1820;
+    --ov-tinto-deep: #351014;
+    --ov-tinto-soft: #f4e8ea;
+
+    --ov-green: #25824d;
+    --ov-green-dark: #1c633a;
+    --ov-green-soft: #e8f3ed;
+
+    --ov-amber: #9c7318;
+    --ov-amber-soft: #f8f0dc;
+
+    --ov-red: #a22e3a;
+    --ov-red-soft: #f7e5e7;
+
+    --ov-blue: #45657d;
+    --ov-blue-soft: #eaf0f4;
+}
+
+/* ==========================================================================
+   TIPOGRAFÍA
+   ========================================================================== */
+
+.ordenes-ov-app,
+.ordenes-ov-app *,
+#ovModal,
+#ovModal * {
+    font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: geometricPrecision !important;
+}
+
+/* Bootstrap Icons deben conservar su fuente */
+.ordenes-ov-app .bi,
+.ordenes-ov-app .bi::before,
+#ovModal .bi,
+#ovModal .bi::before {
+    font-family: "bootstrap-icons" !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    line-height: 1 !important;
+}
+
+html,
+body {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+body:not([data-theme="dark"]) {
+    background: var(--ov-bg) !important;
+}
+
+/* ==========================================================================
+   _LAYOUT2 / SIDEBAR
+   ========================================================================== */
+
+body:has(.ordenes-ov-app) .layout-main-content {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+}
+
+body:has(.ordenes-ov-app) .layout-main-content.layout-sidebar-open {
+    width: calc(100% - var(--layout-sidebar-width)) !important;
+    max-width: calc(100% - var(--layout-sidebar-width)) !important;
+    margin-left: var(--layout-sidebar-width) !important;
+}
+
+body:has(.layout-sidebar.layout-hidden):has(.ordenes-ov-app) .layout-main-content,
+body:has(.layout-sidebar.layout-hidden):has(.ordenes-ov-app) .layout-main-content.layout-sidebar-open {
+    width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+    max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+    margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+}
+
+body:has(.ordenes-ov-app) .layout-container-fluid {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* ==========================================================================
+   VENTANA
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app.window {
+    width: calc(100% - 12px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 6px auto 12px !important;
+    padding: 0 !important;
+    color: var(--ov-text) !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .titlebar {
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 8px 11px !important;
+    margin: 0 0 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+
+    background: linear-gradient(
+        180deg,
+        #5a171d 0%,
+        #481318 48%,
+        #351014 100%
+    ) !important;
+
+    color: #fff !important;
+    border: 1px solid #351014 !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .ov-main-title {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    color: #fff !important;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .titlebar .actions,
+body:not([data-theme="dark"]) .ordenes-ov-app .toolbar {
+    display: none !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .content {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .workspace {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+}
+
+/* ==========================================================================
+   SECCIONES
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .section {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 0 6px !important;
+    background: var(--ov-panel) !important;
+    border: 1px solid var(--ov-line) !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .section-title {
+    min-height: 29px !important;
+    padding: 6px 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+
+    background: linear-gradient(
+        180deg,
+        #edf1f3 0%,
+        #e2e8eb 100%
+    ) !important;
+
+    color: #3f474b !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--ov-line) !important;
+    border-left: 3px solid var(--ov-tinto) !important;
+    border-radius: 0 !important;
+
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .15px !important;
+}
+
+/* ==========================================================================
+   FILTROS
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app #frmPedidos {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .filters {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 6px !important;
+    display: grid !important;
+    grid-template-columns:
+        minmax(120px,.8fr)
+        minmax(120px,.8fr)
+        minmax(210px,1.2fr)
+        minmax(260px,1.7fr)
+        minmax(310px,1.8fr) !important;
+    gap: 5px !important;
+    align-items: end !important;
+    background: #fff !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .filter-group {
+    min-width: 0 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .filter-group label {
+    display: block !important;
+    margin: 0 0 2px !important;
+    color: #4e595f !important;
+    font-size: 7px !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .filters input,
+body:not([data-theme="dark"]) .ordenes-ov-app .filters select,
+body:not([data-theme="dark"]) .ordenes-ov-app .btn-select-like,
+body:not([data-theme="dark"]) .ordenes-ov-app .form-control,
+body:not([data-theme="dark"]) .ordenes-ov-app .form-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 29px !important;
+    height: 29px !important;
+    padding: 3px 6px !important;
+    background: #fff !important;
+    color: var(--ov-text) !important;
+    border: 1px solid #b9c5cb !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    outline: none !important;
+    font-size: 7.8px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .filters input:focus,
+body:not([data-theme="dark"]) .ordenes-ov-app .filters select:focus,
+body:not([data-theme="dark"]) .ordenes-ov-app .btn-select-like:focus,
+body:not([data-theme="dark"]) .ordenes-ov-app .form-control:focus,
+body:not([data-theme="dark"]) .ordenes-ov-app .form-select:focus {
+    border-color: #9e7479 !important;
+    box-shadow: 0 0 0 2px rgba(122,32,41,.08) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+}
+
+/* ==========================================================================
+   BOTONES
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn,
+body:not([data-theme="dark"]) #ovModal .btn,
+body:not([data-theme="dark"]) #ovModal .small-btn {
+    min-height: 29px !important;
+    height: 29px !important;
+    padding: 0 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    font-size: 7px !important;
+    line-height: 1 !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn-primary,
+body:not([data-theme="dark"]) #ovModal .btn-primary {
+    background: var(--ov-tinto) !important;
+    color: #fff !important;
+    border: 1px solid var(--ov-tinto-dark) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn-primary:hover,
+body:not([data-theme="dark"]) #ovModal .btn-primary:hover {
+    background: var(--ov-tinto-dark) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn-excel {
+    background: var(--ov-green) !important;
+    color: #fff !important;
+    border: 1px solid var(--ov-green-dark) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn-excel:hover {
+    background: var(--ov-green-dark) !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .btn-secondary,
+body:not([data-theme="dark"]) #ovModal .small-btn {
+    background: #f5f7f8 !important;
+    color: #414c52 !important;
+    border: 1px solid #b9c5cb !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .btn-danger {
+    background: var(--ov-red) !important;
+    color: #fff !important;
+    border: 1px solid #842631 !important;
+}
+
+/* ==========================================================================
+   MULTI PICKER ESTATUS
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-menu {
+    min-width: 240px !important;
+    padding: 5px !important;
+    background: #fff !important;
+    color: var(--ov-text) !important;
+    border: 1px solid #aebbc3 !important;
+    border-radius: 2px !important;
+    box-shadow: 0 8px 20px rgba(25,34,39,.14) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-search {
+    min-height: 30px !important;
+    height: 30px !important;
+    margin-bottom: 4px !important;
+    padding: 3px 6px !important;
+    border: 1px solid #b9c5cb !important;
+    border-radius: 2px !important;
+    font-size: 7.5px !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-list {
+    max-height: 220px !important;
+    overflow: auto !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-option {
+    min-height: 29px !important;
+    padding: 4px 5px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    color: #445057 !important;
+    background: #fff !important;
+    border-bottom: 1px solid #edf1f3 !important;
+    font-size: 7.3px !important;
+    font-weight: 600 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-option:hover {
+    background: var(--ov-tinto-soft) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .multi-picker-option input[type="checkbox"] {
+    width: 13px !important;
+    min-width: 13px !important;
+    height: 13px !important;
+    min-height: 13px !important;
+    accent-color: var(--ov-tinto) !important;
+}
+
+/* ==========================================================================
+   TABLA PRINCIPAL
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: auto !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid {
+    width: 100% !important;
+    min-width: 1160px !important;
+    margin: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    table-layout: fixed !important;
+    background: #fff !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+    height: 31px !important;
+    padding: 4px 5px !important;
+
+    background: linear-gradient(
+        180deg,
+        #dce4e8 0%,
+        #d1dbe0 100%
+    ) !important;
+
+    color: #3f4549 !important;
+    border: 0 !important;
+    border-right: 1px solid #aebbc3 !important;
+    border-bottom: 1px solid #aebbc3 !important;
+    box-shadow: none !important;
+
+    font-size: 6.5px !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+    user-select: none !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid thead th[data-sort-col]:hover {
+    background: #cbd6dc !important;
+    color: var(--ov-tinto) !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid tbody td {
+    height: 32px !important;
+    padding: 4px 5px !important;
+    background: #fff !important;
+    color: #39444a !important;
+    border: 0 !important;
+    border-right: 1px solid #e0e6e9 !important;
+    border-bottom: 1px solid #d7dfe3 !important;
+    font-size: 6.8px !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid tbody tr:nth-child(even) td {
+    background: #f8fafb !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid tbody tr:hover td {
+    background: #f4eaec !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid .ver-ov {
+    color: var(--ov-tinto) !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .orders-grid .ver-ov:hover {
+    text-decoration: underline !important;
+}
+
+/* Proporción visual de columnas */
+body:not([data-theme="dark"]) .orders-grid th:nth-child(1),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(1) { width: 90px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(2),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(2) { width: 62px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(3),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(3) { width: 82px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(4),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(4) { width: 190px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(5),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(5) { width: 120px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(6),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(6) { width: 92px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(7),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(7) { width: 100px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(8),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(8) { width: 125px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(9),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(9) { width: 92px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(10),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(10) { width: 105px !important; }
+
+body:not([data-theme="dark"]) .orders-grid th:nth-child(11),
+body:not([data-theme="dark"]) .orders-grid td:nth-child(11) { width: 46px !important; }
+
+/* ==========================================================================
+   ESTATUS
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est {
+    max-width: 100% !important;
+    padding: 2px 5px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    border: 1px solid transparent !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    font-size: 5.9px !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-0 {
+    background: var(--ov-red-soft) !important;
+    color: #84242f !important;
+    border-color: #d7a3aa !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-1 {
+    background: var(--ov-amber-soft) !important;
+    color: #74550f !important;
+    border-color: #dbc685 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-2 {
+    background: var(--ov-blue-soft) !important;
+    color: #3d6077 !important;
+    border-color: #b6cad7 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-4 {
+    background: #edf5f0 !important;
+    color: #38614b !important;
+    border-color: #bdd0c5 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-5 {
+    background: var(--ov-green-soft) !important;
+    color: #17623d !important;
+    border-color: #a7cfb8 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .badge-est.est-6 {
+    background: var(--ov-tinto-soft) !important;
+    color: var(--ov-tinto) !important;
+    border-color: #d3adb2 !important;
+}
+
+/* ==========================================================================
+   PDF
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .ov-pdf-col {
+    text-align: center !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .ov-pdf-action {
+    width: 24px !important;
+    height: 24px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #fff5f6 !important;
+    color: var(--ov-red) !important;
+    border: 1px solid #d5a4ab !important;
+    border-radius: 2px !important;
+    text-decoration: none !important;
+    font-size: 10px !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app .ov-pdf-action:hover {
+    background: var(--ov-red) !important;
+    color: #fff !important;
+    border-color: #842631 !important;
+}
+
+/* ==========================================================================
+   STATUS BAR
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app .statusbar {
+    width: 100% !important;
+    min-height: 27px !important;
+    padding: 4px 7px !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr 1fr auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    background: #e6ecef !important;
+    color: #4a555b !important;
+    border: 1px solid var(--ov-line) !important;
+    border-top: 0 !important;
+    border-radius: 0 0 2px 2px !important;
+    font-size: 6.5px !important;
+    line-height: 1 !important;
+    font-weight: 600 !important;
+}
+
+/* ==========================================================================
+   MODAL DETALLE OV
+   ========================================================================== */
+
+body:not([data-theme="dark"]) #ovModal .modal-dialog {
+    width: min(1200px, 96vw) !important;
+    max-width: min(1200px, 96vw) !important;
+    margin: .5rem auto !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-content {
+    background: #fff !important;
+    border: 1px solid #aebbc3 !important;
+    border-radius: 3px !important;
+    box-shadow: 0 16px 42px rgba(25,34,39,.22) !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-header {
+    min-height: 40px !important;
+    padding: 7px 9px !important;
+    background: linear-gradient(
+        180deg,
+        #5a171d 0%,
+        #481318 48%,
+        #351014 100%
+    ) !important;
+    color: #fff !important;
+    border: 0 !important;
+    border-bottom: 1px solid #351014 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-title {
+    color: #fff !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .btn-close {
+    filter: invert(1) grayscale(1) brightness(2) !important;
+    opacity: .85 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-body {
+    padding: 7px !important;
+    background: var(--ov-bg) !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .header-row {
+    gap: 5px !important;
+    padding: 6px !important;
+    background: #fff !important;
+    border: 1px solid var(--ov-line) !important;
+    border-radius: 2px !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .header-row strong {
+    color: #5d6970 !important;
+    font-size: 6.5px !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .header-row span,
+body:not([data-theme="dark"]) #ovModal .header-row select {
+    color: var(--ov-text) !important;
+    font-size: 7.2px !important;
+    font-weight: 500 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .editable-inline {
+    padding: 2px 4px !important;
+    background: #f7f9fa !important;
+    color: var(--ov-tinto) !important;
+    border: 1px dashed #c1ccd1 !important;
+    cursor: pointer !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .editable-inline:hover {
+    background: var(--ov-tinto-soft) !important;
+    border-color: #c89da2 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .observacion-vista {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 5px !important;
+}
+
+body:not([data-theme="dark"]) #ovModal #ovm-observacion-input {
+    min-height: 66px !important;
+    height: auto !important;
+    padding: 5px 6px !important;
+    border: 1px solid #b9c5cb !important;
+    border-radius: 2px !important;
+    font-size: 7.5px !important;
+    resize: vertical !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .observacion-botones {
+    display: flex !important;
+    gap: 4px !important;
+    margin-top: 4px !important;
+}
+
+/* ==========================================================================
+   MODAL BOX / SUBPEDIDOS / DETALLE
+   ========================================================================== */
+
+body:not([data-theme="dark"]) #ovModal .modal-box {
+    margin-top: 6px !important;
+    background: #fff !important;
+    border: 1px solid var(--ov-line) !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-box-title {
+    min-height: 28px !important;
+    padding: 5px 7px !important;
+    background: #e6ecef !important;
+    color: #465158 !important;
+    border-bottom: 1px solid var(--ov-line) !important;
+    font-size: 7.4px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-box-body {
+    padding: 0 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .table-wrap {
+    width: 100% !important;
+    overflow: auto !important;
+    background: #fff !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table {
+    width: 100% !important;
+    margin: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: #fff !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 3 !important;
+    height: 29px !important;
+    padding: 4px 5px !important;
+    background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+    color: #3f4549 !important;
+    border: 0 !important;
+    border-right: 1px solid #aebbc3 !important;
+    border-bottom: 1px solid #aebbc3 !important;
+    font-size: 6.3px !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table tbody td,
+body:not([data-theme="dark"]) #ovModal table tfoot th {
+    height: 29px !important;
+    padding: 4px 5px !important;
+    background: #fff !important;
+    color: #39444a !important;
+    border: 0 !important;
+    border-right: 1px solid #e0e6e9 !important;
+    border-bottom: 1px solid #d7dfe3 !important;
+    font-size: 6.7px !important;
+    line-height: 1.1 !important;
+    vertical-align: middle !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table tbody tr:nth-child(even) td {
+    background: #f8fafb !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table tbody tr:hover td {
+    background: #f4eaec !important;
+}
+
+body:not([data-theme="dark"]) #ovModal table tfoot th {
+    background: #eef2f4 !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .sp-docmeat {
+    min-height: 26px !important;
+    height: 26px !important;
+    padding: 2px 4px !important;
+    font-size: 6.8px !important;
+    border-radius: 2px !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .doc-meat-ok {
+    background: var(--ov-green-soft) !important;
+    border-color: #a7cfb8 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .doc-meat-empty {
+    background: var(--ov-amber-soft) !important;
+    border-color: #dbc685 !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .btn-sp-docmeat-guardar {
+    min-height: 24px !important;
+    height: 24px !important;
+    padding: 0 5px !important;
+    font-size: 6.3px !important;
+}
+
+/* ==========================================================================
+   FOOTER MODAL
+   ========================================================================== */
+
+body:not([data-theme="dark"]) #ovModal .modal-footer {
+    min-height: 42px !important;
+    padding: 6px 7px !important;
+    gap: 5px !important;
+    background: #f7f9fa !important;
+    border-top: 1px solid var(--ov-line) !important;
+}
+
+body:not([data-theme="dark"]) #ovModal .modal-footer small {
+    color: #6d7980 !important;
+    font-size: 6.7px !important;
+}
+
+/* ==========================================================================
+   ALERTAS
+   ========================================================================== */
+
+body:not([data-theme="dark"]) #sap-alert .alert {
+    margin: 6px !important;
+    padding: 7px 10px !important;
+    border-radius: 2px !important;
+    box-shadow: 0 6px 18px rgba(25,34,39,.12) !important;
+    font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+    font-size: 8px !important;
+    font-weight: 600 !important;
+}
+
+/* ==========================================================================
+   SCROLLBAR
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .ordenes-ov-app *::-webkit-scrollbar,
+body:not([data-theme="dark"]) #ovModal *::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app *::-webkit-scrollbar-track,
+body:not([data-theme="dark"]) #ovModal *::-webkit-scrollbar-track {
+    background: #edf1f3 !important;
+}
+
+body:not([data-theme="dark"]) .ordenes-ov-app *::-webkit-scrollbar-thumb,
+body:not([data-theme="dark"]) #ovModal *::-webkit-scrollbar-thumb {
+    background: #aeb9bf !important;
+    border-radius: 1px !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1180px) {
+    body:not([data-theme="dark"]) .ordenes-ov-app .filters {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .pm-actions {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@media (max-width: 760px) {
+    body:not([data-theme="dark"]) .ordenes-ov-app.window {
+        width: calc(100% - 6px) !important;
+        margin-top: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .pm-actions {
+        grid-column: 1 / -1 !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .statusbar {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #ovModal .header-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    }
+
+    body:not([data-theme="dark"]) #ovModal .ov-col-obs {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@media (max-width: 520px) {
+    body:not([data-theme="dark"]) .ordenes-ov-app .filters {
+        grid-template-columns: 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .pm-actions {
+        grid-template-columns: 1fr !important;
+        grid-column: auto !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .filters input,
+    body:not([data-theme="dark"]) .ordenes-ov-app .btn-select-like {
+        min-height: 38px !important;
+        height: 38px !important;
+        font-size: 8.5px !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .pm-btn {
+        min-height: 38px !important;
+        height: 38px !important;
+        font-size: 8px !important;
+    }
+
+    body:not([data-theme="dark"]) .ordenes-ov-app .statusbar {
+        grid-template-columns: 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #ovModal .header-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #ovModal .modal-dialog {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #ovModal .modal-content {
+        min-height: 100dvh !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-radius: 0 !important;
+    }
+}
+
+/* ==========================================================================
+   DARK THEME
+   ========================================================================== */
+
+body[data-theme="dark"] .ordenes-ov-app .titlebar,
+body[data-theme="dark"] #ovModal .modal-header {
+    background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+}

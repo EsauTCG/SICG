@@ -1,0 +1,1097 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Pre-registro Báscula";
+}
+
+<link rel="stylesheet" href="~/css/pre-registro-bascula-grid.css" asp-append-version="true" />
+
+<div class="pre-app" id="preRegistroApp">
+    <div class="pre-wrap">
+        <div class="pre-header">
+            <div class="pre-title">
+                <h1>Pre-registro de Báscula</h1>
+                @*  <p>Captura previa para CEDIS, Compras, Embarques o Producción. Caseta solo escanea el QR y pesa.</p> *@
+            </div>
+            <div class="pre-actions">
+                @* <button class="pre-btn" type="button" id="btnAbrirBascula">Ir a caseta</button> *@
+                <button class="pre-btn success" type="button" id="btnRecargar">Recargar pendientes</button>
+            </div>
+        </div>
+
+        <div class="grid-main">
+            <div class="card">
+                <div class="card-title">
+                    <div>Captura del pre-registro</div>
+                    <span>Esta información se cargará automáticamente en caseta al escanear el QR</span>
+                </div>
+
+                <form id="frmPreRegistro" autocomplete="off">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Área origen <span class="required-mark">*</span></label>
+                            <select id="areaOrigen" required data-required-label="Área origen">
+                                <option value="CEDIS">CEDIS</option>
+                                <option value="Compras">Compras</option>
+                                <option value="Embarques">Embarques</option>
+                                <option value="Producción">Producción</option>
+                                <option value="Ventas">Ventas</option>
+                                <option value="Logística">Logística</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tipo movimiento <span class="required-mark">*</span></label>
+                            <select id="tipoMovimiento" required data-required-label="Tipo movimiento">
+                                <option value="Entrada proveedor">Entrada proveedor</option>
+                                <option value="Entrada traslado">Entrada traslado</option>
+                                <option value="Entrada devolución">Entrada devolución</option>
+                                <option value="Salida venta">Salida venta</option>
+                                <option value="Salida traslado">Salida traslado</option>
+                                <option value="Salida maquila">Salida maquila</option>
+                                <option value="Salida desperdicio">Salida desperdicio</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Clasificación <span class="required-mark">*</span></label>
+                            <select id="clasificacion" required data-required-label="Clasificación">
+                                <option value="Ganado en pie">Ganado en pie</option>
+                                <option value="Cajas de carne">Cajas de carne</option>
+                                <option value="Canal / medias canales">Canal / medias canales</option>
+                                <option value="Insumos">Insumos</option>
+                                <option value="Subproducto">Subproducto</option>
+                                <option value="Material empaque">Material empaque</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label id="cantidadLabel">Cantidad de animales <span class="required-mark">*</span></label>
+                            <input id="cantidad"
+                                   type="number"
+                                   min="1"
+                                   step="1"
+                                   value="1"
+                                   inputmode="numeric"
+                                   required
+                                   data-required-label="Cantidad"
+                                   placeholder="Ej. 35" />
+                            <div class="hint" id="cantidadHint">Capture cuántos animales, cajas, piezas o unidades transporta.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Placas <span class="required-mark">*</span></label>
+                            <input id="placas" type="text" maxlength="40" placeholder="ABC-123" required data-required-label="Placas" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Proveedor / cliente <span class="required-mark">*</span></label>
+                            <div class="lookup-row">
+                                <input id="tercero" type="text" required data-required-label="Proveedor / cliente" placeholder="Nombre proveedor o cliente" />
+                                <button class="pre-btn small primary" type="button" id="btnBuscarTercero">Buscar</button>
+                            </div>
+                            <div class="hint">Para entradas normalmente es proveedor; para salidas normalmente es cliente.</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Código SAP <span class="required-mark">*</span></label>
+                            <input id="codigoSap" type="text" maxlength="60" placeholder="Código SAP" required data-required-label="Código SAP" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Documento <span class="required-mark">*</span></label>
+                            <input id="documento" type="text" maxlength="120" placeholder="Orden, factura, remisión" required data-required-label="Documento" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Producto <span class="required-mark">*</span></label>
+                            <div class="lookup-row">
+                                <input id="producto" type="text" required data-required-label="Producto" placeholder="Producto / material" />
+                                <button class="pre-btn small primary" type="button" id="btnBuscarProducto">Buscar</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>SKU <span class="required-mark">*</span></label>
+                            <input id="sku" type="text" maxlength="80" placeholder="SKU / código artículo" required data-required-label="SKU" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Chofer <span class="required-mark">*</span></label>
+                            <input id="chofer" type="text" maxlength="160" placeholder="Nombre chofer" required data-required-label="Chofer" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Origen <span class="required-mark">*</span></label>
+                            <input id="origen"
+                                   type="text"
+                                   maxlength="180"
+                                   list="ubicacionesSugeridas"
+                                   value="PLANTA 1"
+                                   placeholder="PLANTA 1, TIF 776 u otra ubicación"
+                                   required
+                                   data-required-label="Origen" />
+                            <div class="hint">Se propone PLANTA 1, pero puede escribir cualquier origen.</div>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Destino <span class="required-mark">*</span></label>
+                            <input id="destino"
+                                   type="text"
+                                   maxlength="180"
+                                   list="ubicacionesSugeridas"
+                                   value="TIF 776"
+                                   placeholder="TIF 776, PLANTA 1 u otra ubicación"
+                                   required
+                                   data-required-label="Destino" />
+                            <div class="hint">Se propone TIF 776, pero puede escribir cualquier destino.</div>
+                        </div>
+
+                        <datalist id="ubicacionesSugeridas">
+                            <option value="PLANTA 1"></option>
+                            <option value="TIF 776"></option>
+                        </datalist>
+
+                        <div class="form-group span-2">
+                            <label>Condición <span class="required-mark">*</span></label>
+                            <input id="condicion" type="text" maxlength="120" placeholder="Normal, refrigerado, jaula, caja seca, etc." required data-required-label="Condición" />
+                        </div>
+
+                        <div class="form-group span-4">
+                            <label>Observaciones <span class="required-mark">*</span></label>
+                            <textarea id="observaciones" maxlength="1000" placeholder="Indicaciones para caseta" required data-required-label="Observaciones"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="validation-summary" id="validationSummary" aria-live="polite"></div>
+
+                    <div class="result-box">
+                        <div class="form-actions" style="justify-content:flex-start;">
+                            <button class="pre-btn success" type="submit" id="btnCrearPreRegistro">Crear pre-registro</button>
+                            <button class="pre-btn" type="button" id="btnLimpiar">Limpiar</button>
+                            <button class="pre-btn primary" type="button" id="btnImprimirUltimo" disabled>Imprimir hoja QR</button>
+                            <button class="pre-btn warning" type="button" id="btnCopiarUltimo" disabled>Copiar código QR</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <div>Resultado para caseta</div>
+                    <span>Entrega esta hoja al operador para que solo escanee y pese</span>
+                </div>
+                <div class="result-box">
+                    <span class="status" id="resultStatus">Sin pre-registro creado</span>
+                    <div class="folio-box">
+                        <div class="big-folio">
+                            <label>Folio pre-registro</label>
+                            <strong id="folioPreview">---</strong>
+                        </div>
+                        <div class="code-panel">
+                            <label>Código que leerá caseta</label>
+                            <div class="code-box" id="scanPayloadPreview">---</div>
+                        </div>
+                        <div class="code-panel">
+                            <label>URL hoja QR</label>
+                            <div class="code-box" id="hojaUrlPreview">---</div>
+                        </div>
+                    </div>
+                    <div class="hint" style="margin-top:8px;">
+                        El operador abre la vista de báscula, escanea esta hoja y se llenan los datos automáticamente. Si el camión llega sin hoja, caseta puede capturar manualmente.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <div>Pre-registros pendientes / en proceso</div>
+                <span>Control de folios que aún no se han cerrado en báscula</span>
+            </div>
+            <div class="filter-row">
+                <select id="filtroEstatus">
+                    <option value="PENDIENTE_CASETA">Pendiente caseta</option>
+                    <option value="ESCANEADO_CASETA">Escaneado caseta</option>
+                    <option value="PESADO_ENTRADA">Pesado entrada</option>
+                    <option value="CERRADO">Cerrado</option>
+                    <option value="CANCELADO">Cancelado</option>
+                    <option value="">Todos</option>
+                </select>
+                <input id="filtroQ" type="text" placeholder="Buscar folio, tercero, producto, placas, documento, origen o destino" />
+                <button class="pre-btn primary" type="button" id="btnBuscarPendientes">Buscar</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Estatus</th>
+                            <th>Tipo</th>
+                            <th>Tercero</th>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Placas</th>
+                            <th>Documento</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Área</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblPreRegistros">
+                        <tr><td colspan="12">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="catalogModal">
+    <div class="modal">
+        <div class="modal-head">
+            <strong id="catalogTitle">Catálogo</strong>
+            <button class="close-x" type="button" id="btnCerrarCatalogo">×</button>
+        </div>
+        <div class="modal-search">
+            <input id="catalogSearch" type="text" placeholder="Buscar..." />
+        </div>
+        <div class="modal-body">
+            <table>
+                <thead id="catalogHead"></thead>
+                <tbody id="catalogBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    function prepararContenedorPreRegistro() {
+        const root = document.getElementById('preRegistroApp');
+        if (!root) return;
+
+        let parent = root.parentElement;
+
+        while (parent && parent !== document.body) {
+            if (
+                parent.matches('.container, .container-fluid, .pb-3') ||
+                parent.matches('main[role="main"]')
+            ) {
+                parent.classList.add(
+                    'pre-registro-sidebar-host',
+                    'pre-registro-sidebar-host-clean'
+                );
+            }
+
+            parent = parent.parentElement;
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener(
+            'DOMContentLoaded',
+            prepararContenedorPreRegistro,
+            { once: true }
+        );
+    } else {
+        prepararContenedorPreRegistro();
+    }
+})();
+</script>
+
+<script>
+(function () {
+    'use strict';
+
+    const ROOT_SELECTOR = '#preRegistroApp';
+    const SIDEBAR_SELECTORS = [
+        '#sidebar',
+        '.sidebar',
+        '.main-sidebar',
+        '.app-sidebar',
+        '.sidebar-wrapper',
+        '.left-sidebar',
+        'aside',
+        '[id*="sidebar" i]',
+        '[class*="sidebar" i]',
+        '[data-sidebar]'
+    ].join(',');
+
+    let root = null;
+    let parent = null;
+    let sidebar = null;
+
+    let intervalId = 0;
+    let finalTimerId = 0;
+    let lastWidth = -1;
+    let lastLeft = -1;
+
+    function esSidebarValido(element) {
+        if (!element || !document.documentElement.contains(element)) {
+            return false;
+        }
+
+        /*
+         * Excluir paneles laterales internos de topología y cualquier
+         * elemento perteneciente al propio módulo.
+         */
+        if (root && (element === root || root.contains(element))) {
+            return false;
+        }
+
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const viewportWidth = document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight;
+
+        return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            Number.parseFloat(style.opacity || '1') > 0.05 &&
+            rect.left <= 10 &&
+            rect.width >= 150 &&
+            rect.width <= Math.min(470, viewportWidth * 0.60) &&
+            rect.height >= Math.max(400, viewportHeight * 0.52)
+        );
+    }
+
+    function buscarSidebar() {
+        let mejor = null;
+        let mejorPuntaje = -1;
+
+        document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
+            if (!esSidebarValido(element)) return;
+
+            const rect = element.getBoundingClientRect();
+            const puntaje = rect.height + (rect.width * 2);
+
+            if (puntaje > mejorPuntaje) {
+                mejor = element;
+                mejorPuntaje = puntaje;
+            }
+        });
+
+        if (mejor) return mejor;
+
+        /*
+         * Respaldo geométrico para layouts cuyo menú no usa una clase
+         * o identificador relacionado con sidebar.
+         */
+        const puntosY = [
+            140,
+            Math.round(window.innerHeight * 0.40),
+            Math.round(window.innerHeight * 0.72)
+        ];
+
+        puntosY.some(function (y) {
+            return [5, 24, 70].some(function (x) {
+                const elementos = document.elementsFromPoint(x, y);
+
+                for (const element of elementos) {
+                    let actual = element;
+
+                    while (actual && actual !== document.body) {
+                        if (esSidebarValido(actual)) {
+                            mejor = actual;
+                            return true;
+                        }
+
+                        actual = actual.parentElement;
+                    }
+                }
+
+                return false;
+            });
+        });
+
+        return mejor;
+    }
+
+    function bordeDerechoSidebar() {
+        if (!sidebar || !esSidebarValido(sidebar)) {
+            sidebar = buscarSidebar();
+        }
+
+        if (!sidebar) return 0;
+
+        return Math.max(
+            0,
+            Math.round(sidebar.getBoundingClientRect().right)
+        );
+    }
+
+    function aplicarAjuste() {
+        root ??= document.querySelector(ROOT_SELECTOR);
+        if (!root) return;
+
+        parent = root.parentElement;
+        if (!parent) return;
+
+        const parentRect = parent.getBoundingClientRect();
+        const viewportRight = document.documentElement.clientWidth;
+        const sidebarRight = bordeDerechoSidebar();
+
+        const containerRight = Math.min(
+            viewportRight,
+            parentRect.right
+        );
+
+        /*
+         * Si _Layout2 ya desplazó el contenido se respeta esa posición.
+         * Si el menú se superpone, el módulo comienza en su borde derecho.
+         */
+        const targetLeft = Math.max(
+            parentRect.left,
+            sidebarRight
+        );
+
+        const leftOffset = Math.max(
+            0,
+            Math.round(targetLeft - parentRect.left)
+        );
+
+        const availableWidth = Math.max(
+            320,
+            Math.floor(containerRight - targetLeft)
+        );
+
+        if (
+            Math.abs(availableWidth - lastWidth) < 2 &&
+            Math.abs(leftOffset - lastLeft) < 2
+        ) {
+            return;
+        }
+
+        lastWidth = availableWidth;
+        lastLeft = leftOffset;
+
+        root.style.setProperty('position', 'relative', 'important');
+        root.style.setProperty('left', leftOffset + 'px', 'important');
+        root.style.setProperty('width', availableWidth + 'px', 'important');
+        root.style.setProperty('max-width', availableWidth + 'px', 'important');
+        root.style.setProperty('margin-left', '0', 'important');
+        root.style.setProperty('margin-right', '0', 'important');
+    }
+
+    function detenerSecuencia() {
+        if (intervalId) {
+            window.clearInterval(intervalId);
+            intervalId = 0;
+        }
+
+        if (finalTimerId) {
+            window.clearTimeout(finalTimerId);
+            finalTimerId = 0;
+        }
+    }
+
+    function ajustarDuranteTransicion() {
+        detenerSecuencia();
+        aplicarAjuste();
+
+        /*
+         * Frecuencia moderada para mantener fluida la animación sin
+         * recalcular continuamente tablas, Select2 y topología.
+         */
+        intervalId = window.setInterval(aplicarAjuste, 70);
+
+        finalTimerId = window.setTimeout(function () {
+            detenerSecuencia();
+            aplicarAjuste();
+
+            /*
+             * Actualiza una sola vez los componentes originales que
+             * escuchan el evento resize.
+             */
+            window.dispatchEvent(new Event('resize'));
+        }, 490);
+    }
+
+    function clickRelacionadoConSidebar(event) {
+        const target = event.target instanceof Element
+            ? event.target
+            : null;
+
+        if (!target) return false;
+
+        const control = target.closest(
+            'button, a, [role="button"], [aria-expanded], [aria-controls]'
+        );
+
+        if (!control) return false;
+
+        const descriptor = [
+            control.id,
+            control.className,
+            control.getAttribute('aria-controls'),
+            control.getAttribute('title'),
+            control.getAttribute('data-target'),
+            control.getAttribute('data-bs-target')
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        const rect = control.getBoundingClientRect();
+
+        return (
+            descriptor.includes('sidebar') ||
+            descriptor.includes('menu') ||
+            descriptor.includes('toggle') ||
+            descriptor.includes('collapse') ||
+            rect.left < 330
+        );
+    }
+
+    function iniciarSidebarRapido() {
+        root = document.querySelector(ROOT_SELECTOR);
+        if (!root) return;
+
+        parent = root.parentElement;
+        sidebar = buscarSidebar();
+
+        aplicarAjuste();
+
+        window.addEventListener(
+            'resize',
+            function (event) {
+                /*
+                 * El resize sintético actualiza la lógica original, pero
+                 * no reinicia esta misma secuencia.
+                 */
+                if (event.isTrusted) {
+                    ajustarDuranteTransicion();
+                }
+            },
+            { passive: true }
+        );
+
+        window.addEventListener(
+            'orientationchange',
+            ajustarDuranteTransicion,
+            { passive: true }
+        );
+
+        document.addEventListener('click', function (event) {
+            if (!clickRelacionadoConSidebar(event)) return;
+
+            window.setTimeout(function () {
+                sidebar = buscarSidebar() || sidebar;
+                ajustarDuranteTransicion();
+            }, 0);
+        }, true);
+
+        /*
+         * Sólo se observan el padre inmediato y el sidebar.
+         * No se instala MutationObserver sobre toda la página.
+         */
+        if ('ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(
+                ajustarDuranteTransicion
+            );
+
+            if (parent) {
+                resizeObserver.observe(parent);
+            }
+
+            if (sidebar) {
+                resizeObserver.observe(sidebar);
+            }
+        }
+
+        if (sidebar) {
+            const mutationObserver = new MutationObserver(
+                ajustarDuranteTransicion
+            );
+
+            mutationObserver.observe(sidebar, {
+                attributes: true,
+                attributeFilter: [
+                    'class',
+                    'style',
+                    'aria-expanded',
+                    'aria-hidden',
+                    'data-state'
+                ]
+            });
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener(
+            'DOMContentLoaded',
+            iniciarSidebarRapido,
+            { once: true }
+        );
+    } else {
+        iniciarSidebarRapido();
+    }
+})();
+</script>
+
+<script src="/lib/qrcode/qrcode.min.js"></script>
+<script>
+    if (typeof QRCode === "undefined") {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>');
+    }
+</script>
+<script>
+    (function () {
+        "use strict";
+
+        var ENDPOINT_CREAR = "/BasculaCamionera/PreRegistro/Crear";
+        var ENDPOINT_LISTAR = "/BasculaCamionera/PreRegistro/Listar";
+        var ENDPOINT_CANCELAR = "/BasculaCamionera/PreRegistro/Cancelar";
+        var ENDPOINT_CLIENTES = "/BasculaCamionera/BuscarClientes";
+        var ENDPOINT_ARTICULOS = "/BasculaCamionera/BuscarArticulos";
+        var URL_BASCULA = "/BasculaCamionera";
+
+        var ultimo = null;
+        var catalogMode = "";
+        var catalogRows = [];
+
+        var REQUIRED_FIELDS = [
+            { id: "areaOrigen", label: "Área origen" },
+            { id: "tipoMovimiento", label: "Tipo movimiento" },
+            { id: "clasificacion", label: "Clasificación" },
+            { id: "cantidad", label: "Cantidad" },
+            { id: "placas", label: "Placas" },
+            { id: "tercero", label: "Proveedor / cliente" },
+            { id: "codigoSap", label: "Código SAP" },
+            { id: "documento", label: "Documento" },
+            { id: "producto", label: "Producto" },
+            { id: "sku", label: "SKU" },
+            { id: "chofer", label: "Chofer" },
+            { id: "origen", label: "Origen" },
+            { id: "destino", label: "Destino" },
+            { id: "condicion", label: "Condición" },
+            { id: "observaciones", label: "Observaciones" }
+        ];
+
+        function byId(id) { return document.getElementById(id); }
+        function val(id) { var el = byId(id); return el ? String(el.value || "").trim() : ""; }
+        function setVal(id, value) { var el = byId(id); if (el) el.value = value == null ? "" : value; }
+        function setText(id, value) { var el = byId(id); if (el) el.textContent = value == null ? "" : value; }
+
+        function setStatus(text, type) {
+            var el = byId("resultStatus");
+            if (!el) return;
+            el.textContent = text;
+            el.classList.remove("ok", "err");
+            if (type) el.classList.add(type);
+        }
+
+        function safeOn(id, eventName, handler) {
+            var el = byId(id);
+            if (el) el.addEventListener(eventName, handler);
+        }
+
+        function limpiarErrores() {
+            REQUIRED_FIELDS.forEach(function (f) {
+                var el = byId(f.id);
+                if (el) el.classList.remove("input-error");
+            });
+
+            var summary = byId("validationSummary");
+            if (summary) {
+                summary.classList.remove("active");
+                summary.innerHTML = "";
+            }
+        }
+
+        function mostrarErrores(camposFaltantes) {
+            var summary = byId("validationSummary");
+            if (!summary) return;
+
+            summary.innerHTML =
+                "<strong>No se puede crear el pre-registro.</strong>" +
+                "Capture todos los campos obligatorios antes de guardar:" +
+                "<ul>" + camposFaltantes.map(function (x) { return "<li>" + esc(x.label) + "</li>"; }).join("") + "</ul>";
+
+            summary.classList.add("active");
+        }
+
+        function marcarErrores(camposFaltantes) {
+            limpiarErrores();
+
+            camposFaltantes.forEach(function (f) {
+                var el = byId(f.id);
+                if (el) el.classList.add("input-error");
+            });
+
+            mostrarErrores(camposFaltantes);
+
+            if (camposFaltantes.length) {
+                var first = byId(camposFaltantes[0].id);
+                if (first) {
+                    first.focus();
+                    first.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }
+        }
+
+        function campoTieneValor(id) {
+            var el = byId(id);
+            if (!el) return false;
+            return String(el.value || "").trim().length > 0;
+        }
+
+        function limpiar() {
+            ["placas", "tercero", "codigoSap", "documento", "producto", "sku", "chofer", "condicion", "observaciones"].forEach(function (id) {
+                setVal(id, "");
+            });
+
+            setVal("cantidad", "1");
+            setVal("origen", "PLANTA 1");
+            setVal("destino", "TIF 776");
+            actualizarEtiquetaCantidad();
+            ultimo = null;
+            setStatus("Sin pre-registro creado", "");
+            setText("folioPreview", "---");
+            setText("scanPayloadPreview", "---");
+            setText("hojaUrlPreview", "---");
+            byId("btnImprimirUltimo").disabled = true;
+            byId("btnCopiarUltimo").disabled = true;
+            byId("tercero").focus();
+        }
+
+        function buildDto() {
+            return {
+                areaOrigen: val("areaOrigen"),
+                tipoMovimiento: val("tipoMovimiento"),
+                clasificacion: val("clasificacion"),
+                cantidad: Number(val("cantidad") || 0),
+                tercero: val("tercero"),
+                codigoSap: val("codigoSap"),
+                placas: val("placas"),
+                producto: val("producto"),
+                sku: val("sku"),
+                documento: val("documento"),
+                chofer: val("chofer"),
+                origen: val("origen"),
+                destino: val("destino"),
+                condicion: val("condicion"),
+                observaciones: val("observaciones")
+            };
+        }
+
+        function validar(dto) {
+            var faltantes = REQUIRED_FIELDS.filter(function (f) {
+                return !campoTieneValor(f.id);
+            });
+
+            if (faltantes.length) {
+                marcarErrores(faltantes);
+                return "Faltan campos obligatorios.";
+            }
+
+            if (!Number.isFinite(dto.cantidad) || dto.cantidad <= 0) {
+                marcarErrores([{ id: "cantidad", label: "Cantidad mayor a cero" }]);
+                return "La cantidad debe ser mayor a cero.";
+            }
+
+            limpiarErrores();
+            return "";
+        }
+
+        async function crearPreRegistro(ev) {
+            if (ev) ev.preventDefault();
+
+            var dto = buildDto();
+            var error = validar(dto);
+            if (error) {
+                setStatus("Faltan campos obligatorios", "err");
+                return;
+            }
+
+            setStatus("Creando pre-registro...", "");
+            byId("btnCrearPreRegistro").disabled = true;
+
+            try {
+                var resp = await fetch(ENDPOINT_CREAR, {
+                    method: "POST",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(dto)
+                });
+
+                var data = await resp.json();
+
+                if (!resp.ok || !data || data.ok !== true) {
+                    throw new Error((data && data.msg) ? data.msg : "No se pudo crear el pre-registro.");
+                }
+
+                ultimo = data;
+                var pre = data.preRegistro || {};
+                var hojaUrl = data.hojaUrl || ("/BasculaCamionera/PreRegistro/Hoja?token=" + encodeURIComponent(data.token || pre.token || ""));
+                var fullHojaUrl = new URL(hojaUrl, window.location.origin).href;
+
+                setStatus("Pre-registro creado", "ok");
+                setText("folioPreview", pre.folioPreRegistro || "---");
+                setText("scanPayloadPreview", data.scanPayload || data.qrPayload || ("BASPRE|" + (data.token || pre.token || "")));
+                setText("hojaUrlPreview", fullHojaUrl);
+                byId("btnImprimirUltimo").disabled = false;
+                byId("btnCopiarUltimo").disabled = false;
+
+                await listarPreRegistros();
+
+                if (confirm("Pre-registro creado correctamente. ¿Desea imprimir la hoja QR ahora?")) {
+                    window.open(fullHojaUrl, "_blank");
+                }
+            } catch (err) {
+                setStatus("Error al crear", "err");
+                alert(err.message);
+            } finally {
+                byId("btnCrearPreRegistro").disabled = false;
+            }
+        }
+
+        async function listarPreRegistros() {
+            var estatus = encodeURIComponent(val("filtroEstatus"));
+            var q = encodeURIComponent(val("filtroQ"));
+            var tbody = byId("tblPreRegistros");
+            tbody.innerHTML = "<tr><td colspan='12'>Cargando...</td></tr>";
+
+            try {
+                var resp = await fetch(ENDPOINT_LISTAR + "?estatus=" + estatus + "&q=" + q + "&take=150", { headers: { "Accept": "application/json" } });
+                var data = await resp.json();
+                if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.msg) ? data.msg : "No se pudo consultar pre-registros.");
+
+                var rows = data.rows || [];
+                if (!rows.length) {
+                    tbody.innerHTML = "<tr><td colspan='12'>No hay pre-registros con esos filtros.</td></tr>";
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(function (r) {
+                    var hoja = "/BasculaCamionera/PreRegistro/Hoja?token=" + encodeURIComponent(r.token || "");
+                    var payload = "BASPRE|" + (r.token || "");
+                    return "<tr>" +
+                        td(r.folioPreRegistro) +
+                        td(r.estatus) +
+                        td(r.tipoMovimiento) +
+                        td(r.tercero) +
+                        td(r.producto) +
+                        td(formatearCantidad(r.cantidad)) +
+                        td(r.placas) +
+                        td(r.documento) +
+                        td(r.origen) +
+                        td(r.destino) +
+                        td(r.areaOrigen) +
+                        "<td>" +
+                            "<button class='pre-btn small primary' type='button' data-print='" + esc(hoja) + "'>Imprimir</button> " +
+                            "<button class='pre-btn small warning' type='button' data-copy='" + esc(payload) + "'>Copiar</button> " +
+                            (r.estatus !== "CERRADO" && r.estatus !== "CANCELADO" ? "<button class='pre-btn small danger' type='button' data-cancel='" + esc(r.token || "") + "'>Cancelar</button>" : "") +
+                        "</td>" +
+                        "</tr>";
+                }).join("");
+            } catch (err) {
+                tbody.innerHTML = "<tr><td colspan='11'>" + esc(err.message) + "</td></tr>";
+            }
+        }
+
+        function formatearCantidad(value) {
+            var n = Number(value || 0);
+            if (!Number.isFinite(n)) return "";
+            return n.toLocaleString("es-MX", { maximumFractionDigits: 2 });
+        }
+
+        function actualizarEtiquetaCantidad() {
+            var clasificacion = val("clasificacion").toLowerCase();
+            var label = "Cantidad de unidades";
+            var hint = "Capture cuántas unidades transporta.";
+
+            if (clasificacion.indexOf("ganado") >= 0) {
+                label = "Cantidad de animales";
+                hint = "Capture cuántos animales transporta.";
+            } else if (clasificacion.indexOf("caja") >= 0) {
+                label = "Cantidad de cajas";
+                hint = "Capture cuántas cajas transporta.";
+            } else if (clasificacion.indexOf("canal") >= 0) {
+                label = "Cantidad de canales / medias canales";
+                hint = "Capture cuántas canales o medias canales transporta.";
+            } else if (clasificacion.indexOf("material") >= 0 || clasificacion.indexOf("insumo") >= 0) {
+                label = "Cantidad de piezas / unidades";
+                hint = "Capture cuántas piezas, bultos o unidades transporta.";
+            }
+
+            var labelEl = byId("cantidadLabel");
+            if (labelEl) labelEl.innerHTML = esc(label) + ' <span class="required-mark">*</span>';
+
+            setText("cantidadHint", hint);
+        }
+
+        function td(value) {
+            return "<td title='" + esc(value) + "'>" + esc(value || "") + "</td>";
+        }
+
+        function esc(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function copiarTexto(texto) {
+            try {
+                await navigator.clipboard.writeText(texto);
+                alert("Copiado: " + texto);
+            } catch (e) {
+                prompt("Copie manualmente:", texto);
+            }
+        }
+
+        async function cancelarToken(token) {
+            if (!token) return;
+            var motivo = prompt("Motivo de cancelación:", "Cancelado desde pre-registro");
+            if (motivo === null) return;
+
+            try {
+                var resp = await fetch(ENDPOINT_CANCELAR, {
+                    method: "POST",
+                    headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: token, motivo: motivo || "Cancelado" })
+                });
+                var data = await resp.json();
+                if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.msg) ? data.msg : "No se pudo cancelar.");
+                await listarPreRegistros();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function buscarCatalogo(tipo) {
+            catalogMode = tipo;
+            catalogRows = [];
+            var title = tipo === "producto" ? "Buscar producto / artículo" : "Buscar proveedor / cliente";
+            setText("catalogTitle", title);
+            byId("catalogModal").classList.add("active");
+            setVal("catalogSearch", tipo === "producto" ? val("producto") : val("tercero"));
+            await cargarCatalogo();
+            byId("catalogSearch").focus();
+        }
+
+        async function cargarCatalogo() {
+            var q = encodeURIComponent(val("catalogSearch"));
+            var head = byId("catalogHead");
+            var body = byId("catalogBody");
+            body.innerHTML = "<tr><td>Cargando...</td></tr>";
+
+            try {
+                var url = catalogMode === "producto"
+                    ? ENDPOINT_ARTICULOS + "?q=" + q + "&take=60"
+                    : ENDPOINT_CLIENTES + "?q=" + q + "&take=60";
+
+                var resp = await fetch(url, { headers: { "Accept": "application/json" } });
+                var data = await resp.json();
+                if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.msg) ? data.msg : "No se pudo cargar catálogo.");
+                catalogRows = data.rows || [];
+
+                if (catalogMode === "producto") {
+                    head.innerHTML = "<tr><th>Código</th><th>Producto</th><th>Acción</th></tr>";
+                    body.innerHTML = catalogRows.length ? catalogRows.map(function (r, i) {
+                        return "<tr><td>" + esc(r.productoCodigo) + "</td><td>" + esc(r.productoNombre) + "</td><td><button class='pre-btn small primary' data-select-catalog='" + i + "'>Seleccionar</button></td></tr>";
+                    }).join("") : "<tr><td colspan='3'>Sin resultados.</td></tr>";
+                } else {
+                    head.innerHTML = "<tr><th>Código SAP</th><th>Nombre</th><th>Clasificación</th><th>Acción</th></tr>";
+                    body.innerHTML = catalogRows.length ? catalogRows.map(function (r, i) {
+                        return "<tr><td>" + esc(r.codigoSap) + "</td><td>" + esc(r.nombre) + "</td><td>" + esc(r.clasificacion || r.canal || "") + "</td><td><button class='pre-btn small primary' data-select-catalog='" + i + "'>Seleccionar</button></td></tr>";
+                    }).join("") : "<tr><td colspan='4'>Sin resultados.</td></tr>";
+                }
+            } catch (err) {
+                head.innerHTML = "";
+                body.innerHTML = "<tr><td>" + esc(err.message) + "</td></tr>";
+            }
+        }
+
+        function seleccionarCatalogo(index) {
+            var r = catalogRows[Number(index)] || null;
+            if (!r) return;
+
+            if (catalogMode === "producto") {
+                setVal("sku", r.productoCodigo || "");
+                setVal("producto", r.productoNombre || "");
+            } else {
+                setVal("codigoSap", r.codigoSap || "");
+                setVal("tercero", r.nombre || "");
+            }
+
+            byId("catalogModal").classList.remove("active");
+        }
+
+        function abrirUltimaHoja() {
+            if (!ultimo) return;
+            var pre = ultimo.preRegistro || {};
+            var hojaUrl = ultimo.hojaUrl || ("/BasculaCamionera/PreRegistro/Hoja?token=" + encodeURIComponent(ultimo.token || pre.token || ""));
+            window.open(new URL(hojaUrl, window.location.origin).href, "_blank");
+        }
+
+        function copiarUltimo() {
+            if (!ultimo) return;
+            var pre = ultimo.preRegistro || {};
+            copiarTexto(ultimo.scanPayload || ultimo.qrPayload || ("BASPRE|" + (ultimo.token || pre.token || "")));
+        }
+
+        safeOn("frmPreRegistro", "submit", crearPreRegistro);
+        safeOn("btnLimpiar", "click", limpiar);
+        safeOn("btnRecargar", "click", listarPreRegistros);
+        safeOn("btnBuscarPendientes", "click", listarPreRegistros);
+        safeOn("btnAbrirBascula", "click", function () { window.location.href = URL_BASCULA; });
+        safeOn("btnImprimirUltimo", "click", abrirUltimaHoja);
+        safeOn("btnCopiarUltimo", "click", copiarUltimo);
+        safeOn("btnBuscarTercero", "click", function () { buscarCatalogo("tercero"); });
+        safeOn("btnBuscarProducto", "click", function () { buscarCatalogo("producto"); });
+        safeOn("clasificacion", "change", actualizarEtiquetaCantidad);
+        safeOn("btnCerrarCatalogo", "click", function () { byId("catalogModal").classList.remove("active"); });
+        safeOn("catalogSearch", "keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); cargarCatalogo(); } });
+        safeOn("catalogSearch", "input", debounce(cargarCatalogo, 350));
+
+        REQUIRED_FIELDS.forEach(function (f) {
+            var el = byId(f.id);
+            if (!el) return;
+
+            var handler = function () {
+                if (campoTieneValor(f.id)) el.classList.remove("input-error");
+
+                var faltantes = REQUIRED_FIELDS.filter(function (x) { return !campoTieneValor(x.id); });
+                if (!faltantes.length) limpiarErrores();
+            };
+
+            el.addEventListener("input", handler);
+            el.addEventListener("change", handler);
+        });
+
+        byId("tblPreRegistros").addEventListener("click", function (e) {
+            var t = e.target;
+            if (!t) return;
+            if (t.dataset.print) window.open(t.dataset.print, "_blank");
+            if (t.dataset.copy) copiarTexto(t.dataset.copy);
+            if (t.dataset.cancel) cancelarToken(t.dataset.cancel);
+        });
+
+        byId("catalogBody").addEventListener("click", function (e) {
+            var t = e.target;
+            if (t && t.dataset.selectCatalog !== undefined) seleccionarCatalogo(t.dataset.selectCatalog);
+        });
+
+        function debounce(fn, ms) {
+            var timer = null;
+            return function () {
+                clearTimeout(timer);
+                timer = setTimeout(fn, ms);
+            };
+        }
+
+        actualizarEtiquetaCantidad();
+        listarPreRegistros();
+    })();
+</script>

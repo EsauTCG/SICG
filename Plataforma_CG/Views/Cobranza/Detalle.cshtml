@@ -1,0 +1,534 @@
+@model Plataforma_CG.ViewModels.CobranzaDetalleViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Detalle de cobranza";
+
+    var badge =
+        Model.Estatus switch
+        {
+            "CUMPLIDO" => "success",
+            "PARCIAL" => "warning",
+            "INCUMPLIDO" => "danger",
+            "VENCE_HOY" => "info",
+            "REVISAR" => "secondary",
+            _ => "primary"
+        };
+}
+
+<style>
+    .cob-detalle {
+        font-family: "Poppins", sans-serif;
+    }
+
+    .cob-card {
+        border: 0;
+        border-radius: 14px;
+    }
+
+    .cob-money {
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cob-payment {
+        background: rgba(25, 135, 84, .06); 
+    }
+
+    .cob-history {
+        max-height: 520px;
+        overflow: auto;
+    }
+</style>
+
+<div class="container-fluid py-3 cob-detalle">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+
+        <div>
+            <a asp-controller="Cobranza"
+               asp-action="Compromisos"
+               class="text-decoration-none">
+                ← Volver a compromisos
+            </a>
+
+            <h3 class="mb-0 mt-1">
+                @Model.ClienteNombre
+            </h3>
+
+            <div class="text-muted">
+                @Model.ClienteCodigo · @Model.OrdenVentaConsecutivo
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+
+            <span class="badge bg-@badge fs-6 px-3 py-2">
+                @Model.Estatus
+            </span>
+
+            <form asp-controller="Cobranza"
+                  asp-action="ValidarAhora"
+                  method="post">
+
+                @Html.AntiForgeryToken()
+
+                <input type="hidden"
+                       name="id"
+                       value="@Model.Id" />
+
+                <button class="btn btn-primary">
+                    <i class="bi bi-arrow-repeat me-1"></i>
+                    Validar ahora contra SAP
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">
+            @TempData["Success"]
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">
+            @TempData["Error"]
+        </div>
+    }
+
+    <div class="row g-3 mb-3">
+
+        <div class="col-md-3">
+            <div class="card shadow-sm cob-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small">
+                        Saldo vencido inicial
+                    </div>
+                    <div class="fs-4 fw-bold cob-money">
+                        @Model.SaldoVencidoInicial.ToString("C2")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm cob-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small">
+                        Saldo pendiente actual
+                    </div>
+                    <div class="fs-4 fw-bold cob-money">
+                        @Model.SaldoPendienteActual.ToString("C2")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm cob-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small">
+                        Fecha compromiso
+                    </div>
+                    <div class="fs-4 fw-bold">
+                        @Model.FechaCompromiso.ToString("dd/MM/yyyy")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm cob-card h-100">
+                <div class="card-body">
+                    <div class="text-muted small">
+                        Última validación SAP
+                    </div>
+                    <div class="fw-bold">
+                        @(Model.FechaUltimaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "Pendiente")
+                    </div>
+                    <small class="text-muted">
+                        @Model.UsuarioUltimaValidacion
+                    </small>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-3 mb-3">
+
+        <div class="col-lg-6">
+
+            <div class="card shadow-sm cob-card h-100">
+
+                <div class="card-header fw-bold bg-transparent">
+                    Compromiso capturado por vendedor
+                </div>
+
+                <div class="card-body">
+
+                    <div class="mb-2">
+                        <b>Registró:</b>
+                        @Model.UsuarioRegistro
+                    </div>
+
+                    <div class="mb-2">
+                        <b>Fecha de registro:</b>
+                        @Model.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
+                    </div>
+
+                    <div>
+                        <b>Motivo / comentario:</b>
+                    </div>
+
+                    <div class="border rounded p-3 mt-1 bg-light">
+                        @Model.Motivo
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-6">
+
+            <div class="card shadow-sm cob-card h-100">
+
+                <div class="card-header fw-bold bg-transparent">
+                    Observación del área de cobranza
+                </div>
+
+                <div class="card-body">
+
+                    <form asp-controller="Cobranza"
+                          asp-action="GuardarObservacion"
+                          method="post">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden"
+                               name="id"
+                               value="@Model.Id" />
+
+                        <textarea name="observacionCobranza"
+                                  class="form-control mb-2"
+                                  rows="4"
+                                  maxlength="1000"
+                                  placeholder="Observaciones internas de cobranza...">@Model.ObservacionCobranza</textarea>
+
+                        <button class="btn btn-outline-primary">
+                            Guardar observación
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm cob-card mb-3">
+
+        <div class="card-header fw-bold bg-transparent">
+            Facturas y pagos detectados en SAP
+        </div>
+
+        <div class="table-responsive">
+
+            <table class="table table-sm align-middle mb-0">
+
+                <thead class="table-light">
+                    <tr>
+                        <th>Factura</th>
+                        <th>Fecha</th>
+                        <th>Vencimiento</th>
+                        <th class="text-end">Importe</th>
+                        <th class="text-end">Pendiente inicial</th>
+                        <th class="text-end">Pendiente actual</th>
+                        <th>Estatus</th>
+                        <th style="min-width:320px;">
+                            Evidencia de pago SAP
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @foreach (var f in Model.Facturas)
+                    {
+                        <tr>
+
+                            <td>
+                                <b>
+                                    @(f.SapDocNum?.ToString() ?? f.SapDocEntry.ToString())
+                                </b>
+
+                                <div class="small text-muted">
+                                    DocEntry @f.SapDocEntry
+                                </div>
+                            </td>
+
+                            <td>
+                                @(f.FechaFactura?.ToString("dd/MM/yyyy") ?? "—")
+                            </td>
+
+                            <td>
+                                @(f.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                            </td>
+
+                            <td class="text-end cob-money">
+                                @f.Importe.ToString("C2")
+                            </td>
+
+                            <td class="text-end cob-money">
+                                @f.PendienteInicial.ToString("C2")
+                            </td>
+
+                            <td class="text-end fw-bold cob-money">
+                                @f.PendienteActual.ToString("C2")
+                            </td>
+
+                            <td>
+                                @if (f.Pagada)
+                                {
+                                    <span class="badge bg-success">
+                                        PAGADA
+                                    </span>
+                                }
+                                else if (f.PendienteActual < f.PendienteInicial)
+                                {
+                                    <span class="badge bg-warning text-dark">
+                                        PARCIAL
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">
+                                        PENDIENTE
+                                    </span>
+                                }
+                            </td>
+
+                            <td>
+
+                                @if (f.Pagos.Count == 0)
+                                {
+                                    <span class="text-muted">
+                                        Sin pago recibido identificado.
+                                    </span>
+                                }
+                                else
+                                {
+                                    foreach (var p in f.Pagos)
+                                    {
+                                        <div class="border rounded p-2 mb-1 cob-payment">
+
+                                            <div>
+                                                <b>Pago SAP:</b>
+                                                @(p.SapPagoDocNum?.ToString() ??
+                                                  p.SapPagoDocEntry.ToString())
+                                            </div>
+
+                                            <div>
+                                                <b>Fecha SAP:</b>
+                                                @(p.FechaPagoSap?.ToString("dd/MM/yyyy") ?? "—")
+                                            </div>
+
+                                            <div>
+                                                <b>Monto aplicado:</b>
+                                                @p.MontoAplicado.ToString("C2")
+                                            </div>
+
+                                            @if (!string.IsNullOrWhiteSpace(p.Referencia))
+                                            {
+                                                <div class="small">
+                                                    <b>Referencia:</b>
+                                                    @p.Referencia
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(p.Comentario))
+                                            {
+                                                <div class="small">
+                                                    <b>Comentario SAP:</b>
+                                                    @p.Comentario
+                                                </div>
+                                            }
+
+                                            <div class="small text-muted">
+                                                SIGO lo detectó:
+                                                @p.FechaDeteccion.ToString("dd/MM/yyyy HH:mm")
+                                            </div>
+
+                                        </div>
+                                    }
+                                }
+
+                            </td>
+
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="row g-3">
+
+        <div class="col-lg-5">
+
+            <div class="card shadow-sm cob-card h-100">
+
+                <div class="card-header fw-bold bg-transparent">
+                    Evidencias adjuntas por vendedor
+                </div>
+
+                <div class="card-body">
+
+                    @if (Model.Archivos.Count == 0)
+                    {
+                        <div class="text-muted">
+                            No se adjuntó evidencia.
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var a in Model.Archivos)
+                        {
+                            <div class="d-flex justify-content-between align-items-center gap-2 border rounded p-2 mb-2">
+
+                                <div>
+                                    <div class="fw-semibold">
+                                        @a.NombreOriginal
+                                    </div>
+
+                                    <small class="text-muted">
+                                        @((a.TamanoBytes / 1024.0).ToString("N0")) KB
+                                        ·
+                                        @a.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
+                                    </small>
+                                </div>
+
+                                <div class="d-flex gap-1">
+
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       target="_blank"
+                                       asp-controller="Cobranza"
+                                       asp-action="Archivo"
+                                       asp-route-id="@a.Id">
+                                        Ver
+                                    </a>
+
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       asp-controller="Cobranza"
+                                       asp-action="Archivo"
+                                       asp-route-id="@a.Id"
+                                       asp-route-descargar="true">
+                                        Descargar
+                                    </a>
+
+                                </div>
+
+                            </div>
+                        }
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-7">
+
+            <div class="card shadow-sm cob-card h-100">
+
+                <div class="card-header fw-bold bg-transparent">
+                    Histórico de seguimiento
+                </div>
+
+                <div class="card-body cob-history">
+
+                    @if (Model.Historico.Count == 0)
+                    {
+                        <div class="text-muted">
+                            Todavía no existe histórico de validación.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group list-group-flush">
+
+                            @foreach (var h in Model.Historico)
+                            {
+                                <div class="list-group-item px-0">
+
+                                    <div class="d-flex justify-content-between gap-2">
+
+                                        <b>@h.TipoEvento</b>
+
+                                        <small class="text-muted">
+                                            @h.FechaEvento.ToString("dd/MM/yyyy HH:mm")
+                                        </small>
+
+                                    </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(h.EstatusAnterior) ||
+                                         !string.IsNullOrWhiteSpace(h.EstatusNuevo))
+                                    {
+                                        <div>
+                                            @h.EstatusAnterior
+                                            →
+                                            @h.EstatusNuevo
+                                        </div>
+                                    }
+
+                                    @if (h.PendienteAnterior.HasValue ||
+                                         h.PendienteNuevo.HasValue)
+                                    {
+                                        <div class="cob-money">
+                                            @(h.PendienteAnterior?.ToString("C2") ?? "—")
+                                            →
+                                            @(h.PendienteNuevo?.ToString("C2") ?? "—")
+                                        </div>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(h.Detalle))
+                                    {
+                                        <div class="small mt-1">
+                                            @h.Detalle
+                                        </div>
+                                    }
+
+                                    <small class="text-muted">
+                                        @h.UsuarioProceso
+                                    </small>
+
+                                </div>
+                            }
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>

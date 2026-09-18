@@ -5,8 +5,9 @@
         public string Fecha { get; set; }
 
         public List<CanalPlaneacionModel> Canales { get; set; }
-
+        public List<PlaneacionMensualModel> CanMen { get; set; }
         public List<ParticipacionModel> Participaciones { get; set; }
         public string TipoPlan { get; set; }
+        public int Llenado { get; set; }
     }
 }

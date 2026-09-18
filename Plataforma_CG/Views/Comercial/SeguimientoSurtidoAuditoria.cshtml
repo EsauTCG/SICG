@@ -1,0 +1,1786 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Seguimiento de Surtido";
+}
+
+<style>
+    :root {
+        --sa-bg: #f4f6f8;
+        --sa-card: #ffffff;
+        --sa-line: #dfe4e8;
+        --sa-line-strong: #cbd2d8;
+        --sa-text: #26313a;
+        --sa-muted: #68737d;
+        --sa-brand: #8f1d2c;
+        --sa-brand-dark: #711522;
+        --sa-soft: #f8ecee;
+        --sa-good: #1d7a4a;
+        --sa-warn: #a96800;
+        --sa-danger: #b4232f;
+        --sa-info: #2469a0;
+        --sa-purple: #6d4aa2;
+        --sa-shadow: 0 8px 24px rgba(32, 42, 52, .08);
+    }
+
+    .sa-page {
+        min-height: 100vh;
+        background: var(--sa-bg);
+        color: var(--sa-text);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+        padding: 10px;
+    }
+
+    .sa-shell {
+        max-width: 100%;
+        margin: 0 auto;
+    }
+
+    .sa-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: linear-gradient(135deg, #781725 0%, #9d2435 100%);
+        color: #fff;
+        border-radius: 10px;
+        padding: 13px 16px;
+        box-shadow: var(--sa-shadow);
+    }
+
+    .sa-title-wrap {
+        min-width: 0;
+    }
+
+    .sa-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: .1px;
+    }
+
+    .sa-subtitle {
+        margin-top: 2px;
+        color: rgba(255,255,255,.82);
+        font-size: 11px;
+    }
+
+    .sa-live {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        font-size: 11px;
+    }
+
+    .sa-live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 5px 9px;
+        border: 1px solid rgba(255,255,255,.24);
+        border-radius: 7px;
+        background: rgba(255,255,255,.10);
+        color: #fff;
+        white-space: nowrap;
+    }
+
+    .sa-live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #7ee2a8;
+        box-shadow: 0 0 0 3px rgba(126,226,168,.18);
+    }
+
+    .sa-panel {
+        margin-top: 9px;
+        background: var(--sa-card);
+        border: 1px solid var(--sa-line);
+        border-radius: 9px;
+        box-shadow: 0 3px 12px rgba(32,42,52,.04);
+    }
+
+    .sa-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 38px;
+        padding: 8px 11px;
+        border-bottom: 1px solid var(--sa-line);
+    }
+
+    .sa-panel-title {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #343d45;
+    }
+
+    .sa-filters {
+        display: grid;
+        grid-template-columns:
+            112px 112px minmax(150px, .9fr) minmax(160px, 1.1fr)
+            minmax(145px, .9fr) minmax(125px, .8fr) minmax(125px, .8fr)
+            120px 120px 110px;
+        gap: 7px;
+        padding: 9px 10px 6px;
+        align-items: end;
+    }
+
+    .sa-field {
+        min-width: 0;
+    }
+
+    .sa-field label {
+        display: block;
+        margin: 0 0 3px;
+        color: var(--sa-muted);
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+    }
+
+    .sa-field input,
+    .sa-field select {
+        width: 100%;
+        height: 31px;
+        border: 1px solid var(--sa-line-strong);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--sa-text);
+        padding: 4px 7px;
+        font-size: 11px;
+        outline: 0;
+    }
+
+    .sa-field input:focus,
+    .sa-field select:focus {
+        border-color: var(--sa-brand);
+        box-shadow: 0 0 0 3px rgba(143,29,44,.09);
+    }
+
+    .sa-filter-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 2px 10px 9px;
+        flex-wrap: wrap;
+    }
+
+    .sa-checks,
+    .sa-filter-actions,
+    .sa-shortcuts {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
+    .sa-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 29px;
+        padding: 0 8px;
+        border: 1px solid var(--sa-line);
+        border-radius: 6px;
+        background: #fafbfc;
+        color: #4f5962;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .sa-check input {
+        margin: 0;
+    }
+
+    .sa-btn {
+        height: 31px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 0 10px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    .sa-btn-primary {
+        background: var(--sa-brand);
+        border-color: var(--sa-brand-dark);
+        color: #fff;
+    }
+
+    .sa-btn-primary:hover {
+        background: var(--sa-brand-dark);
+    }
+
+    .sa-btn-light {
+        background: #fff;
+        border-color: var(--sa-line-strong);
+        color: #4b555e;
+    }
+
+    .sa-btn-success {
+        background: #237a4d;
+        border-color: #1b6840;
+        color: #fff;
+    }
+
+    .sa-chip {
+        height: 27px;
+        border: 1px solid var(--sa-line);
+        border-radius: 99px;
+        padding: 0 9px;
+        background: #fff;
+        color: #56616b;
+        font-size: 9px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .sa-chip:hover,
+    .sa-chip.active {
+        border-color: #c7969d;
+        background: var(--sa-soft);
+        color: var(--sa-brand-dark);
+    }
+
+    .sa-kpis {
+        display: grid;
+        grid-template-columns: repeat(10, minmax(105px, 1fr));
+        gap: 7px;
+        margin-top: 9px;
+    }
+
+    .sa-kpi {
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--sa-line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        box-shadow: 0 2px 8px rgba(32,42,52,.035);
+    }
+
+    .sa-kpi-label {
+        color: var(--sa-muted);
+        font-size: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .35px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sa-kpi-value {
+        margin-top: 4px;
+        color: #28323b;
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 850;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sa-kpi-note {
+        margin-top: 4px;
+        color: #87919a;
+        font-size: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sa-kpi.danger .sa-kpi-value { color: var(--sa-danger); }
+    .sa-kpi.warn .sa-kpi-value { color: var(--sa-warn); }
+    .sa-kpi.good .sa-kpi-value { color: var(--sa-good); }
+    .sa-kpi.info .sa-kpi-value { color: var(--sa-info); }
+
+    .sa-grid-panel {
+        margin-top: 9px;
+        background: #fff;
+        border: 1px solid var(--sa-line);
+        border-radius: 9px;
+        overflow: hidden;
+        box-shadow: 0 3px 12px rgba(32,42,52,.04);
+    }
+
+    .sa-grid-head {
+        min-height: 39px;
+        padding: 7px 10px;
+        border-bottom: 1px solid var(--sa-line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .sa-grid-meta {
+        color: var(--sa-muted);
+        font-size: 9px;
+    }
+
+    .sa-table-wrap {
+        overflow: auto;
+        max-height: calc(100vh - 360px);
+        min-height: 330px;
+    }
+
+    .sa-table {
+        width: 100%;
+        min-width: 2020px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 10px;
+    }
+
+    .sa-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        height: 34px;
+        padding: 6px 7px;
+        background: #f1f3f5;
+        color: #505b65;
+        border-bottom: 1px solid var(--sa-line-strong);
+        border-right: 1px solid #e8ebee;
+        font-size: 8px;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .28px;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .sa-table tbody td {
+        height: 38px;
+        padding: 5px 7px;
+        border-bottom: 1px solid #edf0f2;
+        border-right: 1px solid #f1f3f5;
+        vertical-align: middle;
+        color: #39434c;
+        white-space: nowrap;
+    }
+
+    .sa-table tbody tr:nth-child(even) td {
+        background: #fbfcfd;
+    }
+
+    .sa-table tbody tr:hover td {
+        background: #f7f1f2;
+    }
+
+    .sa-table tbody tr.row-alert td {
+        background: #fff7f7;
+    }
+
+    .sa-table tbody tr.row-risk td {
+        background: #fffaf0;
+    }
+
+    .sa-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .sa-folio {
+        color: var(--sa-brand);
+        font-weight: 850;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .sa-folio:hover {
+        text-decoration: underline;
+    }
+
+    .sa-client {
+        max-width: 245px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sa-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 20px;
+        padding: 2px 7px;
+        border-radius: 99px;
+        border: 1px solid transparent;
+        font-size: 8px;
+        line-height: 1.15;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .b-good { background: #eaf7f0; color: #17633d; border-color: #bfe3ce; }
+    .b-warn { background: #fff5df; color: #8a5900; border-color: #ecd49f; }
+    .b-danger { background: #fdebed; color: #9d1f2b; border-color: #efbec4; }
+    .b-info { background: #eaf3fa; color: #205d89; border-color: #bed7e8; }
+    .b-muted { background: #f1f3f5; color: #616c75; border-color: #dce1e5; }
+    .b-purple { background: #f1ebfa; color: #5e3e8f; border-color: #d8c8ec; }
+
+    .sa-pct {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 2px;
+        font-weight: 850;
+        color: #303a43;
+    }
+
+    .sa-pct small {
+        color: #879099;
+        font-size: 8px;
+    }
+
+    .sa-alert-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--sa-danger);
+        font-weight: 850;
+    }
+
+    .sa-empty {
+        padding: 45px 16px !important;
+        text-align: center;
+        color: #7a858e !important;
+        font-size: 11px;
+    }
+
+    .sa-loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #69747d;
+        font-size: 10px;
+    }
+
+    .sa-spinner {
+        width: 13px;
+        height: 13px;
+        border: 2px solid #d8dde1;
+        border-top-color: var(--sa-brand);
+        border-radius: 50%;
+        animation: saSpin .65s linear infinite;
+    }
+
+    @@keyframes saSpin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* ==================== MODAL DETALLE ==================== */
+    .sa-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 6000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(20, 27, 33, .52);
+    }
+
+    .sa-modal.d-none { display: none !important; }
+
+    .sa-modal-card {
+        width: min(1500px, 97vw);
+        max-height: 94vh;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-radius: 10px;
+        border: 1px solid #cfd5da;
+        box-shadow: 0 24px 70px rgba(0,0,0,.28);
+        overflow: hidden;
+    }
+
+    .sa-modal-head {
+        min-height: 48px;
+        padding: 9px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--sa-line);
+        background: #fafbfc;
+    }
+
+    .sa-modal-title {
+        font-size: 14px;
+        font-weight: 850;
+        color: #303a43;
+    }
+
+    .sa-modal-sub {
+        margin-top: 2px;
+        color: var(--sa-muted);
+        font-size: 9px;
+    }
+
+    .sa-modal-close {
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--sa-line);
+        border-radius: 6px;
+        background: #fff;
+        color: #65707a;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .sa-modal-body {
+        min-height: 0;
+        overflow: auto;
+        padding: 10px;
+        background: #f6f7f9;
+    }
+
+    .sa-detail-summary {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(110px,1fr));
+        gap: 7px;
+        margin-bottom: 9px;
+    }
+
+    .sa-detail-box {
+        background: #fff;
+        border: 1px solid var(--sa-line);
+        border-radius: 7px;
+        padding: 8px 9px;
+        min-width: 0;
+    }
+
+    .sa-detail-box span {
+        display: block;
+        color: var(--sa-muted);
+        font-size: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .sa-detail-box strong {
+        display: block;
+        margin-top: 3px;
+        color: #313b43;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sa-detail-section {
+        margin-top: 9px;
+        background: #fff;
+        border: 1px solid var(--sa-line);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .sa-detail-section-head {
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 9px;
+        border-bottom: 1px solid var(--sa-line);
+        background: #fafbfc;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    .sa-detail-table-wrap {
+        overflow: auto;
+        max-height: 330px;
+    }
+
+    .sa-detail-table {
+        width: 100%;
+        min-width: 1120px;
+        border-collapse: collapse;
+        font-size: 9px;
+    }
+
+    .sa-detail-table th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: 6px;
+        background: #f1f3f5;
+        border-bottom: 1px solid var(--sa-line-strong);
+        text-align: left;
+        white-space: nowrap;
+        font-size: 8px;
+        text-transform: uppercase;
+    }
+
+    .sa-detail-table td {
+        padding: 6px;
+        border-bottom: 1px solid #edf0f2;
+        white-space: nowrap;
+    }
+
+    .sa-detail-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .sa-detail-table tr.alert-row td {
+        background: #fff1f2;
+    }
+
+    .sa-footnote {
+        margin-top: 8px;
+        color: #78838c;
+        font-size: 9px;
+        line-height: 1.4;
+    }
+
+    /* scrollbar discreto */
+    .sa-table-wrap::-webkit-scrollbar,
+    .sa-modal-body::-webkit-scrollbar,
+    .sa-detail-table-wrap::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .sa-table-wrap::-webkit-scrollbar-thumb,
+    .sa-modal-body::-webkit-scrollbar-thumb,
+    .sa-detail-table-wrap::-webkit-scrollbar-thumb {
+        background: #c6ccd1;
+        border-radius: 10px;
+    }
+
+    @@media (max-width: 1350px) {
+        .sa-filters {
+            grid-template-columns: repeat(5, minmax(135px, 1fr));
+        }
+
+        .sa-kpis {
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+        }
+
+        .sa-detail-summary {
+            grid-template-columns: repeat(4, minmax(120px,1fr));
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .sa-page { padding: 4px; }
+
+        .sa-topbar {
+            border-radius: 7px;
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .sa-live {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .sa-filters {
+            grid-template-columns: repeat(2, minmax(0,1fr));
+        }
+
+        .sa-kpis {
+            grid-template-columns: repeat(2, minmax(0,1fr));
+        }
+
+        .sa-filter-bottom {
+            align-items: flex-start;
+        }
+
+        .sa-detail-summary {
+            grid-template-columns: repeat(2, minmax(0,1fr));
+        }
+
+        .sa-table-wrap {
+            max-height: none;
+            min-height: 400px;
+        }
+    }
+</style>
+
+
+<div class="sa-page">
+    <div class="sa-shell">
+
+        <div class="sa-topbar">
+            <div class="sa-title-wrap">
+                <div class="sa-title">
+                    <i class="bi bi-clipboard-data"></i>
+                    Seguimiento de Surtido · Auditoría y Planeación
+                </div>
+                <div class="sa-subtitle">
+                   
+                </div>
+            </div>
+
+            <div class="sa-live">
+                <label class="sa-live-pill" title="Actualiza la información automáticamente cada 30 segundos">
+                    <span class="sa-live-dot"></span>
+                    <input type="checkbox" id="autoRefresh" checked style="margin:0;" />
+                    En vivo · 30 s
+                </label>
+
+                <div class="sa-live-pill">
+                    <i class="bi bi-clock-history"></i>
+                    <span id="lastUpdate">Sin actualizar</span>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="sa-panel">
+            <div class="sa-panel-head">
+                <div class="sa-panel-title">
+                    <i class="bi bi-funnel"></i>
+                    Filtros de seguimiento
+                </div>
+                <div class="sa-grid-meta">
+                    Fecha operativa: OV = FechaEntrega · TR = FechaSolicitud
+                </div>
+            </div>
+
+            <div class="sa-filters">
+                <div class="sa-field">
+                    <label>Desde</label>
+                    <input type="date" id="fDesde" />
+                </div>
+
+                <div class="sa-field">
+                    <label>Hasta</label>
+                    <input type="date" id="fHasta" />
+                </div>
+
+                <div class="sa-field">
+                    <label>Tipo</label>
+                    <select id="fTipo">
+                        <option value="">OV + Transferencias</option>
+                        <option value="OV">Órdenes de venta</option>
+                        <option value="TR">Transferencias</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Folio</label>
+                    <input type="text" id="fFolio" placeholder="OV / TR..." />
+                </div>
+
+                <div class="sa-field">
+                    <label>Cliente / Destino</label>
+                    <input type="text" id="fCliente" placeholder="Código o nombre" />
+                </div>
+
+                <div class="sa-field">
+                    <label>Vendedor</label>
+                    <select id="fVendedor">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Serie</label>
+                    <select id="fSerie">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Canal</label>
+                    <select id="fCanal">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Estado surtido</label>
+                    <select id="fEstado">
+                        <option value="">Todos</option>
+                        <option value="POR_SURTIR">Por surtir</option>
+                        <option value="SURTIENDO">Surtiendo</option>
+                        <option value="COMPLETO">Completo</option>
+                        <option value="SIN_SOLICITUD">Sin solicitud CEDIS</option>
+                        <option value="ALERTAS">Con alertas</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Validación</label>
+                    <select id="fValidacion">
+                        <option value="">Todas</option>
+                        <option value="PENDIENTE">Pendiente</option>
+                        <option value="PARCIAL">Parcial</option>
+                        <option value="VALIDADO">Validado</option>
+                        <option value="SIN SOLICITUD">Sin solicitud</option>
+                    </select>
+                </div>
+
+                <div class="sa-field">
+                    <label>Riesgo entrega</label>
+                    <select id="fRiesgo">
+                        <option value="">Todos</option>
+                        <option value="ATRASADO">Atrasado</option>
+                        <option value="RIESGO">Riesgo</option>
+                        <option value="REVISAR">Revisar</option>
+                        <option value="EN TIEMPO">En tiempo</option>
+                        <option value="SIN SLA">Sin SLA (Transferencia)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="sa-filter-bottom">
+                <div class="sa-checks">
+                    <label class="sa-check">
+                        <input type="checkbox" id="fSoloAlertas" />
+                        Sólo alertas
+                    </label>
+
+                    <label class="sa-check">
+                        <input type="checkbox" id="fSoloSolicitud" />
+                        Sólo con solicitud CEDIS
+                    </label>
+                </div>
+
+                <div class="sa-shortcuts">
+                    <button class="sa-chip active" type="button" data-shortcut="TODOS">Todos</button>
+                    <button class="sa-chip" type="button" data-shortcut="SURTIENDO">Surtiendo</button>
+                    <button class="sa-chip" type="button" data-shortcut="POR_SURTIR">Por surtir</button>
+                    <button class="sa-chip" type="button" data-shortcut="ALERTAS">Alertas</button>
+                    <button class="sa-chip" type="button" data-shortcut="RIESGO">Riesgo</button>
+                    <button class="sa-chip" type="button" data-shortcut="PEND_VALIDAR">Pend. validar</button>
+                </div>
+
+                <div class="sa-filter-actions">
+                    <button class="sa-btn sa-btn-light" type="button" id="btnLimpiar">
+                        <i class="bi bi-eraser"></i>
+                        Limpiar
+                    </button>
+
+                    <button class="sa-btn sa-btn-success" type="button" id="btnExportar">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                        Exportar CSV
+                    </button>
+
+                    <button class="sa-btn sa-btn-primary" type="button" id="btnConsultar">
+                        <i class="bi bi-search"></i>
+                        Consultar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="sa-kpis">
+            <div class="sa-kpi">
+                <div class="sa-kpi-label">Documentos</div>
+                <div class="sa-kpi-value" id="kPedidos">0</div>
+                <div class="sa-kpi-note" id="kPedidosNota">OV 0 · TR 0</div>
+            </div>
+
+            <div class="sa-kpi info">
+                <div class="sa-kpi-label">Kg ordenados</div>
+                <div class="sa-kpi-value" id="kKgOrdenados">0</div>
+                <div class="sa-kpi-note">Pedido original</div>
+            </div>
+
+            <div class="sa-kpi good">
+                <div class="sa-kpi-label">Kg surtidos</div>
+                <div class="sa-kpi-value" id="kKgSurtidos">0</div>
+                <div class="sa-kpi-note">Aplicados contra OV</div>
+            </div>
+
+            <div class="sa-kpi warn">
+                <div class="sa-kpi-label">Kg pendientes</div>
+                <div class="sa-kpi-value" id="kKgPendientes">0</div>
+                <div class="sa-kpi-note">Faltante contra OV</div>
+            </div>
+
+            <div class="sa-kpi good">
+                <div class="sa-kpi-label">Avance global</div>
+                <div class="sa-kpi-value" id="kAvance">0%</div>
+                <div class="sa-kpi-note">Kg surtidos / ordenados</div>
+            </div>
+
+            <div class="sa-kpi info">
+                <div class="sa-kpi-label">Surtiendo</div>
+                <div class="sa-kpi-value" id="kSurtiendo">0</div>
+                <div class="sa-kpi-note">En proceso ahora</div>
+            </div>
+
+            <div class="sa-kpi good">
+                <div class="sa-kpi-label">Completos</div>
+                <div class="sa-kpi-value" id="kCompletos">0</div>
+                <div class="sa-kpi-note">100% contra OV</div>
+            </div>
+
+            <div class="sa-kpi danger">
+                <div class="sa-kpi-label">Alertas</div>
+                <div class="sa-kpi-value" id="kAlertas">0</div>
+                <div class="sa-kpi-note">SKU extra / sobresurtido</div>
+            </div>
+
+            <div class="sa-kpi warn">
+                <div class="sa-kpi-label">Pend. validación</div>
+                <div class="sa-kpi-value" id="kPendValidacion">0</div>
+                <div class="sa-kpi-note">Pendiente o parcial</div>
+            </div>
+
+            <div class="sa-kpi">
+                <div class="sa-kpi-label">Prom. validación</div>
+                <div class="sa-kpi-value" id="kHorasValidacion">—</div>
+                <div class="sa-kpi-note">Horas registro → validación</div>
+            </div>
+        </div>
+
+
+        <div class="sa-grid-panel">
+            <div class="sa-grid-head">
+                <div class="sa-panel-title">
+                    <i class="bi bi-table"></i>
+                    OV y transferencias en seguimiento
+                </div>
+
+                <div class="sa-grid-meta">
+                    <span id="rowCount">0 documentos</span>
+                    · clic en el folio o Detalle para auditar SKU y solicitudes
+                </div>
+            </div>
+
+            <div class="sa-table-wrap">
+                <table class="sa-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Folio</th>
+                            <th>Serie / Sucursal</th>
+                            <th>Cliente / Destino</th>
+                            <th>Vendedor</th>
+                            <th>Canal</th>
+                            <th>Fecha</th>
+                            <th>Riesgo</th>
+                            <th class="num">Kg OV</th>
+                            <th class="num">Kg a CEDIS</th>
+                            <th class="num">Kg surtidos</th>
+                            <th class="num">Kg pendiente</th>
+                            <th class="num">Avance</th>
+                            <th class="num">% liberado</th>
+                            <th>Estado surtido</th>
+                            <th>Validación</th>
+                            <th>Últ. validación</th>
+                            <th class="num">Horas validación</th>
+                            <th class="num">Espera validar</th>
+                            <th>Alertas</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="rowsBody">
+                        <tr>
+                            <td colspan="21" class="sa-empty">
+                                Consulta el seguimiento para comenzar.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+       @*  <div class="sa-footnote">
+            <strong>Lectura de tiempos:</strong>
+            En OV, “Horas validación” mide desde <b>FechaRegistro</b> hasta
+            <b>SurtidoEncabezado.FechaValidacion</b>. En Transferencias, el sistema actual
+            permite saber que quedó validada mediante <b>Estatus &gt;= 5</b>, pero no expone
+            una fecha/hora equivalente de validación; por eso no se inventa ese tiempo.
+            El avance de TR se toma en tiempo real de <b>TransferenciaSurtido</b>.
+        </div> *@
+    </div>
+</div>
+
+
+<!-- ==================== DETALLE ==================== -->
+<div class="sa-modal d-none" id="detailModal" aria-hidden="true">
+    <div class="sa-modal-card">
+        <div class="sa-modal-head">
+            <div>
+                <div class="sa-modal-title">
+                    Auditoría de documento · <span id="dFolio">—</span>
+                </div>
+                <div class="sa-modal-sub" id="dSub">
+                    Cargando...
+                </div>
+            </div>
+
+            <button type="button" class="sa-modal-close" id="btnCloseDetail" title="Cerrar">
+                ✕
+            </button>
+        </div>
+
+        <div class="sa-modal-body">
+            <div class="sa-detail-summary" id="detailSummary"></div>
+
+            <div class="sa-detail-section">
+                <div class="sa-detail-section-head">
+                    <span>
+                        <i class="bi bi-box-seam"></i>
+                        Solicitud original vs pedido CEDIS vs surtido por SKU
+                    </span>
+                    <span class="sa-grid-meta">
+                        Los SKU extra se resaltan automáticamente
+                    </span>
+                </div>
+
+                <div class="sa-detail-table-wrap">
+                    <table class="sa-detail-table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Producto</th>
+                                <th class="num">Kg OV</th>
+                                <th class="num">Kg a CEDIS</th>
+                                <th class="num">Kg surtidos</th>
+                                <th class="num">Kg pendientes</th>
+                                <th class="num">Avance</th>
+                                <th class="num">Cajas OV</th>
+                                <th class="num">Cajas surtidas</th>
+                                <th class="num">Kg extra</th>
+                                <th>Auditoría</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailSkuBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="sa-detail-section">
+                <div class="sa-detail-section-head">
+                    <span>
+                        <i class="bi bi-clock-history"></i>
+                        Proceso y validación
+                    </span>
+                    <span class="sa-grid-meta">
+                        OV: U_DocMeat · TR: PedidosTransferencia / Estatus
+                    </span>
+                </div>
+
+                <div class="sa-detail-table-wrap" style="max-height:240px;">
+                    <table class="sa-detail-table" style="min-width:850px;">
+                        <thead>
+                            <tr>
+                                <th>Referencia</th>
+                                <th>Documento / Solicitud</th>
+                                <th>Estado</th>
+                                <th>Fecha validación</th>
+                                <th class="num">Horas</th>
+                                <th class="num">Kg surtidos</th>
+                                <th class="num">Cajas</th>
+                                <th>Nota</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailSolBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+(() => {
+    'use strict';
+
+    const DATA_URL = '/Comercial/SeguimientoSurtidoAuditoriaData';
+    const DETAIL_URL = '/Comercial/SeguimientoSurtidoAuditoriaDetalle';
+    const REFRESH_MS = 30000;
+
+    let currentRows = [];
+    let refreshTimer = null;
+    let loading = false;
+
+    const el = id => document.getElementById(id);
+
+    const get = (o, name) => {
+        if (!o) return null;
+        if (Object.prototype.hasOwnProperty.call(o, name)) return o[name];
+        const pascal = name.charAt(0).toUpperCase() + name.slice(1);
+        return o[pascal];
+    };
+
+    const esc = value =>
+        String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+
+    const n = value => {
+        const x = Number(value ?? 0);
+        return Number.isFinite(x) ? x : 0;
+    };
+
+    const fmt = (value, dec = 0) =>
+        n(value).toLocaleString('es-MX', {
+            minimumFractionDigits: dec,
+            maximumFractionDigits: dec
+        });
+
+    const fmtDate = value => {
+        if (!value) return '—';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleDateString('es-MX');
+    };
+
+    const fmtDateTime = value => {
+        if (!value) return '—';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString('es-MX', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const fmtHours = value => {
+        if (value === null || value === undefined || value === '') return '—';
+        return `${fmt(value, 1)} h`;
+    };
+
+    function isoLocalDate(d) {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+        const y = x.getFullYear();
+        const m = String(x.getMonth() + 1).padStart(2, '0');
+        const day = String(x.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function setDefaultDates() {
+        const today = new Date();
+        const desde = new Date(today);
+        const hasta = new Date(today);
+
+        desde.setDate(desde.getDate() - 7);
+        hasta.setDate(hasta.getDate() + 7);
+
+        el('fDesde').value = isoLocalDate(desde);
+        el('fHasta').value = isoLocalDate(hasta);
+    }
+
+    function badge(text, kind = 'muted') {
+        const map = {
+            good: 'b-good',
+            warn: 'b-warn',
+            danger: 'b-danger',
+            info: 'b-info',
+            muted: 'b-muted',
+            purple: 'b-purple'
+        };
+
+        return `<span class="sa-badge ${map[kind] || map.muted}">${esc(text || '—')}</span>`;
+    }
+
+    function estadoBadge(estado) {
+        const s = String(estado || '').toUpperCase();
+
+        if (s.includes('ALERTA') || s.includes('SIN DETALLE SOLICITADO'))
+            return badge(estado, 'danger');
+
+        if (s.includes('COMPLETO'))
+            return badge(estado, 'good');
+
+        if (s.includes('SURTIENDO') || s.includes('PARCIAL'))
+            return badge(estado, 'info');
+
+        if (s.includes('POR SURTIR') || s.includes('SIN SOLICITUD'))
+            return badge(estado, 'warn');
+
+        return badge(estado, 'muted');
+    }
+
+    function validacionBadge(estado) {
+        const s = String(estado || '').toUpperCase();
+
+        if (s === 'VALIDADO') return badge(estado, 'good');
+        if (s === 'PARCIAL') return badge(estado, 'warn');
+        if (s === 'PENDIENTE') return badge(estado, 'danger');
+        return badge(estado, 'muted');
+    }
+
+    function riesgoBadge(riesgo) {
+        const s = String(riesgo || '').toUpperCase();
+
+        if (s === 'ATRASADO') return badge(riesgo, 'danger');
+        if (s === 'RIESGO') return badge(riesgo, 'warn');
+        if (s === 'REVISAR') return badge(riesgo, 'purple');
+        if (s === 'SIN SLA') return badge(riesgo, 'muted');
+        return badge(riesgo, 'good');
+    }
+
+    function setText(id, value) {
+        const node = el(id);
+        if (node) node.textContent = value;
+    }
+
+    function buildParams() {
+        const p = new URLSearchParams();
+
+        const values = {
+            desde: el('fDesde').value,
+            hasta: el('fHasta').value,
+            tipo: el('fTipo').value,
+            folio: el('fFolio').value.trim(),
+            cliente: el('fCliente').value.trim(),
+            vendedor: el('fVendedor').value,
+            serie: el('fSerie').value,
+            canal: el('fCanal').value,
+            estado: el('fEstado').value,
+            validacion: el('fValidacion').value,
+            riesgo: el('fRiesgo').value
+        };
+
+        Object.entries(values).forEach(([k, v]) => {
+            if (v) p.set(k, v);
+        });
+
+        p.set('soloAlertas', el('fSoloAlertas').checked ? 'true' : 'false');
+        p.set('soloConSolicitud', el('fSoloSolicitud').checked ? 'true' : 'false');
+
+        return p;
+    }
+
+    function fillSelect(id, values, firstText) {
+        const select = el(id);
+        if (!select) return;
+
+        const selected = select.value;
+
+        const arr = Array.from(
+            new Set(
+                (values || [])
+                    .map(x => String(x ?? '').trim())
+                    .filter(Boolean)
+            )
+        ).sort((a,b) => a.localeCompare(b, 'es'));
+
+        select.innerHTML =
+            `<option value="">${esc(firstText)}</option>` +
+            arr.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+
+        if (selected && arr.includes(selected))
+            select.value = selected;
+    }
+
+    function renderKpis(k) {
+        setText('kPedidos', fmt(get(k, 'documentos')));
+        setText('kPedidosNota', `OV ${fmt(get(k,'ordenesVenta'))} · TR ${fmt(get(k,'transferencias'))}`);
+        setText('kKgOrdenados', fmt(get(k, 'kgOrdenados')));
+        setText('kKgSurtidos', fmt(get(k, 'kgSurtidosAplicados')));
+        setText('kKgPendientes', fmt(get(k, 'kgPendientes')));
+        setText('kAvance', `${fmt(get(k, 'pctAvanceGlobalKg'), 1)}%`);
+        setText('kSurtiendo', fmt(get(k, 'surtiendo')));
+        setText('kCompletos', fmt(get(k, 'completos')));
+        setText('kAlertas', fmt(get(k, 'alertas')));
+        setText('kPendValidacion', fmt(get(k, 'pendientesValidacion')));
+
+        const prom = get(k, 'promedioHorasValidacion');
+        setText('kHorasValidacion',
+            prom === null || prom === undefined ? '—' : `${fmt(prom,1)} h`);
+    }
+
+    function renderRows(rows) {
+        const body = el('rowsBody');
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="21" class="sa-empty">
+                        No hay pedidos para los filtros seleccionados.
+                    </td>
+                </tr>`;
+            setText('rowCount', '0 documentos');
+            return;
+        }
+
+        setText('rowCount', `${rows.length.toLocaleString('es-MX')} documentos`);
+
+        body.innerHTML = rows.map(r => {
+            const id = n(get(r, 'documentoId'));
+            const tipo = String(get(r, 'tipoDocumento') || 'OV').toUpperCase();
+            const alerta = n(get(r, 'tieneAlerta')) === 1;
+            const riesgo = String(get(r, 'riesgoEntrega') || '');
+            const rowClass =
+                alerta ? 'row-alert' :
+                (riesgo === 'ATRASADO' || riesgo === 'RIESGO') ? 'row-risk' : '';
+
+            const extras =
+                n(get(r, 'skuExtraNoEnOV')) +
+                n(get(r, 'skuExtraNoEnSolicitud'));
+
+            const alertHtml = alerta
+                ? `<span class="sa-alert-count">
+                       <i class="bi bi-exclamation-triangle-fill"></i>
+                       ${fmt(extras || 1)}
+                   </span>`
+                : badge('Sin alertas', 'good');
+
+            return `
+                <tr class="${rowClass}">
+                    <td>${badge(tipo, tipo === 'TR' ? 'purple' : 'info')}</td>
+
+                    <td>
+                        <a href="#" class="sa-folio js-detail"
+                           data-id="${id}"
+                           data-tipo="${tipo}">
+                            ${esc(get(r, 'consecutivo'))}
+                        </a>
+                    </td>
+
+                    <td>${esc(get(r, 'serie'))}</td>
+
+                    <td class="sa-client" title="${esc(get(r, 'clienteNombre'))}">
+                        <strong>${esc(get(r, 'cliente'))}</strong>
+                        · ${esc(get(r, 'clienteNombre'))}
+                    </td>
+
+                    <td>${esc(get(r, 'vendedor'))}</td>
+                    <td>${esc(get(r, 'canal'))}</td>
+                    <td>${fmtDate(get(r, 'fechaEntrega'))}</td>
+                    <td>${riesgoBadge(get(r, 'riesgoEntrega'))}</td>
+
+                    <td class="num">${fmt(get(r, 'kgOrdenOV'))}</td>
+                    <td class="num">${fmt(get(r, 'kgPedidoCedis'))}</td>
+                    <td class="num"><strong>${fmt(get(r, 'kgSurtidoAplicadoOV'))}</strong></td>
+                    <td class="num">${fmt(get(r, 'kgPendienteOV'))}</td>
+
+                    <td class="num">
+                        <span class="sa-pct">
+                            ${fmt(get(r, 'pctAvanceOVKg'), 1)}<small>%</small>
+                        </span>
+                    </td>
+
+                    <td class="num">
+                        ${fmt(get(r, 'pctLiberadoACedisKg'), 1)}%
+                    </td>
+
+                    <td>${estadoBadge(get(r, 'estadoSurtido'))}</td>
+                    <td>${validacionBadge(get(r, 'estadoValidacion'))}</td>
+                    <td>${fmtDateTime(get(r, 'ultimaFechaValidacion'))}</td>
+
+                    <td class="num">
+                        ${fmtHours(get(r, 'horasHastaUltimaValidacion'))}
+                    </td>
+
+                    <td class="num">
+                        ${fmtHours(get(r, 'horasPendienteValidacion'))}
+                    </td>
+
+                    <td>${alertHtml}</td>
+
+                    <td>
+                        <button type="button"
+                                class="sa-btn sa-btn-light js-detail"
+                                data-id="${id}"
+                                data-tipo="${tipo}"
+                                style="height:25px;padding:0 7px;">
+                            Detalle
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    async function loadData(silent = false) {
+        if (loading) return;
+        loading = true;
+
+        const btn = el('btnConsultar');
+        const oldHtml = btn.innerHTML;
+
+        if (!silent) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="sa-spinner"></span> Cargando`;
+        }
+
+        try {
+            const p = buildParams();
+            p.set('_', Date.now().toString());
+
+            const resp = await fetch(`${DATA_URL}?${p.toString()}`, {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            const data = await resp.json().catch(() => ({}));
+
+            if (!resp.ok || data.ok === false) {
+                throw new Error(data.detalle || data.msg || `HTTP ${resp.status}`);
+            }
+
+            currentRows = data.rows || [];
+
+            renderKpis(data.kpis || {});
+            renderRows(currentRows);
+
+            const cat = data.catalogos || {};
+            fillSelect('fSerie', cat.series || cat.Series || [], 'Todas');
+            fillSelect('fVendedor', cat.vendedores || cat.Vendedores || [], 'Todos');
+            fillSelect('fCanal', cat.canales || cat.Canales || [], 'Todos');
+
+            const upd = data.actualizado || data.Actualizado || new Date().toISOString();
+            setText('lastUpdate', `Actualizado ${fmtDateTime(upd)}`);
+
+        } catch (e) {
+            console.error(e);
+
+            if (!silent) {
+                el('rowsBody').innerHTML = `
+                    <tr>
+                        <td colspan="21" class="sa-empty" style="color:#a2222e!important;">
+                            <strong>No se pudo cargar el seguimiento.</strong><br>
+                            <span style="font-weight:700;">${esc(e?.message || e)}</span><br>
+                            <span style="font-size:9px;color:#7c8790;">Este detalle viene directamente del endpoint para identificar el problema SQL.</span>
+                        </td>
+                    </tr>`;
+            }
+        } finally {
+            loading = false;
+
+            if (!silent) {
+                btn.disabled = false;
+                btn.innerHTML = oldHtml;
+            }
+        }
+    }
+
+    function activateShortcut(btn) {
+        document.querySelectorAll('.sa-chip').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    function applyShortcut(code, btn) {
+        activateShortcut(btn);
+
+        el('fEstado').value = '';
+        el('fValidacion').value = '';
+        el('fRiesgo').value = '';
+        el('fSoloAlertas').checked = false;
+
+        switch (code) {
+            case 'SURTIENDO':
+                el('fEstado').value = 'SURTIENDO';
+                break;
+            case 'POR_SURTIR':
+                el('fEstado').value = 'POR_SURTIR';
+                break;
+            case 'ALERTAS':
+                el('fEstado').value = 'ALERTAS';
+                el('fSoloAlertas').checked = true;
+                break;
+            case 'RIESGO':
+                el('fRiesgo').value = 'RIESGO';
+                break;
+            case 'PEND_VALIDAR':
+                el('fValidacion').value = 'PENDIENTE';
+                break;
+        }
+
+        loadData();
+    }
+
+    function clearFilters() {
+        setDefaultDates();
+
+        el('fTipo').value = '';
+        el('fFolio').value = '';
+        el('fCliente').value = '';
+        el('fVendedor').value = '';
+        el('fSerie').value = '';
+        el('fCanal').value = '';
+        el('fEstado').value = '';
+        el('fValidacion').value = '';
+        el('fRiesgo').value = '';
+        el('fSoloAlertas').checked = false;
+        el('fSoloSolicitud').checked = false;
+
+        document.querySelectorAll('.sa-chip').forEach(x => x.classList.remove('active'));
+        document.querySelector('.sa-chip[data-shortcut="TODOS"]')?.classList.add('active');
+
+        loadData();
+    }
+
+    function csvCell(value) {
+        const s = String(value ?? '');
+        return `"${s.replaceAll('"', '""')}"`;
+    }
+
+    function exportCsv() {
+        if (!currentRows.length) {
+            alert('No hay información para exportar.');
+            return;
+        }
+
+        const cols = [
+            ['Tipo', 'tipoDocumento'],
+            ['Folio', 'consecutivo'],
+            ['Serie', 'serie'],
+            ['Cliente', 'cliente'],
+            ['Cliente nombre', 'clienteNombre'],
+            ['Vendedor', 'vendedor'],
+            ['Canal', 'canal'],
+            ['Fecha operativa', 'fechaEntrega'],
+            ['Riesgo', 'riesgoEntrega'],
+            ['Kg OV', 'kgOrdenOV'],
+            ['Kg solicitado CEDIS', 'kgPedidoCedis'],
+            ['Kg surtido aplicado', 'kgSurtidoAplicadoOV'],
+            ['Kg pendiente', 'kgPendienteOV'],
+            ['% avance', 'pctAvanceOVKg'],
+            ['% liberado CEDIS', 'pctLiberadoACedisKg'],
+            ['Estado surtido', 'estadoSurtido'],
+            ['Estado validación', 'estadoValidacion'],
+            ['Última validación', 'ultimaFechaValidacion'],
+            ['Horas validación', 'horasHastaUltimaValidacion'],
+            ['Horas espera validación', 'horasPendienteValidacion'],
+            ['SKU extra no OV', 'skuExtraNoEnOV'],
+            ['SKU extra no solicitud', 'skuExtraNoEnSolicitud']
+        ];
+
+        const lines = [
+            cols.map(x => csvCell(x[0])).join(',')
+        ];
+
+        currentRows.forEach(r => {
+            lines.push(
+                cols.map(x => csvCell(get(r, x[1]))).join(',')
+            );
+        });
+
+        const blob = new Blob(
+            ['\uFEFF' + lines.join('\r\n')],
+            { type: 'text/csv;charset=utf-8;' }
+        );
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `SeguimientoSurtido_${el('fDesde').value}_${el('fHasta').value}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => URL.revokeObjectURL(a.href), 500);
+    }
+
+    function detailBox(label, value, title = '') {
+        return `
+            <div class="sa-detail-box" ${title ? `title="${esc(title)}"` : ''}>
+                <span>${esc(label)}</span>
+                <strong>${value}</strong>
+            </div>`;
+    }
+
+    function renderDetailSummary(row) {
+        const tipo = String(get(row,'tipoDocumento') || 'OV').toUpperCase();
+
+        el('detailSummary').innerHTML =
+            detailBox('Tipo', badge(tipo, tipo === 'TR' ? 'purple' : 'info')) +
+            detailBox(tipo === 'TR' ? 'Destino' : 'Cliente',
+                `${esc(get(row, 'cliente'))} · ${esc(get(row, 'clienteNombre'))}`) +
+            detailBox(tipo === 'TR' ? 'Sucursal' : 'Vendedor',
+                esc(tipo === 'TR' ? get(row,'serie') : get(row,'vendedor'))) +
+            detailBox(tipo === 'TR' ? 'Fecha solicitud' : 'Entrega',
+                esc(fmtDate(get(row, 'fechaEntrega')))) +
+            detailBox('Estado', estadoBadge(get(row, 'estadoSurtido'))) +
+            detailBox(tipo === 'TR' ? 'Kg transferencia' : 'Kg OV', fmt(get(row, 'kgOrdenOV'))) +
+            detailBox('Kg surtidos', fmt(get(row, 'kgSurtidoAplicadoOV'))) +
+            detailBox('Avance', `${fmt(get(row, 'pctAvanceOVKg'),1)}%`);
+    }
+
+    function renderDetailSku(rows) {
+        const body = el('detailSkuBody');
+
+        if (!rows?.length) {
+            body.innerHTML = `<tr><td colspan="11" class="sa-empty">Sin detalle SKU.</td></tr>`;
+            return;
+        }
+
+        body.innerHTML = rows.map(r => {
+            const extraOv = n(get(r, 'esSkuExtraNoEnOV')) === 1;
+            const extraSol = n(get(r, 'esSkuExtraNoEnSolicitud')) === 1;
+            const extraKg = n(get(r, 'kgExtraVsOV')) > .01;
+            const alert = extraOv || extraSol || extraKg;
+
+            return `
+                <tr class="${alert ? 'alert-row' : ''}">
+                    <td><strong>${esc(get(r, 'sku'))}</strong></td>
+                    <td>${esc(get(r, 'producto'))}</td>
+                    <td class="num">${fmt(get(r, 'kgOrdenOV'))}</td>
+                    <td class="num">${fmt(get(r, 'kgPedidoCedis'))}</td>
+                    <td class="num"><strong>${fmt(get(r, 'kgSurtidoCedis'))}</strong></td>
+                    <td class="num">${fmt(get(r, 'kgPendienteOV'))}</td>
+                    <td class="num">${fmt(get(r, 'pctAvanceKg'),1)}%</td>
+                    <td class="num">${fmt(get(r, 'cajasOrdenOV'))}</td>
+                    <td class="num">${fmt(get(r, 'cajasSurtidasCedis'))}</td>
+                    <td class="num">${fmt(get(r, 'kgExtraVsOV'))}</td>
+                    <td>${estadoBadge(get(r, 'estadoSKU'))}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    function renderProcesos(rows) {
+        const body = el('detailSolBody');
+
+        if (!rows?.length) {
+            body.innerHTML =
+                `<tr><td colspan="8" class="sa-empty">Sin información de proceso.</td></tr>`;
+            return;
+        }
+
+        body.innerHTML = rows.map(r => `
+            <tr>
+                <td>${esc(get(r, 'referencia')) || '—'}</td>
+                <td><strong>${esc(get(r, 'documento')) || '—'}</strong></td>
+                <td>${validacionBadge(get(r, 'estadoValidacion'))}</td>
+                <td>${fmtDateTime(get(r, 'fechaValidacion'))}</td>
+                <td class="num">${fmtHours(get(r, 'horasDesdeRegistro'))}</td>
+                <td class="num">${fmt(get(r, 'kgSurtido'))}</td>
+                <td class="num">${fmt(get(r, 'cajasSurtidas'))}</td>
+                <td>${esc(get(r, 'nota'))}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function openDetail(tipo, id) {
+        tipo = String(tipo || 'OV').toUpperCase();
+
+        const row = currentRows.find(x =>
+            n(get(x, 'documentoId')) === n(id) &&
+            String(get(x, 'tipoDocumento') || 'OV').toUpperCase() === tipo
+        );
+
+        if (!row) return;
+
+        el('detailModal').classList.remove('d-none');
+        el('detailModal').setAttribute('aria-hidden', 'false');
+
+        setText('dFolio', `${tipo} · ${get(row, 'consecutivo') || '—'}`);
+        setText(
+            'dSub',
+            `${get(row,'serie') || ''} · ${get(row,'cliente') || ''} · ${get(row,'clienteNombre') || ''}`
+        );
+
+        renderDetailSummary(row);
+
+        el('detailSkuBody').innerHTML =
+            `<tr><td colspan="11" class="sa-empty"><span class="sa-loading"><span class="sa-spinner"></span>Cargando detalle...</span></td></tr>`;
+
+        el('detailSolBody').innerHTML =
+            `<tr><td colspan="8" class="sa-empty"><span class="sa-loading"><span class="sa-spinner"></span>Cargando solicitudes...</span></td></tr>`;
+
+        try {
+            const resp = await fetch(
+                `${DETAIL_URL}?tipo=${encodeURIComponent(tipo)}&documentoId=${encodeURIComponent(id)}&_=${Date.now()}`,
+                { cache: 'no-store', headers: { 'Accept': 'application/json' } }
+            );
+
+            const data = await resp.json().catch(() => ({}));
+
+            if (!resp.ok || data.ok === false) {
+                throw new Error(data.detalle || data.msg || `HTTP ${resp.status}`);
+            }
+
+            renderDetailSku(data.skus || data.Skus || []);
+            renderProcesos(data.procesos || data.Procesos || []);
+
+        } catch (e) {
+            console.error(e);
+
+            el('detailSkuBody').innerHTML =
+                `<tr><td colspan="11" class="sa-empty" style="color:#a2222e!important;">${esc(e?.message || e)}</td></tr>`;
+
+            el('detailSolBody').innerHTML =
+                `<tr><td colspan="8" class="sa-empty" style="color:#a2222e!important;">No fue posible cargar el proceso.</td></tr>`;
+        }
+    }
+
+    function closeDetail() {
+        el('detailModal').classList.add('d-none');
+        el('detailModal').setAttribute('aria-hidden', 'true');
+    }
+
+    function setupRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+
+        refreshTimer = setInterval(() => {
+            if (!el('autoRefresh').checked) return;
+            if (document.hidden) return;
+            if (!el('detailModal').classList.contains('d-none')) return;
+
+            loadData(true);
+        }, REFRESH_MS);
+    }
+
+    el('btnConsultar').addEventListener('click', () => loadData());
+    el('btnLimpiar').addEventListener('click', clearFilters);
+    el('btnExportar').addEventListener('click', exportCsv);
+    el('btnCloseDetail').addEventListener('click', closeDetail);
+
+    el('detailModal').addEventListener('mousedown', e => {
+        if (e.target === el('detailModal')) closeDetail();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !el('detailModal').classList.contains('d-none')) {
+            closeDetail();
+        }
+    });
+
+    document.addEventListener('click', e => {
+        const detail = e.target.closest('.js-detail');
+        if (detail) {
+            e.preventDefault();
+            openDetail(detail.dataset.tipo || 'OV', detail.dataset.id);
+            return;
+        }
+
+        const chip = e.target.closest('.sa-chip');
+        if (chip) {
+            applyShortcut(chip.dataset.shortcut, chip);
+        }
+    });
+
+    ['fFolio','fCliente'].forEach(id => {
+        el(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loadData();
+            }
+        });
+    });
+
+    setDefaultDates();
+    setupRefresh();
+    loadData();
+})();
+</script>

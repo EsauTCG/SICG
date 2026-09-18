@@ -76,5 +76,6 @@ namespace Plataforma_CG.Models
 
         public bool Capturado => Temperatura.HasValue;
         public string DocumentoCliente { get; set; } = "";
+        public string Tarima { get; set; } = "";
     }
 }

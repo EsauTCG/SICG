@@ -1,0 +1,1964 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Ajuste controlado de etiquetas";
+    var sourceInicial = ((ViewBag.Source as string) ?? "P1").Trim().ToUpperInvariant();
+}
+
+@Html.AntiForgeryToken()
+
+<link rel="stylesheet" href="~/css/ajuste-controlado-etiquetas-grid.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/ajuste-controlado-etiquetas-erp-compacto.css" asp-append-version="true" />
+
+<style>
+    /* =========================================================
+       MODAL GLOBAL DE AUDITORÍA
+       ========================================================= */
+    .ae-audit-open {
+        white-space: nowrap;
+    }
+
+    .ae-audit-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 99990;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(20, 20, 20, .58);
+        backdrop-filter: blur(1.5px);
+    }
+
+    .ae-audit-modal.show {
+        display: flex;
+    }
+
+    .ae-audit-dialog {
+        width: min(1780px, 98vw);
+        height: min(900px, 94vh);
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #8b0000;
+        border-radius: 8px;
+        box-shadow: 0 24px 65px rgba(0,0,0,.28);
+    }
+
+    .ae-audit-modal-head {
+        flex: 0 0 auto;
+        min-height: 48px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #fff;
+        background: linear-gradient(90deg, #8b0000, #b40000);
+    }
+
+    .ae-audit-modal-title {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ae-audit-modal-title strong {
+        font-size: 14px;
+        line-height: 1.1;
+    }
+
+    .ae-audit-modal-title small {
+        display: block;
+        margin-top: 2px;
+        color: rgba(255,255,255,.82);
+        font-size: 10.5px;
+    }
+
+    .ae-audit-close {
+        width: 34px;
+        height: 30px;
+        border: 1px solid rgba(255,255,255,.45);
+        border-radius: 5px;
+        color: #fff;
+        background: rgba(255,255,255,.08);
+        cursor: pointer;
+    }
+
+    .ae-audit-close:hover {
+        background: rgba(255,255,255,.2);
+    }
+
+    .ae-audit-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        background: #f7f3f3;
+    }
+
+    .ae-audit-filters {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: 130px 130px 110px minmax(150px, 1fr) 130px 130px minmax(180px, 1.3fr) auto;
+        gap: 7px;
+        align-items: end;
+        padding: 8px;
+        background: #fff;
+        border: 1px solid #dbcaca;
+        border-radius: 6px;
+    }
+
+    .ae-audit-filters .ae-field label {
+        font-size: 9.5px;
+    }
+
+    .ae-audit-filters .ae-input,
+    .ae-audit-filters select {
+        width: 100%;
+        height: 31px;
+        min-width: 0;
+        border: 1px solid #ccb9b9;
+        border-radius: 4px;
+        padding: 4px 7px;
+        font-size: 11px;
+        background: #fff;
+    }
+
+    .ae-audit-filter-actions {
+        display: flex;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    .ae-audit-summary {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(120px, 1fr));
+        gap: 6px;
+    }
+
+    .ae-audit-kpi {
+        min-width: 0;
+        padding: 7px 9px;
+        border: 1px solid #dbcaca;
+        border-radius: 5px;
+        background: #fff;
+    }
+
+    .ae-audit-kpi span {
+        display: block;
+        color: #796a6a;
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .ae-audit-kpi strong {
+        display: block;
+        margin-top: 2px;
+        font-size: 16px;
+        line-height: 1;
+        color: #531010;
+    }
+
+    .ae-audit-grid-wrap {
+        flex: 1 1 auto;
+        min-height: 220px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #d8c6c6;
+        border-radius: 6px;
+    }
+
+    .ae-audit-global-table {
+        width: 100%;
+        min-width: 1650px;
+        border-collapse: collapse;
+        font-size: 10px;
+    }
+
+    .ae-audit-global-table th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: 6px 7px;
+        color: #fff;
+        background: #8b0000;
+        border-right: 1px solid rgba(255,255,255,.2);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .ae-audit-global-table td {
+        padding: 5px 7px;
+        border-right: 1px solid #eadede;
+        border-bottom: 1px solid #eadede;
+        vertical-align: top;
+        white-space: nowrap;
+    }
+
+    .ae-audit-global-table tbody tr:hover {
+        background: #fff5d7;
+    }
+
+    .ae-audit-global-table .ae-audit-motivo {
+        max-width: 350px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ae-audit-detail-btn {
+        border: 1px solid #8b0000;
+        border-radius: 4px;
+        padding: 3px 7px;
+        color: #8b0000;
+        background: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .ae-audit-detail-btn:hover {
+        color: #fff;
+        background: #8b0000;
+    }
+
+    .ae-audit-detail {
+        flex: 0 0 235px;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .ae-audit-json-card {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #d8c6c6;
+        border-radius: 6px;
+        background: #fff;
+    }
+
+    .ae-audit-json-card header {
+        flex: 0 0 auto;
+        padding: 5px 8px;
+        color: #fff;
+        background: #6f1313;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .ae-audit-json-card pre {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+        padding: 8px;
+        overflow: auto;
+        color: #2a2525;
+        background: #fff;
+        font: 10px/1.35 Consolas, "Courier New", monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .ae-audit-empty {
+        padding: 18px;
+        color: #7b6d6d;
+        text-align: center;
+        font-size: 11px;
+    }
+
+    @@media (max-width: 1250px) {
+        .ae-audit-filters {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .ae-audit-filter-actions {
+            grid-column: span 4;
+        }
+
+        .ae-audit-summary {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .ae-audit-modal {
+            padding: 4px;
+        }
+
+        .ae-audit-dialog {
+            width: 100vw;
+            height: 98vh;
+        }
+
+        .ae-audit-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ae-audit-filter-actions {
+            grid-column: span 2;
+        }
+
+        .ae-audit-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ae-audit-detail {
+            flex-basis: 280px;
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+
+<div class="ae-page" id="aePage" data-source="@sourceInicial">
+    <div class="ae-shell">
+        <header class="ae-header">
+            <div class="ae-title">
+                <h1><i class="fa-solid fa-tags me-1"></i> Ajuste controlado de etiquetas</h1>
+
+            </div>
+
+            <div class="ae-header-actions">
+                <div class="ae-permissions" id="aePermissions">
+                    <span class="ae-chip info">Consultando permisos…</span>
+                </div>
+                <button type="button"
+                        class="ae-btn secondary ae-audit-open"
+                        id="btnAeAuditGlobal"
+                        title="Histórico global de modificaciones por usuario">
+                    <i class="fa-solid fa-shield-halved"></i> Auditoría
+                </button>
+
+                <div class="ae-mode-switch" aria-label="Modo de operación">
+                    <button type="button" class="ae-mode-btn active" id="btnAeModeSingle">
+                        <i class="fa-solid fa-tag"></i> Individual
+                    </button>
+                    <button type="button" class="ae-mode-btn" id="btnAeModeBulk">
+                        <i class="fa-solid fa-layer-group"></i> Masiva
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <section class="ae-card ae-search-card" id="aeSingleSearchCard">
+            <div class="ae-search-grid">
+                <div class="ae-field">
+                    <label>Planta / fuente</label>
+                    <div class="ae-plant-toggle">
+                        <button type="button" class="ae-plant-btn" data-source="P1">PLANTA 1</button>
+                        <button type="button" class="ae-plant-btn" data-source="TIF">TIF 776</button>
+                    </div>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeSearchInput">ProduccionId o código de etiqueta</label>
+                    <input id="aeSearchInput"
+                           class="ae-input"
+                           type="search"
+                           autocomplete="off"
+                           placeholder="Ej. 3594180 o DEST00002474053301" />
+                </div>
+
+                <div class="ae-search-actions" style="display:flex;gap:7px">
+                    <button type="button" class="ae-btn primary" id="btnAeSearch">
+                        <i class="fa-solid fa-magnifying-glass"></i> Consultar
+                    </button>
+                    <button type="button" class="ae-btn secondary" id="btnAeClear">
+                        <i class="fa-solid fa-eraser"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+        </section>
+
+
+
+        <section class="ae-card ae-search-card ae-hidden" id="aeBulkSearchCard">
+            <div class="ae-bulk-grid">
+                <div class="ae-field">
+                    <label for="aeBulkInput">ProduccionId o códigos de etiqueta</label>
+                    <textarea id="aeBulkInput"
+                              class="ae-textarea ae-bulk-input"
+                              autocomplete="off"
+                              spellcheck="false"
+                              placeholder="Pega un valor por línea. También acepta comas, punto y coma o tabulaciones.
+
+                    Ejemplo:
+                    3594180
+                    DEST00002474053301
+                    3594182"></textarea>
+                    <small style="display:block;margin-top:5px;color:var(--ae-muted);font-size:10.5px;font-weight:750">
+                        Máximo 100 valores por operación. Los duplicados se eliminan automáticamente.
+                    </small>
+                </div>
+                <div class="ae-bulk-actions">
+                    <button type="button" class="ae-btn primary" id="btnAeBulkLoad">
+                        <i class="fa-solid fa-list-check"></i> Validar lista
+                    </button>
+                    <button type="button" class="ae-btn secondary" id="btnAeBulkClear">
+                        <i class="fa-solid fa-eraser"></i> Limpiar lista
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="ae-card ae-hidden" id="aeBulkResultsCard">
+            <div class="ae-card-title">
+                <strong><i class="fa-solid fa-clipboard-check me-1"></i> Validación de etiquetas</strong>
+                <small id="aeBulkTitleState">Sin lista</small>
+            </div>
+            <div class="ae-bulk-summary" id="aeBulkSummary">
+                <span class="ae-chip info">Pega y valida una lista para comenzar.</span>
+            </div>
+            <div class="ae-table-wrap">
+                <table class="ae-table ae-bulk-table">
+                    <thead>
+                        <tr>
+                            <th style="width:42px;text-align:center">
+                                <input type="checkbox" id="aeBulkSelectAll" title="Seleccionar elegibles" />
+                            </th>
+                            <th>Valor capturado</th>
+                            <th>ProduccionId</th>
+                            <th>Código etiqueta</th>
+                            <th>Fecha</th>
+                            <th>Almacén</th>
+                            <th>Estado</th>
+                            <th>Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aeBulkBody">
+                        <tr><td colspan="8"><div class="ae-loading">Sin valores validados.</div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="ae-main-grid">
+            <article class="ae-card">
+                <div class="ae-card-title">
+                    <strong><i class="fa-solid fa-box-open me-1"></i> Información actual de la etiqueta</strong>
+                    <small id="aePlantLabel">Planta @sourceInicial</small>
+                </div>
+
+                <div id="aeDetailContent" class="ae-empty">
+                    <div>
+                        <i class="fa-solid fa-barcode"></i>
+                        <strong>Consulta una etiqueta para comenzar</strong>
+                        <div style="margin-top:6px;font-size:11.5px">
+                            Puedes buscar por ProduccionId o por CódigoEtiqueta.
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="ae-card">
+                <div class="ae-card-title">
+                    <strong><i class="fa-solid fa-screwdriver-wrench me-1"></i> Operación autorizada</strong>
+                    <small id="aeOperationState">Sin etiqueta</small>
+                </div>
+
+                <div class="ae-operation-body">
+                    <div class="ae-action-switch">
+                        <label class="ae-action-option" id="aeDeleteOption">
+                            <input type="radio" name="aeAction" value="ELIMINAR" checked />
+                            <i class="fa-solid fa-trash-can"></i>
+                            Eliminar etiqueta
+                        </label>
+                        <label class="ae-action-option" id="aeActivateOption">
+                            <input type="radio" name="aeAction" value="ACTIVAR" />
+                            <i class="fa-solid fa-rotate-left"></i>
+                            Activar etiqueta
+                        </label>
+                    </div>
+
+                    <div class="ae-form-stack">
+                        <div class="ae-field">
+                            <label for="aeReason">Motivo obligatorio</label>
+                            <textarea id="aeReason"
+                                      class="ae-textarea"
+                                      maxlength="1000"
+                                      placeholder="Describe claramente por qué se realiza el ajuste…"
+                                      disabled></textarea>
+                        </div>
+
+                        <div class="ae-danger-box" id="aeDeleteBox">
+                            <p>
+                                La eliminación lógica cambia <b>Estatus a 0</b>, <b>UltimoProcesoId a 29</b> y
+                                <b>PesoNeto a 0.01</b>. En ProduccionLog se conserva el peso y estatus anteriores.
+                            </p>
+                            <div class="ae-field">
+                                <label for="aeConfirmDelete">Escribe ELIMINAR para confirmar</label>
+                                <input id="aeConfirmDelete" class="ae-input" autocomplete="off" disabled />
+                            </div>
+                            <div class="ae-history-auth" id="aeHistoryAuthBox">
+                                <div class="ae-field">
+                                    <label for="aeHistoricalAuthorization">Etiqueta de otro día: escribe AUTORIZAR</label>
+                                    <input id="aeHistoricalAuthorization"
+                                           class="ae-input"
+                                           autocomplete="off"
+                                           placeholder="AUTORIZAR"
+                                           disabled />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ae-activate-box" id="aeActivateBox">
+                            <p>
+                                La activación cambia <b>Estatus a 1</b>, <b>UltimoProcesoId a 20</b> y el <b>PesoNeto</b> capturado.
+                                En ProduccionLog se registra <b>ProcesoId 20</b> y <b>DeviceId Sistema SIGO</b>.
+                            </p>
+                            <div class="ae-field">
+                                <label for="aeNewWeight">Peso neto correcto (kg)</label>
+                                <input id="aeNewWeight"
+                                       class="ae-input"
+                                       type="number"
+                                       min="0.001"
+                                       step="0.001"
+                                       inputmode="decimal"
+                                       placeholder="Ej. 20.688"
+                                       disabled />
+                            </div>
+                            <div class="ae-field" style="margin-top:9px">
+                                <label for="aeConfirmActivate">Escribe ACTIVAR para confirmar</label>
+                                <input id="aeConfirmActivate" class="ae-input" autocomplete="off" disabled />
+                            </div>
+                        </div>
+
+                        <button type="button" class="ae-btn success" id="btnAeApply" disabled>
+                            <i class="fa-solid fa-shield-halved"></i> Aplicar ajuste controlado
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="ae-audit-grid">
+            <article class="ae-card">
+                <div class="ae-card-title">
+                    <strong><i class="fa-solid fa-clock-rotate-left me-1"></i> ProduccionLog</strong>
+                    <small>Bitácora operativa Meat</small>
+                </div>
+                <div class="ae-table-wrap">
+                    <table class="ae-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Log ID</th>
+                                <th>Proceso</th>
+                                <th>Estatus</th>
+                                <th>Peso</th>
+                                <th>Almacén</th>
+                                <th>Artículo</th>
+                                <th>DeviceId</th>
+                                <th>Motivo / usuario</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aeProductionLogBody">
+                            <tr><td colspan="9"><div class="ae-loading">Sin etiqueta consultada.</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="ae-card">
+                <div class="ae-card-title">
+                    <strong><i class="fa-solid fa-user-shield me-1"></i> Auditoría de ajustes SIGO</strong>
+                    <small>Antes, después, usuario y autorización</small>
+                </div>
+                <div class="ae-table-wrap">
+                    <table class="ae-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Acción</th>
+                                <th>Usuario</th>
+                                <th>Autorizó</th>
+                                <th>Proceso</th>
+                                <th>Estatus</th>
+                                <th>Peso</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aeAuditBody">
+                            <tr><td colspan="8"><div class="ae-loading">Sin etiqueta consultada.</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </div>
+</div>
+
+
+<div class="ae-audit-modal" id="aeAuditModal" aria-hidden="true">
+    <div class="ae-audit-dialog" role="dialog" aria-modal="true" aria-labelledby="aeAuditModalTitle">
+        <div class="ae-audit-modal-head">
+            <div class="ae-audit-modal-title">
+                <i class="fa-solid fa-user-shield"></i>
+                <div>
+                    <strong id="aeAuditModalTitle">Histórico global de modificaciones</strong>
+                    <small>Auditoría por usuario, planta, acción, etiqueta y fecha. Incluye estado antes y después.</small>
+                </div>
+            </div>
+            <button type="button" class="ae-audit-close" id="btnAeAuditClose" title="Cerrar">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="ae-audit-modal-body">
+            <div class="ae-audit-filters">
+                <div class="ae-field">
+                    <label for="aeAuditDesde">Desde</label>
+                    <input class="ae-input" id="aeAuditDesde" type="date" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditHasta">Hasta</label>
+                    <input class="ae-input" id="aeAuditHasta" type="date" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditPlanta">Planta</label>
+                    <select id="aeAuditPlanta">
+                        <option value="TODOS">Todas</option>
+                        <option value="P1">PLANTA 1</option>
+                        <option value="TIF">TIF 776</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditUsuario">Usuario</label>
+                    <input class="ae-input" id="aeAuditUsuario" placeholder="Usuario que solicitó/autorizó" />
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditAccion">Acción</label>
+                    <select id="aeAuditAccion">
+                        <option value="">Todas</option>
+                        <option value="ELIMINAR">Eliminar</option>
+                        <option value="ACTIVAR">Activar</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditHistorico">Tipo</label>
+                    <select id="aeAuditHistorico">
+                        <option value="">Todos</option>
+                        <option value="SI">Históricos</option>
+                        <option value="NO">Del día</option>
+                    </select>
+                </div>
+
+                <div class="ae-field">
+                    <label for="aeAuditTexto">Buscar</label>
+                    <input class="ae-input"
+                           id="aeAuditTexto"
+                           placeholder="ProduccionId, etiqueta, motivo u operación" />
+                </div>
+
+                <div class="ae-audit-filter-actions">
+                    <button type="button" class="ae-btn primary" id="btnAeAuditSearch">
+                        <i class="fa-solid fa-magnifying-glass"></i> Consultar
+                    </button>
+                    <button type="button" class="ae-btn secondary" id="btnAeAuditReset">
+                        <i class="fa-solid fa-eraser"></i> Limpiar
+                    </button>
+                    <button type="button" class="ae-btn success" id="btnAeAuditExcel">
+                        <i class="fa-solid fa-file-excel"></i> Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="ae-audit-summary">
+                <div class="ae-audit-kpi">
+                    <span>Total filtrado</span>
+                    <strong id="aeAuditKpiTotal">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Eliminaciones</span>
+                    <strong id="aeAuditKpiDelete">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Activaciones</span>
+                    <strong id="aeAuditKpiActivate">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Históricas</span>
+                    <strong id="aeAuditKpiHistorical">0</strong>
+                </div>
+                <div class="ae-audit-kpi">
+                    <span>Usuarios</span>
+                    <strong id="aeAuditKpiUsers">0</strong>
+                </div>
+            </div>
+
+            <div class="ae-audit-grid-wrap">
+                <table class="ae-audit-global-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha / hora</th>
+                            <th>Planta</th>
+                            <th>Usuario</th>
+                            <th>Autorizó</th>
+                            <th>Acción</th>
+                            <th>ProduccionId</th>
+                            <th>Código etiqueta</th>
+                            <th>Histórico</th>
+                            <th>Autorización</th>
+                            <th>Proceso</th>
+                            <th>Estatus</th>
+                            <th>Peso</th>
+                            <th>Motivo</th>
+                            <th>Operación ID</th>
+                            <th>Detalle</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aeAuditGlobalBody">
+                        <tr>
+                            <td colspan="15">
+                                <div class="ae-audit-empty">Abre la auditoría y consulta los movimientos.</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="ae-audit-detail">
+                <div class="ae-audit-json-card">
+                    <header>Estado antes</header>
+                    <pre id="aeAuditBefore">{}</pre>
+                </div>
+                <div class="ae-audit-json-card">
+                    <header>Estado después</header>
+                    <pre id="aeAuditAfter">{}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="ae-toast" id="aeToast"></div>
+
+<script>
+    (() => {
+        "use strict";
+
+        const URLS = {
+            permisos: '@Url.Action("AjusteEtiquetaPermisos", "ProcesosCg")',
+            buscar: '@Url.Action("BuscarEtiquetaAjuste", "ProcesosCg")',
+            historial: '@Url.Action("HistorialEtiquetaAjuste", "ProcesosCg")',
+            aplicar: '@Url.Action("AplicarAjusteEtiqueta", "ProcesosCg")',
+            auditoriaGlobal: '@Url.Action("AuditoriaAjustesEtiquetas", "ProcesosCg")',
+            auditoriaExcel: '@Url.Action("AuditoriaAjustesEtiquetasExcel", "ProcesosCg")'
+        };
+
+        const state = {
+            source: String(document.getElementById("aePage")?.dataset.source || "P1").toUpperCase() === "TIF" ? "TIF" : "P1",
+            permisos: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false },
+            etiqueta: null,
+            consulta: null,
+            busy: false,
+            mode: "single",
+            bulkRows: [],
+            auditRows: []
+        };
+
+        const $ = id => document.getElementById(id);
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+
+        function esc(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function val(obj, ...keys) {
+            for (const key of keys) {
+                if (obj && obj[key] !== undefined && obj[key] !== null) return obj[key];
+            }
+            return null;
+        }
+
+        function fmtNumber(value, decimals = 3) {
+            const number = Number(value ?? 0);
+            return Number.isFinite(number)
+                ? number.toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+                : "0";
+        }
+
+        function fmtDate(value, withTime = true) {
+            if (!value) return "-";
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return String(value);
+            return d.toLocaleString("es-MX", withTime
+                ? { dateStyle: "short", timeStyle: "medium" }
+                : { dateStyle: "short" });
+        }
+
+        function loteDesdeEtiqueta(codigoEtiqueta) {
+            const codigo = String(codigoEtiqueta ?? "").trim();
+            return codigo ? codigo.substring(0, 12) : "-";
+        }
+
+        function newOperationId() {
+            if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+            return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                const v = c === "x" ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        async function readJson(response) {
+            const raw = await response.text();
+            let json = null;
+            try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
+
+            if (!response.ok || json?.ok === false) {
+                const message = [json?.msg, json?.error, json?.inner]
+                    .filter(Boolean)
+                    .join("\n") || raw || `HTTP ${response.status}`;
+                const error = new Error(message);
+                error.status = response.status;
+                error.payload = json;
+                throw error;
+            }
+
+            return json || {};
+        }
+
+        async function getJson(url) {
+            const response = await fetch(url, {
+                method: "GET",
+                cache: "no-store",
+                headers: { "Accept": "application/json" }
+            });
+            return readJson(response);
+        }
+
+        async function postJson(url, body) {
+            const response = await fetch(url, {
+                method: "POST",
+                cache: "no-store",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": token
+                },
+                body: JSON.stringify(body)
+            });
+            return readJson(response);
+        }
+
+        function toast(message, type = "ok") {
+            const el = $("aeToast");
+            el.className = `ae-toast show ${type}`;
+            el.innerHTML = `<i class="fa-solid ${type === "ok" ? "fa-circle-check" : "fa-triangle-exclamation"}"></i><div>${esc(message)}</div>`;
+            clearTimeout(toast.timer);
+            toast.timer = setTimeout(() => el.classList.remove("show"), 5200);
+        }
+
+        function setBusy(value, text = "Procesando…") {
+            state.busy = value;
+            const search = $("btnAeSearch");
+            const apply = $("btnAeApply");
+
+            search.disabled = value;
+            search.innerHTML = value
+                ? `<span class="ae-spinner"></span> ${esc(text)}`
+                : `<i class="fa-solid fa-magnifying-glass"></i> Consultar`;
+
+            updateOperationAvailability();
+            if (value) apply.disabled = true;
+        }
+
+
+        function parseBulkValues(raw) {
+            const seen = new Set();
+            return String(raw || "")
+                .split(/[\r\n,;\t]+/)
+                .map(x => x.trim())
+                .filter(Boolean)
+                .filter(x => {
+                    const key = x.toUpperCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+        }
+
+        function bulkRowStatus(row) {
+            if (!row.ok) return { text: "NO ENCONTRADA", cls: "no", eligible: false };
+
+            const e = row.etiqueta;
+            const active = Number(val(e, "estatus", "Estatus") ?? 0) === 1;
+            const historical = Boolean(row.consulta?.esHistorico ?? row.consulta?.EsHistorico);
+            const blocked = Boolean(row.consulta?.eliminacionBloqueadaAlmacen ?? row.consulta?.EliminacionBloqueadaAlmacen);
+
+            if (!active) return { text: "INACTIVA", cls: "no", eligible: false };
+            if (blocked) return { text: "ALMACÉN PROTEGIDO", cls: "no", eligible: false };
+            if (!state.permisos.puedeEscribir) return { text: "SIN PERMISO", cls: "no", eligible: false };
+            if (historical && !state.permisos.puedeEliminar) return { text: "HISTÓRICA SIN PERMISO", cls: "no", eligible: false };
+            if (historical) return { text: "HISTÓRICA", cls: "warn", eligible: true };
+            return { text: "ELEGIBLE", cls: "ok", eligible: true };
+        }
+
+        function selectedBulkRows() {
+            return state.bulkRows.filter(r => r.selected && bulkRowStatus(r).eligible && !r.processedOk);
+        }
+
+        function renderBulkRows() {
+            const body = $("aeBulkBody");
+            const total = state.bulkRows.length;
+
+            if (!total) {
+                body.innerHTML = `<tr><td colspan="8"><div class="ae-loading">Sin valores validados.</div></td></tr>`;
+                $("aeBulkSummary").innerHTML = `<span class="ae-chip info">Pega y valida una lista para comenzar.</span>`;
+                $("aeBulkTitleState").textContent = "Sin lista";
+                $("aeBulkSelectAll").checked = false;
+                updateOperationAvailability();
+                return;
+            }
+
+            let eligible = 0, historical = 0, blocked = 0, invalid = 0, selected = 0, success = 0, failed = 0;
+
+            body.innerHTML = state.bulkRows.map((row, index) => {
+                const status = bulkRowStatus(row);
+                const e = row.etiqueta;
+                const isHistorical = Boolean(row.consulta?.esHistorico ?? row.consulta?.EsHistorico);
+                const isBlocked = Boolean(row.consulta?.eliminacionBloqueadaAlmacen ?? row.consulta?.EliminacionBloqueadaAlmacen);
+
+                if (status.eligible) eligible++;
+                if (status.eligible && isHistorical) historical++;
+                if (isBlocked) blocked++;
+                if (!row.ok) invalid++;
+                if (row.selected && status.eligible && !row.processedOk) selected++;
+                if (row.processedOk) success++;
+                if (row.processedError) failed++;
+
+                const resultText = row.processedOk
+                    ? `<span class="ae-mini-status ok"><i class="fa-solid fa-check"></i> Eliminada</span>`
+                    : row.processedError
+                        ? `<span class="ae-mini-status no" title="${esc(row.processedError)}"><i class="fa-solid fa-xmark"></i> Error</span>`
+                        : `<span class="ae-mini-status info"><i class="fa-solid fa-hourglass-half"></i> Pendiente</span>`;
+
+                return `<tr class="${row.processedOk ? "ae-row-ok" : row.processedError || !status.eligible ? "ae-row-error" : isHistorical ? "ae-row-warn" : "ae-row-ok"}">
+                    <td style="text-align:center">
+                        <input type="checkbox"
+                               class="ae-bulk-check"
+                               data-index="${index}"
+                               ${row.selected && status.eligible && !row.processedOk ? "checked" : ""}
+                               ${!status.eligible || row.processedOk || state.busy ? "disabled" : ""} />
+                    </td>
+                    <td class="ae-bulk-value">${esc(row.input)}</td>
+                    <td>${esc(val(e, "produccionId", "ProduccionId") ?? "-")}</td>
+                    <td class="ae-bulk-value">${esc(val(e, "codigoEtiqueta", "CodigoEtiqueta") ?? "-")}</td>
+                    <td>${esc(e ? fmtDate(val(e, "fechaProduccion", "FechaProduccion"), false) : "-")}</td>
+                    <td>${esc(val(e, "almacenNombre", "AlmacenNombre") || val(e, "almacen", "Almacen") || "-")}</td>
+                    <td><span class="ae-mini-status ${status.cls}">${esc(status.text)}</span></td>
+                    <td title="${esc(row.processedError || row.error || "")}">${resultText}</td>
+                </tr>`;
+            }).join("");
+
+            $("aeBulkSummary").innerHTML = `
+                <span class="ae-chip info"><i class="fa-solid fa-list"></i> Total ${total}</span>
+                <span class="ae-chip ok"><i class="fa-solid fa-check"></i> Elegibles ${eligible}</span>
+                <span class="ae-chip warn"><i class="fa-solid fa-clock"></i> Históricas ${historical}</span>
+                <span class="ae-chip no"><i class="fa-solid fa-lock"></i> Bloqueadas ${blocked}</span>
+                <span class="ae-chip no"><i class="fa-solid fa-circle-xmark"></i> No encontradas ${invalid}</span>
+                ${success ? `<span class="ae-chip ok"><i class="fa-solid fa-trash-can"></i> Eliminadas ${success}</span>` : ""}
+                ${failed ? `<span class="ae-chip no"><i class="fa-solid fa-triangle-exclamation"></i> Fallidas ${failed}</span>` : ""}`;
+
+            $("aeBulkTitleState").textContent = `${selected} seleccionada${selected === 1 ? "" : "s"}`;
+            const selectable = state.bulkRows.filter(r => bulkRowStatus(r).eligible && !r.processedOk);
+            $("aeBulkSelectAll").checked = selectable.length > 0 && selectable.every(r => r.selected);
+
+            document.querySelectorAll(".ae-bulk-check").forEach(chk => {
+                chk.addEventListener("change", () => {
+                    const row = state.bulkRows[Number(chk.dataset.index)];
+                    if (row) row.selected = chk.checked;
+                    renderBulkRows();
+                });
+            });
+
+            updateOperationAvailability();
+        }
+
+        async function mapWithConcurrency(items, limit, worker) {
+            const results = new Array(items.length);
+            let next = 0;
+            const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+                while (true) {
+                    const index = next++;
+                    if (index >= items.length) break;
+                    results[index] = await worker(items[index], index);
+                }
+            });
+            await Promise.all(runners);
+            return results;
+        }
+
+        async function validateBulkList() {
+            if (state.busy) return;
+            const values = parseBulkValues($("aeBulkInput").value);
+
+            if (!values.length) {
+                toast("Captura al menos un ProduccionId o código de etiqueta.", "error");
+                $("aeBulkInput").focus();
+                return;
+            }
+            if (values.length > 100) {
+                toast(`La operación permite máximo 100 valores. Capturaste ${values.length}.`, "error");
+                return;
+            }
+
+            state.busy = true;
+            state.bulkRows = values.map(input => ({ input, ok: false, selected: false }));
+            $("aeBulkResultsCard").classList.remove("ae-hidden");
+            $("aeBulkBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading"><span class="ae-spinner" style="color:#8b0000"></span> Validando ${values.length} valores…</div></td></tr>`;
+            const button = $("btnAeBulkLoad");
+            button.disabled = true;
+            button.innerHTML = `<span class="ae-spinner"></span> Validando…`;
+            updateOperationAvailability();
+
+            try {
+                state.bulkRows = await mapWithConcurrency(values, 5, async input => {
+                    try {
+                        const json = await getJson(`${URLS.buscar}?source=${encodeURIComponent(state.source)}&valor=${encodeURIComponent(input)}&_=${Date.now()}`);
+                        const row = {
+                            input,
+                            ok: true,
+                            etiqueta: json.etiqueta || json.Etiqueta,
+                            consulta: json,
+                            selected: false,
+                            processedOk: false,
+                            processedError: ""
+                        };
+                        row.selected = bulkRowStatus(row).eligible;
+                        return row;
+                    } catch (error) {
+                        return { input, ok: false, error: error.message, selected: false, processedOk: false, processedError: "" };
+                    }
+                });
+                renderBulkRows();
+                const count = selectedBulkRows().length;
+                toast(count ? `${count} etiqueta(s) quedaron listas para eliminar.` : "No hay etiquetas elegibles para eliminar.", count ? "ok" : "error");
+            } finally {
+                state.busy = false;
+                button.disabled = false;
+                button.innerHTML = `<i class="fa-solid fa-list-check"></i> Validar lista`;
+                renderBulkRows();
+                renderActionMode();
+            }
+        }
+
+        function clearBulk() {
+            state.bulkRows = [];
+            $("aeBulkInput").value = "";
+            $("aeBulkResultsCard").classList.add("ae-hidden");
+            $("aeReason").value = "";
+            $("aeConfirmDelete").value = "";
+            $("aeHistoricalAuthorization").value = "";
+            renderBulkRows();
+        }
+
+        function setMode(mode) {
+            state.mode = mode === "bulk" ? "bulk" : "single";
+            const bulk = state.mode === "bulk";
+
+            $("btnAeModeSingle").classList.toggle("active", !bulk);
+            $("btnAeModeBulk").classList.toggle("active", bulk);
+            $("aeSingleSearchCard").classList.toggle("ae-hidden", bulk);
+            $("aeBulkSearchCard").classList.toggle("ae-hidden", !bulk);
+            $("aeBulkResultsCard").classList.toggle("ae-hidden", !bulk || state.bulkRows.length === 0);
+            $("aeActivateOption").classList.toggle("ae-hidden", bulk);
+
+            if (bulk) {
+                const deleteInput = document.querySelector('input[name="aeAction"][value="ELIMINAR"]');
+                if (deleteInput) deleteInput.checked = true;
+                $("aeDetailContent").className = "ae-empty";
+                $("aeDetailContent").innerHTML = `<div><i class="fa-solid fa-layer-group"></i><strong>Eliminación masiva</strong><div style="margin-top:6px;font-size:11.5px">Valida la lista, revisa los estados y selecciona únicamente las etiquetas correctas.</div></div>`;
+                $("aeProductionLogBody").innerHTML = `<tr><td colspan="9"><div class="ae-loading">El historial individual no se muestra en modo masivo.</div></td></tr>`;
+                $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">Cada etiqueta eliminada conservará su auditoría individual.</div></td></tr>`;
+                $("aeBulkInput").focus();
+            } else {
+                $("aeActivateOption").classList.remove("ae-hidden");
+                if (state.etiqueta) {
+                    renderDetail();
+                    loadHistory();
+                } else {
+                    clearAll(false);
+                }
+                $("aeSearchInput").focus();
+            }
+
+            renderActionMode();
+        }
+
+        function renderPermissions() {
+            const p = state.permisos;
+            $("aePermissions").innerHTML = `
+                <span class="ae-chip ${p.puedeLeer ? "ok" : "no"}">
+                    <i class="fa-solid ${p.puedeLeer ? "fa-eye" : "fa-eye-slash"}"></i> Leer
+                </span>
+                <span class="ae-chip ${p.puedeEscribir ? "ok" : "no"}">
+                    <i class="fa-solid ${p.puedeEscribir ? "fa-pen" : "fa-ban"}"></i> Ajustar día
+                </span>
+                <span class="ae-chip ${p.puedeEliminar ? "warn" : "no"}">
+                    <i class="fa-solid ${p.puedeEliminar ? "fa-user-shield" : "fa-lock"}"></i> Histórico
+                </span>`;
+        }
+
+        async function loadPermissions() {
+            try {
+                const json = await getJson(URLS.permisos);
+                state.permisos = {
+                    puedeLeer: Boolean(json.puedeLeer ?? json.PuedeLeer),
+                    puedeEscribir: Boolean(json.puedeEscribir ?? json.PuedeEscribir),
+                    puedeEliminar: Boolean(json.puedeEliminar ?? json.PuedeEliminar)
+                };
+            } catch (error) {
+                console.error(error);
+                state.permisos = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
+                toast(error.message, "error");
+            }
+            renderPermissions();
+            updateOperationAvailability();
+        }
+
+        function renderPlants() {
+            document.querySelectorAll(".ae-plant-btn").forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.source === state.source);
+            });
+            $("aePlantLabel").textContent = state.source === "TIF" ? "TIF 776" : "Planta 1";
+        }
+
+        // =========================================================
+        // AUDITORÍA GLOBAL
+        // =========================================================
+
+        function auditIsoDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, "0");
+            const d = String(date.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        function initAuditDates() {
+            if ($("aeAuditDesde").value || $("aeAuditHasta").value) return;
+
+            const now = new Date();
+            $("aeAuditDesde").value = auditIsoDate(
+                new Date(now.getFullYear(), now.getMonth(), 1)
+            );
+            $("aeAuditHasta").value = auditIsoDate(now);
+        }
+
+        function auditQueryString() {
+            const params = new URLSearchParams();
+
+            const desde = $("aeAuditDesde").value;
+            const hasta = $("aeAuditHasta").value;
+            const planta = $("aeAuditPlanta").value;
+            const usuario = $("aeAuditUsuario").value.trim();
+            const accion = $("aeAuditAccion").value;
+            const historico = $("aeAuditHistorico").value;
+            const texto = $("aeAuditTexto").value.trim();
+
+            if (desde) params.set("desde", desde);
+            if (hasta) params.set("hasta", hasta);
+            if (planta) params.set("planta", planta);
+            if (usuario) params.set("usuario", usuario);
+            if (accion) params.set("accion", accion);
+            if (historico) params.set("historico", historico);
+            if (texto) params.set("texto", texto);
+
+            return params.toString();
+        }
+
+        function prettyJson(value) {
+            if (!value) return "{}";
+
+            try {
+                const parsed = typeof value === "string"
+                    ? JSON.parse(value)
+                    : value;
+
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return String(value);
+            }
+        }
+
+        function renderAuditGlobalDetail(row) {
+            $("aeAuditBefore").textContent =
+                prettyJson(val(row, "datosAntes", "DatosAntes"));
+
+            $("aeAuditAfter").textContent =
+                prettyJson(val(row, "datosDespues", "DatosDespues"));
+        }
+
+        function renderAuditGlobal(rows, json) {
+            state.auditRows = rows;
+
+            $("aeAuditKpiTotal").textContent =
+                Number(json.total ?? rows.length).toLocaleString("es-MX");
+
+            const resumen = json.resumen || json.Resumen || {};
+
+            $("aeAuditKpiDelete").textContent =
+                Number(resumen.eliminaciones ?? resumen.Eliminaciones ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiActivate").textContent =
+                Number(resumen.activaciones ?? resumen.Activaciones ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiHistorical").textContent =
+                Number(resumen.historicas ?? resumen.Historicas ?? 0)
+                    .toLocaleString("es-MX");
+
+            $("aeAuditKpiUsers").textContent =
+                Number(resumen.usuarios ?? resumen.Usuarios ?? 0)
+                    .toLocaleString("es-MX");
+
+            const body = $("aeAuditGlobalBody");
+
+            if (!rows.length) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="15">
+                            <div class="ae-audit-empty">
+                                No hay movimientos para los filtros seleccionados.
+                            </div>
+                        </td>
+                    </tr>`;
+
+                $("aeAuditBefore").textContent = "{}";
+                $("aeAuditAfter").textContent = "{}";
+                return;
+            }
+
+            body.innerHTML = rows.map((r, index) => {
+                const historico =
+                    Boolean(val(r, "esHistorico", "EsHistorico"));
+
+                const pa = val(r, "procesoAnterior", "ProcesoAnterior");
+                const pn = val(r, "procesoNuevo", "ProcesoNuevo");
+                const ea = val(r, "estatusAnterior", "EstatusAnterior");
+                const en = val(r, "estatusNuevo", "EstatusNuevo");
+                const pesoA = val(r, "pesoAnterior", "PesoAnterior");
+                const pesoN = val(r, "pesoNuevo", "PesoNuevo");
+
+                return `
+                    <tr>
+                        <td>${esc(fmtDate(val(r, "fechaHora", "FechaHora")))}</td>
+                        <td>${esc(val(r, "planta", "Planta") || "-")}</td>
+                        <td>${esc(val(r, "usuarioSolicita", "UsuarioSolicita") || "-")}</td>
+                        <td>${esc(val(r, "usuarioAutoriza", "UsuarioAutoriza") || "-")}</td>
+                        <td><strong>${esc(val(r, "accion", "Accion") || "-")}</strong></td>
+                        <td>${esc(val(r, "produccionId", "ProduccionId") ?? "-")}</td>
+                        <td>${esc(val(r, "codigoEtiqueta", "CodigoEtiqueta") || "-")}</td>
+                        <td>${historico ? "SÍ" : "NO"}</td>
+                        <td>${esc(val(r, "autorizacionTipo", "AutorizacionTipo") || "-")}</td>
+                        <td>${esc(pa ?? "-")} → ${esc(pn ?? "-")}</td>
+                        <td>${esc(ea ?? "-")} → ${esc(en ?? "-")}</td>
+                        <td>${esc(fmtNumber(pesoA, 3))} → ${esc(fmtNumber(pesoN, 3))}</td>
+                        <td class="ae-audit-motivo"
+                            title="${esc(val(r, "motivo", "Motivo") || "")}">
+                            ${esc(val(r, "motivo", "Motivo") || "-")}
+                        </td>
+                        <td>${esc(val(r, "operacionId", "OperacionId") || "-")}</td>
+                        <td>
+                            <button type="button"
+                                    class="ae-audit-detail-btn"
+                                    data-audit-index="${index}">
+                                <i class="fa-solid fa-code-compare"></i> Antes / después
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join("");
+
+            body.querySelectorAll("[data-audit-index]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const row =
+                        state.auditRows[Number(button.dataset.auditIndex)];
+
+                    if (row) renderAuditGlobalDetail(row);
+                });
+            });
+
+            renderAuditGlobalDetail(rows[0]);
+
+            if (json.truncado || json.Truncado) {
+                toast(
+                    `Hay ${Number(json.total).toLocaleString("es-MX")} registros filtrados. ` +
+                    `Se muestran los ${Number(json.mostrados).toLocaleString("es-MX")} más recientes.`,
+                    "error"
+                );
+            }
+        }
+
+        async function loadAuditGlobal() {
+            const body = $("aeAuditGlobalBody");
+
+            body.innerHTML = `
+                <tr>
+                    <td colspan="15">
+                        <div class="ae-audit-empty">
+                            <span class="ae-spinner" style="color:#8b0000"></span>
+                            Consultando auditoría…
+                        </div>
+                    </td>
+                </tr>`;
+
+            $("btnAeAuditSearch").disabled = true;
+
+            try {
+                const qs = auditQueryString();
+
+                const json = await getJson(
+                    `${URLS.auditoriaGlobal}?${qs}${qs ? "&" : ""}top=5000&_=${Date.now()}`
+                );
+
+                renderAuditGlobal(
+                    json.data || json.Data || [],
+                    json
+                );
+            } catch (error) {
+                console.error(error);
+
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="15">
+                            <div class="ae-audit-empty">${esc(error.message)}</div>
+                        </td>
+                    </tr>`;
+
+                toast(error.message, "error");
+            } finally {
+                $("btnAeAuditSearch").disabled = false;
+            }
+        }
+
+        function openAuditGlobal() {
+            initAuditDates();
+            $("aeAuditModal").classList.add("show");
+            $("aeAuditModal").setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+            loadAuditGlobal();
+        }
+
+        function closeAuditGlobal() {
+            $("aeAuditModal").classList.remove("show");
+            $("aeAuditModal").setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        }
+
+        function resetAuditGlobal() {
+            $("aeAuditDesde").value = "";
+            $("aeAuditHasta").value = "";
+            $("aeAuditPlanta").value = "TODOS";
+            $("aeAuditUsuario").value = "";
+            $("aeAuditAccion").value = "";
+            $("aeAuditHistorico").value = "";
+            $("aeAuditTexto").value = "";
+            loadAuditGlobal();
+        }
+
+        function downloadAuditExcel() {
+            const qs = auditQueryString();
+
+            const url =
+                `${URLS.auditoriaExcel}?${qs}${qs ? "&" : ""}_=${Date.now()}`;
+
+            window.location.href = url;
+        }
+
+
+
+        async function setSource(source) {
+            state.source = String(source).toUpperCase() === "TIF" ? "TIF" : "P1";
+            renderPlants();
+            clearAll(false);
+            clearBulk();
+            setMode(state.mode);
+        }
+
+        function clearAll(clearSearch = true) {
+            state.etiqueta = null;
+            state.consulta = null;
+            if (clearSearch) $("aeSearchInput").value = "";
+            $("aeReason").value = "";
+            $("aeConfirmDelete").value = "";
+            $("aeHistoricalAuthorization").value = "";
+            $("aeNewWeight").value = "";
+            $("aeConfirmActivate").value = "";
+            $("aeDetailContent").className = "ae-empty";
+            $("aeDetailContent").innerHTML = `
+                <div>
+                    <i class="fa-solid fa-barcode"></i>
+                    <strong>Consulta una etiqueta para comenzar</strong>
+                    <div style="margin-top:6px;font-size:11.5px">Puedes buscar por ProduccionId o por CódigoEtiqueta.</div>
+                </div>`;
+            $("aeProductionLogBody").innerHTML = `<tr><td colspan="9"><div class="ae-loading">Sin etiqueta consultada.</div></td></tr>`;
+            $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">Sin etiqueta consultada.</div></td></tr>`;
+            $("aeOperationState").textContent = "Sin etiqueta";
+            updateOperationAvailability();
+        }
+
+        async function searchLabel() {
+            const input = $("aeSearchInput").value.trim();
+            if (!input) {
+                toast("Captura un ProduccionId o código de etiqueta.", "error");
+                $("aeSearchInput").focus();
+                return;
+            }
+
+            setBusy(true, "Consultando…");
+            $("aeDetailContent").className = "ae-loading";
+            $("aeDetailContent").innerHTML = `<div><span class="ae-spinner" style="color:#8b0000"></span><div style="margin-top:8px">Consultando etiqueta…</div></div>`;
+
+            try {
+                const json = await getJson(`${URLS.buscar}?source=${encodeURIComponent(state.source)}&valor=${encodeURIComponent(input)}&_=${Date.now()}`);
+                state.etiqueta = json.etiqueta || json.Etiqueta;
+                state.consulta = json;
+                renderDetail();
+                await loadHistory();
+            } catch (error) {
+                console.error(error);
+                state.etiqueta = null;
+                state.consulta = null;
+                $("aeDetailContent").className = "ae-empty";
+                $("aeDetailContent").innerHTML = `
+                    <div>
+                        <i class="fa-solid fa-circle-exclamation" style="color:#b42318"></i>
+                        <strong>No se encontró o no se pudo consultar</strong>
+                        <div style="margin-top:7px;font-size:11.5px;white-space:pre-line">${esc(error.message)}</div>
+                    </div>`;
+                toast(error.message, "error");
+                updateOperationAvailability();
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        function renderDetail() {
+            const e = state.etiqueta;
+            if (!e) return;
+
+            const status = Number(val(e, "estatus", "Estatus") ?? 0);
+            const historical = Boolean(state.consulta?.esHistorico ?? state.consulta?.EsHistorico);
+            const canAuthorize = Boolean(state.consulta?.puedeAutorizarHistorico ?? state.consulta?.PuedeAutorizarHistorico);
+            const blockedWarehouse = Boolean(state.consulta?.eliminacionBloqueadaAlmacen ?? state.consulta?.EliminacionBloqueadaAlmacen);
+            const activationBlockedProcess = Boolean(state.consulta?.activacionBloqueadaProceso ?? state.consulta?.ActivacionBloqueadaProceso);
+            const rule = state.consulta?.regla ?? state.consulta?.Regla ?? "";
+
+            let bannerClass = "today";
+            let bannerIcon = "fa-circle-check";
+            if (blockedWarehouse) {
+                bannerClass = "history-block";
+                bannerIcon = "fa-warehouse";
+            } else if (activationBlockedProcess) {
+                bannerClass = "history-block";
+                bannerIcon = "fa-ban";
+            } else if (historical && canAuthorize) {
+                bannerClass = "history-ok";
+                bannerIcon = "fa-user-shield";
+            } else if (historical) {
+                bannerClass = "history-block";
+                bannerIcon = "fa-lock";
+            }
+
+            $("aeDetailContent").className = "ae-detail-body";
+            $("aeDetailContent").innerHTML = `
+                <div class="ae-status-row">
+                    <div class="ae-label-code">
+                        <span>Código de etiqueta</span>
+                        <strong>${esc(val(e, "codigoEtiqueta", "CodigoEtiqueta") || "-")}</strong>
+                    </div>
+                    <span class="ae-badge ${status === 1 ? "active" : "inactive"}">
+                        <i class="fa-solid ${status === 1 ? "fa-circle-check" : "fa-circle-xmark"}"></i>&nbsp;
+                        ${status === 1 ? "ACTIVA" : "INACTIVA"}
+                    </span>
+                </div>
+
+                <div class="ae-detail-grid">
+                    ${dataCell("ProduccionId", val(e, "produccionId", "ProduccionId"))}
+                    ${dataCell("Fecha de producción", fmtDate(val(e, "fechaProduccion", "FechaProduccion"), false))}
+                    ${dataCell("Fecha servidor Meat", fmtDate(val(e, "fechaServidor", "FechaServidor"), false))}
+                    ${dataCell("Peso neto", `${fmtNumber(val(e, "pesoNeto", "PesoNeto"), 3)} kg`)}
+                    ${dataCell("SKU / artículo", val(e, "articulo", "Articulo") || "-")}
+                    ${dataCell("Producto", val(e, "producto", "Producto") || "-", true)}
+                    ${dataCell("Almacén", val(e, "almacenNombre", "AlmacenNombre") || val(e, "almacen", "Almacen") || "-")}
+                    ${dataCell("Lote", loteDesdeEtiqueta(val(e, "codigoEtiqueta", "CodigoEtiqueta")))}
+                    ${dataCell("Proceso actual", `${esc(val(e, "ultimoProcesoId", "UltimoProcesoId") ?? "-")} - ${esc(val(e, "procesoActual", "ProcesoActual") || "")}`, true, false)}
+                </div>
+
+                <div class="ae-rule-banner ${bannerClass}">
+                    <i class="fa-solid ${bannerIcon}"></i>
+                    <div>${esc(rule)}</div>
+                </div>`;
+
+            $("aeOperationState").textContent = blockedWarehouse
+                ? "Almacén protegido"
+                : activationBlockedProcess
+                    ? "Activación bloqueada por proceso"
+                    : status === 1
+                        ? (historical ? "Activa / histórica" : "Activa / del día")
+                        : "Etiqueta inactiva";
+
+            const actionToSelect = status === 1 ? "ELIMINAR" : "ACTIVAR";
+            const actionInput = document.querySelector(`input[name="aeAction"][value="${actionToSelect}"]`);
+            if (actionInput) actionInput.checked = true;
+            renderActionMode();
+        }
+
+        function dataCell(label, value, wide = false, escapeValue = true) {
+            return `<div class="ae-data ${wide ? "wide" : ""}">
+                <label>${esc(label)}</label>
+                <strong>${escapeValue ? esc(value ?? "-") : (value ?? "-")}</strong>
+            </div>`;
+        }
+
+        async function loadHistory() {
+            const id = Number(val(state.etiqueta, "produccionId", "ProduccionId") || 0);
+            if (!id) return;
+
+            $("aeProductionLogBody").innerHTML = `<tr><td colspan="9"><div class="ae-loading">Consultando ProduccionLog…</div></td></tr>`;
+            $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">Consultando auditoría…</div></td></tr>`;
+
+            try {
+                const json = await getJson(`${URLS.historial}?source=${encodeURIComponent(state.source)}&produccionId=${id}&_=${Date.now()}`);
+                renderProductionLog(json.produccionLog || json.ProduccionLog || []);
+                renderAudit(json.auditoria || json.Auditoria || [], Boolean(json.auditoriaDisponible ?? json.AuditoriaDisponible));
+            } catch (error) {
+                console.error(error);
+                $("aeProductionLogBody").innerHTML = `<tr><td colspan="9"><div class="ae-loading">${esc(error.message)}</div></td></tr>`;
+                $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">${esc(error.message)}</div></td></tr>`;
+            }
+        }
+
+        function renderProductionLog(rows) {
+            if (!rows.length) {
+                $("aeProductionLogBody").innerHTML = `<tr><td colspan="9"><div class="ae-loading">Sin movimientos en ProduccionLog.</div></td></tr>`;
+                return;
+            }
+
+            $("aeProductionLogBody").innerHTML = rows.map(r => `
+                <tr>
+                    <td>${esc(fmtDate(val(r, "fechaHora", "FechaHora")))}</td>
+                    <td>${esc(val(r, "produccionLogId", "ProduccionLogId") ?? "-")}</td>
+                    <td>${esc(val(r, "procesoId", "ProcesoId") ?? "-")}</td>
+                    <td>${esc(val(r, "estatus", "Estatus") ?? "-")}</td>
+                    <td>${esc(fmtNumber(val(r, "pesoNeto", "PesoNeto"), 3))}</td>
+                    <td>${esc(val(r, "almacen", "Almacen") ?? "-")}</td>
+                    <td>${esc(val(r, "articulo", "Articulo") ?? "-")}</td>
+                    <td>${esc(val(r, "deviceId", "DeviceId") ?? "-")}</td>
+                    <td title="${esc(val(r, "motivo", "Motivo") ?? "")}">${esc(val(r, "motivo", "Motivo") || val(r, "usuario", "Usuario") || "-")}</td>
+                </tr>`).join("");
+        }
+
+        function renderAudit(rows, available) {
+            if (!available) {
+                $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">Falta ejecutar el SQL de instalación de auditoría.</div></td></tr>`;
+                return;
+            }
+
+            if (!rows.length) {
+                $("aeAuditBody").innerHTML = `<tr><td colspan="8"><div class="ae-loading">Sin ajustes registrados por SIGO.</div></td></tr>`;
+                return;
+            }
+
+            $("aeAuditBody").innerHTML = rows.map(r => `
+                <tr>
+                    <td>${esc(fmtDate(val(r, "fechaHora", "FechaHora")))}</td>
+                    <td>${esc(val(r, "accion", "Accion") ?? "-")}</td>
+                    <td>${esc(val(r, "usuarioSolicita", "UsuarioSolicita") ?? "-")}</td>
+                    <td>${esc(val(r, "usuarioAutoriza", "UsuarioAutoriza") ?? "-")}</td>
+                    <td>${esc(val(r, "procesoAnterior", "ProcesoAnterior") ?? "-")} → ${esc(val(r, "procesoNuevo", "ProcesoNuevo") ?? "-")}</td>
+                    <td>${esc(val(r, "estatusAnterior", "EstatusAnterior") ?? "-")} → ${esc(val(r, "estatusNuevo", "EstatusNuevo") ?? "-")}</td>
+                    <td>${esc(fmtNumber(val(r, "pesoAnterior", "PesoAnterior"), 3))} → ${esc(fmtNumber(val(r, "pesoNuevo", "PesoNuevo"), 3))}</td>
+                    <td title="${esc(val(r, "motivo", "Motivo") ?? "")}">${esc(val(r, "motivo", "Motivo") ?? "-")}</td>
+                </tr>`).join("");
+        }
+
+        function currentAction() {
+            return document.querySelector('input[name="aeAction"]:checked')?.value || "ELIMINAR";
+        }
+
+        function renderActionMode() {
+            const bulk = state.mode === "bulk";
+            const action = bulk ? "ELIMINAR" : currentAction();
+            const deleting = action === "ELIMINAR";
+            const activating = action === "ACTIVAR" && !bulk;
+            const historical = bulk
+                ? selectedBulkRows().some(r => Boolean(r.consulta?.esHistorico ?? r.consulta?.EsHistorico))
+                : Boolean(state.consulta?.esHistorico ?? state.consulta?.EsHistorico);
+
+            $("aeDeleteBox").classList.toggle("show", deleting);
+            $("aeActivateBox").classList.toggle("show", activating);
+            $("aeHistoryAuthBox").classList.toggle("show", deleting && historical);
+            $("aeOperationState").textContent = bulk
+                ? `${selectedBulkRows().length} seleccionada(s)`
+                : $("aeOperationState").textContent;
+            updateOperationAvailability();
+        }
+
+        function updateOperationAvailability() {
+            if (state.mode === "bulk") {
+                const selected = selectedBulkRows();
+                const historical = selected.some(r => Boolean(r.consulta?.esHistorico ?? r.consulta?.EsHistorico));
+                const can = selected.length > 0 && state.permisos.puedeEscribir && !state.busy;
+
+                const deleteRadio = document.querySelector('input[name="aeAction"][value="ELIMINAR"]');
+                const activateRadio = document.querySelector('input[name="aeAction"][value="ACTIVAR"]');
+                if (deleteRadio) deleteRadio.disabled = !can;
+                if (activateRadio) activateRadio.disabled = true;
+
+                $("aeReason").disabled = !can;
+                $("aeConfirmDelete").disabled = !can;
+                $("aeHistoricalAuthorization").disabled = !can || !historical;
+                $("aeNewWeight").disabled = true;
+                $("aeConfirmActivate").disabled = true;
+                $("btnAeApply").disabled = !can;
+                $("btnAeApply").innerHTML = state.busy
+                    ? `<span class="ae-spinner"></span> Procesando…`
+                    : `<i class="fa-solid fa-trash-can"></i> Eliminar ${selected.length} etiqueta${selected.length === 1 ? "" : "s"}`;
+                return;
+            }
+
+            const e = state.etiqueta;
+            const hasLabel = Boolean(e);
+            const historical = Boolean(state.consulta?.esHistorico ?? state.consulta?.EsHistorico);
+            const blockedWarehouse = Boolean(state.consulta?.eliminacionBloqueadaAlmacen ?? state.consulta?.EliminacionBloqueadaAlmacen);
+            const serverCanActivate = Boolean(state.consulta?.puedeActivar ?? state.consulta?.PuedeActivar);
+            const activationBlockedProcess = Boolean(state.consulta?.activacionBloqueadaProceso ?? state.consulta?.ActivacionBloqueadaProceso);
+            const active = Number(val(e, "estatus", "Estatus") ?? 0) === 1;
+            const action = currentAction();
+
+            const deleteRadio = document.querySelector('input[name="aeAction"][value="ELIMINAR"]');
+            const activateRadio = document.querySelector('input[name="aeAction"][value="ACTIVAR"]');
+
+            if (deleteRadio) deleteRadio.disabled = !hasLabel || !active || blockedWarehouse || state.busy;
+            if (activateRadio) {
+                activateRadio.disabled =
+                    !hasLabel
+                    || active
+                    || !serverCanActivate
+                    || activationBlockedProcess
+                    || state.busy;
+            }
+
+            const canDelete = hasLabel
+                && active
+                && !blockedWarehouse
+                && state.permisos.puedeEscribir
+                && (!historical || state.permisos.puedeEliminar)
+                && !state.busy;
+
+            const canActivate = hasLabel
+                && !active
+                && serverCanActivate
+                && !activationBlockedProcess
+                && state.permisos.puedeEscribir
+                && state.permisos.puedeEliminar
+                && !state.busy;
+
+            const can = action === "ELIMINAR" ? canDelete : canActivate;
+
+            $("aeReason").disabled = !can;
+            $("aeConfirmDelete").disabled = !can || action !== "ELIMINAR";
+            $("aeHistoricalAuthorization").disabled = !can || action !== "ELIMINAR" || !historical;
+            $("aeNewWeight").disabled = !can || action !== "ACTIVAR";
+            $("aeConfirmActivate").disabled = !can || action !== "ACTIVAR";
+            $("btnAeApply").disabled = !can;
+            if (!state.busy) $("btnAeApply").innerHTML = `<i class="fa-solid fa-shield-halved"></i> Aplicar ajuste controlado`;
+        }
+
+        async function applyBulkDeletion() {
+            const rows = selectedBulkRows();
+            if (!rows.length || state.busy) return;
+
+            const reason = $("aeReason").value.trim();
+            const confirmation = $("aeConfirmDelete").value.trim().toUpperCase();
+            const historicalAuthorization = $("aeHistoricalAuthorization").value.trim().toUpperCase();
+            const hasHistorical = rows.some(r => Boolean(r.consulta?.esHistorico ?? r.consulta?.EsHistorico));
+
+            if (reason.length < 10) {
+                toast("Captura un motivo de al menos 10 caracteres.", "error");
+                $("aeReason").focus();
+                return;
+            }
+            if (confirmation !== "ELIMINAR") {
+                toast("Escribe ELIMINAR para confirmar.", "error");
+                $("aeConfirmDelete").focus();
+                return;
+            }
+            if (hasHistorical && historicalAuthorization !== "AUTORIZAR") {
+                toast("La selección incluye etiquetas históricas. Escribe AUTORIZAR para continuar.", "error");
+                $("aeHistoricalAuthorization").focus();
+                return;
+            }
+            if (!globalThis.confirm(`¿Confirmas eliminar lógicamente ${rows.length} etiqueta(s)?\n\nEl proceso continuará con las demás aunque alguna falle.`)) return;
+
+            state.busy = true;
+            renderBulkRows();
+            updateOperationAvailability();
+
+            let ok = 0, failed = 0;
+            try {
+                for (const row of rows) {
+                    const productionId = Number(val(row.etiqueta, "produccionId", "ProduccionId") || 0);
+                    try {
+                        const json = await postJson(URLS.aplicar, {
+                            operacionId: newOperationId(),
+                            source: state.source,
+                            produccionId: productionId,
+                            accion: "ELIMINAR",
+                            pesoNuevo: null,
+                            motivo: reason,
+                            confirmacion: "ELIMINAR",
+                            autorizacionHistorica: Boolean(row.consulta?.esHistorico ?? row.consulta?.EsHistorico)
+                                ? historicalAuthorization
+                                : ""
+                        });
+                        row.processedOk = true;
+                        row.processedError = "";
+                        row.selected = false;
+                        row.result = json;
+                        ok++;
+                    } catch (error) {
+                        row.processedError = error.message;
+                        failed++;
+                    }
+                    renderBulkRows();
+                }
+
+                toast(`Proceso terminado. Eliminadas: ${ok}. Fallidas: ${failed}.`, failed ? "error" : "ok");
+                $("aeConfirmDelete").value = "";
+                $("aeHistoricalAuthorization").value = "";
+            } finally {
+                state.busy = false;
+                renderBulkRows();
+                renderActionMode();
+            }
+        }
+
+        async function applyAdjustment() {
+            if (state.mode === "bulk") {
+                await applyBulkDeletion();
+                return;
+            }
+            if (!state.etiqueta || state.busy) return;
+
+            const action = currentAction();
+            const reason = $("aeReason").value.trim();
+            const confirmation = action === "ELIMINAR"
+                ? $("aeConfirmDelete").value.trim()
+                : $("aeConfirmActivate").value.trim();
+            const historicalAuthorization = $("aeHistoricalAuthorization").value.trim();
+            const newWeight = Number($("aeNewWeight").value || 0);
+            const historical = Boolean(state.consulta?.esHistorico ?? state.consulta?.EsHistorico);
+            const productionId = Number(val(state.etiqueta, "produccionId", "ProduccionId") || 0);
+
+            const blockedWarehouse = Boolean(state.consulta?.eliminacionBloqueadaAlmacen ?? state.consulta?.EliminacionBloqueadaAlmacen);
+            if (action === "ELIMINAR" && blockedWarehouse) {
+                toast("No se permite eliminar esta etiqueta porque se encuentra en un almacén protegido.", "error");
+                return;
+            }
+
+            if (reason.length < 10) {
+                toast("Captura un motivo de al menos 10 caracteres.", "error");
+                $("aeReason").focus();
+                return;
+            }
+
+            if (action === "ELIMINAR") {
+                if (confirmation.toUpperCase() !== "ELIMINAR") {
+                    toast("Escribe ELIMINAR para confirmar.", "error");
+                    $("aeConfirmDelete").focus();
+                    return;
+                }
+
+                if (historical && historicalAuthorization.toUpperCase() !== "AUTORIZAR") {
+                    toast("La etiqueta es de otro día. Escribe AUTORIZAR para continuar.", "error");
+                    $("aeHistoricalAuthorization").focus();
+                    return;
+                }
+            }
+
+            if (action === "ACTIVAR") {
+                if (!Number.isFinite(newWeight) || newWeight <= 0) {
+                    toast("Captura un peso neto válido mayor que cero.", "error");
+                    $("aeNewWeight").focus();
+                    return;
+                }
+
+                if (confirmation.toUpperCase() !== "ACTIVAR") {
+                    toast("Escribe ACTIVAR para confirmar.", "error");
+                    $("aeConfirmActivate").focus();
+                    return;
+                }
+            }
+
+            const code = val(state.etiqueta, "codigoEtiqueta", "CodigoEtiqueta");
+            const question = action === "ELIMINAR"
+                ? `¿Confirmas eliminar lógicamente la etiqueta ${code}?`
+                : `¿Confirmas activar la etiqueta ${code} con ${newWeight.toFixed(3)} kg?`;
+
+            if (!globalThis.confirm(question)) return;
+
+            state.busy = true;
+            updateOperationAvailability();
+            const button = $("btnAeApply");
+            button.innerHTML = `<span class="ae-spinner"></span> Aplicando transacción…`;
+
+            try {
+                const json = await postJson(URLS.aplicar, {
+                    operacionId: newOperationId(),
+                    source: state.source,
+                    produccionId: productionId,
+                    accion: action,
+                    pesoNuevo: action === "ACTIVAR" ? newWeight : null,
+                    motivo: reason,
+                    confirmacion: confirmation,
+                    autorizacionHistorica: action === "ELIMINAR" && historical
+                        ? historicalAuthorization
+                        : ""
+                });
+
+                toast(json.msg || "Ajuste aplicado correctamente.", "ok");
+                $("aeReason").value = "";
+                $("aeConfirmDelete").value = "";
+                $("aeHistoricalAuthorization").value = "";
+                $("aeNewWeight").value = "";
+                $("aeConfirmActivate").value = "";
+                await searchLabel();
+            } catch (error) {
+                console.error(error);
+                toast(error.message, "error");
+            } finally {
+                state.busy = false;
+                button.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Aplicar ajuste controlado`;
+                updateOperationAvailability();
+            }
+        }
+
+        document.querySelectorAll(".ae-plant-btn").forEach(btn => {
+            btn.addEventListener("click", () => setSource(btn.dataset.source));
+        });
+
+        document.querySelectorAll('input[name="aeAction"]').forEach(input => {
+            input.addEventListener("change", renderActionMode);
+        });
+
+        $("btnAeModeSingle").addEventListener("click", () => setMode("single"));
+        $("btnAeModeBulk").addEventListener("click", () => setMode("bulk"));
+        $("btnAeBulkLoad").addEventListener("click", validateBulkList);
+        $("btnAeBulkClear").addEventListener("click", clearBulk);
+        $("aeBulkSelectAll").addEventListener("change", e => {
+            state.bulkRows.forEach(row => {
+                if (bulkRowStatus(row).eligible && !row.processedOk) row.selected = e.target.checked;
+            });
+            renderBulkRows();
+        });
+
+        $("btnAeAuditGlobal").addEventListener("click", openAuditGlobal);
+        $("btnAeAuditClose").addEventListener("click", closeAuditGlobal);
+        $("btnAeAuditSearch").addEventListener("click", loadAuditGlobal);
+        $("btnAeAuditReset").addEventListener("click", resetAuditGlobal);
+        $("btnAeAuditExcel").addEventListener("click", downloadAuditExcel);
+
+        $("aeAuditTexto").addEventListener("keydown", e => {
+            if (e.key === "Enter") loadAuditGlobal();
+        });
+
+        $("aeAuditUsuario").addEventListener("keydown", e => {
+            if (e.key === "Enter") loadAuditGlobal();
+        });
+
+        $("aeAuditModal").addEventListener("click", e => {
+            if (e.target === $("aeAuditModal")) closeAuditGlobal();
+        });
+
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape" && $("aeAuditModal").classList.contains("show")) {
+                closeAuditGlobal();
+            }
+        });
+
+        $("btnAeSearch").addEventListener("click", searchLabel);
+        $("btnAeClear").addEventListener("click", () => clearAll(true));
+        $("btnAeApply").addEventListener("click", applyAdjustment);
+        $("aeSearchInput").addEventListener("keydown", e => {
+            if (e.key === "Enter") searchLabel();
+        });
+
+        function fitViewInsideLayout2() {
+            const page = $("aePage");
+            if (!page) return;
+
+            /*
+              Marcamos solamente los ancestros estructurales de esta vista.
+              No se modifica el sidebar, navbar ni el resto de _Layout2.
+            */
+            const layoutSelectors = [
+                "main",
+                ".main",
+                ".body-content",
+                ".container",
+                ".container-fluid",
+                ".container-sm",
+                ".container-md",
+                ".container-lg",
+                ".container-xl",
+                ".container-xxl",
+                ".pb-3"
+            ].join(",");
+
+            let parent = page.parentElement;
+            while (parent && parent !== document.body) {
+                if (parent.matches(layoutSelectors)) {
+                    parent.classList.add("ae-layout-host");
+                }
+                parent = parent.parentElement;
+            }
+
+            /*
+              Calculamos el espacio que ya ocupa el encabezado real de _Layout2.
+              La vista llena el resto del alto visible, pero conserva scroll cuando
+              el contenido sea mayor que la pantalla.
+            */
+            const top = Math.max(0, Math.round(page.getBoundingClientRect().top));
+            page.style.setProperty("--ae-layout-top", `${top}px`);
+        }
+
+        window.addEventListener("resize", fitViewInsideLayout2, { passive: true });
+        window.addEventListener("orientationchange", fitViewInsideLayout2, { passive: true });
+
+        (async function init() {
+            fitViewInsideLayout2();
+            requestAnimationFrame(fitViewInsideLayout2);
+            renderPlants();
+            setMode("single");
+            renderActionMode();
+            await loadPermissions();
+            fitViewInsideLayout2();
+            $("aeSearchInput").focus();
+        })();
+    })();
+</script>

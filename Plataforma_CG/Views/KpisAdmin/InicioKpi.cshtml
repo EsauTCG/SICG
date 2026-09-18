@@ -1,256 +1,222 @@
 ﻿@model IEnumerable<Plataforma_CG.Models.KpiCatalogo>
+@using System.Linq
+
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Administrar KPIs";
+
+    var kpis = Model?.ToList() ?? Enumerable.Empty<Plataforma_CG.Models.KpiCatalogo>().ToList();
+    var totalKpis = kpis.Count;
+    var activos = kpis.Count(x => x.Activo);
+    var inactivos = totalKpis - activos;
 }
 
-<style>
-    :root {
-        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --pane: #fff;
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --ink: #20262e;
-        --muted: #636d7b;
-        --radius: 10px;
-        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
-        --shadow-sm: 0 6px 16px rgba(0,0,0,.06);
-    }
+@await Html.PartialAsync("_KpiAdminTheme")
 
-    .container-sap {
-        max-width: 1200px;
-        margin: 1.25rem auto 2rem;
-    }
+<div class="container-fluid py-4 px-3 px-md-4 container-custom">
 
-    .sap-titlebar {
-        background: linear-gradient(#eef1f6,#e7ebf2);
-        border: 1px solid var(--bar-2);
-        border-radius: var(--radius);
-        padding: .85rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        flex-wrap: wrap;
-        box-shadow: var(--shadow);
-    }
-
-        .sap-titlebar .title {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: .55rem;
-            font-weight: 800;
-            color: #2b3642;
-        }
-
-        .sap-titlebar .sub {
-            margin: 0;
-            font-size: .92rem;
-            color: var(--muted);
-        }
-
-    .sap-toolbar {
-        background: var(--bar);
-        border: 1px solid var(--bar-2);
-        border-top: none;
-        border-radius: 0 0 var(--radius) var(--radius);
-        padding: .45rem .65rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: .45rem;
-        box-shadow: var(--shadow);
-    }
-
-    .tbtn {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        height: 34px;
-        padding: 0 .65rem;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-        color: #1e2a35;
-        font-size: .92rem;
-        transition: .15s ease;
-        text-decoration: none;
-        cursor: pointer;
-    }
-
-        .tbtn:hover {
-            background: #f8fafc;
-            border-color: #cfd6e2;
-        }
-
-        .tbtn.primary {
-            background: var(--brand-grad);
-            color: #fff;
-            border: none;
-        }
-
-            .tbtn.primary:hover {
-                filter: brightness(1.05);
-            }
-
-    .sap-card {
-        background: var(--pane);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin-top: 1rem;
-    }
-
-    .sap-card-head {
-        padding: .75rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        font-weight: 800;
-        color: #2b3642;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        flex-wrap: wrap;
-    }
-
-    .table-wrap {
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        box-shadow: var(--shadow-sm);
-        overflow: auto;
-        max-height: 70vh;
-    }
-
-    .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: #f3f6fb !important;
-        color: #2b3642;
-        border-bottom: 1px solid var(--line) !important;
-        text-transform: uppercase;
-        font-size: .85rem;
-        font-weight: 800;
-    }
-
-    .badge-on {
-        color: #198754;
-        font-weight: 800;
-    }
-
-    .badge-off {
-        color: #dc3545;
-        font-weight: 800;
-    }
-
-    .sap-toolbar .kpis {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-    }
-
-        /* (opcional) si quieres que no se baje tan fácil en pantallas medianas */
-        .sap-toolbar .kpis .tbtn {
-            white-space: nowrap;
-        }
-</style>
-
-<div class="container-sap">
-
-    <div class="sap-titlebar">
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
         <div>
-            <h4 class="title"><i class="bi bi-graph-up-arrow"></i> Administración de KPIs</h4>
-            <p class="sub">Crea y edita KPIs del catálogo (imagen, embed, categoría y estado).</p>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-graph-up-arrow me-2"></i> Administración de KPIs
+            </h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">
+                Controla el catálogo de indicadores, imágenes, categorías, enlaces Power BI y estado de publicación.
+            </p>
         </div>
-        <div class="actions">
-            <a class="btn btn-secondary btn-sm" href="@Url.Action("Inicio", "Home")">
-                <i class="bi bi-arrow-left-circle me-1"></i> Volver al inicio
+        <div>
+            <a class="btn btn-sm btn-outline-light fw-bold px-3 border-2" href="@Url.Action("Inicio", "Home")">
+                <i class="bi bi-door-closed me-1"></i> Salir al Inicio
             </a>
         </div>
     </div>
 
-    <div class="sap-toolbar">
-        <a class="tbtn primary" href="@Url.Action("Crear", "KpisAdmin")">
-            <i class="bi bi-plus-circle"></i><span>Crear KPI</span>
-        </a>
-        <button type="button" class="tbtn" onclick="location.reload()">
-            <i class="bi bi-arrow-clockwise"></i><span>Refrescar</span>
-        </button>
+    <div class="d-flex flex-wrap gap-3 mb-4">
 
-        <div class="kpis">
-            <a class="tbtn" href="@Url.Action("KpisPermisosConfiguracion", "KpisPermisos")">
-                <i class="bi bi-arrow-right-square"></i><span>Autorizar Kpis</span>
-            </a>
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-speedometer2 me-1"></i> Catálogo
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn-rojo" href="@Url.Action("Crear", "KpisAdmin")">
+                    <i class="bi bi-plus-circle"></i> Nuevo KPI
+                </a>
+                <button type="button" class="btn-rojo" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refrescar
+                </button>
+            </div>
         </div>
+
+        <div class="action-group shadow-sm">
+            <div class="action-label">
+                <i class="bi bi-shield-check me-1"></i> Seguridad
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn-rojo" href="@Url.Action("KpisPermisosConfiguracion", "KpisPermisos")">
+                    <i class="bi bi-arrow-right-square"></i> Autorizar KPIs
+                </a>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <div class="stat-card">
+                <div class="stat-label">Total</div>
+                <div class="stat-value">@totalKpis</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Activos</div>
+                <div class="stat-value">@activos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Inactivos</div>
+                <div class="stat-value">@inactivos</div>
+            </div>
+        </div>
+
     </div>
 
     @if (TempData["Exito"] != null)
     {
-        <div class="alert alert-success mt-3"><i class="bi bi-check-circle me-2"></i>@TempData["Exito"]</div>
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle me-2"></i>@TempData["Exito"]
+        </div>
     }
+
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]</div>
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]
+        </div>
     }
 
-    <div class="sap-card mt-3">
-        <div class="sap-card-head">
-            <span><i class="bi bi-table me-1"></i> KPIs registrados</span>
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-table me-1"></i> KPIs registrados
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Consulta, edita o elimina los indicadores disponibles para los usuarios.
+                </p>
+            </div>
+
+            <div style="min-width: 260px;">
+                <input type="text"
+                       id="buscarKpi"
+                       class="form-control form-control-sm"
+                       placeholder="Buscar por título o categoría..." />
+            </div>
         </div>
 
-        <div class="p-2 table-wrap">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th style="width:84px;">Imagen</th>
-                        <th>Título</th>
-                        <th>Categoría</th>
-                        <th>Estado</th>
-                        <th style="width:220px;">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var k in Model)
-                    {
-                        var img = string.IsNullOrWhiteSpace(k.ImagenUrl) ? "/img/kpi/kpi-default.png" : k.ImagenUrl;
-
+        <div class="p-3">
+            <div class="table-responsive border rounded" style="max-height: 70vh; overflow: auto;">
+                <table class="table table-custom table-hover align-middle mb-0" id="tablaKpis">
+                    <thead>
                         <tr>
-                            <td>
-                                <img src="@img" style="width:72px;height:42px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);" />
-                            </td>
-                            <td class="fw-bold">@k.Titulo</td>
-                            <td>@k.Categoria</td>
-                            <td>
-                                @(k.Activo
-                                                            ? Html.Raw("<span class='badge-on'>✅ Activo</span>")
-                                                            : Html.Raw("<span class='badge-off'>❌ Inactivo</span>")
-                                                            )
-                        </td>
-                        <td class="text-nowrap">
-                            <a class="btn btn-sm btn-outline-primary me-1"
-                               href="@Url.Action("Editar", "KpisAdmin", new { id = k.Id })">
-                                <i class="bi bi-pencil-square"></i> Editar
-                            </a>
-
-                                <form method="post" asp-action="Eliminar" class="d-inline"
-                                      onsubmit="return confirm('¿Seguro que deseas eliminar este KPI?');">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@k.Id" />
-                                    <button class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-trash"></i> Eliminar
-                                    </button>
-                                </form>
-                            </td>
+                            <th style="width: 90px;">Imagen</th>
+                            <th>Título</th>
+                            <th>Categoría</th>
+                            <th style="width: 130px;">Estado</th>
+                            <th style="width: 230px;">Acciones</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        @if (!kpis.Any())
+                        {
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fw-bold">No hay KPIs registrados todavía.</span><br />
+                                        <small>Usa el botón “Nuevo KPI” para comenzar.</small>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var k in kpis)
+                            {
+                                var img = string.IsNullOrWhiteSpace(k.ImagenUrl)
+                                ? "/img/kpi/kpi-default.png"
+                                : k.ImagenUrl;
+
+                                <tr>
+                                    <td>
+                                        <img src="@img" class="kpi-thumb" alt="Imagen KPI" />
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-bold text-dark">@k.Titulo</div>
+                                        @if (!string.IsNullOrWhiteSpace(k.Descripcion))
+                                        {
+                                            <small class="text-muted d-block text-truncate" style="max-width: 420px;">
+                                                @k.Descripcion
+                                            </small>
                                         }
-                </tbody>
-            </table>
+                                    </td>
+
+                                    <td>
+                                        <span class="badge bg-secondary rounded-pill">@k.Categoria</span>
+                                    </td>
+
+                                    <td>
+                                        @if (k.Activo)
+                                        {
+                                            <span class="status-pill on">
+                                                <i class="bi bi-check-circle-fill"></i> Activo
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-pill off">
+                                                <i class="bi bi-x-circle-fill"></i> Inactivo
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td class="text-nowrap">
+                                        <a class="btn btn-sm btn-outline-primary fw-bold me-1"
+                                           href="@Url.Action("Editar", "KpisAdmin", new { id = k.Id })">
+                                            <i class="bi bi-pencil-square"></i> Editar
+                                        </a>
+
+                                        <form method="post"
+                                              asp-action="Eliminar"
+                                              class="d-inline"
+                                              onsubmit="return confirm('¿Seguro que deseas eliminar este KPI?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@k.Id" />
+                                            <button class="btn btn-sm btn-outline-danger fw-bold">
+                                                <i class="bi bi-trash"></i> Eliminar
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+    <script>
+        const buscarKpi = document.getElementById("buscarKpi");
+
+        if (buscarKpi) {
+            buscarKpi.addEventListener("input", function () {
+                const texto = this.value.toLowerCase().trim();
+
+                document.querySelectorAll("#tablaKpis tbody tr").forEach(row => {
+                    const contenido = row.textContent.toLowerCase();
+                    row.style.display = contenido.includes(texto) ? "" : "none";
+                });
+            });
+        }
+    </script>
 }
