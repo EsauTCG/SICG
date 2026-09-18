@@ -110,6 +110,7 @@ namespace Plataforma_CG.Data
 
         public DbSet<Perfil> Perfiles { get; set; }
         public DbSet<PerfilPermisoModulo> PerfilPermisoModulo { get; set; }
+        public DbSet<UsuarioPermisoModulo> UsuarioPermisoModulo { get; set; }
 
         public DbSet<InventarioSistemas> InventarioSistemas { get; set; }
         public DbSet<MovimientoInventario> MovimientoInventario { get; set; }

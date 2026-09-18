@@ -96,27 +96,7 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _context.UsuarioSQL
-                join p in _context.Perfiles on u.PerfilId equals p.Id
-                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == claveModulo
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-                return (false, false, false);
-
-            return (permiso.PuedeLeer, permiso.PuedeEscribir, permiso.PuedeEliminar);
+            return await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, claveModulo);
         }
 
 
@@ -19189,25 +19169,16 @@ ORDER BY
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _context.UsuarioSQL
-                join p in _context.Perfiles on u.PerfilId equals p.Id
-                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "MODO_PRESUPUESTO"
-                      && ppm.Activo
-                      && m.Activo
-                select new { ppm.PuedeLeer, ppm.PuedeEscribir, ppm.PuedeEliminar }
-            ).FirstOrDefaultAsync();
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "MODO_PRESUPUESTO");
 
             return Json(new
             {
                 login = login,
                 modo = GetModoPresupuestoActual(),
-                puedeLeer = permiso?.PuedeLeer ?? false,
-                puedeEscribir = permiso?.PuedeEscribir ?? false,
-                puedeEliminar = permiso?.PuedeEliminar ?? false
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
 

@@ -26,6 +26,7 @@ namespace Plataforma_CG.Models
         public DateTime? Fecha_Modificacion { get; set; }
         public int? UsuarioID_Aprueba { get; set; }
         public DateTime? Fecha_Aprueba { get; set; }
+        public string LINEA { get; set; }
 
         // Propiedades extendidas para las vistas (JOINs)
         public string NombrePerfil { get; set; }
