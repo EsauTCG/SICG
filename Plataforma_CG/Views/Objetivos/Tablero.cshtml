@@ -104,8 +104,8 @@
                 <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Filtrar por Estado</label>
                 <select id="filtroEstado" class="form-select form-select-sm">
                     <option value="">Todos los Estados</option>
+                    <option value="Pendiente">Pendientes</option>
                     <option value="Activo">Activos</option>
-                    <option value="Inactivo">Inactivos</option>
                     <option value="Cancelado">Cancelados</option>
                 </select>
             </div>
@@ -159,9 +159,13 @@
                                         {
                                             <span class="badge bg-success">Activo</span>
                                         }
+                                        else if (item.Estado == "Pendiente")
+                                        {
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        }
                                         else
                                         {
-                                            <span class="badge bg-warning text-dark">@item.Estado</span>
+                                            <span class="badge bg-secondary">@item.Estado</span>
                                         }
                                     </td>
                                     <td class="text-center pe-4">
@@ -217,7 +221,18 @@
                                     <p class="mb-1"><small class="text-muted fw-bold">KPI:</small> <span class="fw-bold text-dark">@item.NombreTipoObjetivo</span></p>
                                     <p class="mb-1">
                                         <small class="text-muted fw-bold">Estado:</small>
-                                        <span class="badge @(item.Estado == "Activo" ? "bg-success" : "bg-warning text-dark")">@item.Estado</span>
+                                        @if (item.Estado == "Activo")
+                                        {
+                                            <span class="badge bg-success">@item.Estado</span>
+                                        }
+                                        else if (item.Estado == "Pendiente")
+                                        {
+                                            <span class="badge bg-warning text-dark">@item.Estado</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">@item.Estado</span>
+                                        }
                                     </p>
                                     <p class="mb-0"><small class="text-muted fw-bold">Creado el:</small> @item.Fecha_Creacion.ToString("dd/MM/yyyy HH:mm")</p>
                                 </div>
@@ -246,7 +261,7 @@
                                 </div>
                                 <div class="col-md-4">
                                     <small class="text-muted fw-bold d-block">Proveedor:</small>
-                                    <span class="text-dark">@(item.ID_Proveedor?.ToString() ?? "No especificado")</span>
+                                    <span class="text-dark">@(item.Proveedor?.ToString() ?? "No especificado")</span>
                                 </div>
                                 <div class="col-md-4">
                                     <small class="text-muted fw-bold d-block">SKU:</small>
@@ -315,16 +330,29 @@
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
 
-                        <button type="button" class="btn btn-warning text-dark fw-bold shadow-sm" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#modalEditar-@item.ID">
-                            <i class="bi bi-pencil-square me-1"></i> Editar
-                        </button>
-
-                        <form asp-action="Cancelar" asp-controller="Objetivos" method="post" class="d-inline" onsubmit="return confirm('¿Estás seguro de cancelar este objetivo?');">
-                            <input type="hidden" name="id" value="@item.ID" />
-                            <button type="submit" class="btn btn-danger fw-bold shadow-sm">
-                                <i class="bi bi-x-circle me-1"></i> Cancelar
+                        @if (ViewBag.PuedeEliminarObjetivos == true)
+                        {
+                            <button type="button" class="btn btn-warning text-dark fw-bold shadow-sm" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#modalEditar-@item.ID">
+                                <i class="bi bi-pencil-square me-1"></i> Editar
                             </button>
-                        </form>
+
+                            @if (item.Estado == "Pendiente")
+                            {
+                                <form asp-action="Autorizar" asp-controller="Objetivos" method="post" class="d-inline" onsubmit="return confirm('¿Estás seguro de autorizar este objetivo?');">
+                                    <input type="hidden" name="id" value="@item.ID" />
+                                    <button type="submit" class="btn btn-success fw-bold shadow-sm">
+                                        <i class="bi bi-check-circle me-1"></i> Autorizar
+                                    </button>
+                                </form>
+                            }
+
+                            <form asp-action="Cancelar" asp-controller="Objetivos" method="post" class="d-inline" onsubmit="return confirm('¿Estás seguro de cancelar este objetivo?');">
+                                <input type="hidden" name="id" value="@item.ID" />
+                                <button type="submit" class="btn btn-danger fw-bold shadow-sm">
+                                    <i class="bi bi-x-circle me-1"></i> Cancelar
+                                </button>
+                            </form>
+                        }
                     </div>
                 </div>
             </div>
