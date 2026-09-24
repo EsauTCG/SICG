@@ -6,15 +6,7 @@
 }
 
 <style>
-    :root {
-        --brand-main: #8b0000;
-        --bg-page: #e9edf2;
-        --border-color: #d8bcbc;
-    }
-
-    /* Estilos base a pantalla completa */
     body, main {
-        background-color: var(--bg-page) !important;
         padding: 0 !important;
         margin: 0 !important;
     }
@@ -25,25 +17,10 @@
     }
 
     .top-banner {
-        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 100%) !important;
         color: white;
         padding: 1.5rem 2rem;
-        box-shadow: 0 4px 12px rgba(70,12,12,.15);
-        border-radius: 0 !important;
-    }
-
-    .filter-bar {
-        background: #fff;
-        border-top: 1px solid var(--border-color);
-        border-bottom: 1px solid var(--border-color);
-        padding: 1rem 2rem;
-        border-radius: 0 !important;
-    }
-
-    .card-full-screen {
-        border-radius: 0 !important;
-        border-left: none !important;
-        border-right: none !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,.15);
     }
 
     .table-custom th {
@@ -51,12 +28,13 @@
         color: white !important;
         font-size: 0.75rem;
         text-transform: uppercase;
+        vertical-align: middle;
+        border-bottom: none;
     }
 
     .table-custom td {
         vertical-align: middle;
         font-size: 0.85rem;
-        background: #fff;
     }
 </style>
 
@@ -65,58 +43,84 @@
     <!-- Encabezado superior -->
     <div class="top-banner d-flex justify-content-between align-items-center">
         <div>
-            <h3 class="fw-bold mb-1"><i class=""></i>Gestión de Objetivos</h3>
+            <h3 class="fw-bold mb-1">Gestión de Objetivos</h3>
             <p class="mb-0" style="opacity: 0.9; font-size: 0.85rem;">Configuración y listado de metas operativas por área.</p>
         </div>
         <div>
+            <button type="button" class="btn btn-outline-light fw-bold shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#modalBitacora">
+                Bitácora
+            </button>
             <a href="@Url.Action("Nuevo", "Objetivos")" class="btn btn-light fw-bold text-danger shadow-sm">
                 <i class="bi bi-plus-circle-fill me-1"></i> Crear Nuevo Objetivo
             </a>
         </div>
     </div>
 
-    <!-- Barra de busqueda y filtros -->
-    <div class="filter-bar shadow-sm">
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Buscar</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" id="filtroTexto" class="form-control" placeholder="Buscar por KPI, Folio..." />
+    @if (TempData["ErrorObjetivos"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mx-3 shadow-sm mt-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorObjetivos"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["OkObjetivos"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show mx-3 shadow-sm mt-3">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["OkObjetivos"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Barra de filtros -->
+    <div class="card rounded-0 border-start-0 border-end-0 shadow-sm mb-3 mt-3">
+        <div class="card-body py-3 px-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Buscar</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="filtroTexto" class="form-control" placeholder="Buscar por KPI, Folio..." />
+                    </div>
                 </div>
-            </div>
 
-            <div class="col-md-4">
-                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Filtrar por Área</label>
-                <select id="filtroArea" class="form-select form-select-sm">
-                    <option value="">Todas las Áreas</option>
-                    @if (ViewBag.Perfiles != null)
-                    {
-                        foreach (var p in ViewBag.Perfiles)
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Filtrar por Área</label>
+                    <select id="filtroArea" class="form-select form-select-sm">
+                        <option value="">Todas las Áreas</option>
+                        @if (ViewBag.Perfiles != null)
                         {
-                            <option value="@p.Nombre">@p.Nombre</option>
+                            foreach (var p in ViewBag.Perfiles)
+                            {
+                                <option value="@p.Nombre">@p.Nombre</option>
+                            }
                         }
-                    }
-                </select>
-            </div>
+                    </select>
+                </div>
 
-            <div class="col-md-4">
-                <label class="form-label fw-bold text-muted" style="font-size: 0.8rem;">Filtrar por Estado</label>
-                <select id="filtroEstado" class="form-select form-select-sm">
-                    <option value="">Todos los Estados</option>
-                    <option value="Pendiente">Pendientes</option>
-                    <option value="Activo">Activos</option>
-                    <option value="Cancelado">Cancelados</option>
-                </select>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Filtrar por Estado</label>
+                    <select id="filtroEstado" class="form-select form-select-sm">
+                        <option value="">Todos los Estados</option>
+                        <option value="Pendiente">Pendientes</option>
+                        <option value="Activo">Activos</option>
+                        <option value="Cancelado">Cancelados</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 text-end">
+                    <button type="button" id="btnLimpiarFiltros" class="btn btn-sm btn-outline-secondary">
+                        <i class=""></i> Limpiar Filtros
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Tabla principal -->
-    <div class="card border-0 shadow-sm card-full-screen">
+    <div class="card rounded-0 border-0 shadow-sm mx-3">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-custom table-hover mb-0" id="tablaObjetivos">
+                <table class="table table-hover table-custom mb-0" id="tablaObjetivos">
                     <thead>
                         <tr>
                             <th class="ps-4">ID</th>
@@ -124,7 +128,7 @@
                             <th>Tipo de Objetivo</th>
                             <th>Periodo</th>
                             <th>Vigencia</th>
-                            <th>Métricas</th>
+                            <th class="text-center">Métricas</th>
                             <th>Estado</th>
                             <th class="text-center pe-4">Acciones</th>
                         </tr>
@@ -137,17 +141,16 @@
                                 <tr class="fila-objetivo">
                                     <td class="ps-4 fw-bold text-muted">#@item.ID</td>
                                     <td class="col-area"><span class="badge bg-secondary">@item.NombrePerfil</span></td>
-                                    <td class="fw-bold text-dark">@item.NombreTipoObjetivo</td>
-                                    <td><i class="bi bi-calendar-range me-1 text-muted"></i>@item.Tipo_Periodo_Cumplimiento</td>
+                                    <td class="fw-bold">@item.NombreTipoObjetivo</td>
+                                    <td><span class="badge border border-secondary text-secondary"><i class="bi bi-calendar-range me-1"></i>@item.Tipo_Periodo_Cumplimiento</span></td>
                                     <td>
-                                        <small class="d-block text-muted">Desde: <strong class="text-dark">@item.Fecha_Desde.ToString("dd/MMM/yyyy")</strong></small>
-                                        <small class="d-block text-muted">Hasta: <strong class="text-dark">@(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</strong></small>
+                                        <small class="d-block text-muted">Desde: <strong>@item.Fecha_Desde.ToString("dd/MMM/yyyy")</strong></small>
+                                        <small class="d-block text-muted">Hasta: <strong>@(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</strong></small>
                                     </td>
-                                    <td>
-                                        <!-- Resumen de metricas -->
+                                    <td class="text-center">
                                         @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
                                         {
-                                            <span class="badge bg-light text-dark border">@item.ValoresConfigurados.Count métrica(s)</span>
+                                            <span class="badge border border-secondary text-secondary">@item.ValoresConfigurados.Count métrica(s)</span>
                                         }
                                         else
                                         {
@@ -181,7 +184,7 @@
                             <tr id="filaVacia">
                                 <td colspan="8" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                    Aún no hay objetivos registrados en la base de datos.
+                                    Aún no hay objetivos registrados.
                                 </td>
                             </tr>
                         }
@@ -197,142 +200,144 @@
 {
     foreach (var item in Model)
     {
-        <div class="modal fade" id="modalDetalle-@item.ID" tabindex="-1" aria-labelledby="tituloModal-@item.ID" aria-hidden="true">
+        <!-- Modal Detalles -->
+        <div class="modal fade" id="modalDetalle-@item.ID" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content border-0 shadow">
+                <div class="modal-content shadow-lg border-0">
 
-                    <!-- Cabecera del modal -->
                     <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
                         <h5 class="modal-title fw-bold" id="tituloModal-@item.ID">
-                            <i class="bi bi-flag-fill me-2"></i>Detalles del Objetivo #@item.ID
+                            Detalles del Objetivo #@item.ID
                         </h5>
-                        
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
 
-                    <!-- Cuerpo del modal -->
-                    <div class="modal-body p-4" style="background-color: #f8f9fa;">
-
-                        <!-- Informacion general -->
+                    <div class="modal-body p-4">
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <div class="p-3 bg-white border rounded shadow-sm h-100">
-                                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Información General</h6>
-                                    <p class="mb-1"><small class="text-muted fw-bold">Área:</small> <span class="badge bg-secondary">@item.NombrePerfil</span></p>
-                                    <p class="mb-1"><small class="text-muted fw-bold">KPI:</small> <span class="fw-bold text-dark">@item.NombreTipoObjetivo</span></p>
-                                    <p class="mb-1">
-                                        <small class="text-muted fw-bold">Estado:</small>
-                                        @if (item.Estado == "Activo")
-                                        {
-                                            <span class="badge bg-success">@item.Estado</span>
-                                        }
-                                        else if (item.Estado == "Pendiente")
-                                        {
-                                            <span class="badge bg-warning text-dark">@item.Estado</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-secondary">@item.Estado</span>
-                                        }
-                                    </p>
-                                    <p class="mb-0"><small class="text-muted fw-bold">Creado el:</small> @item.Fecha_Creacion.ToString("dd/MM/yyyy HH:mm")</p>
+                                <div class="card h-100 shadow-sm border">
+                                    <div class="card-body p-3">
+                                        <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Información General</h6>
+                                        <p class="mb-1"><small class="text-muted fw-bold">Área:</small> <span class="badge bg-secondary">@item.NombrePerfil</span></p>
+                                        <p class="mb-1"><small class="text-muted fw-bold">KPI:</small> <span class="fw-bold">@item.NombreTipoObjetivo</span></p>
+                                        <p class="mb-1">
+                                            <small class="text-muted fw-bold">Estado:</small>
+                                            @if (item.Estado == "Activo")
+                                            {
+                                                <span class="badge bg-success">@item.Estado</span>
+                                            }
+                                            else if (item.Estado == "Pendiente")
+                                            {
+                                                <span class="badge bg-warning text-dark">@item.Estado</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">@item.Estado</span>
+                                            }
+                                        </p>
+                                        <p class="mb-0"><small class="text-muted fw-bold">Creado el:</small> <span>@item.Fecha_Creacion.ToString("dd/MM/yyyy HH:mm")</span></p>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="p-3 bg-white border rounded shadow-sm h-100">
-                                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Vigencia y Frecuencia</h6>
-                                    <p class="mb-1"><small class="text-muted fw-bold">Evaluación:</small> @item.Tipo_Periodo_Cumplimiento</p>
-                                    <p class="mb-1"><small class="text-muted fw-bold">Inicio:</small> @item.Fecha_Desde.ToString("dd/MMM/yyyy")</p>
-                                    <p class="mb-0"><small class="text-muted fw-bold">Fin:</small> @(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</p>
+                                <div class="card h-100 shadow-sm border">
+                                    <div class="card-body p-3">
+                                        <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Vigencia y Frecuencia</h6>
+                                        <p class="mb-1"><small class="text-muted fw-bold">Evaluación:</small> <span>@item.Tipo_Periodo_Cumplimiento</span></p>
+                                        <p class="mb-1"><small class="text-muted fw-bold">Inicio:</small> <span>@item.Fecha_Desde.ToString("dd/MMM/yyyy")</span></p>
+                                        <p class="mb-0"><small class="text-muted fw-bold">Fin:</small> <span>@(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</span></p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Datos comerciales -->
-                        <div class="p-3 bg-white border rounded shadow-sm mb-3">
-                            <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Detalles Operativos y Comerciales</h6>
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">Cliente:</small>
-                                    <span class="text-dark">@(string.IsNullOrEmpty(item.ID_Cliente) ? "No especificado" : item.ID_Cliente)</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">Vendedor:</small>
-                                    <span class="text-dark">@(item.UsuarioID_Vendedor?.ToString() ?? "No especificado")</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">Proveedor:</small>
-                                    <span class="text-dark">@(item.Proveedor?.ToString() ?? "No especificado")</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">SKU:</small>
-                                    <span class="text-dark">@(string.IsNullOrEmpty(item.SKU) ? "No especificado" : item.SKU)</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">Línea:</small>
-                                    <span class="text-dark">@(string.IsNullOrEmpty(item.LINEA) ? "No especificado" : item.LINEA)</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted fw-bold d-block">Centro de Costos:</small>
-                                    <span class="text-dark">@(string.IsNullOrEmpty(item.CC) ? "No especificado" : item.CC)</span>
+                        <div class="card shadow-sm border mb-3">
+                            <div class="card-body p-3">
+                                <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Detalles Operativos y Comerciales</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">Cliente:</small>
+                                        <span>@(string.IsNullOrEmpty(item.ID_Cliente) ? "No especificado" : item.ID_Cliente)</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">Vendedor:</small>
+                                        <span>@(item.UsuarioID_Vendedor?.ToString() ?? "No especificado")</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">Proveedor:</small>
+                                        <span>@(string.IsNullOrEmpty(item.Proveedor) ? "No especificado" : item.Proveedor)</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">SKU:</small>
+                                        <span>@(string.IsNullOrEmpty(item.SKU) ? "No especificado" : item.SKU)</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">Línea:</small>
+                                        <span>@(string.IsNullOrEmpty(item.Linea) ? "No especificado" : item.Linea)</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <small class="text-muted fw-bold d-block">Centro de Costos:</small>
+                                        <span>@(string.IsNullOrEmpty(item.CC) ? "No especificado" : item.CC)</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Descripcion -->
                         @if (!string.IsNullOrEmpty(item.Descripcion_Objetivo))
                         {
-                            <div class="p-3 bg-white border rounded shadow-sm mb-3">
-                                <h6 class="text-danger fw-bold border-bottom pb-2 mb-2">Descripción / Notas</h6>
-                                <p class="mb-0 text-dark" style="font-size: 0.9rem;">@item.Descripcion_Objetivo</p>
+                            <div class="card shadow-sm border mb-3">
+                                <div class="card-body p-3">
+                                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-2">Descripción / Notas</h6>
+                                    <p class="mb-0" style="font-size: 0.9rem;">@item.Descripcion_Objetivo</p>
+                                </div>
                             </div>
                         }
 
-                        <!-- Tabla de metas -->
-                        <div class="p-3 bg-white border rounded shadow-sm">
-                            <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Metas Configuradas</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered mb-0 text-center">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>¿Qué se mide?</th>
-                                            <th>Unidad</th>
-                                            <th>Mínimo</th>
-                                            <th>Máximo</th>
-                                            <th>Objetivo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
-                                        {
-                                            foreach (var val in item.ValoresConfigurados)
+                        <div class="card shadow-sm border">
+                            <div class="card-body p-3">
+                                <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Metas Configuradas</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0 text-center">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>¿Qué se mide?</th>
+                                                <th>Unidad</th>
+                                                <th>Mínimo</th>
+                                                <th>Máximo</th>
+                                                <th>Objetivo</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
                                             {
-                                                <tr>
-                                                    <td class="align-middle text-start ps-3">@val.Tipo_Valor</td>
-                                                    <td class="align-middle">@val.Unidad_Medida</td>
-                                                    <td class="align-middle text-muted">@(val.Valor_Minimo?.ToString("0.00") ?? "-")</td>
-                                                    <td class="align-middle text-muted">@(val.Valor_Maximo?.ToString("0.00") ?? "-")</td>
-                                                    <td class="align-middle fw-bold fs-6 text-danger">@(val.Valor_Objetivo?.ToString("0.00") ?? "-")</td>
-                                                </tr>
+                                                foreach (var val in item.ValoresConfigurados)
+                                                {
+                                                    <tr>
+                                                        <td class="align-middle text-start ps-3">@val.Tipo_Valor</td>
+                                                        <td class="align-middle">@val.Unidad_Medida</td>
+                                                        <td class="align-middle text-muted">@(val.Valor_Minimo?.ToString("0.00") ?? "-")</td>
+                                                        <td class="align-middle text-muted">@(val.Valor_Maximo?.ToString("0.00") ?? "-")</td>
+                                                        <td class="align-middle fw-bold fs-6 text-danger">@(val.Valor_Objetivo?.ToString("0.00") ?? "-")</td>
+                                                    </tr>
+                                                }
                                             }
-                                        }
-                                        else
-                                        {
-                                            <tr><td colspan="5" class="text-muted py-3">No hay metas configuradas.</td></tr>
-                                        }
-                                    </tbody>
-                                </table>
+                                            else
+                                            {
+                                                <tr><td colspan="5" class="text-muted py-3">No hay metas configuradas.</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-
                     </div>
 
-                    <!-- Botones de accion -->
-                    <div class="modal-footer bg-light">
+                    <div class="modal-footer border-top-0">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
 
                         @if (ViewBag.PuedeEliminarObjetivos == true)
                         {
-                            <button type="button" class="btn btn-warning text-dark fw-bold shadow-sm" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#modalEditar-@item.ID">
+                            <button type="button" class="btn btn-warning text-dark fw-bold shadow-sm" onclick="intercambiarModales('modalDetalle-@item.ID', 'modalEditar-@item.ID')">
                                 <i class="bi bi-pencil-square me-1"></i> Editar
                             </button>
 
@@ -357,89 +362,209 @@
                 </div>
             </div>
         </div>
-        <!-- Modal de Edicion -->
+
+        <!-- Modal Editar -->
         <div class="modal fade" id="modalEditar-@item.ID" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content border-0 shadow">
+                <div class="modal-content border-0 shadow-lg">
 
-                    <!-- Formulario que envia al nuevo metodo -->
                     <form asp-action="Editar" asp-controller="Objetivos" method="post">
-                        <!-- ID oculto obligatorio para el UPDATE -->
                         <input type="hidden" name="ID" value="@item.ID" />
 
                         <div class="modal-header text-dark" style="background-color: #ffc107;">
                             <h5 class="modal-title fw-bold">
-                                <i class="bi bi-pencil-square me-2"></i>Editar Objetivo #@item.ID
+                                Editar Objetivo #@item.ID
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                         </div>
 
-                        <div class="modal-body p-4" style="background-color: #f8f9fa;">
-                            <!-- Datos bloqueados informativos -->
-                            <div class="alert alert-light border shadow-sm mb-4">
+                        <div class="modal-body p-4">
+                            <div class="alert alert-warning border shadow-sm mb-4">
                                 <strong class="text-danger">Área:</strong> @item.NombrePerfil &nbsp;|&nbsp;
                                 <strong class="text-danger">KPI:</strong> @item.NombreTipoObjetivo
                             </div>
 
                             <div class="row g-3 mb-4">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Fecha Fin</label>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Estado</label>
+                                    <select name="Estado" class="form-select form-select-sm">
+                                        @foreach (var est in new[] { "Activo", "Pendiente", "Cancelado", "Inactivo" })
+                                        {
+                                            @if (est == item.Estado)
+                                            {
+                                                <option value="@est" selected>@est</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@est">@est</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Periodo de cumplimiento</label>
+                                    <select name="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm">
+                                        @foreach (var op in new[] { "Diario", "Semanal", "Mensual", "Trimestral", "Anual" })
+                                        {
+                                            @if (op == item.Tipo_Periodo_Cumplimiento)
+                                            {
+                                                <option value="@op" selected>@op</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@op">@op</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Fecha Desde</label>
+                                    <input type="date" name="Fecha_Desde" class="form-control form-control-sm" value="@item.Fecha_Desde.ToString("yyyy-MM-dd")" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Fecha Hasta</label>
                                     <input type="date" name="Fecha_Hasta" class="form-control form-control-sm" value="@(item.Fecha_Hasta?.ToString("yyyy-MM-dd"))" />
                                 </div>
-                                <div class="col-md-6">
+
+                                <!-- SECCIÓN MODIFICADA: Select2 Nativo sin inputs adicionales -->
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Cliente</label>
+                                    <select name="ID_Cliente" class="form-select form-select-sm select2-buscar" id="selCliente-@item.ID">
+                                        <option value="">-- Selecciona un Cliente --</option>
+                                        @if (ViewBag.Clientes != null)
+                                        {
+                                            foreach (var c in ViewBag.Clientes)
+                                            {
+                                                @if (c.Cliente.ToString() == (item.ID_Cliente ?? ""))
+                                                {
+                                                    <option value="@c.Cliente" selected>@c.Nombrecliente</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@c.Cliente">@c.Nombrecliente</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Vendedor</label>
+                                    <select name="UsuarioID_Vendedor" class="form-select form-select-sm select2-buscar" id="selVendedor-@item.ID">
+                                        <option value="">-- Selecciona un Vendedor --</option>
+                                        @if (ViewBag.Vendedores != null)
+                                        {
+                                            foreach (var v in ViewBag.Vendedores)
+                                            {
+                                                @if ((item.UsuarioID_Vendedor ?? 0) == (int)v.Id)
+                                                {
+                                                    <option value="@v.Id" selected>@v.Nombre</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@v.Id">@v.Nombre</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Proveedor</label>
+                                    <input type="text" name="Proveedor" class="form-control form-control-sm" value="@item.Proveedor" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">SKU</label>
+                                    <select name="SKU" class="form-select form-select-sm select2-buscar" id="selSku-@item.ID">
+                                        <option value="">-- Selecciona un SKU --</option>
+                                        @if (ViewBag.Articulos != null)
+                                        {
+                                            foreach (var a in ViewBag.Articulos)
+                                            {
+                                                @if (a.ProductoCodigo.ToString() == (item.SKU ?? ""))
+                                                {
+                                                    <option value="@a.ProductoCodigo" selected>@a.ProductoCodigo - @a.ProductoNombre</option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@a.ProductoCodigo">@a.ProductoCodigo - @a.ProductoNombre</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Centro de Costos</label>
+                                    <input type="text" name="CC" class="form-control form-control-sm" value="@item.CC" />
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label fw-bold" style="font-size: 0.85rem;">Línea</label>
+                                    <input type="text" name="Linea" class="form-control form-control-sm" value="@item.Linea" />
+                                </div>
+                                <div class="col-12">
                                     <label class="form-label fw-bold" style="font-size: 0.85rem;">Descripción / Notas</label>
-                                    <textarea name="Descripcion_Objetivo" class="form-control form-control-sm" rows="1">@item.Descripcion_Objetivo</textarea>
+                                    <textarea name="Descripcion_Objetivo" class="form-control form-control-sm" rows="2">@item.Descripcion_Objetivo</textarea>
                                 </div>
                             </div>
 
-                            <!-- Tabla de Metas Editables -->
-                            <div class="p-3 bg-white border rounded shadow-sm">
-                                <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Actualizar Metas</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered mb-0 text-center">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>¿Qué se mide?</th>
-                                                <th>Unidad</th>
-                                                <th>Mínimo</th>
-                                                <th>Máximo</th>
-                                                <th>Meta Esperada</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
-                                            {
-                                                int i = 0;
-                                                foreach (var val in item.ValoresConfigurados)
+                            <div class="card shadow-sm border">
+                                <div class="card-body p-3">
+                                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">Actualizar Metas</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered mb-0 text-center">
+                                            <thead class="table-secondary">
+                                                <tr>
+                                                    <th>¿Qué se mide?</th>
+                                                    <th>Unidad</th>
+                                                    <th>Mínimo</th>
+                                                    <th>Máximo</th>
+                                                    <th>Meta Esperada</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="tbodyMetas-@item.ID">
+                                                @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
                                                 {
-                                                    <tr>
-                                                        <!-- IDs ocultos para mapear la lista en el controlador -->
-                                                        <input type="hidden" name="ValoresConfigurados[@i].ID" value="@val.ID" />
-                                                        <input type="hidden" name="ValoresConfigurados[@i].Tipo_Valor" value="@val.Tipo_Valor" />
-                                                        <input type="hidden" name="ValoresConfigurados[@i].Unidad_Medida" value="@val.Unidad_Medida" />
+                                                    int i = 0;
+                                                    foreach (var val in item.ValoresConfigurados)
+                                                    {
+                                                        <tr>
+                                                            <input type="hidden" name="ValoresConfigurados.Index" value="v@(i)" />
+                                                            <input type="hidden" name="ValoresConfigurados[v@(i)].ID" value="@val.ID" />
 
-                                                        <td class="align-middle text-start ps-3 bg-light">@val.Tipo_Valor</td>
-                                                        <td class="align-middle bg-light">@val.Unidad_Medida</td>
-                                                        <td>
-                                                            <input type="number" step="0.01" name="ValoresConfigurados[@i].Valor_Minimo" class="form-control form-control-sm text-center" value="@val.Valor_Minimo" />
-                                                        </td>
-                                                        <td>
-                                                            <input type="number" step="0.01" name="ValoresConfigurados[@i].Valor_Maximo" class="form-control form-control-sm text-center" value="@val.Valor_Maximo" />
-                                                        </td>
-                                                        <td>
-                                                            <input type="number" step="0.01" name="ValoresConfigurados[@i].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" value="@val.Valor_Objetivo" required />
-                                                        </td>
-                                                    </tr>
-                                                    i++;
+                                                            <td class="align-middle text-start ps-3">
+                                                                <input type="text" name="ValoresConfigurados[v@(i)].Tipo_Valor" class="form-control form-control-sm" value="@val.Tipo_Valor" />
+                                                            </td>
+                                                            <td class="align-middle">
+                                                                <input type="text" name="ValoresConfigurados[v@(i)].Unidad_Medida" class="form-control form-control-sm" value="@val.Unidad_Medida" />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Minimo" class="form-control form-control-sm text-center" value="@val.Valor_Minimo" />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Maximo" class="form-control form-control-sm text-center" value="@val.Valor_Maximo" />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" value="@val.Valor_Objetivo" />
+                                                            </td>
+                                                            <td class="align-middle">
+                                                                <button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                        i++;
+                                                    }
                                                 }
-                                            }
-                                        </tbody>
-                                    </table>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm btnAgregarMeta mt-2" data-tbody="tbodyMetas-@item.ID">
+                                        <i class="bi bi-plus-circle me-1"></i> Agregar meta
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="modal-footer bg-light d-flex justify-content-between">
+                        <div class="modal-footer border-top-0">
                             <button type="button" class="btn btn-outline-secondary" onclick="intercambiarModales('modalEditar-@item.ID', 'modalDetalle-@item.ID')">
                                 <i class="bi bi-arrow-left me-1"></i> Volver a Detalles
                             </button>
@@ -454,17 +579,219 @@
     }
 }
 
+<!-- Modal Bitácora -->
+<div class="modal fade" id="modalBitacora" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h5 class="modal-title fw-bold">Bitácora de Objetivos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="row g-2 align-items-center mb-3">
+                    <div class="col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="filtroLogTexto" class="form-control" placeholder="Buscar por folio, área, KPI, usuario..." />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filtroLogEstado" class="form-select form-select-sm">
+                            <option value="">Todos los Estados</option>
+                            <option value="Activo">Activo</option>
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Cancelado">Cancelado</option>
+                            <option value="Inactivo">Inactivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" id="btnLimpiarLog" class="btn btn-sm btn-outline-secondary">
+                            <i class=""></i> Limpiar
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm table-bordered mb-0 align-middle" id="tablaBitacora">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>ID</th>
+                                <th>Área / Perfil</th>
+                                <th>KPI</th>
+                                <th>Estado</th>
+                                <th>Creado por</th>
+                                <th>Modificado por</th>
+                                <th>Autorizado por</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logBody">
+                            @{
+                                var logObjetivos = ViewBag.LogObjetivos as List<Plataforma_CG.Models.ObjetivoLogViewModel>;
+                            }
+                            @if (logObjetivos != null && logObjetivos.Any())
+                            {
+                                foreach (var it in logObjetivos)
+                                {
+                                    <tr class="fila-log">
+                                        <td class="fw-bold text-muted">#@it.ID</td>
+                                        <td><span class="badge bg-secondary">@it.NombrePerfil</span></td>
+                                        <td class="fw-bold">@it.NombreTipoObjetivo</td>
+                                        <td class="col-estado">
+                                            @if (it.Estado == "Activo")
+                                            {
+                                                <span class="badge bg-success">Activo</span>
+                                            }
+                                            else if (it.Estado == "Pendiente")
+                                            {
+                                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">@it.Estado</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <small class="d-block"><strong>@(it.NombreCreador ?? it.UsuarioCreacion ?? "—")</strong></small>
+                                            <small class="d-block text-muted">@it.Fecha_Creacion.ToString("dd/MM/yyyy HH:mm")</small>
+                                        </td>
+                                        <td>
+                                            @if (it.Fecha_Modificacion.HasValue)
+                                            {
+                                                <small class="d-block"><strong>@(it.NombreModificador ?? it.UsuarioModificacion ?? "—")</strong></small>
+                                                <small class="d-block text-muted">@it.Fecha_Modificacion.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted fst-italic">Sin modificar</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (it.Fecha_Aprueba.HasValue)
+                                            {
+                                                <small class="d-block"><strong>@(it.NombreAutorizador ?? it.UsuarioAprueba ?? "—")</strong></small>
+                                                <small class="d-block text-muted">@it.Fecha_Aprueba.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-muted fst-italic">Sin autorizar</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="7" class="text-center text-muted py-4">No hay registros en la bitácora.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==========================================
+     ESTILOS Y SCRIPTS PARA EL BUSCADOR (SELECT2)
+     ========================================== -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<style>
+    /* Ajustes para que el buscador respete el modo oscuro/claro y el modal */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 31px !important;
+        border: 1px solid var(--border-color, #ced4da) !important;
+        border-radius: 0.25rem !important;
+        background-color: var(--input-bg, #fff) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection__rendered {
+        line-height: 25px !important;
+        font-size: 0.85rem !important;
+        padding-left: 0.75rem !important;
+        color: var(--text-main, #4a4a4a) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-dropdown {
+        font-size: 0.85rem !important;
+        background-color: var(--bg-card, #fff) !important;
+        border-color: var(--border-color, #ced4da) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-search__field {
+        background-color: var(--input-bg, #fff) !important;
+        color: var(--text-main, #4a4a4a) !important;
+        border: 1px solid var(--border-color, #ced4da) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option {
+        color: var(--text-main, #4a4a4a) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+        background-color: #8b0000 !important;
+        color: white !important;
+    }
+
+    /* Z-index altísimo para que el buscador no se esconda detrás del modal */
+    .select2-container, .select2-dropdown {
+        z-index: 99999 !important;
+    }
+</style>
+
 @section Scripts {
+    <!-- IMPORTANTE: El script debe ir aquí adentro para que encuentre jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <script>
         $(document).ready(function () {
-            // Busqueda en tiempo real
+
+            // 1. Inicializar Select2 con Buscador
+            function iniciarSelect2() {
+                if (!$.fn.select2) return;
+
+                $('.select2-buscar').each(function () {
+                    var $select =$(this);
+
+                    // Si ya está inicializado, lo saltamos
+                    if ($select.hasClass("select2-hidden-accessible")) return;
+
+                    var $modal = $select.closest('.modal');$select.select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        // Si está dentro de un modal, se ancla al modal para evitar bugs de enfoque
+                        dropdownParent: $modal.length ? $modal :$(document.body)
+                    });
+                });
+            }
+
+            // Ejecutamos al cargar la página
+            iniciarSelect2();
+
+            // Si los modales se abren después, nos aseguramos de que Select2 funcione
+            $('.modal').on('shown.bs.modal', function () {
+                iniciarSelect2();
+            });
+
+            // 2. Buscador y Filtros de la Tabla
             $('#filtroTexto, #filtroArea, #filtroEstado').on('input change', function () {
+                ejecutarFiltros();
+            });
+
+            $('#btnLimpiarFiltros').click(function() {
+                $('#filtroTexto').val('');
+                $('#filtroArea').val('');
+                $('#filtroEstado').val('');
+                ejecutarFiltros();
+            });
+
+            function ejecutarFiltros() {
                 var textoBuscado = $('#filtroTexto').val().toLowerCase();
                 var areaSeleccionada = $('#filtroArea').val().toLowerCase();
                 var estadoSeleccionado = $('#filtroEstado').val().toLowerCase();
 
                 $('.fila-objetivo').each(function () {
-                    var $fila = $(this);
+                    var $fila =$(this);
                     var textoFila = $fila.text().toLowerCase();
                     var textoArea = $fila.find('.col-area').text().toLowerCase();
                     var textoEstado = $fila.find('.col-estado').text().toLowerCase();
@@ -479,22 +806,80 @@
                         $fila.hide();
                     }
                 });
-            });
-        });
-        // Función manual para intercambiar modales sin que Bootstrap se trabe
-        function intercambiarModales(idModalCerrar, idModalAbrir) {
-            // Obtiene la instancia del modal actual y lo oculta
-            var modalCerrar = bootstrap.Modal.getInstance(document.getElementById(idModalCerrar));
-            if (modalCerrar) {
-                modalCerrar.hide();
             }
 
-            // Espera un momento para evitar que los fondos oscuros se encimen
-            setTimeout(function () {
-                var elementoAbrir = document.getElementById(idModalAbrir);
-                var modalAbrir = bootstrap.Modal.getInstance(elementoAbrir) || new bootstrap.Modal(elementoAbrir);
-                modalAbrir.show();
-            }, 350);
-        }
+            // 3. Filtros Bitácora
+            $('#filtroLogTexto, #filtroLogEstado').on('input change', function () {
+                aplicarFiltrosLog();
+            });
+
+            $('#btnLimpiarLog').click(function() {
+                $('#filtroLogTexto').val('');
+                $('#filtroLogEstado').val('');
+                aplicarFiltrosLog();
+            });
+
+            function aplicarFiltrosLog() {
+                var texto = $('#filtroLogTexto').val().toLowerCase();
+                var estado = $('#filtroLogEstado').val().toLowerCase();
+
+                $('.fila-log').each(function () {
+                    var $fila =$(this);
+                    var t = $fila.text().toLowerCase();
+                    var e = $fila.find('.col-estado').text().toLowerCase();
+
+                    var coincide = (!texto || t.indexOf(texto) > -1) && (!estado || e.indexOf(estado) > -1);
+                    if (coincide) {
+                        $fila.show();
+                    } else {
+                        $fila.hide();
+                    }
+                });
+            }
+
+            // 4. Lógica dinámica para Metas
+            var contadorMetaGlobal = 1000;
+            $(document).on('click', '.btnAgregarMeta', function () {
+                var tbodyId = $(this).attr('data-tbody');
+                var $tbody =$('#' + tbodyId);
+                if (!$tbody.length) return;
+
+                var clave = 'n' + (++contadorMetaGlobal);
+                var tr = `<tr>
+                    <input type="hidden" name="ValoresConfigurados.Index" value="${clave}" />
+                    <input type="hidden" name="ValoresConfigurados[${clave}].ID" value="0" />
+                    <td class="align-middle text-start ps-3"><input type="text" name="ValoresConfigurados[${clave}].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" /></td>
+                    <td><input type="text" name="ValoresConfigurados[${clave}].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" /></td>
+                    <td><input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Minimo" class="form-control form-control-sm text-center" placeholder="0.00" /></td>
+                    <td><input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Maximo" class="form-control form-control-sm text-center" placeholder="0.00" /></td>
+                    <td><input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" placeholder="0.00" /></td>
+                    <td class="align-middle"><button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta"><i class="bi bi-trash"></i></button></td>
+                </tr>`;
+
+                $tbody.append(tr);
+            });
+
+            $(document).on('click', '.btnEliminarMeta', function () {
+                if (confirm('¿Eliminar esta meta?')) {
+                    $(this).closest('tr').remove();
+                }
+            });
+        });
+
+        // Intercambio de modales
+        window.intercambiarModales = function (idModalCerrar, idModalAbrir) {
+            var elementoCerrar = document.getElementById(idModalCerrar);
+            var elementoAbrir = document.getElementById(idModalAbrir);
+            if (window.bootstrap && bootstrap.Modal) {
+                var modalCerrar = bootstrap.Modal.getInstance(elementoCerrar);
+                if (modalCerrar) {
+                    modalCerrar.hide();
+                }
+                setTimeout(function () {
+                    var modalAbrir = bootstrap.Modal.getInstance(elementoAbrir) || new bootstrap.Modal(elementoAbrir);
+                    modalAbrir.show();
+                }, 350);
+            }
+        };
     </script>
 }

@@ -19,7 +19,7 @@ namespace Plataforma_CG.Models
         public string? CC { get; set; }
         public string? Linea { get; set; }
         public string Descripcion_Objetivo { get; set; }
-        public string Estado { get; set; }
+        public string? Estado { get; set; }
         public int UsuarioID_Creacion { get; set; }
         public DateTime Fecha_Creacion { get; set; }
         public int? UsuarioID_Modificacion { get; set; }
@@ -29,9 +29,9 @@ namespace Plataforma_CG.Models
         public string LINEA { get; set; }
 
         // Propiedades extendidas para las vistas (JOINs)
-        public string NombrePerfil { get; set; }
-        public string NombreTipoObjetivo { get; set; }
-        public string NombreArticulo { get; set; }
+        public string? NombrePerfil { get; set; }
+        public string? NombreTipoObjetivo { get; set; }
+        public string? NombreArticulo { get; set; }
 
         // Relacion uno a muchos con los valores
         public List<ObjetivoValorViewModel> ValoresConfigurados { get; set; } = new List<ObjetivoValorViewModel>();
@@ -56,5 +56,26 @@ namespace Plataforma_CG.Models
         public string Nombre { get; set; }
         public string Descripcion { get; set; }
         public bool Activo { get; set; }
+    }
+
+    // Filas del log / bitácora de objetivos (auditoría de creación, modificación y autorización)
+    public class ObjetivoLogViewModel
+    {
+        public int ID { get; set; }
+        public string NombrePerfil { get; set; }
+        public string NombreTipoObjetivo { get; set; }
+        public string Estado { get; set; }
+
+        public DateTime Fecha_Creacion { get; set; }
+        public string UsuarioCreacion { get; set; }
+        public string NombreCreador { get; set; }
+
+        public DateTime? Fecha_Modificacion { get; set; }
+        public string UsuarioModificacion { get; set; }
+        public string NombreModificador { get; set; }
+
+        public DateTime? Fecha_Aprueba { get; set; }
+        public string UsuarioAprueba { get; set; }
+        public string NombreAutorizador { get; set; }
     }
 }
