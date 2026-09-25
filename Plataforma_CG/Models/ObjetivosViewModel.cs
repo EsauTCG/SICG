@@ -32,6 +32,9 @@ namespace Plataforma_CG.Models
         public string? NombreTipoObjetivo { get; set; }
         public string? NombreArticulo { get; set; }
 
+        public string UsuarioVendedor { get; set; }
+        public string NombreVendedor { get; set; }
+
         // Relacion uno a muchos con los valores
         public List<ObjetivoValorViewModel> ValoresConfigurados { get; set; } = new List<ObjetivoValorViewModel>();
     }

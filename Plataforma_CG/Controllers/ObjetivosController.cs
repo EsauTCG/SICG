@@ -70,11 +70,14 @@ namespace Plataforma_CG.Controllers
                             o.Fecha_Aprueba,
                             p.Nombre AS NombrePerfil, 
                             t.Nombre AS NombreTipoObjetivo,
-                            a.ProductoNombre AS NombreArticulo
+                            a.ProductoNombre AS NombreArticulo,
+                            uv.Usuario AS UsuarioVendedor,
+                            uv.Nombre AS NombreVendedor
                         FROM dbo.Objetivos o
                         INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
                         INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
-                        LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo";
+                        LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo
+                        LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id";
 
                     var parametros = esAdmin ? null : new { PerfilId = perfilIdUsuario };
                     var objetivosRaw = await conn.QueryAsync<ObjetivoViewModel>(sqlObjetivos, parametros);
