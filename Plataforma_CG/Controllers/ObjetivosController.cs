@@ -132,6 +132,16 @@ namespace Plataforma_CG.Controllers
                     // Catalogos para los combos del modal Editar (cliente, vendedor y SKU)
                     await CargarVendedoresYClientesAsync(conn);
                     ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+
+                    ViewBag.CatalogoValores = await conn.QueryAsync(@"
+                        SELECT
+                            ID,
+                            Nombre,
+                            Unidad_Medida
+                        FROM dbo.Catalogo_ValorObjetivo
+                        WHERE Activo = 1
+                        ORDER BY Nombre
+                        ");
                 }
             }
             catch (Exception ex)
@@ -166,6 +176,16 @@ namespace Plataforma_CG.Controllers
 
                     // Cargar catalogos comerciales faltantes
                     ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+
+                    ViewBag.CatalogoValores = await conn.QueryAsync(@"
+                        SELECT
+                            ID,
+                            Nombre,
+                            Unidad_Medida
+                        FROM dbo.Catalogo_ValorObjetivo
+                        WHERE Activo = 1
+                        ORDER BY Nombre
+                    ");
 
                     try
                     {
@@ -265,9 +285,21 @@ namespace Plataforma_CG.Controllers
                             {
                                 string sqlValor = @"
                                     INSERT INTO dbo.Objetivo_Valor (
-                                        ID_Objetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo, Valor_Maximo, Valor_Objetivo
+                                        ID_Objetivo,
+                                        ID_Catalogo_ValorObjetivo,
+                                        Tipo_Valor,
+                                        Unidad_Medida,
+                                        Valor_Minimo,
+                                        Valor_Maximo,
+                                        Valor_Objetivo
                                     ) VALUES (
-                                        @IdObjetivo, @TipoValor, @Unidad, @Minimo, @Maximo, @Meta
+                                        @IdObjetivo,
+                                        @ID_Catalogo_ValorObjetivo,
+                                        @TipoValor,
+                                        @Unidad,
+                                        @Minimo,
+                                        @Maximo,
+                                        @Meta
                                     )";
 
                                 foreach (var val in modelo.ValoresConfigurados)
@@ -275,6 +307,7 @@ namespace Plataforma_CG.Controllers
                                     await conn.ExecuteAsync(sqlValor, new
                                     {
                                         IdObjetivo = nuevoObjetivoId,
+                                        ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
                                         TipoValor = val.Tipo_Valor,
                                         Unidad = val.Unidad_Medida,
                                         Minimo = val.Valor_Minimo,
@@ -574,7 +607,8 @@ namespace Plataforma_CG.Controllers
 
                                 string sqlValor = @"
                                     UPDATE dbo.Objetivo_Valor 
-                                    SET Tipo_Valor = @TipoValor,
+                                    SET ID_Catalogo_ValorObjetivo = @ID_Catalogo_ValorObjetivo,
+                                        Tipo_Valor = @TipoValor,
                                         Unidad_Medida = @Unidad,
                                         Valor_Minimo = @Minimo,
                                         Valor_Maximo = @Maximo,
@@ -583,9 +617,9 @@ namespace Plataforma_CG.Controllers
 
                                 string sqlNuevo = @"
                                     INSERT INTO dbo.Objetivo_Valor 
-                                        (ID_Objetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo, Valor_Maximo, Valor_Objetivo)
+                                        (ID_Objetivo, ID_Catalogo_ValorObjetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo, Valor_Maximo, Valor_Objetivo)
                                     VALUES
-                                        (@IDObjetivo, @TipoValor, @Unidad, @Minimo, @Maximo, @Objetivo)";
+                                        (@IDObjetivo, @ID_Catalogo_ValorObjetivo, @TipoValor, @Unidad, @Minimo, @Maximo, @Objetivo)";
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
@@ -594,6 +628,7 @@ namespace Plataforma_CG.Controllers
                                         idsEnviados.Add(val.ID);
                                         await conn.ExecuteAsync(sqlValor, new
                                         {
+                                            ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
                                             TipoValor = val.Tipo_Valor ?? "",
                                             Unidad = val.Unidad_Medida ?? "",
                                             Minimo = val.Valor_Minimo,
@@ -607,6 +642,7 @@ namespace Plataforma_CG.Controllers
                                         await conn.ExecuteAsync(sqlNuevo, new
                                         {
                                             IDObjetivo = modelo.ID,
+                                            ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
                                             TipoValor = val.Tipo_Valor ?? "",
                                             Unidad = val.Unidad_Medida ?? "",
                                             Minimo = val.Valor_Minimo,

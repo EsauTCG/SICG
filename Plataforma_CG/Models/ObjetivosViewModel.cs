@@ -44,6 +44,9 @@ namespace Plataforma_CG.Models
     {
         public int ID { get; set; }
         public int ID_Objetivo { get; set; }
+
+        public int? ID_Catalogo_ValorObjetivo { get; set; }
+
         public string Tipo_Valor { get; set; }
         public string Unidad_Medida { get; set; }
         public decimal? Valor_Minimo { get; set; }

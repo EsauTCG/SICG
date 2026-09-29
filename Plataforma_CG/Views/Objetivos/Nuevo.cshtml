@@ -234,13 +234,33 @@
             <div id="valoresContainer">
                 <!-- FILA DE VALORES -->
                 <div class="row g-2 align-items-end valor-row mb-2">
-                    <div class="col-md-3">
-                        <label class="form-label">¿Qué medimos?</label>
-                        <input type="text" name="ValoresConfigurados[0].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Unidad</label>
-                        <input type="text" name="ValoresConfigurados[0].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
+                    <div class="col-md-4">
+                        <label class="form-label">¿Qué se mide?</label>
+
+                        <select name="ValoresConfigurados[0].ID_Catalogo_ValorObjetivo"
+                                class="form-select form-select-sm catalogo-sm">
+
+                                <option value="">Seleccione una métrica</option>
+
+                                @if (ViewBag.CatalogoValores != null)
+                                {
+                                    foreach (var item in ViewBag.CatalogoValores)
+                                    {
+                                        <option value="@item.ID"
+                                            data-unidad="@item.Unidad_Medida">
+                                            @item.Nombre (@item.Unidad_Medida)
+                                        </option>
+                                    }
+                                }
+                            </select>
+
+                            <input type="hidden"
+                                   name="ValoresConfigurados[0].Tipo_Valor"
+                                   class="tipo-valor" />
+
+                            <input type="hidden"
+                                   name="ValoresConfigurados[0].Unidad_Medida"
+                                   class="unidad-medida" />
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Mínimo</label>
@@ -261,6 +281,76 @@
                     </div>
                 </div>
             </div>
+
+            <template id="plantillaValor">
+    <div class="row g-2 align-items-end valor-row mb-2">
+
+        <div class="col-md-4">
+            <label class="form-label">¿Qué se mide?</label>
+
+            <select name="ValoresConfigurados[__INDEX__].ID_Catalogo_ValorObjetivo"
+                    class="form-select form-select-sm catalogo-sm">
+
+                <option value="">Seleccione una métrica</option>
+
+                @if (ViewBag.CatalogoValores != null)
+                {
+                    foreach (var item in ViewBag.CatalogoValores)
+                    {
+                        <option value="@item.ID"
+                                data-unidad="@item.Unidad_Medida">
+                            @item.Nombre (@item.Unidad_Medida)
+                        </option>
+                    }
+                }
+            </select>
+
+            <input type="hidden"
+                   name="ValoresConfigurados[__INDEX__].Tipo_Valor"
+                   class="tipo-valor" />
+
+            <input type="hidden"
+                   name="ValoresConfigurados[__INDEX__].Unidad_Medida"
+                   class="unidad-medida" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Mínimo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Minimo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Máximo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Maximo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Objetivo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Objetivo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-1">
+            <button type="button"
+                    class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor"
+                    title="Eliminar valor">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+
+    </div>
+</template>
 
             <!-- Agregar valor -->
             <div class="mt-3">
@@ -444,61 +534,48 @@
         // Logica de Filas Dinamicas
         let indiceValor = 1;
 
-        function renumerarValores(){
-            const filas = document.querySelectorAll(".valor-row");
+        function renumerarValores() {
 
-            filas.forEach((fila, indice) => {
-                const inputs = fila.querySelectorAll("input");
-                inputs.forEach(input => {
-                    const nombre = input.name;
-                    if (!nombre) return;
-                    input.name = nombre.replace(
-                        /ValoresConfigurados\[\d+\]/,
-                        `ValoresConfigurados[${indice}]`
-                    );
-                });
-            });
+    const filas = document.querySelectorAll(".valor-row");
 
-            indiceValor = filas.length;
-        }
+    filas.forEach((fila, indice) => {
+
+        const campos = fila.querySelectorAll("input, select");
+
+        campos.forEach(campo => {
+
+            const nombre = campo.name;
+
+            if (!nombre) return;
+
+            campo.name = nombre.replace(
+                /ValoresConfigurados\[\d+\]/,
+                `ValoresConfigurados[${indice}]`
+            );
+        });
+    });
+
+    indiceValor = filas.length;
+}
 
         document.getElementById("btnAgregarValor").addEventListener("click", function () {
-            const container = document.getElementById("valoresContainer");
-            const nuevaFila = document.createElement("div");
 
-            nuevaFila.className = "row g-2 align-items-end valor-row mb-2";
+    const container = document.getElementById("valoresContainer");
+    const plantilla = document.getElementById("plantillaValor");
 
-            nuevaFila.innerHTML = `
-                <div class="col-md-3">
-                    <label class="form-label">¿Qué medimos?</label>
-                    <input type="text" name="ValoresConfigurados[${indiceValor}].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Unidad</label>
-                    <input type="text" name="ValoresConfigurados[${indiceValor}].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Mínimo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Minimo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Máximo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Maximo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Objetivo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
-                </div>
-                <div class='col-md-1'>
-                    <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor" title="Eliminar valor">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            `;
+    const nuevaFila = plantilla.content.cloneNode(true);
 
-            container.appendChild(nuevaFila);
-            indiceValor++;
-        });
+    nuevaFila.querySelectorAll("[name]").forEach(elemento => {
+        elemento.name = elemento.name.replace(
+            /__INDEX__/g,
+            indiceValor
+        );
+    });
+
+    container.appendChild(nuevaFila);
+
+    indiceValor++;
+});
 
         document.getElementById("valoresContainer").addEventListener("click", function (e) {
             const botonEliminar = e.target.closest(".btn-eliminar-valor");
@@ -512,6 +589,30 @@
 
             botonEliminar.closest(".valor-row").remove();
             renumerarValores();
+        });
+
+        document.getElementById("valoresContainer").addEventListener("change", function (e) {
+
+            if (!e.target.classList.contains("catalogo-sm")) return;
+
+            const select = e.target;
+            const opcion = select.options[select.selectedIndex];
+            const fila = select.closest(".valor-row");
+
+            const tipoValor = fila.querySelector(".tipo-valor");
+            const unidadMedida = fila.querySelector(".unidad-medida");
+
+            if (!opcion || !opcion.value) {
+                tipoValor.value = "";
+                unidadMedida.value = "";
+                return;
+            }
+
+            tipoValor.value = opcion.textContent
+                .replace(/\s*\([^)]*\)\s*$/, "")
+                .trim();
+
+            unidadMedida.value = opcion.dataset.unidad || "";
         });
     </script>
 }

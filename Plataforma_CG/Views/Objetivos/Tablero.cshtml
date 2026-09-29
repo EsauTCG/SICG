@@ -555,33 +555,100 @@
                                                 @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
                                                 {
                                                     int i = 0;
+
                                                     foreach (var val in item.ValoresConfigurados)
                                                     {
                                                         <tr>
-                                                            <input type="hidden" name="ValoresConfigurados.Index" value="v@(i)" />
-                                                            <input type="hidden" name="ValoresConfigurados[v@(i)].ID" value="@val.ID" />
+                                                            <input type="hidden"
+                                                                   name="ValoresConfigurados.Index"
+                                                                   value="v@(i)" />
+
+                                                            <input type="hidden"
+                                                                   name="ValoresConfigurados[v@(i)].ID"
+                                                                   value="@val.ID" />
 
                                                             <td class="align-middle text-start ps-3">
-                                                                <input type="text" name="ValoresConfigurados[v@(i)].Tipo_Valor" class="form-control form-control-sm" value="@val.Tipo_Valor" />
+
+                                                                <select name="ValoresConfigurados[v@(i)].ID_Catalogo_ValorObjetivo"
+                                                                        class="form-select form-select-sm catalogo-editar">
+
+                                                                    <option value="">Seleccione una métrica</option>
+
+                                                                    @if (ViewBag.CatalogoValores != null)
+                                                                    {
+                                                                        foreach (var catalogo in ViewBag.CatalogoValores)
+                                                                        {
+                                                                            if (Convert.ToInt32(catalogo.ID) == Convert.ToInt32(val.ID_Catalogo_ValorObjetivo))
+                                                                            {
+                                                                                <option value="@catalogo.ID"
+                                                                                        data-unidad="@catalogo.Unidad_Medida"
+                                                                                        selected>
+                                                                                    @catalogo.Nombre (@catalogo.Unidad_Medida)
+                                                                                </option>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <option value="@catalogo.ID"
+                                                                                        data-unidad="@catalogo.Unidad_Medida">
+                                                                                    @catalogo.Nombre (@catalogo.Unidad_Medida)
+                                                                                </option>
+                                                                            }
+                                                                        }
+                                                                    }
+
+                                                                </select>
+
+                                                                <input type="hidden"
+                                                                       name="ValoresConfigurados[v@(i)].Tipo_Valor"
+                                                                       class="tipo-valor-editar"
+                                                                       value="@val.Tipo_Valor" />
+
+                                                                <input type="hidden"
+                                                                       name="ValoresConfigurados[v@(i)].Unidad_Medida"
+                                                                       class="unidad-medida-editar"
+                                                                       value="@val.Unidad_Medida" />
+
                                                             </td>
+
                                                             <td class="align-middle">
-                                                                <input type="text" name="ValoresConfigurados[v@(i)].Unidad_Medida" class="form-control form-control-sm" value="@val.Unidad_Medida" />
+                                                                <span class="unidad-visible-editar">
+                                                                    @val.Unidad_Medida
+                                                                </span>
                                                             </td>
+
                                                             <td>
-                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Minimo" class="form-control form-control-sm text-center" value="@val.Valor_Minimo" />
+                                                                <input type="number"
+                                                                       step="0.01"
+                                                                       name="ValoresConfigurados[v@(i)].Valor_Minimo"
+                                                                       class="form-control form-control-sm text-center"
+                                                                       value="@val.Valor_Minimo" />
                                                             </td>
+
                                                             <td>
-                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Maximo" class="form-control form-control-sm text-center" value="@val.Valor_Maximo" />
+                                                                <input type="number"
+                                                                       step="0.01"
+                                                                       name="ValoresConfigurados[v@(i)].Valor_Maximo"
+                                                                       class="form-control form-control-sm text-center"
+                                                                       value="@val.Valor_Maximo" />
                                                             </td>
+
                                                             <td>
-                                                                <input type="number" step="0.01" name="ValoresConfigurados[v@(i)].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" value="@val.Valor_Objetivo" />
+                                                                <input type="number"
+                                                                       step="0.01"
+                                                                       name="ValoresConfigurados[v@(i)].Valor_Objetivo"
+                                                                       class="form-control form-control-sm text-center fw-bold text-danger"
+                                                                       value="@val.Valor_Objetivo" />
                                                             </td>
+
                                                             <td class="align-middle">
-                                                                <button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta">
+                                                                <button type="button"
+                                                                        class="btn btn-outline-danger btn-sm btnEliminarMeta"
+                                                                        title="Eliminar meta">
                                                                     <i class="bi bi-trash"></i>
                                                                 </button>
                                                             </td>
                                                         </tr>
+
                                                         i++;
                                                     }
                                                 }
@@ -912,5 +979,49 @@
                 }, 350);
             }
         };
+
+                document.addEventListener("change", function (e) {
+
+            if (!e.target.classList.contains("catalogo-editar")) {
+                return;
+            }
+
+            const select = e.target;
+            const opcion = select.options[select.selectedIndex];
+            const fila = select.closest("tr");
+
+            if (!fila) {
+                return;
+            }
+
+            const tipoValor = fila.querySelector(".tipo-valor-editar");
+            const unidadMedida = fila.querySelector(".unidad-medida-editar");
+            const unidadVisible = fila.querySelector(".unidad-visible-editar");
+
+            if (!opcion || !opcion.value) {
+                if (tipoValor) tipoValor.value = "";
+                if (unidadMedida) unidadMedida.value = "";
+                if (unidadVisible) unidadVisible.textContent = "";
+                return;
+            }
+
+            const nombre = opcion.textContent
+                .replace(/\s*\([^)]*\)\s*$/, "")
+                .trim();
+
+            const unidad = opcion.dataset.unidad || "";
+
+            if (tipoValor) {
+                tipoValor.value = nombre;
+            }
+
+            if (unidadMedida) {
+                unidadMedida.value = unidad;
+            }
+
+            if (unidadVisible) {
+                unidadVisible.textContent = unidad;
+            }
+        });
     </script>
 }
