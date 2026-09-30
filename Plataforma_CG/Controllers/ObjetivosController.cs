@@ -715,5 +715,54 @@ namespace Plataforma_CG.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
+
+        [HttpPost]
+        public async Task<IActionResult> CrearValorObjetivo(
+            string nombre,
+            string unidadMedida,
+            string descripcion)
+        {
+            try
+            {
+                string connectionString =
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
+
+                using (var conn = new SqlConnection(connectionString)) 
+                {
+                    string sql = @"
+                        INSERT INTO dbo.Catalogo_ValorObjetivo
+                            (Nombre, Unidad_Medida, Descripcion, Activo)
+                        OUTPUT INSERTED.ID
+                        VALUES
+                            (@Nombre, @UnidadMedida, @Descripcion, 1);";
+
+                    int nuevoId = await conn.QuerySingleAsync<int>(
+                        sql,
+                        new
+                        {
+                            Nombre = nombre,
+                            UnidadMedida = unidadMedida,
+                            Descripcion = descripcion
+                        });
+
+                    return Json(new
+                    {
+                        success = true,
+                        id = nuevoId,
+                        nombre = nombre,
+                        unidad = unidadMedida
+                    });
+                }
+            }
+
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
     }
 }

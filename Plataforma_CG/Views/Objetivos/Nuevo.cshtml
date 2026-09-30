@@ -230,7 +230,22 @@
 
         <!-- SECCION META / VALORES -->
         <div class="mt-4">
-            <div class="section-title">Metas / Valores</div>
+            <div class="section-title d-flex justify-content-between align-items-center">
+                <span>Metas / Valores</span>
+
+                        @if (User.IsInRole("Administrador"))
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger shadow-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modalNuevoValorObjetivo"
+                                style="font-size: 0-70rem; padding: 0.1rem 0.5rem;">
+                            <i class="bi bi-plus-lg"></i> Configurar valor
+                        </button>
+                    }
+            </div>
+
+
             <div id="valoresContainer">
                 <!-- FILA DE VALORES -->
                 <div class="row g-2 align-items-end valor-row mb-2">
@@ -427,6 +442,85 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalNuevoValorObjetivo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header text-white"
+                style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+
+                <h6 class="modal-title fw-bold">
+                    <i class="bi vi-sliders me-2"></i>
+                    Configurar Valor de Objetivo
+                </h6>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal">
+                </button>
+            </div>
+
+            <div class="modal-body p-4 bg-light">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Nombre *
+                    </label>
+
+                    <input type="text"
+                            id="valorObjetivoNombre"
+                            class="form-control form-control-sm"
+                            placeholder="Ej. Pedo por Caja"
+                            required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Unidad de medida *
+                    </label>
+
+                    <input type="text"
+                            id="valorObjetivoUnidad"
+                            class="form-control form-control-sm"
+                            placeholder="Ej. KG"
+                            required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Descripción
+                    </label>
+
+                    <textarea id="valorObjetivoDescripcion"
+                              class="form-control form-control-sm"
+                              rows="3"
+                              placeholder="Descripción de lo que representa este valor..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="btn btn-danger btn-sm fw-bold"
+                        id="btnGuardarValorObjetivo">
+                    <i class="bi bi-save me-1"></i>
+                    Guardar y Usar
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -502,6 +596,71 @@
                     }
                 }).always(function() {
                     $btn.html('<i class="bi bi-save me-1"></i> Guardar y Usar').prop('disabled', false);
+                });
+            });
+
+            // Crear nuevo Valor de Objetivo en el catálogo
+            $('#btnGuardarValorObjetivo').click(function () {
+
+                var nombre = $('#valorObjetivoNombre').val().trim();
+                var unidad = $('#valorObjetivoUnidad').val().trim();
+                var descripcion = $('#valorObjetivoDescripcion').val().trim();
+
+                if (!nombre || !unidad){
+                    alert("Por favor, capturar el nombre y la unidad de medida.");
+                    return;
+                }
+
+                var $btn = $(this);
+
+                $btn.html('<i class="spinner-border spinner-border-sm"></i> Guardando...')
+                    .prop('disabled', true);
+
+                $.post('@Url.Action("CrearValorObjetivo", "Objetivos")', {
+                    nombre: nombre,
+                    unidadMedida: unidad,
+                    descripcion: descripcion
+                }, function (response) {
+
+                    if (response.success) {
+
+                        // Agregar el nuevo valor al catálogo del formulario
+                        $('.catalogo-sm').each(function () {
+
+                            $(this).append(
+                                $('<option/>', {
+                                    value: response.id,
+                                    text: response.nombre + '(' + response.unidad + ')',
+                                    'data-unidad': response.unidad
+                                })
+                            );
+
+                        });
+
+                        // Seleccionar automáticamente el nuevo valor
+                        var $ultimaFila = $('.valor-row').last();
+                        var $select = $ultimaFila.find('.catalogo-sm');
+
+                        $select.val(response.id).trigger('change');
+
+                        // Limpiar formulario del modal
+                        $('#valorObjetivoNombre').val('');
+                        $('#valorObjetivoUnidad').val('');
+                        $('#valorObjetivoDescripcion').val('');
+
+                        // Cerrar modal
+                        $('#modalNuevoValorObjetivo').modal('hide');
+
+                    } else {
+
+                        alert("Error al guardar: " + response.message);
+
+                    }
+                }).always(function () {
+
+                    $btn.html('<i class="bi bi-save me-1"></i> Guardar y Usar')
+                        .prop('disabled', false);
+
                 });
             });
 
