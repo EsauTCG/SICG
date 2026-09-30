@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Plataforma_CG.Data;
@@ -28,7 +28,7 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Tablero()
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -48,16 +48,36 @@ namespace Plataforma_CG.Controllers
                     string whereClause = esAdmin ? "" : "WHERE o.ID_Perfil = @PerfilId ";
                     string sqlObjetivos = @"
                         SELECT 
-                            o.*, 
+                            o.ID,
+                            o.ID_Perfil,
+                            o.ID_Tipo_Objetivo,
+                            o.Tipo_Periodo_Cumplimiento,
+                            o.Fecha_Desde,
+                            o.Fecha_Hasta,
+                            o.Proveedor,
+                            o.ID_Cliente,
+                            o.UsuarioID_Vendedor,
+                            o.SKU,
+                            o.CC,
+                            o.LINEA AS Linea,
+                            o.Descripcion_Objetivo,
+                            o.Estado,
+                            o.UsuarioID_Creacion,
+                            o.Fecha_Creacion,
+                            o.UsuarioID_Modificacion,
+                            o.Fecha_Modificacion,
+                            o.UsuarioID_Aprueba,
+                            o.Fecha_Aprueba,
                             p.Nombre AS NombrePerfil, 
                             t.Nombre AS NombreTipoObjetivo,
-                            a.ProductoNombre AS NombreArticulo
+                            a.ProductoNombre AS NombreArticulo,
+                            uv.Usuario AS UsuarioVendedor,
+                            uv.Nombre AS NombreVendedor
                         FROM dbo.Objetivos o
                         INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
                         INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
                         LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo
-                        " + whereClause + @"
-                        ORDER BY o.Fecha_Creacion DESC";
+                        LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id";
 
                     var parametros = esAdmin ? null : new { PerfilId = perfilIdUsuario };
                     var objetivosRaw = await conn.QueryAsync<ObjetivoViewModel>(sqlObjetivos, parametros);
@@ -81,6 +101,47 @@ namespace Plataforma_CG.Controllers
                         ViewBag.Perfiles = await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles");
                     else
                         ViewBag.Perfiles = await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles WHERE Id = @PerfilId", new { PerfilId = perfilIdUsuario });
+
+                    // Bitácora (log) para el modal: admin ve todo, los demas solo su perfil
+                    string sqlLog = @"
+                        SELECT 
+                            o.ID,
+                            o.Estado,
+                            p.Nombre AS NombrePerfil,
+                            t.Nombre AS NombreTipoObjetivo,
+                            o.Fecha_Creacion,
+                            uc.Usuario AS UsuarioCreacion,
+                            uc.Nombre AS NombreCreador,
+                            o.Fecha_Modificacion,
+                            um.Usuario AS UsuarioModificacion,
+                            um.Nombre AS NombreModificador,
+                            o.Fecha_Aprueba,
+                            ua.Usuario AS UsuarioAprueba,
+                            ua.Nombre AS NombreAutorizador
+                        FROM dbo.Objetivos o
+                        INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
+                        INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
+                        LEFT JOIN dbo.UsuarioSQL uc ON o.UsuarioID_Creacion = uc.Id
+                        LEFT JOIN dbo.UsuarioSQL um ON o.UsuarioID_Modificacion = um.Id
+                        LEFT JOIN dbo.UsuarioSQL ua ON o.UsuarioID_Aprueba = ua.Id
+                        " + whereClause + @"
+                        ORDER BY o.Fecha_Creacion DESC";
+                    var logRaw = await conn.QueryAsync<ObjetivoLogViewModel>(sqlLog, parametros);
+                    ViewBag.LogObjetivos = logRaw.ToList();
+
+                    // Catalogos para los combos del modal Editar (cliente, vendedor y SKU)
+                    await CargarVendedoresYClientesAsync(conn);
+                    ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+
+                    ViewBag.CatalogoValores = await conn.QueryAsync(@"
+                        SELECT
+                            ID,
+                            Nombre,
+                            Unidad_Medida
+                        FROM dbo.Catalogo_ValorObjetivo
+                        WHERE Activo = 1
+                        ORDER BY Nombre
+                        ");
                 }
             }
             catch (Exception ex)
@@ -99,7 +160,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -115,6 +176,16 @@ namespace Plataforma_CG.Controllers
 
                     // Cargar catalogos comerciales faltantes
                     ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+
+                    ViewBag.CatalogoValores = await conn.QueryAsync(@"
+                        SELECT
+                            ID,
+                            Nombre,
+                            Unidad_Medida
+                        FROM dbo.Catalogo_ValorObjetivo
+                        WHERE Activo = 1
+                        ORDER BY Nombre
+                    ");
 
                     try
                     {
@@ -147,13 +218,27 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
+
+                    // Resolver el usuario de sesion ANTES de abrir la transaccion (Dapper exige que el
+                    // comando use la transaccion si la conexion ya esta en una).
+                    //Se agrego una validacion, si no se encuentra el ususario no se puede hacer INSERT
+
+                    int? usuarioCreacionId = await ObtenerIdUsuarioAsync(conn);
+
+                    if (!usuarioCreacionId.HasValue)
+                    {
+                        throw new Exception(
+                            "No fue posible identificar al usuario actual en SIGO" +
+                            "El objetivo no fue guardado."
+                            );
+                    }
 
                     using (var transaccion = conn.BeginTransaction())
                     {
@@ -190,7 +275,7 @@ namespace Plataforma_CG.Controllers
                                 modelo.SKU,
                                 modelo.CC,
                                 modelo.Linea,
-                                UsuarioCreacion = 1 // Ajustar al ID de sesion
+                                UsuarioCreacion = usuarioCreacionId
                             };
 
                             int nuevoObjetivoId = await conn.QuerySingleAsync<int>(sqlObjetivo, parametrosObjetivo, transaccion);
@@ -200,9 +285,21 @@ namespace Plataforma_CG.Controllers
                             {
                                 string sqlValor = @"
                                     INSERT INTO dbo.Objetivo_Valor (
-                                        ID_Objetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo, Valor_Maximo, Valor_Objetivo
+                                        ID_Objetivo,
+                                        ID_Catalogo_ValorObjetivo,
+                                        Tipo_Valor,
+                                        Unidad_Medida,
+                                        Valor_Minimo,
+                                        Valor_Maximo,
+                                        Valor_Objetivo
                                     ) VALUES (
-                                        @IdObjetivo, @TipoValor, @Unidad, @Minimo, @Maximo, @Meta
+                                        @IdObjetivo,
+                                        @ID_Catalogo_ValorObjetivo,
+                                        @TipoValor,
+                                        @Unidad,
+                                        @Minimo,
+                                        @Maximo,
+                                        @Meta
                                     )";
 
                                 foreach (var val in modelo.ValoresConfigurados)
@@ -210,6 +307,7 @@ namespace Plataforma_CG.Controllers
                                     await conn.ExecuteAsync(sqlValor, new
                                     {
                                         IdObjetivo = nuevoObjetivoId,
+                                        ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
                                         TipoValor = val.Tipo_Valor,
                                         Unidad = val.Unidad_Medida,
                                         Minimo = val.Valor_Minimo,
@@ -293,6 +391,17 @@ namespace Plataforma_CG.Controllers
 
         // Un usuario puede tener varios codigos de vendedor concatenados en bloques de 2 digitos
         // (ej. 1609 = 16 y 09; 190617 = 19, 06 y 17). Devuelve la lista de codigos individuales.
+        // Resuelve el Id de UsuarioSQL del usuario logueado (login o nombre).
+        // Devuelve null si la sesion no corresponde a un registro de UsuarioSQL.
+        private async Task<int?> ObtenerIdUsuarioAsync(SqlConnection conn)
+        {
+            string login = (User.Identity.Name ?? "").Trim();
+            if (string.IsNullOrEmpty(login)) return null;
+            return await conn.QueryFirstOrDefaultAsync<int?>(
+                "SELECT Id FROM dbo.UsuarioSQL WHERE Usuario = @Login OR Nombre = @Login",
+                new { Login = login });
+        }
+
         private static List<int> DescomponerVendedorId(int? vendedorId)
         {
             var lista = new List<int>();
@@ -316,7 +425,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -354,13 +463,17 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        
+
+        
+
         [HttpPost]
         [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
         public async Task<IActionResult> Cancelar(int id)
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -382,17 +495,14 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
 
-                    // Resolver el Id del usuario logueado para registrar la aprobacion
-                    string sqlUser = "SELECT Id FROM dbo.UsuarioSQL WHERE Usuario = @Login OR Nombre = @Login";
-                    var userId = await conn.QueryFirstOrDefaultAsync<int?>(sqlUser, new { Login = User.Identity.Name });
-
-                    string sql = "UPDATE dbo.Objetivos SET Estado = 'Activo', UsuarioID_Aprueba = @UserId, Fecha_Aprueba = GETDATE() WHERE ID = @Id";
-                    await conn.ExecuteAsync(sql, new { Id = id, UserId = userId ?? 0 });
+                    var aprId = await ObtenerIdUsuarioAsync(conn);
+                    string sql = "UPDATE dbo.Objetivos SET Estado = 'Activo', UsuarioID_Aprueba = @UsuarioApr, Fecha_Aprueba = GETDATE() WHERE ID = @Id";
+                    await conn.ExecuteAsync(sql, new { Id = id, UsuarioApr = aprId ?? 1 });
                 }
                 return RedirectToAction("Tablero");
             }
@@ -408,7 +518,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -440,51 +550,119 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
+
+                    int usuarioModId = await ObtenerIdUsuarioAsync(conn) ?? 1;
 
                     using (var transaccion = conn.BeginTransaction())
                     {
                         try
                         {
-                            // Actualizar cabecera
+                            // Actualizar cabecera (todo excepto Perfil y Tipo de Objetivo)
                             string sqlObjetivo = @"
                                 UPDATE dbo.Objetivos 
-                                SET Fecha_Hasta = @FechaHasta,
+                                SET Fecha_Desde = @FechaDesde,
+                                    Fecha_Hasta = @FechaHasta,
+                                    Tipo_Periodo_Cumplimiento = @Periodo,
+                                    Estado = @Estado,
+                                    ID_Cliente = @ID_Cliente,
+                                    UsuarioID_Vendedor = @UsuarioID_Vendedor,
+                                    Proveedor = @Proveedor,
+                                    SKU = @SKU,
+                                    CC = @CC,
+                                    LINEA = @Linea,
                                     Descripcion_Objetivo = @Descripcion,
-                                    UsuarioID_Modificacion = 1, 
+                                    UsuarioID_Modificacion = @UsuarioMod, 
                                     Fecha_Modificacion = GETDATE()
                                 WHERE ID = @ID";
 
                             await conn.ExecuteAsync(sqlObjetivo, new
                             {
+                                FechaDesde = modelo.Fecha_Desde,
                                 FechaHasta = modelo.Fecha_Hasta,
+                                Periodo = modelo.Tipo_Periodo_Cumplimiento,
+                                Estado = modelo.Estado ?? "Pendiente",
+                                ID_Cliente = modelo.ID_Cliente,
+                                UsuarioID_Vendedor = modelo.UsuarioID_Vendedor,
+                                Proveedor = modelo.Proveedor,
+                                SKU = modelo.SKU,
+                                CC = modelo.CC,
+                                Linea = modelo.Linea,
                                 Descripcion = modelo.Descripcion_Objetivo,
+                                UsuarioMod = usuarioModId,
                                 ID = modelo.ID
                             }, transaccion);
 
-                            // Actualizar detalles
+                            // Detalles: insertar nuevos, actualizar existentes y eliminar los que ya no vienen
+                            var idsEnviados = new List<int>();
                             if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
                             {
+                                // IDs que ya existen en BD para este objetivo
+                                var idsExistentes = (await conn.QueryAsync<int>(
+                                    "SELECT ID FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
+                                    new { IDObjetivo = modelo.ID }, transaccion)).ToList();
+
                                 string sqlValor = @"
                                     UPDATE dbo.Objetivo_Valor 
-                                    SET Valor_Minimo = @Minimo,
+                                    SET ID_Catalogo_ValorObjetivo = @ID_Catalogo_ValorObjetivo,
+                                        Tipo_Valor = @TipoValor,
+                                        Unidad_Medida = @Unidad,
+                                        Valor_Minimo = @Minimo,
                                         Valor_Maximo = @Maximo,
                                         Valor_Objetivo = @Objetivo
                                     WHERE ID = @IDValor";
 
+                                string sqlNuevo = @"
+                                    INSERT INTO dbo.Objetivo_Valor 
+                                        (ID_Objetivo, ID_Catalogo_ValorObjetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo, Valor_Maximo, Valor_Objetivo)
+                                    VALUES
+                                        (@IDObjetivo, @ID_Catalogo_ValorObjetivo, @TipoValor, @Unidad, @Minimo, @Maximo, @Objetivo)";
+
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
-                                    await conn.ExecuteAsync(sqlValor, new
+                                    if (val.ID > 0)
                                     {
-                                        Minimo = val.Valor_Minimo,
-                                        Maximo = val.Valor_Maximo,
-                                        Objetivo = val.Valor_Objetivo,
-                                        IDValor = val.ID
-                                    }, transaccion);
+                                        idsEnviados.Add(val.ID);
+                                        await conn.ExecuteAsync(sqlValor, new
+                                        {
+                                            ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
+                                            TipoValor = val.Tipo_Valor ?? "",
+                                            Unidad = val.Unidad_Medida ?? "",
+                                            Minimo = val.Valor_Minimo,
+                                            Maximo = val.Valor_Maximo,
+                                            Objetivo = val.Valor_Objetivo,
+                                            IDValor = val.ID
+                                        }, transaccion);
+                                    }
+                                    else
+                                    {
+                                        await conn.ExecuteAsync(sqlNuevo, new
+                                        {
+                                            IDObjetivo = modelo.ID,
+                                            ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
+                                            TipoValor = val.Tipo_Valor ?? "",
+                                            Unidad = val.Unidad_Medida ?? "",
+                                            Minimo = val.Valor_Minimo,
+                                            Maximo = val.Valor_Maximo,
+                                            Objetivo = val.Valor_Objetivo
+                                        }, transaccion);
+                                    }
                                 }
+
+                                // Eliminar solo las metas que existian antes y ya no vienen en el formulario
+                                var idsAEliminar = idsExistentes.Except(idsEnviados).ToList();
+                                if (idsAEliminar.Any())
+                                    await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID IN @Ids",
+                                        new { Ids = idsAEliminar }, transaccion);
+                            }
+                            else
+                            {
+                                // No viene ninguna meta de la forma -> eliminar todas las existentes
+                                await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
+                                    new { IDObjetivo = modelo.ID }, transaccion);
                             }
 
                             transaccion.Commit();
@@ -497,11 +675,13 @@ namespace Plataforma_CG.Controllers
                     }
                 }
 
+                TempData["OkObjetivos"] = "Objetivo actualizado correctamente.";
                 return RedirectToAction("Tablero");
             }
             catch (Exception ex)
             {
                 ModelState.AddModelError("", "Error al editar: " + ex.Message);
+                TempData["ErrorObjetivos"] = "Error al editar: " + ex.Message;
                 return RedirectToAction("Tablero");
             }
         }
@@ -512,7 +692,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -533,6 +713,55 @@ namespace Plataforma_CG.Controllers
             catch (Exception ex)
             {
                 return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CrearValorObjetivo(
+            string nombre,
+            string unidadMedida,
+            string descripcion)
+        {
+            try
+            {
+                string connectionString =
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
+
+                using (var conn = new SqlConnection(connectionString)) 
+                {
+                    string sql = @"
+                        INSERT INTO dbo.Catalogo_ValorObjetivo
+                            (Nombre, Unidad_Medida, Descripcion, Activo)
+                        OUTPUT INSERTED.ID
+                        VALUES
+                            (@Nombre, @UnidadMedida, @Descripcion, 1);";
+
+                    int nuevoId = await conn.QuerySingleAsync<int>(
+                        sql,
+                        new
+                        {
+                            Nombre = nombre,
+                            UnidadMedida = unidadMedida,
+                            Descripcion = descripcion
+                        });
+
+                    return Json(new
+                    {
+                        success = true,
+                        id = nuevoId,
+                        nombre = nombre,
+                        unidad = unidadMedida
+                    });
+                }
+            }
+
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
     }

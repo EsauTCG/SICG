@@ -104,8 +104,9 @@
                     <label asp-for="ID_Tipo_Objetivo" class="form-label mb-0">Tipo de Objetivo *</label>
                     @if (ViewBag.PuedeEliminarObjetivos == true)
                     {
+
                         <button type="button" class="btn btn-sm btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoKpi" style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
-                            <i class="bi bi-plus-lg"></i> Crear KPI
+                            <i class="bi bi-plus-lg"></i> Crear Nuevo Tipo de Objetivo
                         </button>
                     }
                 </div>
@@ -147,7 +148,7 @@
             <!-- CLIENTE -->
             <div class="col-md-6">
                 <label asp-for="ID_Cliente" class="form-label">Cliente</label>
-                <select asp-for="ID_Cliente" class="form-select form-select-sm" id="cliente">
+                <select asp-for="ID_Cliente" class="form-select form-select-sm select2-buscar" id="cliente">
                     <option value="">-- Selecciona un Cliente --</option>
                     @if (ViewBag.Clientes != null)
                     {
@@ -162,7 +163,7 @@
             <!-- VENDEDOR -->
             <div class="col-md-6">
                 <label asp-for="UsuarioID_Vendedor" class="form-label">Vendedor</label>
-                <select asp-for="UsuarioID_Vendedor" class="form-select form-select-sm" id="vendedor">
+                <select asp-for="UsuarioID_Vendedor" class="form-select form-select-sm select2-buscar" id="vendedor">
                     <option value="">-- Selecciona un Vendedor --</option>
                     @if (ViewBag.Vendedores != null)
                     {
@@ -190,7 +191,7 @@
             <!-- SKU -->
             <div class="col-md-6">
                 <label asp-for="SKU" class="form-label">SKU</label>
-                <select asp-for="SKU" class="form-select form-select-sm" id="sku">
+                <select asp-for="SKU" class="form-select form-select-sm select2-buscar" id="sku">
                     <option value="">-- Selecciona un SKU --</option>
                     @if (ViewBag.Articulos != null)
                     {
@@ -202,16 +203,22 @@
                 </select>
             </div>
 
-            <!-- CENTRO DE COSTOS -->
+            <!-- CUENTA CONTABLE -->
             <div class="col-md-6">
-                <label asp-for="CC" class="form-label">Centro de Costos</label>
-                <input asp-for="CC" class="form-control form-control-sm" placeholder="Centro de costos" />
+                <label asp-for="CC" class="form-label">Cuenta Contable</label>
+                <input asp-for="CC" class="form-control form-control-sm" placeholder="Cuenta Contable" />
             </div>
 
             <!-- LINEA -->
             <div class="col-md-6">
                 <label asp-for="Linea" class="form-label">Línea</label>
-                <input asp-for="Linea" class="form-control form-control-sm" placeholder="Línea" />
+                <select asp-for="Linea" class="form-select form-select-sm">
+                    <option value="">Sin línea / No aplica</option>
+                    <option value="VG">VG</option>
+                    <option value="NOV">NOV</option>
+                    <option value="VR">VR</option>
+                    <option value="RES">RES</option>
+                </select>
             </div>
 
             <!-- DESCRIPCIÓN -->
@@ -223,17 +230,52 @@
 
         <!-- SECCION META / VALORES -->
         <div class="mt-4">
-            <div class="section-title">Metas / Valores</div>
+            <div class="section-title d-flex justify-content-between align-items-center">
+                <span>Metas / Valores</span>
+
+                        @if (User.IsInRole("Administrador"))
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger shadow-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modalNuevoValorObjetivo"
+                                style="font-size: 0-70rem; padding: 0.1rem 0.5rem;">
+                            <i class="bi bi-plus-lg"></i> Configurar valor
+                        </button>
+                    }
+            </div>
+
+
             <div id="valoresContainer">
                 <!-- FILA DE VALORES -->
                 <div class="row g-2 align-items-end valor-row mb-2">
-                    <div class="col-md-3">
-                        <label class="form-label">¿Qué medimos?</label>
-                        <input type="text" name="ValoresConfigurados[0].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Unidad</label>
-                        <input type="text" name="ValoresConfigurados[0].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
+                    <div class="col-md-4">
+                        <label class="form-label">¿Qué se mide?</label>
+
+                        <select name="ValoresConfigurados[0].ID_Catalogo_ValorObjetivo"
+                                class="form-select form-select-sm catalogo-sm">
+
+                                <option value="">Seleccione una métrica</option>
+
+                                @if (ViewBag.CatalogoValores != null)
+                                {
+                                    foreach (var item in ViewBag.CatalogoValores)
+                                    {
+                                        <option value="@item.ID"
+                                            data-unidad="@item.Unidad_Medida">
+                                            @item.Nombre (@item.Unidad_Medida)
+                                        </option>
+                                    }
+                                }
+                            </select>
+
+                            <input type="hidden"
+                                   name="ValoresConfigurados[0].Tipo_Valor"
+                                   class="tipo-valor" />
+
+                            <input type="hidden"
+                                   name="ValoresConfigurados[0].Unidad_Medida"
+                                   class="unidad-medida" />
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Mínimo</label>
@@ -245,7 +287,7 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Objetivo</label>
-                        <input type="number" name="ValoresConfigurados[0].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" required />
+                        <input type="number" name="ValoresConfigurados[0].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
                     </div>
                     <div class="col-md-1">
                         <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor" title="Eliminar valor">
@@ -254,6 +296,76 @@
                     </div>
                 </div>
             </div>
+
+            <template id="plantillaValor">
+    <div class="row g-2 align-items-end valor-row mb-2">
+
+        <div class="col-md-4">
+            <label class="form-label">¿Qué se mide?</label>
+
+            <select name="ValoresConfigurados[__INDEX__].ID_Catalogo_ValorObjetivo"
+                    class="form-select form-select-sm catalogo-sm">
+
+                <option value="">Seleccione una métrica</option>
+
+                @if (ViewBag.CatalogoValores != null)
+                {
+                    foreach (var item in ViewBag.CatalogoValores)
+                    {
+                        <option value="@item.ID"
+                                data-unidad="@item.Unidad_Medida">
+                            @item.Nombre (@item.Unidad_Medida)
+                        </option>
+                    }
+                }
+            </select>
+
+            <input type="hidden"
+                   name="ValoresConfigurados[__INDEX__].Tipo_Valor"
+                   class="tipo-valor" />
+
+            <input type="hidden"
+                   name="ValoresConfigurados[__INDEX__].Unidad_Medida"
+                   class="unidad-medida" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Mínimo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Minimo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Máximo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Maximo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Objetivo</label>
+            <input type="number"
+                   name="ValoresConfigurados[__INDEX__].Valor_Objetivo"
+                   class="form-control form-control-sm"
+                   step="0.01"
+                   placeholder="0.00" />
+        </div>
+
+        <div class="col-md-1">
+            <button type="button"
+                    class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor"
+                    title="Eliminar valor">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+
+    </div>
+</template>
 
             <!-- Agregar valor -->
             <div class="mt-3">
@@ -330,7 +442,94 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalNuevoValorObjetivo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header text-white"
+                style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+
+                <h6 class="modal-title fw-bold">
+                    <i class="bi vi-sliders me-2"></i>
+                    Configurar Valor de Objetivo
+                </h6>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal">
+                </button>
+            </div>
+
+            <div class="modal-body p-4 bg-light">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Nombre *
+                    </label>
+
+                    <input type="text"
+                            id="valorObjetivoNombre"
+                            class="form-control form-control-sm"
+                            placeholder="Ej. Pedo por Caja"
+                            required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Unidad de medida *
+                    </label>
+
+                    <input type="text"
+                            id="valorObjetivoUnidad"
+                            class="form-control form-control-sm"
+                            placeholder="Ej. KG"
+                            required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"
+                            style="font-size: 0.85rem;">
+                        Descripción
+                    </label>
+
+                    <textarea id="valorObjetivoDescripcion"
+                              class="form-control form-control-sm"
+                              rows="3"
+                              placeholder="Descripción de lo que representa este valor..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="btn btn-danger btn-sm fw-bold"
+                        id="btnGuardarValorObjetivo">
+                    <i class="bi bi-save me-1"></i>
+                    Guardar y Usar
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
 @section Scripts {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        (function () {
+            if (!window.jQuery || !jQuery.fn.select2) return;
+            jQuery('#cliente, #vendedor, #sku').select2({ width: '100%' });
+        })();
+    </script>
     <script>
         $(document).ready(function () {
             // Carga de KPIs segun el Area seleccionada
@@ -400,6 +599,71 @@
                 });
             });
 
+            // Crear nuevo Valor de Objetivo en el catálogo
+            $('#btnGuardarValorObjetivo').click(function () {
+
+                var nombre = $('#valorObjetivoNombre').val().trim();
+                var unidad = $('#valorObjetivoUnidad').val().trim();
+                var descripcion = $('#valorObjetivoDescripcion').val().trim();
+
+                if (!nombre || !unidad){
+                    alert("Por favor, capturar el nombre y la unidad de medida.");
+                    return;
+                }
+
+                var $btn = $(this);
+
+                $btn.html('<i class="spinner-border spinner-border-sm"></i> Guardando...')
+                    .prop('disabled', true);
+
+                $.post('@Url.Action("CrearValorObjetivo", "Objetivos")', {
+                    nombre: nombre,
+                    unidadMedida: unidad,
+                    descripcion: descripcion
+                }, function (response) {
+
+                    if (response.success) {
+
+                        // Agregar el nuevo valor al catálogo del formulario
+                        $('.catalogo-sm').each(function () {
+
+                            $(this).append(
+                                $('<option/>', {
+                                    value: response.id,
+                                    text: response.nombre + '(' + response.unidad + ')',
+                                    'data-unidad': response.unidad
+                                })
+                            );
+
+                        });
+
+                        // Seleccionar automáticamente el nuevo valor
+                        var $ultimaFila = $('.valor-row').last();
+                        var $select = $ultimaFila.find('.catalogo-sm');
+
+                        $select.val(response.id).trigger('change');
+
+                        // Limpiar formulario del modal
+                        $('#valorObjetivoNombre').val('');
+                        $('#valorObjetivoUnidad').val('');
+                        $('#valorObjetivoDescripcion').val('');
+
+                        // Cerrar modal
+                        $('#modalNuevoValorObjetivo').modal('hide');
+
+                    } else {
+
+                        alert("Error al guardar: " + response.message);
+
+                    }
+                }).always(function () {
+
+                    $btn.html('<i class="bi bi-save me-1"></i> Guardar y Usar')
+                        .prop('disabled', false);
+
+                });
+            });
+
             // Carga dinamica de clientes segun el vendedor seleccionado
             function cargarClientesPorVendedor(idVendedor) {
                 var $comboCliente = $('#cliente');
@@ -429,61 +693,48 @@
         // Logica de Filas Dinamicas
         let indiceValor = 1;
 
-        function renumerarValores(){
-            const filas = document.querySelectorAll(".valor-row");
+        function renumerarValores() {
 
-            filas.forEach((fila, indice) => {
-                const inputs = fila.querySelectorAll("input");
-                inputs.forEach(input => {
-                    const nombre = input.name;
-                    if (!nombre) return;
-                    input.name = nombre.replace(
-                        /ValoresConfigurados\[\d+\]/,
-                        `ValoresConfigurados[${indice}]`
-                    );
-                });
-            });
+    const filas = document.querySelectorAll(".valor-row");
 
-            indiceValor = filas.length;
-        }
+    filas.forEach((fila, indice) => {
+
+        const campos = fila.querySelectorAll("input, select");
+
+        campos.forEach(campo => {
+
+            const nombre = campo.name;
+
+            if (!nombre) return;
+
+            campo.name = nombre.replace(
+                /ValoresConfigurados\[\d+\]/,
+                `ValoresConfigurados[${indice}]`
+            );
+        });
+    });
+
+    indiceValor = filas.length;
+}
 
         document.getElementById("btnAgregarValor").addEventListener("click", function () {
-            const container = document.getElementById("valoresContainer");
-            const nuevaFila = document.createElement("div");
 
-            nuevaFila.className = "row g-2 align-items-end valor-row mb-2";
+    const container = document.getElementById("valoresContainer");
+    const plantilla = document.getElementById("plantillaValor");
 
-            nuevaFila.innerHTML = `
-                <div class="col-md-3">
-                    <label class="form-label">¿Qué medimos?</label>
-                    <input type="text" name="ValoresConfigurados[${indiceValor}].Tipo_Valor" class="form-control form-control-sm" placeholder="Ej. Peso por caja" required />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Unidad</label>
-                    <input type="text" name="ValoresConfigurados[${indiceValor}].Unidad_Medida" class="form-control form-control-sm" placeholder="Ej. KG" required />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Mínimo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Minimo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Máximo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Maximo" class="form-control form-control-sm" step="0.01" placeholder="0.00" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Objetivo</label>
-                    <input type="number" name="ValoresConfigurados[${indiceValor}].Valor_Objetivo" class="form-control form-control-sm" step="0.01" placeholder="0.00" required />
-                </div>
-                <div class='col-md-1'>
-                    <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-eliminar-valor" title="Eliminar valor">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            `;
+    const nuevaFila = plantilla.content.cloneNode(true);
 
-            container.appendChild(nuevaFila);
-            indiceValor++;
-        });
+    nuevaFila.querySelectorAll("[name]").forEach(elemento => {
+        elemento.name = elemento.name.replace(
+            /__INDEX__/g,
+            indiceValor
+        );
+    });
+
+    container.appendChild(nuevaFila);
+
+    indiceValor++;
+});
 
         document.getElementById("valoresContainer").addEventListener("click", function (e) {
             const botonEliminar = e.target.closest(".btn-eliminar-valor");
@@ -497,6 +748,30 @@
 
             botonEliminar.closest(".valor-row").remove();
             renumerarValores();
+        });
+
+        document.getElementById("valoresContainer").addEventListener("change", function (e) {
+
+            if (!e.target.classList.contains("catalogo-sm")) return;
+
+            const select = e.target;
+            const opcion = select.options[select.selectedIndex];
+            const fila = select.closest(".valor-row");
+
+            const tipoValor = fila.querySelector(".tipo-valor");
+            const unidadMedida = fila.querySelector(".unidad-medida");
+
+            if (!opcion || !opcion.value) {
+                tipoValor.value = "";
+                unidadMedida.value = "";
+                return;
+            }
+
+            tipoValor.value = opcion.textContent
+                .replace(/\s*\([^)]*\)\s*$/, "")
+                .trim();
+
+            unidadMedida.value = opcion.dataset.unidad || "";
         });
     </script>
 }
