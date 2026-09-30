@@ -26,12 +26,14 @@ namespace Plataforma_CG.Models
         public DateTime? Fecha_Modificacion { get; set; }
         public int? UsuarioID_Aprueba { get; set; }
         public DateTime? Fecha_Aprueba { get; set; }
-        public string LINEA { get; set; }
 
         // Propiedades extendidas para las vistas (JOINs)
         public string? NombrePerfil { get; set; }
         public string? NombreTipoObjetivo { get; set; }
         public string? NombreArticulo { get; set; }
+
+        public string UsuarioVendedor { get; set; }
+        public string NombreVendedor { get; set; }
 
         // Relacion uno a muchos con los valores
         public List<ObjetivoValorViewModel> ValoresConfigurados { get; set; } = new List<ObjetivoValorViewModel>();
@@ -42,6 +44,9 @@ namespace Plataforma_CG.Models
     {
         public int ID { get; set; }
         public int ID_Objetivo { get; set; }
+
+        public int? ID_Catalogo_ValorObjetivo { get; set; }
+
         public string Tipo_Valor { get; set; }
         public string Unidad_Medida { get; set; }
         public decimal? Valor_Minimo { get; set; }
