@@ -25,9 +25,9 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
             var lista = await ar.Taras();
             return lista;
         }
-        public async Task<EntradaModel> InsertarEntrada(EntradaModel model)
+        public async Task<EntradaModel> InsertarEntrada(EntradaModel model, Guid capturaGuid)
         {
-            var dato = await ar.InsertarEntrada(model);
+            var dato = await ar.InsertarEntrada(model, capturaGuid);
             return dato;
         }
         public async Task<EntradaModel?> ConsultarEntrada(int id)

@@ -2435,9 +2435,6 @@ ORDER BY
             PedidoViewModel model,
             string accion,
             bool esMuestra = false,
-            DateTime? fechaCompromisoPago = null,
-            string? motivoCompromisoPago = null,
-            IFormFile? evidenciaCompromisoPago = null,
             CancellationToken ct = default)
         {
             // =========================================================
@@ -2452,6 +2449,34 @@ ORDER BY
                     "~/Views/Comercial/OrdenVenta.cshtml",
                     model
                 );
+            }
+
+
+            // =========================================================
+            // FOLIO DE LOGÍSTICA SELECCIONADO EN LA VISTA
+            // =========================================================
+            var formGeneral =
+                await Request.ReadFormAsync(ct);
+
+            int? logisticaFolioId =
+                null;
+
+            var logisticaFolioRaw =
+                formGeneral["LogisticaFolioId"]
+                    .ToString()
+                    .Trim();
+
+            if (
+                int.TryParse(
+                    logisticaFolioRaw,
+                    out var folioParsed
+                )
+                &&
+                folioParsed > 0
+            )
+            {
+                logisticaFolioId =
+                    folioParsed;
             }
 
 
@@ -2599,22 +2624,63 @@ ORDER BY
             bool requiereCompromisoCobranza =
                 false;
 
+            // Si el cliente ya tiene un compromiso ACTIVO sobre alguna
+            // factura que SAP todavía reporta con saldo, la nueva OV se
+            // guarda pero queda en revisión. No se duplica el compromiso.
+            bool requiereRevisionCobranza =
+                false;
 
-            // Evidencia
-            byte[]? evidenciaBytes =
-                null;
+            var facturasSinCompromiso =
+                new List<FacturaPendienteSapViewModel>();
 
-            string? evidenciaNombre =
-                null;
+            var docEntriesConCompromisoActivo =
+                new HashSet<int>();
 
-            string? evidenciaTipo =
-                null;
-
-            string? evidenciaExtension =
-                null;
-
-            long evidenciaTamano =
+            int cantidadCompromisosActivosPrevios =
                 0;
+
+            var estatusActivosCobranza =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+              "PENDIENTE",
+              "VENCE_HOY",
+              "PARCIAL",
+              "INCUMPLIDO",
+              "REVISAR"
+                };
+
+
+            // =========================================================
+            // COMPROMISOS CAPTURADOS POR FACTURA
+            //
+            // Se leen directamente del multipart/form-data enviado por
+            // OrdenVenta.cshtml para no alterar PedidoViewModel ni la
+            // lógica existente de la Orden de Venta.
+            // =========================================================
+            var compromisosPagoCapturados =
+                new List<(
+                    int Index,
+                    string Factura,
+                    int? SapDocEntry,
+                    DateTime? FechaCompromisoPago,
+                    string Motivo,
+                    IFormFile? Evidencia
+                )>();
+
+            const long MAX_EVIDENCIA_COMPROMISO =
+                8L * 1024L * 1024L;
+
+            var extensionesEvidenciaPermitidas =
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase
+                )
+                {
+              ".jpg",
+              ".jpeg",
+              ".png",
+              ".webp",
+              ".pdf"
+                };
 
 
             // =========================================================
@@ -2649,8 +2715,92 @@ ORDER BY
                         );
 
 
+                    // =================================================
+                    // DETECTAR COMPROMISOS PREVIOS ACTIVOS POR FACTURA
+                    // =================================================
+                    // Importante:
+                    // - SAP sigue siendo la fuente del saldo ACTUAL.
+                    // - SQL solamente nos dice si esa factura ya cuenta
+                    //   con un compromiso capturado previamente.
+                    // - Una factura con compromiso activo NO vuelve a
+                    //   generar otro compromiso.
+                    // =================================================
+                    docEntriesConCompromisoActivo.Clear();
+
+                    var docEntriesSap =
+                        facturasVencidasAlGuardar
+                            .Select(f =>
+                                Convert.ToInt32(
+                                    f.DocEntry,
+                                    CultureInfo.InvariantCulture
+                                )
+                            )
+                            .Where(x => x > 0)
+                            .Distinct()
+                            .ToHashSet();
+
+                    if (docEntriesSap.Count > 0)
+                    {
+                        var compromisosCliente =
+                            await (
+                                from f in _context.CobranzaCompromisoFacturas.AsNoTracking()
+                                join c in _context.CobranzaCompromisos.AsNoTracking()
+                                    on f.CobranzaCompromisoId equals c.Id
+                                where
+                                    c.ClienteCodigo != null &&
+                                    c.ClienteCodigo.Trim().ToUpper() == clienteUp &&
+                                    f.Pagada != true
+                                select new
+                                {
+                                    f.SapDocEntry,
+                                    c.Estatus,
+                                    c.FechaRegistro
+                                }
+                            )
+                            .ToListAsync(ct);
+
+                        docEntriesConCompromisoActivo =
+                            compromisosCliente
+                                .Where(x =>
+                                    estatusActivosCobranza.Contains(
+                                        (x.Estatus ?? "").Trim()
+                                    )
+                                )
+                                .Select(x =>
+                                    Convert.ToInt32(
+                                        x.SapDocEntry,
+                                        CultureInfo.InvariantCulture
+                                    )
+                                )
+                                .Where(x =>
+                                    x > 0 &&
+                                    docEntriesSap.Contains(x)
+                                )
+                                .ToHashSet();
+                    }
+
+                    cantidadCompromisosActivosPrevios =
+                        docEntriesConCompromisoActivo.Count;
+
+                    requiereRevisionCobranza =
+                        cantidadCompromisosActivosPrevios > 0;
+
+                    facturasSinCompromiso =
+                        facturasVencidasAlGuardar
+                            .Where(f =>
+                                !docEntriesConCompromisoActivo.Contains(
+                                    Convert.ToInt32(
+                                        f.DocEntry,
+                                        CultureInfo.InvariantCulture
+                                    )
+                                )
+                            )
+                            .ToList();
+
+                    // Solo las facturas vencidas SIN compromiso previo
+                    // requieren una nueva captura.
                     requiereCompromisoCobranza =
-                        saldoVencidoReal > 0.01m;
+                        facturasSinCompromiso.Count > 0;
 
 
                     // =================================================
@@ -2669,7 +2819,7 @@ ORDER BY
                     );
 
                     TempData["Error"] =
-                        "No fue posible validar las facturas vencidas del cliente en SAP. " +
+                        "No fue posible validar las facturas vencidas y los compromisos de cobranza del cliente. " +
                         "La orden NO fue guardada. Intenta nuevamente.";
 
                     return RedirectToAction(
@@ -2679,36 +2829,132 @@ ORDER BY
 
 
                 // =====================================================
-                // SI HAY FACTURAS VENCIDAS,
-                // EL COMPROMISO ES OBLIGATORIO
+                // SI HAY FACTURAS VENCIDAS SIN COMPROMISO PREVIO,
+                // EL COMPROMISO ES OBLIGATORIO SOLO PARA ESAS FACTURAS
                 // =====================================================
                 if (requiereCompromisoCobranza)
                 {
-                    motivoCompromisoPago =
-                        (motivoCompromisoPago ?? "")
-                        .Trim();
+                    var formCompromisos =
+                        formGeneral;
+
+                    var indicesCompromiso =
+                        formCompromisos.Keys
+                            .Select(k =>
+                                Regex.Match(
+                                    k,
+                                    @"^CompromisosPago\[(\d+)\]\.Factura$",
+                                    RegexOptions.IgnoreCase
+                                )
+                            )
+                            .Where(m =>
+                                m.Success
+                            )
+                            .Select(m =>
+                                int.Parse(
+                                    m.Groups[1].Value,
+                                    CultureInfo.InvariantCulture
+                                )
+                            )
+                            .Distinct()
+                            .OrderBy(i =>
+                                i
+                            )
+                            .ToList();
 
 
-                    // =================================================
-                    // FECHA COMPROMISO
-                    // =================================================
-                    if (!fechaCompromisoPago.HasValue)
+                    foreach (var i in indicesCompromiso)
+                    {
+                        var facturaCapturada =
+                            formCompromisos[
+                                $"CompromisosPago[{i}].Factura"
+                            ]
+                            .ToString()
+                            .Trim();
+
+                        var docEntryRaw =
+                            formCompromisos[
+                                $"CompromisosPago[{i}].SapDocEntry"
+                            ]
+                            .ToString()
+                            .Trim();
+
+                        int? sapDocEntryCapturado =
+                            int.TryParse(
+                                docEntryRaw,
+                                NumberStyles.Integer,
+                                CultureInfo.InvariantCulture,
+                                out var docEntryParsed
+                            )
+                                ? docEntryParsed
+                                : (int?)null;
+
+                        var fechaRaw =
+                            formCompromisos[
+                                $"CompromisosPago[{i}].FechaCompromisoPago"
+                            ]
+                            .ToString()
+                            .Trim();
+
+                        DateTime? fechaCapturada =
+                            null;
+
+                        if (DateTime.TryParseExact(
+                                fechaRaw,
+                                "yyyy-MM-dd",
+                                CultureInfo.InvariantCulture,
+                                DateTimeStyles.None,
+                                out var fechaParsed))
+                        {
+                            fechaCapturada =
+                                fechaParsed.Date;
+                        }
+
+                        var motivoCapturado =
+                            formCompromisos[
+                                $"CompromisosPago[{i}].Motivo"
+                            ]
+                            .ToString()
+                            .Trim();
+
+                        var evidenciaCapturada =
+                            formCompromisos.Files
+                                .FirstOrDefault(f =>
+                                    string.Equals(
+                                        f.Name,
+                                        $"CompromisosPago[{i}].Evidencia",
+                                        StringComparison.OrdinalIgnoreCase
+                                    )
+                                );
+
+                        compromisosPagoCapturados.Add(
+                            (
+                                Index:
+                                    i,
+
+                                Factura:
+                                    facturaCapturada,
+
+                                SapDocEntry:
+                                    sapDocEntryCapturado,
+
+                                FechaCompromisoPago:
+                                    fechaCapturada,
+
+                                Motivo:
+                                    motivoCapturado,
+
+                                Evidencia:
+                                    evidenciaCapturada
+                            )
+                        );
+                    }
+
+
+                    if (compromisosPagoCapturados.Count == 0)
                     {
                         TempData["Error"] =
                             "El cliente tiene facturas vencidas. " +
-                            "Debes capturar una fecha compromiso de pago.";
-
-                        return RedirectToAction(
-                            nameof(OrdenVenta)
-                        );
-                    }
-
-
-                    if (fechaCompromisoPago.Value.Date <
-                        DateTime.Today)
-                    {
-                        TempData["Error"] =
-                            "La fecha compromiso de pago no puede ser anterior a hoy.";
+                            "Debes capturar un compromiso de pago para cada factura.";
 
                         return RedirectToAction(
                             nameof(OrdenVenta)
@@ -2717,127 +2963,168 @@ ORDER BY
 
 
                     // =================================================
-                    // MOTIVO
+                    // VALIDAR CONTRA LAS FACTURAS REALES DE SAP
+                    //
+                    // Nunca confiamos en importes o saldos enviados por
+                    // HTML. La factura y su pendiente salen de SAP.
                     // =================================================
-                    if (string.IsNullOrWhiteSpace(
-                            motivoCompromisoPago))
+                    foreach (
+                        var facturaSap in
+                        facturasSinCompromiso)
                     {
-                        TempData["Error"] =
-                            "El cliente tiene facturas vencidas. " +
-                            "Debes capturar el motivo/comentario del compromiso de pago.";
+                        var docNumSap =
+                            Convert.ToString(
+                                facturaSap.DocNum,
+                                CultureInfo.InvariantCulture
+                            )?
+                            .Trim()
+                            ?? "";
 
-                        return RedirectToAction(
-                            nameof(OrdenVenta)
-                        );
-                    }
+                        var docEntrySap =
+                            Convert.ToInt32(
+                                facturaSap.DocEntry,
+                                CultureInfo.InvariantCulture
+                            );
 
-
-                    if (motivoCompromisoPago.Length < 5)
-                    {
-                        TempData["Error"] =
-                            "El motivo/comentario debe contener al menos 5 caracteres.";
-
-                        return RedirectToAction(
-                            nameof(OrdenVenta)
-                        );
-                    }
-
-
-                    if (motivoCompromisoPago.Length > 1000)
-                    {
-                        TempData["Error"] =
-                            "El motivo no puede exceder 1000 caracteres.";
-
-                        return RedirectToAction(
-                            nameof(OrdenVenta)
-                        );
-                    }
-
-
-                    // =================================================
-                    // EVIDENCIA OPCIONAL
-                    // =================================================
-                    if (evidenciaCompromisoPago != null &&
-                        evidenciaCompromisoPago.Length > 0)
-                    {
-                        const long MAX_EVIDENCIA =
-                            8L * 1024L * 1024L;
+                        var posCaptura =
+                            compromisosPagoCapturados
+                                .FindIndex(x =>
+                                    (
+                                        x.SapDocEntry.HasValue &&
+                                        x.SapDocEntry.Value ==
+                                            docEntrySap
+                                    )
+                                    ||
+                                    (
+                                        !string.IsNullOrWhiteSpace(
+                                            x.Factura
+                                        )
+                                        &&
+                                        string.Equals(
+                                            x.Factura,
+                                            docNumSap,
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
+                                );
 
 
-                        var ext =
-                            Path.GetExtension(
-                                evidenciaCompromisoPago.FileName ?? ""
-                            )
-                            .ToLowerInvariant();
+                        if (posCaptura < 0)
+                        {
+                            TempData["Error"] =
+                                $"Falta capturar el compromiso de pago de la factura {docNumSap}.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
 
 
-                        var extensionesPermitidas =
-                            new HashSet<string>(
-                                StringComparer.OrdinalIgnoreCase
-                            )
+                        var capturado =
+                            compromisosPagoCapturados[
+                                posCaptura
+                            ];
+
+
+                        // =============================================
+                        // FECHA COMPROMISO
+                        // =============================================
+                        if (!capturado
+                            .FechaCompromisoPago
+                            .HasValue)
+                        {
+                            TempData["Error"] =
+                                $"Debes capturar la fecha compromiso de pago de la factura {docNumSap}.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        if (capturado
+                            .FechaCompromisoPago
+                            .Value
+                            .Date <
+                            DateTime.Today)
+                        {
+                            TempData["Error"] =
+                                $"La fecha compromiso de la factura {docNumSap} no puede ser anterior a hoy.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        // =============================================
+                        // MOTIVO
+                        // =============================================
+                        if (string.IsNullOrWhiteSpace(
+                                capturado.Motivo)
+                            ||
+                            capturado.Motivo.Length < 5)
+                        {
+                            TempData["Error"] =
+                                $"Captura un motivo/comentario de al menos 5 caracteres para la factura {docNumSap}.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        if (capturado.Motivo.Length >
+                            1000)
+                        {
+                            TempData["Error"] =
+                                $"El motivo de la factura {docNumSap} no puede exceder 1000 caracteres.";
+
+                            return RedirectToAction(
+                                nameof(OrdenVenta)
+                            );
+                        }
+
+
+                        // =============================================
+                        // EVIDENCIA OPCIONAL DE ESTA FACTURA
+                        // =============================================
+                        if (capturado.Evidencia != null &&
+                            capturado.Evidencia.Length > 0)
+                        {
+                            var ext =
+                                Path.GetExtension(
+                                    capturado
+                                        .Evidencia
+                                        .FileName
+                                    ?? ""
+                                )
+                                .ToLowerInvariant();
+
+
+                            if (!extensionesEvidenciaPermitidas
+                                .Contains(ext))
                             {
-                        ".jpg",
-                        ".jpeg",
-                        ".png",
-                        ".webp",
-                        ".pdf"
-                            };
+                                TempData["Error"] =
+                                    $"La evidencia de la factura {docNumSap} debe ser JPG, JPEG, PNG, WEBP o PDF.";
+
+                                return RedirectToAction(
+                                    nameof(OrdenVenta)
+                                );
+                            }
 
 
-                        if (!extensionesPermitidas.Contains(ext))
-                        {
-                            TempData["Error"] =
-                                "La evidencia debe ser JPG, JPEG, PNG, WEBP o PDF.";
+                            if (capturado.Evidencia.Length >
+                                MAX_EVIDENCIA_COMPROMISO)
+                            {
+                                TempData["Error"] =
+                                    $"La evidencia de la factura {docNumSap} no puede superar 8 MB.";
 
-                            return RedirectToAction(
-                                nameof(OrdenVenta)
-                            );
+                                return RedirectToAction(
+                                    nameof(OrdenVenta)
+                                );
+                            }
                         }
-
-
-                        if (evidenciaCompromisoPago.Length >
-                            MAX_EVIDENCIA)
-                        {
-                            TempData["Error"] =
-                                "La evidencia no puede superar 8 MB.";
-
-                            return RedirectToAction(
-                                nameof(OrdenVenta)
-                            );
-                        }
-
-
-                        using var ms =
-                            new MemoryStream();
-
-
-                        await evidenciaCompromisoPago
-                            .CopyToAsync(
-                                ms,
-                                ct
-                            );
-
-
-                        evidenciaBytes =
-                            ms.ToArray();
-
-
-                        evidenciaNombre =
-                            Path.GetFileName(
-                                evidenciaCompromisoPago.FileName
-                            );
-
-
-                        evidenciaTipo =
-                            evidenciaCompromisoPago.ContentType;
-
-
-                        evidenciaExtension =
-                            ext;
-
-
-                        evidenciaTamano =
-                            evidenciaCompromisoPago.Length;
                     }
                 }
             }
@@ -2987,9 +3274,53 @@ ORDER BY
                 );
 
 
+            string serieSeleccionadaUp =
+                Norm(
+                    model.Serie
+                );
+
+
             bool esSerieMatriz =
-                sucursalSerieUp ==
-                "MATRIZ";
+                sucursalSerieUp == "MATRIZ"
+                ||
+                serieSeleccionadaUp == "PLANTA1"
+                ||
+                serieSeleccionadaUp == "TIF";
+
+
+            // =========================================================
+            // VALIDAR FOLIO DE LOGÍSTICA
+            // =========================================================
+            if (
+                esSerieMatriz &&
+                !esMuestra
+            )
+            {
+                if (
+                    !vendedorId.HasValue ||
+                    vendedorId.Value <= 0
+                )
+                {
+                    TempData["Error"] =
+                        "No se pudo identificar el vendedor de la orden para ligarla con logística.";
+
+                    return View(
+                        "~/Views/Comercial/OrdenVenta.cshtml",
+                        model
+                    );
+                }
+
+                if (!logisticaFolioId.HasValue)
+                {
+                    TempData["Error"] =
+                        "Debes seleccionar un folio de transporte disponible para la fecha de embarque.";
+
+                    return View(
+                        "~/Views/Comercial/OrdenVenta.cshtml",
+                        model
+                    );
+                }
+            }
 
 
             // Si cliente es CEDIS y serie NO es MATRIZ,
@@ -3270,7 +3601,8 @@ ORDER BY
                 (
                     requiereAutorizacionPrecio ||
                     requiereAutorizacionPresupuesto ||
-                    requiereAutorizacionCredito
+                    requiereAutorizacionCredito ||
+                    requiereRevisionCobranza
                 )
                     ? 2
                     : 1;
@@ -3385,7 +3717,11 @@ ORDER BY
                             model.FechaEntrega.Value,
 
                         FechaEmbarque =
-                            model.FechaEmbarque,
+                            esSerieMatriz &&
+                            !esMuestra &&
+                            logisticaFolioId.HasValue
+                                ? model.FechaEntrega.Value.Date
+                                : model.FechaEmbarque,
 
                         HoraEmbarque =
                             model.HoraEmbarque,
@@ -3459,8 +3795,14 @@ ORDER BY
                         // AUTORIZACIONES
                         // =============================================
 
+                        // Si ya existían compromisos activos de cobranza,
+                        // reutilizamos el flujo de revisión de crédito para
+                        // detener la OV hasta que sea revisada.
                         AutorizacionCredito =
-                            !requiereAutorizacionCredito,
+                            !(
+                                requiereAutorizacionCredito ||
+                                requiereRevisionCobranza
+                            ),
 
                         // Actualmente lo tienes forzado
                         // a autorizado.
@@ -3530,80 +3872,138 @@ ORDER BY
 
 
                 // =====================================================
-                // 3) COBRANZA - GUARDAR COMPROMISO
+                // 3) COBRANZA - GUARDAR UN COMPROMISO POR FACTURA
                 // =====================================================
 
                 if (requiereCompromisoCobranza)
                 {
-                    var compromiso =
-                        new CobranzaCompromiso
-                        {
-                            OrdenVentaId =
-                                pedido.Id,
-
-                            OrdenVentaConsecutivo =
-                                pedido.Consecutivo ??
-                                $"OV-{pedido.Id:D8}",
-
-                            ClienteCodigo =
-                                model.Cliente ?? "",
-
-                            ClienteNombre =
-                                cliSap?.Nombre ??
-                                model.Cliente ??
-                                "",
-
-                            SaldoVencidoInicial =
-                                decimal.Round(
-                                    saldoVencidoReal,
-                                    2,
-                                    MidpointRounding.AwayFromZero
-                                ),
-
-                            SaldoPendienteActual =
-                                decimal.Round(
-                                    saldoVencidoReal,
-                                    2,
-                                    MidpointRounding.AwayFromZero
-                                ),
-
-                            FechaCompromiso =
-                                fechaCompromisoPago!
-                                    .Value
-                                    .Date,
-
-                            Motivo =
-                                motivoCompromisoPago!,
-
-                            Estatus =
-                                "PENDIENTE",
-
-                            UsuarioRegistro =
-                                usuarioRegistro,
-
-                            FechaRegistro =
-                                DateTime.Now
-                        };
-
-
-                    _context
-                        .CobranzaCompromisos
-                        .Add(compromiso);
-
-
-                    // Necesitamos ID para relacionar facturas
-                    await _context
-                        .SaveChangesAsync(ct);
-
-
-                    // =================================================
-                    // SNAPSHOT DE FACTURAS VENCIDAS
-                    // =================================================
-
                     foreach (
                         var factura in
-                        facturasVencidasAlGuardar)
+                        facturasSinCompromiso)
                     {
+                        var docNumSap =
+                            Convert.ToString(
+                                factura.DocNum,
+                                CultureInfo.InvariantCulture
+                            )?
+                            .Trim()
+                            ?? "";
+
+                        var docEntrySap =
+                            Convert.ToInt32(
+                                factura.DocEntry,
+                                CultureInfo.InvariantCulture
+                            );
+
+                        var posCaptura =
+                            compromisosPagoCapturados
+                                .FindIndex(x =>
+                                    (
+                                        x.SapDocEntry.HasValue &&
+                                        x.SapDocEntry.Value ==
+                                            docEntrySap
+                                    )
+                                    ||
+                                    (
+                                        !string.IsNullOrWhiteSpace(
+                                            x.Factura
+                                        )
+                                        &&
+                                        string.Equals(
+                                            x.Factura,
+                                            docNumSap,
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
+                                );
+
+
+                        // Ya se validó antes de iniciar la transacción.
+                        // Si por alguna razón desaparece, abortamos todo.
+                        if (posCaptura < 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"No se encontró el compromiso capturado para la factura SAP {docNumSap}."
+                            );
+                        }
+
+
+                        var capturado =
+                            compromisosPagoCapturados[
+                                posCaptura
+                            ];
+
+                        var pendienteFactura =
+                            decimal.Round(
+                                factura.Pendiente,
+                                2,
+                                MidpointRounding.AwayFromZero
+                            );
+
+
+                        // =============================================
+                        // CABECERA DEL COMPROMISO DE ESTA FACTURA
+                        // =============================================
+                        var compromiso =
+                            new CobranzaCompromiso
+                            {
+                                OrdenVentaId =
+                                    pedido.Id,
+
+                                OrdenVentaConsecutivo =
+                                    pedido.Consecutivo ??
+                                    $"OV-{pedido.Id:D8}",
+
+                                ClienteCodigo =
+                                    model.Cliente ?? "",
+
+                                ClienteNombre =
+                                    cliSap?.Nombre ??
+                                    model.Cliente ??
+                                    "",
+
+                                // Como el compromiso ahora corresponde
+                                // a UNA factura, guardamos su pendiente.
+                                SaldoVencidoInicial =
+                                    pendienteFactura,
+
+                                SaldoPendienteActual =
+                                    pendienteFactura,
+
+                                FechaCompromiso =
+                                    capturado
+                                        .FechaCompromisoPago!
+                                        .Value
+                                        .Date,
+
+                                Motivo =
+                                    capturado.Motivo,
+
+                                Estatus =
+                                    "PENDIENTE",
+
+                                UsuarioRegistro =
+                                    usuarioRegistro,
+
+                                FechaRegistro =
+                                    DateTime.Now
+                            };
+
+
+                        _context
+                            .CobranzaCompromisos
+                            .Add(compromiso);
+
+
+                        // Se requiere el Id para relacionar
+                        // esta factura y su evidencia.
+                        await _context
+                            .SaveChangesAsync(ct);
+
+
+                        // =============================================
+                        // SNAPSHOT DE LA FACTURA ASOCIADA
+                        // =============================================
                         var detalleFactura =
                             new CobranzaCompromisoFactura
                             {
@@ -3647,56 +4047,82 @@ ORDER BY
                             .Add(
                                 detalleFactura
                             );
+
+
+                        // =============================================
+                        // EVIDENCIA OPCIONAL DE ESTA FACTURA
+                        // =============================================
+                        if (capturado.Evidencia != null &&
+                            capturado.Evidencia.Length > 0)
+                        {
+                            using var ms =
+                                new MemoryStream();
+
+                            await capturado
+                                .Evidencia
+                                .CopyToAsync(
+                                    ms,
+                                    ct
+                                );
+
+                            var ext =
+                                Path.GetExtension(
+                                    capturado
+                                        .Evidencia
+                                        .FileName
+                                    ?? ""
+                                )
+                                .ToLowerInvariant();
+
+                            var archivo =
+                                new CobranzaCompromisoArchivo
+                                {
+                                    CobranzaCompromisoId =
+                                        compromiso.Id,
+
+                                    NombreOriginal =
+                                        Path.GetFileName(
+                                            capturado
+                                                .Evidencia
+                                                .FileName
+                                        )
+                                        ?? "evidencia",
+
+                                    TipoContenido =
+                                        capturado
+                                            .Evidencia
+                                            .ContentType,
+
+                                    Extension =
+                                        ext,
+
+                                    TamanoBytes =
+                                        capturado
+                                            .Evidencia
+                                            .Length,
+
+                                    Contenido =
+                                        ms.ToArray(),
+
+                                    UsuarioRegistro =
+                                        usuarioRegistro,
+
+                                    FechaRegistro =
+                                        DateTime.Now
+                                };
+
+
+                            _context
+                                .CobranzaCompromisoArchivos
+                                .Add(
+                                    archivo
+                                );
+                        }
+
+
+                        await _context
+                            .SaveChangesAsync(ct);
                     }
-
-
-                    // =================================================
-                    // EVIDENCIA OPCIONAL
-                    // =================================================
-
-                    if (evidenciaBytes != null &&
-                        evidenciaBytes.Length > 0)
-                    {
-                        var archivo =
-                            new CobranzaCompromisoArchivo
-                            {
-                                CobranzaCompromisoId =
-                                    compromiso.Id,
-
-                                NombreOriginal =
-                                    evidenciaNombre ??
-                                    "evidencia",
-
-                                TipoContenido =
-                                    evidenciaTipo,
-
-                                Extension =
-                                    evidenciaExtension,
-
-                                TamanoBytes =
-                                    evidenciaTamano,
-
-                                Contenido =
-                                    evidenciaBytes,
-
-                                UsuarioRegistro =
-                                    usuarioRegistro,
-
-                                FechaRegistro =
-                                    DateTime.Now
-                            };
-
-
-                        _context
-                            .CobranzaCompromisoArchivos
-                            .Add(
-                                archivo
-                            );
-                    }
-
-
-                    await _context
-                        .SaveChangesAsync(ct);
                 }
 
 
@@ -3761,7 +4187,163 @@ ORDER BY
 
 
                 // =====================================================
-                // 5) SI ES MUESTRA
+                // 5) AMARRAR FOLIO DE LOGÍSTICA A LA ORDEN DE VENTA
+                // =====================================================
+                if (
+                    esSerieMatriz &&
+                    !esMuestra &&
+                    logisticaFolioId.HasValue
+                )
+                {
+                    if (
+                        !vendedorId.HasValue ||
+                        vendedorId.Value <= 0
+                    )
+                    {
+                        throw new InvalidOperationException(
+                            "No existe VendedorId para ligar el folio de logística."
+                        );
+                    }
+
+
+                    decimal totalKgOrden =
+                        model.Productos?
+                            .Sum(x =>
+                                x.Peso
+                            )
+                        ?? 0m;
+
+
+                    var rutaFinal =
+                        string.IsNullOrWhiteSpace(
+                            model.Ruta
+                        )
+                            ? "Sin Dirección"
+                            : model.Ruta.Trim();
+
+
+                    var nombreClienteFinal =
+                        cliSap?.Nombre ??
+                        model.Cliente ??
+                        "";
+
+
+                    const string estatusLogisticaInicial =
+                        "PENDIENTE FLETERA";
+
+                    // =====================================================
+                    // CAPACIDAD DEL TRANSPORTE
+                    // =====================================================
+                    // La OV puede exceder la carga solicitada únicamente
+                    // hasta 500 kg. Para permitir 1,000 kg cambia este valor
+                    // a 1000m y también TOLERANCIA_CARGA_KG en la vista.
+                    const decimal toleranciaCargaKg =
+                        500m;
+
+
+                    _ =
+                        await _context.Database
+                            .ExecuteSqlInterpolatedAsync(
+                                $@"
+DECLARE @Existe BIT = 0;
+DECLARE @CargaSolicitadaKg DECIMAL(18,2) = 0;
+
+SELECT
+    @Existe = 1,
+    @CargaSolicitadaKg = ISNULL(CargaSolicitadaKg, 0)
+FROM dbo.LogisticaFolio WITH (UPDLOCK, HOLDLOCK)
+WHERE
+    Id = {logisticaFolioId.Value}
+    AND OrdenVentaId IS NULL
+    AND ISNULL(Cancelado, 0) = 0
+    AND FechaEmbarque = {model.FechaEntrega.Value.Date}
+    AND VendedorId = {vendedorId.Value};
+
+IF @Existe = 0
+BEGIN
+    THROW 50001,
+          'El folio de transporte ya fue utilizado, fue cancelado, pertenece a otro vendedor o no corresponde a la fecha seleccionada.',
+          1;
+END;
+
+IF {totalKgOrden} > (@CargaSolicitadaKg + {toleranciaCargaKg})
+BEGIN
+    DECLARE @Mensaje NVARCHAR(2048);
+
+    SET @Mensaje =
+        CONCAT(
+            'No puedes guardar la orden porque excede la capacidad del transporte. ',
+            'Carga solicitada: ',
+            CONVERT(VARCHAR(30), CAST(@CargaSolicitadaKg AS DECIMAL(18,2))),
+            ' kg. Tolerancia permitida: +',
+            CONVERT(VARCHAR(30), CAST({toleranciaCargaKg} AS DECIMAL(18,2))),
+            ' kg. Máximo permitido: ',
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @CargaSolicitadaKg + {toleranciaCargaKg}
+                    AS DECIMAL(18,2)
+                )
+            ),
+            ' kg. Peso de la OV: ',
+            CONVERT(VARCHAR(30), CAST({totalKgOrden} AS DECIMAL(18,2))),
+            ' kg.'
+        );
+
+    THROW 50002, @Mensaje, 1;
+END;
+
+UPDATE dbo.LogisticaFolio
+SET
+    OrdenVentaId = {pedido.Id},
+    OrdenVentaConsecutivo = {pedido.Consecutivo},
+    ClienteCodigo = {model.Cliente ?? ""},
+    ClienteNombre = {nombreClienteFinal},
+    Ruta = {rutaFinal},
+    Presentacion = {model.Presentacion ?? ""},
+    KgOrdenVenta = {totalKgOrden},
+
+    /* Si Logística ya trabajó el folio ANTES de la OV,
+       conservamos el avance. */
+    EstatusLogistico =
+        CASE
+            WHEN
+                NULLIF(
+                    LTRIM(
+                        RTRIM(
+                            ISNULL(Fletera, '')
+                        )
+                    ),
+                    ''
+                ) IS NOT NULL
+                THEN 'ASIGNADO'
+
+            ELSE
+                'PENDIENTE FLETERA'
+        END,
+
+    UsuarioModificacion = {usuarioRegistro},
+    FechaModificacion = SYSDATETIME()
+WHERE
+    Id = {logisticaFolioId.Value}
+    AND OrdenVentaId IS NULL
+    AND ISNULL(Cancelado, 0) = 0
+    AND FechaEmbarque = {model.FechaEntrega.Value.Date}
+    AND VendedorId = {vendedorId.Value};
+
+IF @@ROWCOUNT <> 1
+BEGIN
+    THROW 50003,
+          'No fue posible ligar el folio de transporte a la Orden de Venta. Actualiza los folios disponibles e intenta nuevamente.',
+          1;
+END;",
+                                ct
+                            );
+                }
+
+
+                // =====================================================
+                // 6) SI ES MUESTRA
                 // =====================================================
 
                 if (esMuestra)
@@ -3804,12 +4386,27 @@ ORDER BY
                 // MENSAJE
                 // =====================================================
 
-                if (requiereCompromisoCobranza)
+                if (requiereRevisionCobranza && requiereCompromisoCobranza)
                 {
                     TempData["Success"] =
                         $"Pedido guardado. Consecutivo: {pedido.Consecutivo}. " +
-                        $"Se generó compromiso de cobranza por saldo vencido de " +
-                        $"{saldoVencidoReal:C2}.";
+                        $"El cliente ya tenía {cantidadCompromisosActivosPrevios} compromiso(s) activo(s) de cobranza; " +
+                        $"la OV quedó EN REVISIÓN. Además se generaron {facturasSinCompromiso.Count} compromiso(s) nuevo(s) " +
+                        $"para las facturas que todavía no tenían compromiso.";
+                }
+                else if (requiereRevisionCobranza)
+                {
+                    TempData["Success"] =
+                        $"Pedido guardado. Consecutivo: {pedido.Consecutivo}. " +
+                        $"El cliente ya tiene {cantidadCompromisosActivosPrevios} compromiso(s) activo(s) de cobranza. " +
+                        $"No se duplicaron compromisos y la OV quedó EN REVISIÓN.";
+                }
+                else if (requiereCompromisoCobranza)
+                {
+                    TempData["Success"] =
+                        $"Pedido guardado. Consecutivo: {pedido.Consecutivo}. " +
+                        $"Se generaron {facturasSinCompromiso.Count} compromiso(s) de cobranza, uno por factura nueva, " +
+                        $"por saldo vencido total de {saldoVencidoReal:C2}.";
                 }
                 else
                 {
@@ -3870,12 +4467,6 @@ ORDER BY
                 );
             }
         }
-
-
-
-
-
-
 
 
 
@@ -32258,244 +32849,1175 @@ ORDER BY
             CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(cardCode))
-                return BadRequest(new { ok = false, mensaje = "cardCode es requerido." });
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "cardCode es requerido."
+                });
+            }
 
             try
             {
-                var facturas = await _sap.ObtenerFacturasVencidasClienteAsync(cardCode);
+                var cardCodeUp =
+                    cardCode.Trim().ToUpperInvariant();
+
+                // SAP es la fuente del saldo actual de las facturas.
+                var facturas =
+                    await _sap.ObtenerFacturasVencidasClienteAsync(cardCode);
+
+                var estatusActivosCobranza =
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "PENDIENTE",
+                        "VENCE_HOY",
+                        "PARCIAL",
+                        "INCUMPLIDO",
+                        "REVISAR"
+                    };
+
+                // Traemos los compromisos no pagados del cliente y después
+                // hacemos el cruce por SapDocEntry contra las facturas que
+                // SAP todavía reporta abiertas.
+                var compromisosCliente =
+                    await (
+                        from f in _context.CobranzaCompromisoFacturas.AsNoTracking()
+                        join c in _context.CobranzaCompromisos.AsNoTracking()
+                            on f.CobranzaCompromisoId equals c.Id
+                        where
+                            c.ClienteCodigo != null &&
+                            c.ClienteCodigo.Trim().ToUpper() == cardCodeUp &&
+                            f.Pagada != true
+                        select new
+                        {
+                            SapDocEntry = f.SapDocEntry,
+                            SapDocNum = f.SapDocNum,
+                            CompromisoId = c.Id,
+                            c.OrdenVentaConsecutivo,
+                            c.FechaCompromiso,
+                            c.Motivo,
+                            c.Estatus,
+                            c.SaldoVencidoInicial,
+                            c.SaldoPendienteActual,
+                            c.FechaRegistro
+                        }
+                    )
+                    .ToListAsync(ct);
+
+                // Si por datos históricos llegaran a existir varios
+                // compromisos para la misma factura, mostramos solamente
+                // el más reciente que siga activo.
+                var compromisoActivoPorDocEntry =
+                    compromisosCliente
+                        .Where(x =>
+                            estatusActivosCobranza.Contains(
+                                (x.Estatus ?? "").Trim()
+                            )
+                        )
+                        .Select(x => new
+                        {
+                            DocEntry = Convert.ToInt32(
+                                x.SapDocEntry,
+                                CultureInfo.InvariantCulture
+                            ),
+                            x.CompromisoId,
+                            x.OrdenVentaConsecutivo,
+                            x.FechaCompromiso,
+                            x.Motivo,
+                            x.Estatus,
+                            x.SaldoVencidoInicial,
+                            x.SaldoPendienteActual,
+                            x.FechaRegistro
+                        })
+                        .Where(x => x.DocEntry > 0)
+                        .GroupBy(x => x.DocEntry)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g
+                                .OrderByDescending(x => x.FechaRegistro)
+                                .ThenByDescending(x => x.CompromisoId)
+                                .First()
+                        );
+
+                var resultadoFacturas =
+                    facturas.Select(x =>
+                    {
+                        var docEntry =
+                            Convert.ToInt32(
+                                x.DocEntry,
+                                CultureInfo.InvariantCulture
+                            );
+
+                        var tieneCompromiso =
+                            compromisoActivoPorDocEntry.TryGetValue(
+                                docEntry,
+                                out var compromiso
+                            );
+
+                        var motivo =
+                            tieneCompromiso
+                                ? (compromiso!.Motivo ?? "")
+                                : "";
+
+                        var motivoUp =
+                            motivo.ToUpperInvariant();
+
+                        var tipoCompromiso =
+                            motivoUp.Contains("PARCIAL")
+                                ? "PAGO PARCIAL"
+                                : motivoUp.Contains("TOTAL")
+                                    ? "PAGO TOTAL"
+                                    : tieneCompromiso
+                                        ? "COMPROMISO"
+                                        : "";
+
+                        return new
+                        {
+                            docEntry = x.DocEntry,
+                            docNum = x.DocNum,
+                            fechaFactura = x.FechaFactura,
+                            fechaVencimiento = x.FechaVencimiento,
+                            moneda = x.Moneda,
+                            importe = x.Importe,
+                            pagado = x.Pagado,
+                            pendiente = x.Pendiente,
+                            diasVencidos = x.DiasVencidos,
+
+                            // Información de compromiso previo.
+                            tieneCompromiso,
+                            compromisoId =
+                                tieneCompromiso
+                                    ? compromiso!.CompromisoId
+                                    : (int?)null,
+                            estatusCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.Estatus
+                                    : null,
+                            fechaCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.FechaCompromiso
+                                    : (DateTime?)null,
+                            motivoCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.Motivo
+                                    : null,
+                            tipoCompromiso,
+                            ovCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.OrdenVentaConsecutivo
+                                    : null,
+                            saldoInicialCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.SaldoVencidoInicial
+                                    : (decimal?)null,
+                            saldoRegistradoCompromiso =
+                                tieneCompromiso
+                                    ? compromiso!.SaldoPendienteActual
+                                    : (decimal?)null,
+
+                            // Este es el dato que debe mostrarse como
+                            // restante actual: viene directamente de SAP.
+                            pendienteActualSap = x.Pendiente
+                        };
+                    })
+                    .ToList();
+
+                var cantidadConCompromiso =
+                    resultadoFacturas.Count(x => x.tieneCompromiso);
 
                 return Json(new
                 {
                     ok = true,
                     cardCode,
                     saldoVencido = facturas.Sum(x => x.Pendiente),
-                    facturas = facturas.Select(x => new
-                    {
-                        docEntry = x.DocEntry,
-                        docNum = x.DocNum,
-                        fechaFactura = x.FechaFactura,
-                        fechaVencimiento = x.FechaVencimiento,
-                        moneda = x.Moneda,
-                        importe = x.Importe,
-                        pagado = x.Pagado,
-                        pendiente = x.Pendiente,
-                        diasVencidos = x.DiasVencidos
-                    })
+                    cantidadFacturas = resultadoFacturas.Count,
+                    cantidadConCompromiso,
+                    cantidadSinCompromiso =
+                        resultadoFacturas.Count - cantidadConCompromiso,
+                    requiereRevisionCobranza =
+                        cantidadConCompromiso > 0,
+                    facturas = resultadoFacturas
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error consultando facturas vencidas SAP. Cliente={Cliente}", cardCode);
+                _logger.LogError(
+                    ex,
+                    "Error consultando facturas vencidas/compromisos. Cliente={Cliente}",
+                    cardCode
+                );
 
                 return StatusCode(500, new
                 {
                     ok = false,
-                    mensaje = "No fue posible consultar las facturas vencidas en SAP.",
+                    mensaje =
+                        "No fue posible consultar las facturas vencidas y sus compromisos de cobranza.",
                     error = ex.GetBaseException().Message
                 });
             }
         }
 
         // ============================================================================
-        // 2) CAMBIA LA FIRMA DE GuardarPedido A ESTA:
+        // AJUSTE DE COBRANZA INTEGRADO
+        // - El endpoint anterior ya informa compromisos activos por factura.
+        // - GuardarPedido evita duplicarlos y manda la nueva OV a revisión.
+        // - No se requieren parámetros globales de compromiso ni cambios al ViewModel.
         // ============================================================================
-        /*
-        [HttpPost]
-        public async Task<IActionResult> GuardarPedido(
-            PedidoViewModel model,
-            string accion,
-            bool esMuestra = false,
-            DateTime? fechaCompromisoPago = null,
-            string? motivoCompromisoPago = null,
-            IFormFile? evidenciaCompromisoPago = null,
+
+
+        // ============================================================
+        // LOGÍSTICA PREVIA A LA ORDEN DE VENTA
+        // DESTINO + SEMÁFORO DE VIAJE
+        // ============================================================
+
+        // ============================================================
+        // COMERCIALCONTROLLER - LOGÍSTICA PREVIA A LA OV
+        // AJUSTADO CON:
+        // - Vendedor automático desde UsuarioSQL.VendedorId
+        // - Carga capturada directamente en KG
+        // - Destino
+        // - TipoViaje: TENTATIVO / CONFIRMADO
+        // - Usuario con VendedorId ve únicamente sus folios
+        // - Usuario sin VendedorId ve todos los folios disponibles
+        // ============================================================
+
+
+        // ============================================================
+        // DTO PARA CREAR EL FOLIO
+        // ============================================================
+
+        public sealed class CrearFolioLogisticaRequest
+        {
+            public DateTime FechaEmbarque { get; set; }
+
+            // Se conserva el nombre "Toneladas" para no romper la vista,
+            // pero el valor actualmente representa KILOGRAMOS.
+            // Ejemplo: 2500 = 2,500 kg.
+            public decimal Toneladas { get; set; }
+
+            public string? Destino { get; set; }
+
+            // Valores permitidos:
+            // TENTATIVO
+            // CONFIRMADO
+            public string? TipoViaje { get; set; }
+        }
+
+
+        // ============================================================
+        // OBTENER EL VENDEDOR LIGADO AL USUARIO ACTUAL
+        // ============================================================
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> ObtenerVendedoresLogisticaActual(
             CancellationToken ct = default)
-        */
-
-        // ============================================================================
-        // 3) DENTRO DE GuardarPedido, DESPUÉS DE:
-        // string clienteUp = Norm(model.Cliente);
-        // decimal totalPedido = ...;
-        // PEGA ESTE BLOQUE:
-        // ============================================================================
-        /*
-        var facturasVencidasAlGuardar = new List<FacturaPendienteSapViewModel>();
-        decimal saldoVencidoReal = 0m;
-        bool requiereCompromisoCobranza = false;
-
-        byte[]? evidenciaBytes = null;
-        string? evidenciaNombre = null;
-        string? evidenciaTipo = null;
-        string? evidenciaExtension = null;
-        long evidenciaTamano = 0;
-
-        if (!esMuestra)
         {
-            try
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(login))
             {
-                facturasVencidasAlGuardar =
-                    await _sap.ObtenerFacturasVencidasClienteAsync(model.Cliente);
-
-                saldoVencidoReal =
-                    facturasVencidasAlGuardar.Sum(x => x.Pendiente);
-
-                requiereCompromisoCobranza =
-                    saldoVencidoReal > 0.01m;
-
-                // El backend usa el dato REAL de SAP, no el valor manipulable del navegador.
-                model.SaldoVencido =
-                    decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "No se pudo validar saldo vencido antes de guardar OV. Cliente={Cliente}",
-                    model.Cliente);
-
-                TempData["Error"] =
-                    "No fue posible validar las facturas vencidas del cliente en SAP. " +
-                    "La orden NO fue guardada. Intenta nuevamente.";
-
-                return RedirectToAction(nameof(OrdenVenta));
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "No se pudo identificar el usuario actual."
+                });
             }
 
-            if (requiereCompromisoCobranza)
+
+            var username =
+                login.Contains("\\")
+                    ? login.Split("\\").Last()
+                    : login;
+
+
+            var usernameEmail =
+                username.Contains("@")
+                    ? username
+                    : $"{username}@carnesg.net";
+
+
+            // =====================================================
+            // USAMOS DIRECTAMENTE UsuarioSQL.VendedorId
+            // =====================================================
+
+            var usuario =
+                await _context.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.Activo &&
+                        (
+                            u.Usuario == login ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == login ||
+                            u.Nombre == username
+                        )
+                    )
+                    .Select(u => new
+                    {
+                        u.Usuario,
+                        u.Nombre,
+                        VendedorId =
+                            (int?)u.VendedorId
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+
+            if (
+                usuario == null ||
+                !usuario.VendedorId.HasValue ||
+                usuario.VendedorId.Value <= 0
+            )
             {
-                motivoCompromisoPago = (motivoCompromisoPago ?? "").Trim();
-
-                if (!fechaCompromisoPago.HasValue ||
-                    fechaCompromisoPago.Value.Date < DateTime.Today)
+                return BadRequest(new
                 {
-                    TempData["Error"] =
-                        "El cliente tiene facturas vencidas. Captura una fecha compromiso de pago válida.";
-                    return RedirectToAction(nameof(OrdenVenta));
-                }
-
-                if (string.IsNullOrWhiteSpace(motivoCompromisoPago) ||
-                    motivoCompromisoPago.Length < 5)
-                {
-                    TempData["Error"] =
-                        "El cliente tiene facturas vencidas. Captura el motivo/comentario del compromiso de pago.";
-                    return RedirectToAction(nameof(OrdenVenta));
-                }
-
-                if (motivoCompromisoPago.Length > 1000)
-                {
-                    TempData["Error"] = "El motivo no puede exceder 1000 caracteres.";
-                    return RedirectToAction(nameof(OrdenVenta));
-                }
-
-                if (evidenciaCompromisoPago != null && evidenciaCompromisoPago.Length > 0)
-                {
-                    const long MAX_EVIDENCIA = 8L * 1024L * 1024L; // 8 MB
-                    var ext = Path.GetExtension(evidenciaCompromisoPago.FileName ?? "").ToLowerInvariant();
-                    var permitidas = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ".jpg", ".jpeg", ".png", ".webp", ".pdf"
-                    };
-
-                    if (!permitidas.Contains(ext))
-                    {
-                        TempData["Error"] =
-                            "La evidencia debe ser JPG, JPEG, PNG, WEBP o PDF.";
-                        return RedirectToAction(nameof(OrdenVenta));
-                    }
-
-                    if (evidenciaCompromisoPago.Length > MAX_EVIDENCIA)
-                    {
-                        TempData["Error"] = "La evidencia no puede superar 8 MB.";
-                        return RedirectToAction(nameof(OrdenVenta));
-                    }
-
-                    using var ms = new MemoryStream();
-                    await evidenciaCompromisoPago.CopyToAsync(ms, ct);
-
-                    evidenciaBytes = ms.ToArray();
-                    evidenciaNombre = Path.GetFileName(evidenciaCompromisoPago.FileName);
-                    evidenciaTipo = evidenciaCompromisoPago.ContentType;
-                    evidenciaExtension = ext;
-                    evidenciaTamano = evidenciaCompromisoPago.Length;
-                }
+                    ok = false,
+                    mensaje =
+                        "Tu usuario no tiene un VendedorId configurado en UsuarioSQL."
+                });
             }
+
+
+            int vendedorId =
+                usuario.VendedorId.Value;
+
+
+            // =====================================================
+            // CON EL ID EXACTO BUSCAMOS EL NOMBRE
+            // =====================================================
+
+            var vendedorNombre =
+                await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.VendedorId.HasValue &&
+                        x.VendedorId.Value == vendedorId
+                    )
+                    .Select(x =>
+                        x.VendedorNombre
+                    )
+                    .FirstOrDefaultAsync(ct);
+
+
+            vendedorNombre =
+                string.IsNullOrWhiteSpace(vendedorNombre)
+                    ? (
+                        string.IsNullOrWhiteSpace(usuario.Nombre)
+                            ? $"VENDEDOR {vendedorId}"
+                            : usuario.Nombre.Trim()
+                    )
+                    : vendedorNombre.Trim();
+
+
+            return Json(new
+            {
+                ok = true,
+                vendedorId,
+                vendedor = vendedorNombre,
+                usuario = usuario.Usuario
+            });
         }
-        */
 
-        // ============================================================================
-        // 4) EN TU SELECT DE cliSap AGREGA Nombrecliente:
-        // ============================================================================
-        /*
-        .Select(c => new
+
+        // ============================================================
+        // CREAR FOLIO DE LOGÍSTICA
+        //
+        // EL VENDEDOR CAPTURA:
+        // - FECHA DE EMBARQUE
+        // - CARGA EN KG
+        // - DESTINO
+        // - TIPO DE VIAJE
+        //
+        // EL VENDEDOR SE RESUELVE AUTOMÁTICAMENTE DESDE UsuarioSQL.
+        // TODAVÍA NO EXISTE ORDEN DE VENTA.
+        // ============================================================
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearFolioLogistica(
+            [FromBody] CrearFolioLogisticaRequest model,
+            CancellationToken ct = default)
         {
-            Canal = c.U_CANAL,
-            VendedorId = (int?)c.VendedorId,
-            AplicaPresupuesto = c.AplicaPresupuesto,
-            Nombre = c.Nombrecliente
-        })
-        */
-
-        // ============================================================================
-        // 5) DESPUÉS DE GENERAR EL CONSECUTIVO DEFINITIVO Y ANTES DE GUARDAR
-        //    EL DETALLE DE PRODUCTOS, PEGA ESTE BLOQUE:
-        // ============================================================================
-        /*
-        if (requiereCompromisoCobranza)
-        {
-            var compromiso = new CobranzaCompromiso
+            if (model == null)
             {
-                OrdenVentaId = pedido.Id,
-                OrdenVentaConsecutivo = pedido.Consecutivo ?? $"OV-{pedido.Id:D8}",
-                ClienteCodigo = model.Cliente ?? "",
-                ClienteNombre = cliSap?.Nombre ?? model.Cliente ?? "",
-                SaldoVencidoInicial = decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero),
-                SaldoPendienteActual = decimal.Round(saldoVencidoReal, 2, MidpointRounding.AwayFromZero),
-                FechaCompromiso = fechaCompromisoPago!.Value.Date,
-                Motivo = motivoCompromisoPago!,
-                Estatus = "PENDIENTE",
-                UsuarioRegistro = usuarioRegistro,
-                FechaRegistro = DateTime.Now
-            };
-
-            _context.CobranzaCompromisos.Add(compromiso);
-            await _context.SaveChangesAsync(ct);
-
-            foreach (var f in facturasVencidasAlGuardar)
-            {
-                _context.CobranzaCompromisoFacturas.Add(
-                    new CobranzaCompromisoFactura
-                    {
-                        CobranzaCompromisoId = compromiso.Id,
-                        SapDocEntry = f.DocEntry,
-                        SapDocNum = f.DocNum,
-                        FechaFactura = f.FechaFactura,
-                        FechaVencimiento = f.FechaVencimiento,
-                        Moneda = f.Moneda,
-                        Importe = f.Importe,
-                        PagadoInicial = f.Pagado,
-                        PendienteInicial = f.Pendiente,
-                        PendienteActual = f.Pendiente,
-                        Pagada = false
-                    });
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Solicitud inválida."
+                });
             }
 
-            if (evidenciaBytes != null && evidenciaBytes.Length > 0)
+
+            if (model.FechaEmbarque.Date < DateTime.Today)
             {
-                _context.CobranzaCompromisoArchivos.Add(
-                    new CobranzaCompromisoArchivo
-                    {
-                        CobranzaCompromisoId = compromiso.Id,
-                        NombreOriginal = evidenciaNombre ?? "evidencia",
-                        TipoContenido = evidenciaTipo,
-                        Extension = evidenciaExtension,
-                        TamanoBytes = evidenciaTamano,
-                        Contenido = evidenciaBytes,
-                        UsuarioRegistro = usuarioRegistro,
-                        FechaRegistro = DateTime.Now
-                    });
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "La fecha para embarcar no puede ser anterior a hoy."
+                });
             }
 
-            await _context.SaveChangesAsync(ct);
+
+            // =====================================================
+            // CARGA EN KG
+            // =====================================================
+
+            if (model.Toneladas <= 0m)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Captura los kilogramos solicitados."
+                });
+            }
+
+
+            decimal cargaKg =
+                decimal.Round(
+                    model.Toneladas,
+                    2,
+                    MidpointRounding.AwayFromZero
+                );
+
+
+            // =====================================================
+            // DESTINO
+            // =====================================================
+
+            var destino =
+                (model.Destino ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+
+            if (string.IsNullOrWhiteSpace(destino))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "Captura el destino del viaje."
+                });
+            }
+
+
+            if (destino.Length > 200)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "El destino no puede exceder 200 caracteres."
+                });
+            }
+
+
+            // =====================================================
+            // TIPO DE VIAJE
+            //
+            // Para compatibilidad, si llega vacío lo dejamos
+            // inicialmente como TENTATIVO.
+            // =====================================================
+
+            var tipoViaje =
+                (model.TipoViaje ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+
+            if (string.IsNullOrWhiteSpace(tipoViaje))
+            {
+                tipoViaje =
+                    "TENTATIVO";
+            }
+
+
+            if (
+                tipoViaje != "TENTATIVO" &&
+                tipoViaje != "CONFIRMADO"
+            )
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "El tipo de viaje debe ser TENTATIVO o CONFIRMADO."
+                });
+            }
+
+
+            // =====================================================
+            // VENDEDOR AUTOMÁTICO DESDE UsuarioSQL
+            // =====================================================
+
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+
+            if (string.IsNullOrWhiteSpace(login))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se pudo identificar el usuario actual."
+                });
+            }
+
+
+            var username =
+                login.Contains("\\")
+                    ? login.Split("\\").Last()
+                    : login;
+
+
+            var usernameEmail =
+                username.Contains("@")
+                    ? username
+                    : $"{username}@carnesg.net";
+
+
+            var usuarioSql =
+                await _context.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.Activo &&
+                        (
+                            u.Usuario == login ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == login ||
+                            u.Nombre == username
+                        )
+                    )
+                    .Select(u => new
+                    {
+                        u.Usuario,
+                        u.Nombre,
+                        VendedorId =
+                            (int?)u.VendedorId
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+
+            if (
+                usuarioSql == null ||
+                !usuarioSql.VendedorId.HasValue ||
+                usuarioSql.VendedorId.Value <= 0
+            )
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Tu usuario no tiene un VendedorId configurado en UsuarioSQL. " +
+                        "No se puede generar el folio de transporte."
+                });
+            }
+
+
+            int vendedorId =
+                usuarioSql.VendedorId.Value;
+
+
+            var vendedorNombre =
+                await _context.ClienteSap
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.VendedorId.HasValue &&
+                        x.VendedorId.Value == vendedorId
+                    )
+                    .Select(x =>
+                        x.VendedorNombre
+                    )
+                    .FirstOrDefaultAsync(ct);
+
+
+            vendedorNombre =
+                string.IsNullOrWhiteSpace(vendedorNombre)
+                    ? (
+                        string.IsNullOrWhiteSpace(usuarioSql.Nombre)
+                            ? $"VENDEDOR {vendedorId}"
+                            : usuarioSql.Nombre.Trim()
+                    )
+                    : vendedorNombre.Trim();
+
+
+            var usuario =
+                User.Identity?.Name ??
+                "SIN_USUARIO";
+
+
+            var cs =
+                _configuration
+                    .GetConnectionString(
+                        "DefaultConnection"
+                    );
+
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No existe DefaultConnection."
+                    }
+                );
+            }
+
+
+            // =====================================================
+            // INSERT
+            // =====================================================
+
+            const string sql = @"
+        SET NOCOUNT ON;
+        SET XACT_ABORT ON;
+
+        BEGIN TRY
+
+            BEGIN TRAN;
+
+
+            INSERT INTO dbo.LogisticaFolio
+            (
+                Folio,
+                FechaEmbarque,
+                CargaSolicitadaKg,
+                Destino,
+                TipoViaje,
+                VendedorId,
+                Vendedor,
+                EstatusLogistico,
+                Cancelado,
+                CanceladoFletera,
+                UsuarioRegistro,
+                FechaRegistro
+            )
+            VALUES
+            (
+                CONCAT(
+                    'TMP-',
+                    REPLACE(
+                        CONVERT(
+                            VARCHAR(36),
+                            NEWID()
+                        ),
+                        '-',
+                        ''
+                    )
+                ),
+
+                @FechaEmbarque,
+                @CargaKg,
+                @Destino,
+                @TipoViaje,
+                @VendedorId,
+                @Vendedor,
+                'RESERVADO VENTA',
+                0,
+                0,
+                @Usuario,
+                SYSDATETIME()
+            );
+
+
+            DECLARE @Id INT =
+                CONVERT(
+                    INT,
+                    SCOPE_IDENTITY()
+                );
+
+
+            DECLARE @Folio VARCHAR(40) =
+                CONCAT(
+                    'LOG-',
+                    CONVERT(
+                        CHAR(8),
+                        @FechaEmbarque,
+                        112
+                    ),
+                    '-',
+                    RIGHT(
+                        '000000'
+                        +
+                        CONVERT(
+                            VARCHAR(20),
+                            @Id
+                        ),
+                        6
+                    )
+                );
+
+
+            UPDATE dbo.LogisticaFolio
+            SET
+                Folio =
+                    @Folio
+            WHERE
+                Id =
+                    @Id;
+
+
+            COMMIT;
+
+
+            SELECT
+                @Id AS Id,
+                @Folio AS Folio;
+
+        END TRY
+
+        BEGIN CATCH
+
+            IF @@TRANCOUNT > 0
+                ROLLBACK;
+
+            THROW;
+
+        END CATCH;
+        ";
+
+
+            await using var cn =
+                new SqlConnection(cs);
+
+
+            await cn.OpenAsync(ct);
+
+
+            await using var cmd =
+                new SqlCommand(
+                    sql,
+                    cn
+                );
+
+
+            cmd.Parameters
+                .Add(
+                    "@FechaEmbarque",
+                    SqlDbType.Date
+                )
+                .Value =
+                    model.FechaEmbarque.Date;
+
+
+            var pCarga =
+                cmd.Parameters
+                    .Add(
+                        "@CargaKg",
+                        SqlDbType.Decimal
+                    );
+
+            pCarga.Precision = 18;
+            pCarga.Scale = 2;
+            pCarga.Value = cargaKg;
+
+
+            cmd.Parameters
+                .Add(
+                    "@Destino",
+                    SqlDbType.NVarChar,
+                    200
+                )
+                .Value =
+                    destino;
+
+
+            cmd.Parameters
+                .Add(
+                    "@TipoViaje",
+                    SqlDbType.VarChar,
+                    20
+                )
+                .Value =
+                    tipoViaje;
+
+
+            cmd.Parameters
+                .Add(
+                    "@VendedorId",
+                    SqlDbType.Int
+                )
+                .Value =
+                    vendedorId;
+
+
+            cmd.Parameters
+                .Add(
+                    "@Vendedor",
+                    SqlDbType.NVarChar,
+                    150
+                )
+                .Value =
+                    vendedorNombre;
+
+
+            cmd.Parameters
+                .Add(
+                    "@Usuario",
+                    SqlDbType.NVarChar,
+                    150
+                )
+                .Value =
+                    usuario;
+
+
+            await using var rd =
+                await cmd.ExecuteReaderAsync(ct);
+
+
+            if (!await rd.ReadAsync(ct))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No se pudo generar el folio."
+                    }
+                );
+            }
+
+
+            int id =
+                rd.GetInt32(0);
+
+
+            string folio =
+                rd.GetString(1);
+
+
+            return Json(
+                new
+                {
+                    ok = true,
+
+                    id,
+
+                    folio,
+
+                    fechaEmbarque =
+                        model.FechaEmbarque
+                            .ToString(
+                                "yyyy-MM-dd"
+                            ),
+
+                    cargaKg,
+
+                    destino,
+
+                    tipoViaje,
+
+                    vendedorId,
+
+                    vendedor =
+                        vendedorNombre,
+
+                    estatus =
+                        "RESERVADO VENTA"
+                }
+            );
         }
-        */
+
+
+        // ============================================================
+        // FOLIOS DISPONIBLES PARA LA ORDEN DE VENTA
+        //
+        // REGLAS:
+        // - MISMA FECHA
+        // - SIN OV
+        // - NO CANCELADOS
+        // - RESERVADO VENTA
+        //
+        // VISIBILIDAD:
+        // - UsuarioSQL.VendedorId > 0 => sólo sus folios.
+        // - UsuarioSQL.VendedorId NULL / 0 => ve todos.
+        //
+        // Se conserva el parámetro vendedorId sólo por compatibilidad
+        // con llamadas existentes, pero la seguridad la decide UsuarioSQL.
+        // ============================================================
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> FoliosLogisticaDisponibles(
+            DateTime fechaEmbarque,
+            int? vendedorId = null,
+            CancellationToken ct = default)
+        {
+            if (fechaEmbarque == default)
+            {
+                return Json(
+                    Array.Empty<object>()
+                );
+            }
+
+
+            // =========================================================
+            // 1) IDENTIFICAR USUARIO ACTUAL
+            // =========================================================
+
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+
+            var username =
+                login.Contains("\\")
+                    ? login.Split("\\").Last()
+                    : login;
+
+
+            var usernameEmail =
+                username.Contains("@")
+                    ? username
+                    : $"{username}@carnesg.net";
+
+
+            // =========================================================
+            // 2) OBTENER VendedorId DIRECTAMENTE DE UsuarioSQL
+            //
+            // Tiene VendedorId > 0:
+            //      ve solamente los suyos.
+            //
+            // NULL / 0:
+            //      ve todos.
+            // =========================================================
+
+            var usuarioSql =
+                await _context.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(u =>
+                        u.Activo &&
+                        (
+                            u.Usuario == login ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == login ||
+                            u.Nombre == username
+                        )
+                    )
+                    .Select(u => new
+                    {
+                        VendedorId =
+                            (int?)u.VendedorId
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+
+            int? vendedorFiltro =
+                usuarioSql?.VendedorId.HasValue == true &&
+                usuarioSql.VendedorId.Value > 0
+                    ? usuarioSql.VendedorId.Value
+                    : null;
+
+
+            // =========================================================
+            // 3) CONEXIÓN
+            // =========================================================
+
+            var cs =
+                _configuration
+                    .GetConnectionString(
+                        "DefaultConnection"
+                    );
+
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No existe DefaultConnection."
+                    }
+                );
+            }
+
+
+            // =========================================================
+            // 4) CONSULTA
+            // =========================================================
+
+            const string sql = @"
+        SELECT
+            f.Id,
+            f.Folio,
+            f.FechaEmbarque,
+            f.CargaSolicitadaKg,
+
+            ISNULL(
+                f.Destino,
+                ''
+            ) AS Destino,
+
+            ISNULL(
+                NULLIF(
+                    LTRIM(
+                        RTRIM(
+                            f.TipoViaje
+                        )
+                    ),
+                    ''
+                ),
+                'SIN DEFINIR'
+            ) AS TipoViaje,
+
+            f.VendedorId,
+            f.Vendedor,
+            f.EstatusLogistico
+
+        FROM dbo.LogisticaFolio f
+
+        WHERE
+            f.FechaEmbarque =
+                @FechaEmbarque
+
+            AND f.OrdenVentaId IS NULL
+
+            AND ISNULL(
+                f.Cancelado,
+                0
+            ) = 0
+
+            AND ISNULL(
+                f.EstatusLogistico,
+                ''
+            ) = 'RESERVADO VENTA'
+
+            AND
+            (
+                @VendedorId IS NULL
+                OR
+                f.VendedorId =
+                    @VendedorId
+            )
+
+        ORDER BY
+            f.Folio;
+        ";
+
+
+            var result =
+                new List<object>();
+
+
+            await using var cn =
+                new SqlConnection(cs);
+
+
+            await cn.OpenAsync(ct);
+
+
+            await using var cmd =
+                new SqlCommand(
+                    sql,
+                    cn
+                );
+
+
+            cmd.Parameters
+                .Add(
+                    "@FechaEmbarque",
+                    SqlDbType.Date
+                )
+                .Value =
+                    fechaEmbarque.Date;
+
+
+            cmd.Parameters
+                .Add(
+                    "@VendedorId",
+                    SqlDbType.Int
+                )
+                .Value =
+                    vendedorFiltro.HasValue
+                        ? vendedorFiltro.Value
+                        : DBNull.Value;
+
+
+            await using var rd =
+                await cmd.ExecuteReaderAsync(ct);
+
+
+            while (await rd.ReadAsync(ct))
+            {
+                var cargaKg =
+                    rd.IsDBNull(3)
+                        ? 0m
+                        : rd.GetDecimal(3);
+
+
+                result.Add(
+                    new
+                    {
+                        id =
+                            rd.GetInt32(0),
+
+                        folio =
+                            rd.GetString(1),
+
+                        fechaEmbarque =
+                            rd.GetDateTime(2)
+                                .ToString(
+                                    "yyyy-MM-dd"
+                                ),
+
+                        cargaKg,
+
+                        toneladas =
+                            cargaKg / 1000m,
+
+                        destino =
+                            rd.IsDBNull(4)
+                                ? ""
+                                : rd.GetString(4),
+
+                        tipoViaje =
+                            rd.IsDBNull(5)
+                                ? "SIN DEFINIR"
+                                : rd.GetString(5),
+
+                        vendedorId =
+                            rd.IsDBNull(6)
+                                ? 0
+                                : rd.GetInt32(6),
+
+                        vendedor =
+                            rd.IsDBNull(7)
+                                ? ""
+                                : rd.GetString(7),
+
+                        estatus =
+                            rd.IsDBNull(8)
+                                ? "RESERVADO VENTA"
+                                : rd.GetString(8)
+                    }
+                );
+            }
+
+
+            return Json(result);
+        }
+
+
+
+
+
+
+
+
 
 
     }

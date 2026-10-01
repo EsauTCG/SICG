@@ -9,6 +9,10 @@
 
         public string ProductoNombre { get; set; }
 
+        public string Usuario { get; set; }
+
+        public string Nombre { get; set; }
+
         public int? EtiqOrigen { get; set; }
         public string NomOrigen { get; set; }
 

@@ -1225,6 +1225,51 @@
         font-weight:700;
     }
 
+
+    /* ============================================================
+       AJUSTE DESKTOP: EVITA QUE "BUSCAR LOTES" SALGA DE LA VISTA
+       En pantallas grandes, acciones rápidas arriba y filtros abajo.
+       ============================================================ */
+    @@media (min-width:1181px){
+        .cl-control-bar{
+            grid-template-columns:minmax(0,1fr) !important;
+            align-items:stretch !important;
+        }
+
+        .cl-shortcuts{
+            width:100%;
+            min-width:0;
+        }
+
+        .cl-filter-grid{
+            width:100%;
+            min-width:0;
+            grid-template-columns:
+                minmax(115px,.70fr)
+                minmax(170px,1.10fr)
+                minmax(120px,.75fr)
+                minmax(120px,.75fr)
+                minmax(125px,.75fr)
+                minmax(120px,.55fr) !important;
+        }
+
+        .cl-filter-grid > *{
+            min-width:0;
+        }
+
+        .cl-actions{
+            min-width:0;
+            width:100%;
+        }
+
+        .cl-actions .cl-btn{
+            width:100%;
+            min-width:0;
+            padding-left:10px;
+            padding-right:10px;
+        }
+    }
+
 </style>
 
 
@@ -1250,6 +1295,19 @@
                     type="button"
                     onclick="cargarPendientes()">
                 ⚠ Autorizaciones pendientes
+            </button>
+
+            <button class="cl-btn cl-btn-warning"
+                    id="btnAperturasPendientes"
+                    type="button"
+                    onclick="cargarAperturasPendientes()">
+                🔓 Aperturas pendientes
+            </button>
+
+            <button class="cl-btn cl-btn-info"
+                    type="button"
+                    onclick="cargarHistorialAperturas()">
+                🕘 Historial aperturas
             </button>
 
             <button class="cl-btn cl-btn-compat"
@@ -1352,7 +1410,7 @@
             <span id="clReglaTipoLote" style="margin-left:6px;"></span>
         </div>
         <div>
-            El EstatusId cambia a 3 únicamente después de terminar correctamente el costeo y sus validaciones.
+            Cerrar cambia EstatusId a 3. Reabrir siempre requiere justificación: si el lote es del día abre directo 3→1; si es de otra fecha requiere autorización.
         </div>
     </div>
 
@@ -1432,6 +1490,112 @@
  </div></div>
 </div>
 
+
+<!-- MODAL: SOLICITAR APERTURA -->
+<div class="modal fade cl-modal" id="modalSolicitarApertura" tabindex="-1">
+ <div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header">
+   <h5 class="modal-title">Solicitar apertura de lote cerrado</h5>
+   <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+   <div class="cl-note" id="apReglaApertura">
+    Captura una justificación para abrir el lote.
+   </div>
+
+   <div class="cl-summary">
+    <div class="cl-card"><b>Lote ID</b><span id="apLoteId">-</span></div>
+    <div class="cl-card"><b>Lote</b><span id="apLoteNombre">-</span></div>
+    <div class="cl-card"><b>Estatus actual</b><span>3 · CERRADO</span></div>
+    <div class="cl-card"><b>Estatus solicitado</b><span>1 · ABIERTO</span></div>
+   </div>
+
+   <label><b>Motivo obligatorio para abrir el lote</b></label>
+   <textarea id="apMotivo"
+             rows="5"
+             maxlength="1000"
+             placeholder="Explique por qué necesita volver a abrirse este lote, qué se va a corregir o capturar y quién lo solicita..."></textarea>
+
+   <div class="cl-note">
+    El motivo, solicitante, fecha, IP, autorizador, decisión y cambio de estatus quedarán registrados en auditoría.
+   </div>
+  </div>
+  <div class="modal-footer">
+   <button class="cl-btn" data-bs-dismiss="modal">Cancelar</button>
+   <button class="cl-btn cl-btn-warning"
+           id="btnEnviarApertura"
+           type="button"
+           onclick="enviarSolicitudApertura()">
+    Continuar
+   </button>
+  </div>
+ </div></div>
+</div>
+
+
+<!-- MODAL: APERTURAS PENDIENTES -->
+<div class="modal fade cl-modal" id="modalAperturasPendientes" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header">
+   <h5 class="modal-title">Aperturas de lote pendientes de autorización</h5>
+   <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+   <div class="cl-note">
+    Autorizar cambia inmediatamente <b>Lote.EstatusId de 3 a 1</b>.
+    El solicitante no puede autorizar su propia solicitud y la justificación de la decisión es obligatoria.
+   </div>
+
+   <div style="overflow:auto;max-height:65vh">
+    <table class="table table-sm table-bordered align-middle">
+     <thead>
+      <tr>
+       <th>Solicitud</th>
+       <th>Lote</th>
+       <th>Solicita</th>
+       <th>Motivo de apertura</th>
+       <th>Fecha</th>
+       <th>Decisión / justificación</th>
+      </tr>
+     </thead>
+     <tbody id="apPendRows"></tbody>
+    </table>
+   </div>
+  </div>
+ </div></div>
+</div>
+
+
+<!-- MODAL: HISTORIAL DE APERTURAS -->
+<div class="modal fade cl-modal" id="modalHistorialAperturas" tabindex="-1">
+ <div class="modal-dialog modal-xl" style="max-width:96vw"><div class="modal-content">
+  <div class="modal-header">
+   <h5 class="modal-title">Historial / log de aperturas de lote</h5>
+   <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+   <div style="overflow:auto;max-height:70vh">
+    <table class="table table-sm table-bordered align-middle">
+     <thead>
+      <tr>
+       <th>Fecha</th>
+       <th>Solicitud</th>
+       <th>Lote</th>
+       <th>Acción</th>
+       <th>Estatus</th>
+       <th>Usuario</th>
+       <th>Motivo</th>
+       <th>Detalle</th>
+      </tr>
+     </thead>
+     <tbody id="apHistRows"></tbody>
+    </table>
+   </div>
+  </div>
+ </div></div>
+</div>
+
+
 <div class="modal fade cl-modal" id="modalCompatibilidad" tabindex="-1">
  <div class="modal-dialog modal-xl"><div class="modal-content">
   <div class="modal-header"><h5 class="modal-title">Catálogo de compatibilidad producto entrada → salida</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
@@ -1453,12 +1617,26 @@
 <script>
 let diagActual = null;
 let authActual = null;
+let aperturaActual = null;
 let permisos = { puedeLeer:false, puedeEscribir:false, puedeAutorizar:false };
 const modalDiag = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDiagnostico'));
 const modalPend = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPendientes'));
+const modalApertura = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitarApertura'));
+const modalAperturasPend = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAperturasPendientes'));
+const modalHistAperturas = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialAperturas'));
 const modalCmp = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCompatibilidad'));
 
 function safe(v){return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+
+// Permite leer respuestas tanto camelCase como PascalCase.
+// DapperRow puede conservar los nombres SQL exactamente como vienen.
+function prop(obj,...names){
+ for(const name of names){
+  if(obj && obj[name] !== undefined && obj[name] !== null) return obj[name];
+ }
+ return null;
+}
+
 function n(v,d=3){return Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fecha(v){if(!v)return '-'; const x=new Date(v); return Number.isNaN(x.getTime())?safe(v):x.toLocaleDateString('es-MX')}
 
@@ -1485,7 +1663,16 @@ async function api(url,opt){
  return normalizarJsonServidor(d);
 }
 
-async function cargarPermisos(){try{const d=await api('@Url.Action("CierreLotePermisos","ProcesosCG")'); permisos=d;}catch(e){setStatus(e.message,'bad')}}
+async function cargarPermisos(){
+ try{
+  const d=await api('@Url.Action("CierreLotePermisos","ProcesosCG")');
+  permisos=d;
+  const btnAp=document.getElementById('btnAperturasPendientes');
+  if(btnAp)btnAp.style.display=permisos.puedeAutorizar?'inline-flex':'none';
+ }catch(e){
+  setStatus(e.message,'bad')
+ }
+}
 
 
 function actualizarResumenCierre(rows){
@@ -1607,9 +1794,22 @@ async function buscarLotes(){
     <td data-label="Diferencia kg" class="text-end"><span class="cl-diff-pill ${clasePillCumplimiento(x.cumplimiento)}" title="${safe(x.cumplimientoTexto||'')}">${n(x.diferenciaKg)} kg</span></td>
     <td data-label="Rendimiento" class="text-end">${n(x.rendimientoPct,2)}%</td>
     <td data-label="Acción" class="cl-action-cell">
-        <button class="cl-btn cl-btn-review" type="button" onclick="diagnosticar(${x.loteId})">
-            Revisar cierre →
-        </button>
+        ${Number(x.estatusId)===3
+            ? (
+                permisos.puedeEscribir
+                    ? `<button class="cl-btn cl-btn-warning"
+                               type="button"
+                               onclick="abrirSolicitudApertura(${x.loteId},'${safe(x.nombre)}','${String(x.fechaProduccion ?? '').substring(0,10)}')">
+                           🔓 Solicitar apertura
+                       </button>`
+                    : `<span class="cl-badge b-info">CERRADO</span>`
+              )
+            : `<button class="cl-btn cl-btn-review"
+                       type="button"
+                       onclick="diagnosticar(${x.loteId})">
+                   Revisar cierre →
+               </button>`
+        }
     </td>
    </tr>`).join('');
 
@@ -1784,6 +1984,281 @@ async function costearYCerrar(){
   const d=await api('@Url.Action("CierreLoteCerrar","ProcesosCG")',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:diagActual.source,loteId:diagActual.loteId})});
   alert(d.msg);modalDiag().hide();await buscarLotes();
  }catch(e){alert(e.message); if(diagActual) await diagnosticar(diagActual.loteId)}finally{const btn=document.getElementById('btnCostearCerrar');btn.disabled=false;btn.textContent='Costear y cerrar lote'}
+}
+
+
+function fechaLocalIso(){
+ const d=new Date();
+ const y=d.getFullYear();
+ const m=String(d.getMonth()+1).padStart(2,'0');
+ const day=String(d.getDate()).padStart(2,'0');
+ return `${y}-${m}-${day}`;
+}
+
+function abrirSolicitudApertura(loteId,loteNombre,fechaProduccion){
+ const id=Number(loteId||0);
+ if(!Number.isInteger(id)||id<=0){
+  alert('LoteId inválido.');
+  return;
+ }
+ if(!permisos.puedeEscribir){
+  alert('Tu perfil no tiene permiso ESCRIBIR en CIERRE_LOTES para solicitar una apertura.');
+  return;
+ }
+
+ const fechaLote=String(fechaProduccion||'').substring(0,10);
+ const hoy=fechaLocalIso();
+ const esHoy=fechaLote && fechaLote===hoy;
+
+ aperturaActual={
+  loteId:id,
+  loteNombre:String(loteNombre||'').trim(),
+  fechaProduccion:fechaLote,
+  esHoy
+ };
+
+ document.getElementById('apLoteId').textContent=id;
+ document.getElementById('apLoteNombre').textContent=aperturaActual.loteNombre||'-';
+ document.getElementById('apMotivo').value='';
+
+ const regla=document.getElementById('apReglaApertura');
+ const btn=document.getElementById('btnEnviarApertura');
+
+ if(esHoy){
+  regla.innerHTML=`
+   <b>Lote del día (${safe(fechaLote)}).</b>
+   No requiere autorización. Es obligatorio capturar la justificación y,
+   al continuar, el lote se abrirá inmediatamente de
+   <b>EstatusId=3</b> a <b>EstatusId=1</b>.
+   Todo quedará registrado en el log.
+  `;
+  btn.textContent='Justificar y abrir lote';
+  btn.className='cl-btn cl-btn-success';
+ }else{
+  regla.innerHTML=`
+   <b>Lote de fecha anterior${fechaLote ? ` (${safe(fechaLote)})` : ''}.</b>
+   La justificación es obligatoria y esta apertura
+   <b>sí requiere autorización</b>.
+   El lote permanecerá en <b>EstatusId=3</b> hasta que sea aprobado.
+  `;
+  btn.textContent='Solicitar autorización';
+  btn.className='cl-btn cl-btn-warning';
+ }
+
+ modalApertura().show();
+
+ setTimeout(()=>document.getElementById('apMotivo')?.focus(),150);
+}
+
+async function enviarSolicitudApertura(){
+ if(!aperturaActual)return;
+
+ const motivo=(document.getElementById('apMotivo').value||'').trim();
+ if(motivo.length<10){
+  alert('Captura un motivo de al menos 10 caracteres.');
+  document.getElementById('apMotivo').focus();
+  return;
+ }
+
+ if(aperturaActual.esHoy){
+  const ok=confirm(
+   'Este lote es del día. No requiere autorización y se abrirá inmediatamente de EstatusId=3 a EstatusId=1. ¿Continuar?'
+  );
+  if(!ok)return;
+ }
+
+ try{
+  const d=await api(
+   '@Url.Action("CierreLoteSolicitarApertura","ProcesosCG")',
+   {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+     source:document.getElementById('clSource').value,
+     loteId:aperturaActual.loteId,
+     motivo
+    })
+   }
+  );
+
+  alert(d.msg);
+  modalApertura().hide();
+  aperturaActual=null;
+  await buscarLotes();
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+async function cargarAperturasPendientes(){
+ if(!permisos.puedeAutorizar){
+  alert('Tu perfil necesita permiso ELIMINAR en CIERRE_LOTES para autorizar aperturas.');
+  return;
+ }
+
+ try{
+  const source=document.getElementById('clSource').value;
+  const d=await api(
+   '@Url.Action("CierreLoteAperturasPendientes","ProcesosCG")?'
+   +new URLSearchParams({source})
+  );
+
+  const tb=document.getElementById('apPendRows');
+  const rows=Array.isArray(d.rows) ? d.rows : [];
+
+  tb.innerHTML=rows.length
+   ? rows.map(raw=>{
+      const x={
+       solicitudId: prop(raw,'solicitudId','SolicitudId'),
+       loteId: prop(raw,'loteId','LoteId'),
+       loteNombre: prop(raw,'loteNombre','LoteNombre') ?? '',
+       usuarioSolicita: prop(raw,'usuarioSolicita','UsuarioSolicita') ?? '',
+       motivoSolicitud: prop(raw,'motivoSolicitud','MotivoSolicitud') ?? '',
+       fechaSolicitud: prop(raw,'fechaSolicitud','FechaSolicitud'),
+       estado: prop(raw,'estado','Estado') ?? 'PENDIENTE'
+      };
+
+      return `<tr>
+       <td>
+        <b>#${safe(x.solicitudId)}</b><br>
+        <span class="cl-badge b-warn">${safe(x.estado)}</span>
+       </td>
+       <td>
+        <b>${safe(x.loteNombre)}</b><br>
+        ID ${safe(x.loteId)}<br>
+        <span class="cl-badge b-info">3 → 1</span>
+       </td>
+       <td>
+        ${safe(x.usuarioSolicita)}
+       </td>
+       <td style="white-space:normal;min-width:260px">
+        ${safe(x.motivoSolicitud)}
+       </td>
+       <td>
+        ${fecha(x.fechaSolicitud)}
+       </td>
+       <td style="min-width:310px">
+        <textarea id="apDec_${x.solicitudId}"
+                  rows="3"
+                  maxlength="1000"
+                  placeholder="Justificación obligatoria de la decisión"></textarea>
+        <div class="mt-1">
+         <button class="cl-btn cl-btn-success"
+                 type="button"
+                 onclick="decidirApertura(${Number(x.solicitudId)},true)">
+          Autorizar y abrir
+         </button>
+         <button class="cl-btn cl-btn-danger"
+                 type="button"
+                 onclick="decidirApertura(${Number(x.solicitudId)},false)">
+          Rechazar
+         </button>
+        </div>
+       </td>
+      </tr>`;
+     }).join('')
+   : '<tr><td colspan="6">Sin solicitudes de apertura pendientes.</td></tr>';
+
+  modalAperturasPend().show();
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+async function decidirApertura(solicitudId,aprobar){
+ const motivo=(document.getElementById(`apDec_${solicitudId}`)?.value||'').trim();
+
+ if(motivo.length<5){
+  alert('Captura una justificación de al menos 5 caracteres.');
+  return;
+ }
+
+ if(aprobar){
+  const ok=confirm(
+   'Al autorizar, el lote cambiará inmediatamente de EstatusId=3 (CERRADO) a EstatusId=1 (ABIERTO). ¿Continuar?'
+  );
+  if(!ok)return;
+ }
+
+ try{
+  const url=aprobar
+   ? '@Url.Action("CierreLoteAperturaAutorizar","ProcesosCG")'
+   : '@Url.Action("CierreLoteAperturaRechazar","ProcesosCG")';
+
+  const d=await api(
+   url,
+   {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+     source:document.getElementById('clSource').value,
+     solicitudId,
+     motivo
+    })
+   }
+  );
+
+  alert(d.msg);
+  await cargarAperturasPendientes();
+  await buscarLotes();
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+async function cargarHistorialAperturas(loteId=null){
+ try{
+  const source=document.getElementById('clSource').value;
+  const q={source,top:'300'};
+  if(loteId)q.loteId=String(loteId);
+
+  const d=await api(
+   '@Url.Action("CierreLoteAperturaHistorial","ProcesosCG")?'
+   +new URLSearchParams(q)
+  );
+
+  const tb=document.getElementById('apHistRows');
+  const rows=Array.isArray(d.rows) ? d.rows : [];
+
+  tb.innerHTML=rows.length
+   ? rows.map(raw=>{
+      const x={
+       fechaHora: prop(raw,'fechaHora','FechaHora'),
+       solicitudId: prop(raw,'solicitudId','SolicitudId'),
+       loteId: prop(raw,'loteId','LoteId'),
+       loteNombre: prop(raw,'loteNombre','LoteNombre') ?? '',
+       accion: prop(raw,'accion','Accion') ?? '',
+       estatusAntes: prop(raw,'estatusAntes','EstatusAntes'),
+       estatusDespues: prop(raw,'estatusDespues','EstatusDespues'),
+       usuario: prop(raw,'usuario','Usuario') ?? '',
+       motivo: prop(raw,'motivo','Motivo') ?? '',
+       detalle: prop(raw,'detalle','Detalle') ?? ''
+      };
+
+      const clase=
+       (x.accion==='APERTURA_AUTORIZADA' || x.accion==='APERTURA_DIRECTA_DIA')
+        ? 'b-ok'
+        : x.accion==='APERTURA_RECHAZADA'
+         ? 'b-bad'
+         : 'b-warn';
+
+      return `<tr>
+       <td>${fecha(x.fechaHora)}</td>
+       <td>#${safe(x.solicitudId ?? '-')}</td>
+       <td><b>${safe(x.loteNombre)}</b><br>ID ${safe(x.loteId)}</td>
+       <td><span class="cl-badge ${clase}">${safe(x.accion)}</span></td>
+       <td>${safe(x.estatusAntes ?? '-')} → ${safe(x.estatusDespues ?? '-')}</td>
+       <td>${safe(x.usuario)}</td>
+       <td style="white-space:normal;min-width:260px">${safe(x.motivo)}</td>
+       <td style="white-space:normal;min-width:280px">${safe(x.detalle)}</td>
+      </tr>`;
+     }).join('')
+   : '<tr><td colspan="8">Sin movimientos de apertura registrados.</td></tr>';
+
+  modalHistAperturas().show();
+ }catch(e){
+  alert(e.message);
+ }
 }
 
 async function cargarPendientes(){

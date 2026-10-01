@@ -152,7 +152,7 @@ public class EmbarquesController : Controller
     // CREAR EMBARQUE - PÁGINA INICIAL LIGERA
     // ============================================================
     [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> Crear(CancellationToken cancellationToken)
     {
         // Solo obtenemos los conteos.
@@ -188,7 +188,7 @@ public class EmbarquesController : Controller
     // CONSULTAR OV DISPONIBLES CON FILTROS Y PAGINACIÓN
     // ============================================================
     [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> ObtenerOrdenesDisponibles(
         string? busqueda,
         string? cliente,
@@ -284,7 +284,7 @@ public class EmbarquesController : Controller
     // CONSULTAR TRANSFERENCIAS CON FILTROS Y PAGINACIÓN
     // ============================================================
     [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> ObtenerTransferenciasDisponibles(
         string? busqueda,
         string? sucursal,
@@ -399,7 +399,7 @@ public class EmbarquesController : Controller
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> Crear(
         List<int>? ordenesSeleccionadas,
         List<int>? transferenciasSeleccionadas,
@@ -668,47 +668,74 @@ public class EmbarquesController : Controller
         if (embarque == null)
             return NotFound();
 
+        // ============================================================
+        // VALIDAR QUE LAS 3 ÁREAS HAYAN APROBADO EL EMBARQUE
+        // ============================================================
         if (embarque.CalidadAprobada != true
             || embarque.DocumentacionAprobada != true
             || embarque.DocumentacionCalidadAprobada != true)
         {
-            TempData["Error"] = "No se puede generar el QR hasta que Calidad, Documentación Logística y Documentación de Calidad validen el embarque.";
+            TempData["Error"] =
+                "No se puede generar el QR hasta que Calidad, " +
+                "Documentación Logística y Documentación de Calidad " +
+                "validen el embarque.";
+
             return RedirectToAction("Detalle", new { id });
         }
 
+        // ============================================================
+        // LIBERAR EMBARQUE PARA QR
+        // ============================================================
         if (embarque.Estatus != 7)
         {
             embarque.Estatus = 7;
             await _qrContext.SaveChangesAsync();
         }
 
+        // ============================================================
+        // EVITAR GENERAR MÁS DE UN QR
+        // ============================================================
         if (embarque.QR != null)
         {
             TempData["Error"] = "Este embarque ya tiene un QR generado.";
             return RedirectToAction("Detalle", new { id });
         }
 
+        // ============================================================
+        // GENERAR TOKEN ÚNICO
+        // ============================================================
         string token = Guid.NewGuid().ToString("N");
-        //string urlValidar = $"{Request.Scheme}://{Request.Host}/Embarques/Caseta?token={token}"; Para que Tome la URL actual de donde se Crea (Podria servir en un futuro)
-        string urlValidar = $"http://10.2.1.81:1465/Embarques/Caseta?token={token}";
 
         var qrGenerator = new QRCoder.QRCodeGenerator();
-        var qrData = qrGenerator.CreateQrCode(urlValidar, QRCoder.QRCodeGenerator.ECCLevel.Q);
+
+        var qrData = qrGenerator.CreateQrCode(
+            token,
+            QRCoder.QRCodeGenerator.ECCLevel.Q
+        );
+
         var qrCode = new QRCoder.PngByteQRCode(qrData);
+
         var qrBytes = qrCode.GetGraphic(20);
+
         string qrBase64 = Convert.ToBase64String(qrBytes);
 
+        // ============================================================
+        // GUARDAR QR
+        // ============================================================
         var qr = new EmbarqueQR
         {
             EmbarqueId = id,
             Token = token,
+
             UrlQR = "data:image/png;base64," + qrBase64,
+
             FechaGeneracion = DateTime.Now,
             Estado = 1,
             UsuarioGenera = User.Identity?.Name ?? "Sistema"
         };
 
         _qrContext.EmbarqueQR.Add(qr);
+
         await _qrContext.SaveChangesAsync();
 
         return RedirectToAction("Detalle", new { id });
@@ -3553,7 +3580,7 @@ public class EmbarquesController : Controller
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> QuitarDocumentoEmbarque(int embarqueId, int documentoId, string tipoDocumento)
     {
         tipoDocumento = tipoDocumento?.Trim().ToUpper() ?? "";
@@ -3651,7 +3678,7 @@ public class EmbarquesController : Controller
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> EliminarEmbarque(int embarqueId)
     {
         var embarque = await _qrContext.Embarque
@@ -3747,7 +3774,7 @@ public class EmbarquesController : Controller
     // 4.2 PANTALLA PARA EDITAR EMBARQUE - CARGA INICIAL LIGERA
     // ============================================================
     [HttpGet]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> EditarEmbarques(
         int id,
         CancellationToken cancellationToken)
@@ -3828,7 +3855,7 @@ public class EmbarquesController : Controller
     // ============================================================
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [Authorize(Roles = "Administracion de Ventas,Administrador")]
+    [Authorize(Roles = "Administracion de Ventas,Presupuestos,Administrador")]
     public async Task<IActionResult> AgregarDocumentosEmbarque(
         int embarqueId,
         List<int>? ordenesSeleccionadas,

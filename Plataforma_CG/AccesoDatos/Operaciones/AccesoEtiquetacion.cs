@@ -218,7 +218,7 @@ where a.sistemaid = 'ETI' and
             _conn = new SqlConnection(_cadena);
             
             var res = new List<LogEtiquetacionModel>();
-            string query= $"select a.Sucursal,a.ArticuloId,b.ProductoNombre,a.EtiqOrigen,a.EtiqNuevo,a.FechaHora from LogEtiq a" +
+            string query= $"select a.Sucursal,a.ArticuloId,b.ProductoNombre,a.Usuario,a.EtiqOrigen,a.EtiqNuevo,a.FechaHora from LogEtiq a" +
 $" inner join ArticuloSap b on b.ProductoCodigo = a.ArticuloId" +
 $" where a.Sucursal = '{suc}'" +
 $" and CONVERT(date, a.FechaHora) between '{fechain}' and '{fechafin}'";
@@ -235,10 +235,11 @@ $" and CONVERT(date, a.FechaHora) between '{fechain}' and '{fechafin}'";
                             Sucursal = dr["Sucursal"].ToString(),
                             ArticuloId = dr["ArticuloId"].ToString(),
                             ProductoNombre = dr["ProductoNombre"].ToString(),
+                            Usuario = dr["Usuario"].ToString(),
                             EtiqOrigen = Convert.ToInt32(dr["EtiqOrigen"]),
-                            NomOrigen = etq.Where(i=>i.ColectorId== Convert.ToInt32(dr["EtiqOrigen"])).FirstOrDefault().Nombre,
+                            NomOrigen = etq.FirstOrDefault(i => i.ColectorId == Convert.ToInt32(dr["EtiqOrigen"]))?.Nombre ?? "Sin información",
                             EtiqNuevo = Convert.ToInt32(dr["EtiqNuevo"]),
-                            NomNuevo= etq.Where(i => i.ColectorId == Convert.ToInt32(dr["EtiqNuevo"])).FirstOrDefault().Nombre,
+                            NomNuevo = etq.FirstOrDefault(i => i.ColectorId == Convert.ToInt32(dr["EtiqNuevo"]))?.Nombre ?? "Sin información",
                             FechaHora = Convert.ToDateTime(dr["FechaHora"])
                         });
                     }

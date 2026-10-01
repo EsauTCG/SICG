@@ -321,6 +321,8 @@
 
     const URL_DATA_TRANSFER = '/Transferencias/AvisosMovilizacionData';
     const URL_DETALLE_TRANSFER = '/Transferencias/AvisosMovilizacionDetalle';
+    const URL_DETALLE_TRANSFER_SANITARIO = '/Transferencias/AvisosMovilizacionDetalleSanitario';
+    const URL_DETALLE_TRANSFER_SACRIFICIO = '/Transferencias/AvisosMovilizacionDetalleSacrificio';
     const URL_EXCEL_TRANSFER = '/Transferencias/ExportCaducidadTransferencias';
 
     let avisosAbortController = null;
@@ -937,6 +939,92 @@
         return true;
     }
 
+    function actualizarSacrificioTransferencia(rowsSacrificio) {
+        const rows = Array.isArray(rowsSacrificio)
+            ? rowsSacrificio
+            : [];
+
+        rows.forEach(x => {
+            const lote = String(
+                pick(x, 'lote', 'Lote') || ''
+            ).trim();
+
+            const fecha = String(
+                pick(
+                    x,
+                    'fechaSacrificioTxt',
+                    'FechaSacrificioTxt'
+                ) || ''
+            ).trim();
+
+            const encontrado = detalleBool(
+                pick(x, 'encontrado', 'Encontrado')
+            );
+
+            const mensaje = String(
+                pick(x, 'mensaje', 'Mensaje') || ''
+            );
+
+            const filas = Array.from(
+                document.querySelectorAll(
+                    '#detalleBody tr[data-lote]'
+                )
+            ).filter(tr =>
+                String(tr.dataset.lote || '').trim()
+                    .localeCompare(
+                        lote,
+                        undefined,
+                        { sensitivity: 'accent' }
+                    ) === 0
+            );
+
+            filas.forEach(tr => {
+                const valor =
+                    tr.querySelector(
+                        '[data-role="fecha-sacrificio"] [data-role="valor"]'
+                    );
+
+                const badge =
+                    tr.querySelector(
+                        '[data-role="estado-tif"]'
+                    );
+
+                if (valor) {
+                    valor.textContent =
+                        encontrado && fecha
+                            ? fecha
+                            : '-';
+
+                    valor.className =
+                        encontrado && fecha
+                            ? 'detalle-fecha-tif'
+                            : 'detalle-fecha-local';
+                }
+
+                if (badge) {
+                    if (encontrado && fecha) {
+                        badge.className =
+                            'detalle-row-status is-complete';
+
+                        badge.textContent = '';
+                        badge.title = '';
+                    } else {
+                        badge.className =
+                            'detalle-row-status is-error';
+
+                        badge.textContent =
+                            'Sin sacrificio';
+
+                        badge.title =
+                            mensaje ||
+                            'No se encontró fecha de sacrificio.';
+                    }
+                }
+            });
+        });
+    }
+
+
     async function enriquecerDetalleTifPorLotes(
         id,
         rowsLocales,
@@ -1058,66 +1146,544 @@
         document.getElementById('detalleCajas').textContent = '0';
         document.getElementById('detalleKg').textContent = '0';
         document.getElementById('detalleBody').innerHTML =
-            '<tr><td colspan="8" class="text-center">Cargando detalle...</td></tr>';
+            '<tr><td colspan="8" class="text-center">Cargando partidas...</td></tr>';
+
+        setDetalleProgress('', '');
 
         bootstrap.Modal
-            .getOrCreateInstance(document.getElementById('detalleAvisoModal'))
+            .getOrCreateInstance(
+                document.getElementById('detalleAvisoModal')
+            )
             .show();
 
-        try {
-            const paramsLocal = getFiltroAvisosParams();
-            paramsLocal.set('id', id);
+        /*
+         * ============================================================
+         * TRANSFERENCIAS - CARGA EN 3 ETAPAS
+         *
+         * 1) SKU / producto / cajas / kg
+         * 2) lote / producción / caducidad
+         * 3) fecha de sacrificio
+         * ============================================================
+         */
+        if (esTransfer) {
+            try {
+                // =====================================================
+                // ETAPA 1 - DATOS BÁSICOS
+                // =====================================================
+                const paramsBasico =
+                    new URLSearchParams();
 
-            if (!esTransfer) {
-                paramsLocal.set('cargarTif', 'false');
-                paramsLocal.set('tamanoLote', '50');
-            } else {
-                paramsLocal.delete('cargarTif');
-                paramsLocal.delete('tamanoLote');
+                paramsBasico.set('id', id);
+
+                const resBasico = await fetch(
+                    URL_DETALLE_TRANSFER
+                    + '?'
+                    + paramsBasico.toString(),
+                    {
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        cache: 'no-store',
+                        signal
+                    }
+                );
+
+                const dataBasico =
+                    await readResponse(resBasico);
+
+                if (
+                    requestVersion !== detalleRequestVersion ||
+                    signal.aborted
+                ) {
+                    return;
+                }
+
+                if (
+                    !resBasico.ok ||
+                    !dataBasico.ok
+                ) {
+                    throw new Error(
+                        [
+                            dataBasico.msg,
+                            dataBasico.error,
+                            dataBasico.inner
+                        ]
+                        .filter(x => x)
+                        .join(' | ')
+                        || 'No se pudieron cargar las partidas.'
+                    );
+                }
+
+                const rowsBasicos =
+                    dataBasico.rows ||
+                    dataBasico.Rows ||
+                    [];
+
+                document.getElementById(
+                    'detalleCajas'
+                ).textContent =
+                    formatInt(
+                        dataBasico.totalCajas ??
+                        dataBasico.TotalCajas
+                    );
+
+                document.getElementById(
+                    'detalleKg'
+                ).textContent =
+                    formatKg(
+                        dataBasico.totalKg ??
+                        dataBasico.TotalKg
+                    );
+
+                renderDetalleRows(rowsBasicos);
+
+                if (!rowsBasicos.length) {
+                    setDetalleProgress(
+                        'warning',
+                        'No se encontraron partidas para esta transferencia.'
+                    );
+                    return;
+                }
+
+                // =====================================================
+                // ETAPA 2 - LOTE / PRODUCCIÓN / CADUCIDAD
+                // =====================================================
+                setDetalleProgress(
+                    'loading',
+                    'Partidas cargadas. Consultando lote, producción y caducidad...'
+                );
+
+                let dataProduccion = null;
+                let rowsProduccion = [];
+
+                try {
+                    const paramsProduccion =
+                        new URLSearchParams();
+
+                    paramsProduccion.set(
+                        'id',
+                        id
+                    );
+
+                    const resProduccion =
+                        await fetch(
+                            URL_DETALLE_TRANSFER_SANITARIO
+                            + '?'
+                            + paramsProduccion.toString(),
+                            {
+                                headers: {
+                                    'Accept': 'application/json'
+                                },
+                                cache: 'no-store',
+                                signal
+                            }
+                        );
+
+                    dataProduccion =
+                        await readResponse(
+                            resProduccion
+                        );
+
+                    if (
+                        requestVersion !== detalleRequestVersion ||
+                        signal.aborted
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        !resProduccion.ok ||
+                        !dataProduccion.ok
+                    ) {
+                        throw new Error(
+                            [
+                                dataProduccion.msg,
+                                dataProduccion.error,
+                                dataProduccion.inner
+                            ]
+                            .filter(x => x)
+                            .join(' | ')
+                            || 'No se pudo completar lote, producción y caducidad.'
+                        );
+                    }
+
+                    rowsProduccion =
+                        dataProduccion.rows ||
+                        dataProduccion.Rows ||
+                        [];
+
+                    if (!rowsProduccion.length) {
+                        setDetalleProgress(
+                            'warning',
+                            'Las partidas están visibles, pero no se encontraron lote, producción y caducidad.'
+                        );
+                        return;
+                    }
+
+                    /*
+                     * Un mismo SKU puede dividirse en varios lotes,
+                     * por eso sustituimos las filas básicas.
+                     */
+                    renderDetalleRows(
+                        rowsProduccion
+                    );
+
+                    document.getElementById(
+                        'detalleCajas'
+                    ).textContent =
+                        formatInt(
+                            dataProduccion.totalCajas ??
+                            dataProduccion.TotalCajas ??
+                            dataBasico.totalCajas ??
+                            dataBasico.TotalCajas
+                        );
+
+                    document.getElementById(
+                        'detalleKg'
+                    ).textContent =
+                        formatKg(
+                            dataProduccion.totalKg ??
+                            dataProduccion.TotalKg ??
+                            dataBasico.totalKg ??
+                            dataBasico.TotalKg
+                        );
+                }
+                catch (eProduccion) {
+                    if (
+                        eProduccion?.name === 'AbortError'
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        requestVersion !== detalleRequestVersion ||
+                        signal.aborted
+                    ) {
+                        return;
+                    }
+
+                    /*
+                     * No borramos la etapa 1.
+                     */
+                    setDetalleProgress(
+                        'warning',
+                        'Partidas cargadas. No fue posible completar lote, producción y caducidad: '
+                        + (
+                            eProduccion?.message ||
+                            eProduccion
+                        )
+                    );
+
+                    console.error(
+                        'Detalle de producción de Transferencias:',
+                        eProduccion
+                    );
+
+                    return;
+                }
+
+                // =====================================================
+                // ETAPA 3 - SÓLO FECHA DE SACRIFICIO
+                // =====================================================
+                const lotes = Array.from(
+                    new Set(
+                        rowsProduccion
+                            .map(x =>
+                                String(
+                                    pick(
+                                        x,
+                                        'lote',
+                                        'Lote'
+                                    ) || ''
+                                ).trim()
+                            )
+                            .filter(x =>
+                                x &&
+                                x.toUpperCase() !== 'SIN LOTE'
+                            )
+                    )
+                );
+
+                if (!lotes.length) {
+                    setDetalleProgress(
+                        'warning',
+                        'Lote, producción y caducidad cargados. No hay lotes válidos para consultar sacrificio.'
+                    );
+                    return;
+                }
+
+                setDetalleProgress(
+                    'loading',
+                    'Lote, producción y caducidad cargados. Consultando fecha de sacrificio...'
+                );
+
+                try {
+                    const paramsSacrificio =
+                        new URLSearchParams();
+
+                    paramsSacrificio.set(
+                        'id',
+                        id
+                    );
+
+                    lotes.forEach(lote =>
+                        paramsSacrificio.append(
+                            'lotes',
+                            lote
+                        )
+                    );
+
+                    const resSacrificio =
+                        await fetch(
+                            URL_DETALLE_TRANSFER_SACRIFICIO
+                            + '?'
+                            + paramsSacrificio.toString(),
+                            {
+                                headers: {
+                                    'Accept': 'application/json'
+                                },
+                                cache: 'no-store',
+                                signal
+                            }
+                        );
+
+                    const dataSacrificio =
+                        await readResponse(
+                            resSacrificio
+                        );
+
+                    if (
+                        requestVersion !== detalleRequestVersion ||
+                        signal.aborted
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        !resSacrificio.ok ||
+                        !dataSacrificio.ok
+                    ) {
+                        throw new Error(
+                            [
+                                dataSacrificio.msg,
+                                dataSacrificio.error,
+                                dataSacrificio.inner
+                            ]
+                            .filter(x => x)
+                            .join(' | ')
+                            || 'No se pudo completar fecha de sacrificio.'
+                        );
+                    }
+
+                    const rowsSacrificio =
+                        dataSacrificio.rows ||
+                        dataSacrificio.Rows ||
+                        [];
+
+                    actualizarSacrificioTransferencia(
+                        rowsSacrificio
+                    );
+
+                    const encontrados =
+                        Number(
+                            dataSacrificio.encontrados ??
+                            dataSacrificio.Encontrados ??
+                            0
+                        );
+
+                    const totalLotes =
+                        Number(
+                            dataSacrificio.totalLotes ??
+                            dataSacrificio.TotalLotes ??
+                            lotes.length
+                        );
+
+                    if (
+                        encontrados < totalLotes
+                    ) {
+                        setDetalleProgress(
+                            'warning',
+                            `Detalle cargado. Fecha de sacrificio encontrada para ${encontrados} de ${totalLotes} lote(s).`
+                        );
+                    } else {
+                        setDetalleProgress(
+                            'success',
+                            ''
+                        );
+                    }
+                }
+                catch (eSacrificio) {
+                    if (
+                        eSacrificio?.name === 'AbortError'
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        requestVersion !== detalleRequestVersion ||
+                        signal.aborted
+                    ) {
+                        return;
+                    }
+
+                    /*
+                     * Lote, producción y caducidad permanecen visibles.
+                     * Sólo sacrificio queda pendiente.
+                     */
+                    setDetalleProgress(
+                        'warning',
+                        'Lote, producción y caducidad ya están cargados. No fue posible completar fecha de sacrificio: '
+                        + (
+                            eSacrificio?.message ||
+                            eSacrificio
+                        )
+                    );
+
+                    console.error(
+                        'Fecha de sacrificio de Transferencias:',
+                        eSacrificio
+                    );
+                }
+
+                return;
             }
+            catch (eBasico) {
+                if (
+                    eBasico?.name === 'AbortError'
+                ) {
+                    return;
+                }
 
-            const urlDetalle = esTransfer ? URL_DETALLE_TRANSFER : URL_DETALLE;
+                if (
+                    requestVersion !== detalleRequestVersion
+                ) {
+                    return;
+                }
 
-            const res = await fetch(urlDetalle + '?' + paramsLocal.toString(), {
-                headers: { 'Accept': 'application/json' },
-                cache: 'no-store',
-                signal
-            });
+                document.getElementById(
+                    'detalleBody'
+                ).innerHTML =
+                    '<tr><td colspan="8" class="text-center">No se pudieron cargar las partidas.</td></tr>';
 
-            const data = await readResponse(res);
+                setDetalleProgress(
+                    'warning',
+                    'No fue posible cargar las partidas: '
+                    + (
+                        eBasico?.message ||
+                        eBasico
+                    )
+                );
 
-            if (requestVersion !== detalleRequestVersion) return;
+                return;
+            }
+        }
 
-            if (!res.ok || !data.ok) {
-                throw new Error(
-                    data.msg ||
-                    data.error ||
-                    'No se pudo cargar el detalle.'
+        /*
+         * ============================================================
+         * P1 / TIF
+         * Sin cambios.
+         * ============================================================
+         */
+        try {
+            const paramsLocal =
+                getFiltroAvisosParams();
+
+            paramsLocal.set(
+                'id',
+                id
+            );
+
+            if (sourceActual === 'P1') {
+                paramsLocal.set(
+                    'cargarTif',
+                    'false'
+                );
+
+                paramsLocal.set(
+                    'tamanoLote',
+                    '50'
                 );
             }
 
-            document.getElementById('detalleCajas').textContent =
-                formatInt(data.totalCajas ?? data.TotalCajas);
+            const res = await fetch(
+                URL_DETALLE
+                + '?'
+                + paramsLocal.toString(),
+                {
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    cache: 'no-store',
+                    signal
+                }
+            );
 
-            document.getElementById('detalleKg').textContent =
-                formatKg(data.totalKg ?? data.TotalKg);
+            const data =
+                await readResponse(res);
 
-            const rowsLocal = data.rows || data.Rows || [];
+            if (
+                requestVersion !== detalleRequestVersion
+            ) {
+                return;
+            }
 
-            renderDetalleRows(rowsLocal);
+            if (
+                !res.ok ||
+                !data.ok
+            ) {
+                throw new Error(
+                    [
+                        data.msg,
+                        data.error,
+                        data.inner
+                    ]
+                    .filter(x => x)
+                    .join(' | ')
+                    || 'No se pudo cargar el detalle.'
+                );
+            }
+
+            document.getElementById(
+                'detalleCajas'
+            ).textContent =
+                formatInt(
+                    data.totalCajas ??
+                    data.TotalCajas
+                );
+
+            document.getElementById(
+                'detalleKg'
+            ).textContent =
+                formatKg(
+                    data.totalKg ??
+                    data.TotalKg
+                );
+
+            const rowsLocal =
+                data.rows ||
+                data.Rows ||
+                [];
+
+            renderDetalleRows(
+                rowsLocal
+            );
 
             if (!rowsLocal.length) {
-                setDetalleProgress('warning', 'No se encontraron partidas.');
+                setDetalleProgress(
+                    'warning',
+                    'No se encontraron partidas.'
+                );
                 return;
             }
 
-            // TIF y Transferencias ya traen el detalle sanitario completo.
             if (sourceActual !== 'P1') {
-                setDetalleProgress('success', '');
+                setDetalleProgress(
+                    'success',
+                    ''
+                );
                 return;
             }
 
-            // P1 conserva su enriquecimiento progresivo por lote contra TIF.
             await enriquecerDetalleTifPorLotes(
                 id,
                 rowsLocal,
@@ -1127,15 +1693,30 @@
             );
         }
         catch (e) {
-            if (e?.name === 'AbortError') return;
-            if (requestVersion !== detalleRequestVersion) return;
+            if (
+                e?.name === 'AbortError'
+            ) {
+                return;
+            }
 
-            document.getElementById('detalleBody').innerHTML =
+            if (
+                requestVersion !== detalleRequestVersion
+            ) {
+                return;
+            }
+
+            document.getElementById(
+                'detalleBody'
+            ).innerHTML =
                 '<tr><td colspan="8" class="text-center">No se pudo cargar el detalle.</td></tr>';
 
             setDetalleProgress(
                 'warning',
-                'No fue posible cargar las partidas: ' + (e?.message || e)
+                'No fue posible cargar las partidas: '
+                + (
+                    e?.message ||
+                    e
+                )
             );
         }
     }
