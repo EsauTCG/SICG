@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,8 @@ using Plataforma_CG.Models;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -28,7 +31,7 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Tablero()
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+            string connectionString = _configuration.GetConnectionString("DefaultConnection");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -160,7 +163,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+            string connectionString = _configuration.GetConnectionString("DefaultConnection");
 
             try
             {
@@ -218,7 +221,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
         {
-            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+            string connectionString = _configuration.GetConnectionString("DefaultConnection");
 
             try
             {
@@ -425,7 +428,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -473,7 +476,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -495,7 +498,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -518,7 +521,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -550,7 +553,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -686,13 +689,456 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        // ================================================================
+        //  CARGA MASIVA DE OBJETIVOS 
+        // ================================================================
+
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "LEER")]
+        public async Task<IActionResult> DescargarPlantillaObjetivos()
+        {
+            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            var perfiles = new List<dynamic>();
+            var tipos = new List<dynamic>();
+            var vendedores = new List<dynamic>();
+            var valores = new List<dynamic>();
+
+            using (var conn = new SqlConnection(connectionString))
+            {
+                await conn.OpenAsync();
+                perfiles = (await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles ORDER BY Nombre")).ToList();
+                tipos = (await conn.QueryAsync("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1 ORDER BY Nombre")).ToList();
+                vendedores = (await conn.QueryAsync("SELECT Id, Usuario, Nombre FROM dbo.UsuarioSQL WHERE EsVendedor = 1 ORDER BY Nombre")).ToList();
+                valores = (await conn.QueryAsync("SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo WHERE Activo = 1 ORDER BY Nombre")).ToList();
+            }
+
+            string[] headers = {
+                "Perfil", "Tipo de Objetivo", "Periodo",
+                "Fecha Desde", "Fecha Hasta",
+                "Vendedor", "Cliente", "SKU", "CC", "Linea", "Proveedor",
+                "Descripcion",
+                "Valor (ID_Catalogo_ValorObjetivo o nombre)", "Valor Minimo", "Valor Maximo", "Meta"
+            };
+
+            using var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add("Plantilla");
+
+            for (int c = 0; c < headers.Length; c++)
+            {
+                var cel = ws.Cell(1, c + 1);
+                cel.Value = headers[c];
+                cel.Style.Font.Bold = true;
+                cel.Style.Fill.BackgroundColor = XLColor.FromHtml("#B30000");
+                cel.Style.Font.FontColor = XLColor.White;
+            }
+            ws.SheetView.FreezeRows(1);
+
+            // Hoja de catalogos para listas desplegables
+            var cat = wb.Worksheets.Add("Catalogos");
+            cat.Cell(1, 1).Value = "Perfiles";
+            cat.Cell(1, 2).Value = "Tipo de Objetivo";
+            cat.Cell(1, 3).Value = "Vendedores (Usuario - Nombre)";
+            cat.Cell(1, 4).Value = "Valores";
+            int filaCat = 2;
+            foreach (var p in perfiles) cat.Cell(filaCat++, 1).Value = (string)p.Nombre;
+            filaCat = 2;
+            foreach (var t in tipos) cat.Cell(filaCat++, 2).Value = (string)t.Nombre;
+            filaCat = 2;
+            foreach (var v in vendedores) cat.Cell(filaCat++, 3).Value = ((string)v.Usuario) + " - " + ((string)v.Nombre);
+            filaCat = 2;
+            foreach (var val in valores) cat.Cell(filaCat++, 4).Value = ((string)val.Nombre) + " (" + ((string)val.Unidad_Medida) + ")";
+            cat.Columns(1, 4).AdjustToContents();
+
+            const int maxFila = 500;
+            ws.Range("A2:A" + maxFila).SetDataValidation().List("'Catalogos'!$A$2:$A$500");
+            ws.Range("B2:B" + maxFila).SetDataValidation().List("'Catalogos'!$B$2:$B$500");
+            ws.Range("F2:F" + maxFila).SetDataValidation().List("'Catalogos'!$C$2:$C$500");
+            ws.Range("M2:M" + maxFila).SetDataValidation().List("'Catalogos'!$D$2:$D$500");
+
+            // Fila de ejemplo
+            string[] ejemplo = {
+                "Ventas", "Entregas a Tiempo (OTIF)", "Mensual",
+                new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).ToString("dd/MM/yyyy"),
+                new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month)).ToString("dd/MM/yyyy"),
+                "jperez - Juan Perez", "1001", "SKU0001", "CC01", "Linea A", "Proveedor X",
+                "Entregar a tiempo a los clientes",
+                "Peso por Caja (KG)", "10", "20", "15"
+            };
+            for (int c = 0; c < ejemplo.Length; c++) ws.Cell(2, c + 1).Value = ejemplo[c];
+            ws.Cell(2, 4).Style.DateFormat.Format = "dd/MM/yyyy";
+            ws.Cell(2, 5).Style.DateFormat.Format = "dd/MM/yyyy";
+            ws.Columns(1, headers.Length).AdjustToContents();
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Plantilla_Objetivos.xlsx");
+        }
+
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
+        public async Task<JsonResult> CargarMasivoObjetivos(IFormFile archivo)
+        {
+            if (archivo == null || archivo.Length == 0)
+                return Json(new { ok = false, mensaje = "Selecciona un archivo Excel (.xlsx)." });
+
+            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            var errores = new List<string>();
+            int insertados = 0, actualizados = 0, omitidos = 0;
+
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    // Catalogos de resolucion
+                    var perfiles = (await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles")).ToList();
+                    var tipos = (await conn.QueryAsync("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1")).ToList();
+                    var vendedores = (await conn.QueryAsync("SELECT Id, Usuario, Nombre FROM dbo.UsuarioSQL")).ToList();
+                    var valores = (await conn.QueryAsync("SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo WHERE Activo = 1")).ToList();
+
+                    var dictPerfil = perfiles
+                        .GroupBy(x => ((string)x.Nombre).Trim().ToUpperInvariant())
+                        .ToDictionary(g => g.Key, g => (int)g.First().Id);
+                    var dictTipo = tipos
+                        .GroupBy(x => ((string)x.Nombre).Trim().ToUpperInvariant())
+                        .ToDictionary(g => g.Key, g => (int)g.First().ID);
+                    var dictVendedor = vendedores
+                        .GroupBy(x => ((string)x.Usuario).Trim().ToUpperInvariant())
+                        .ToDictionary(g => g.Key, g => (int)g.First().Id);
+                    var dictVendedorNombre = vendedores
+                        .Where(x => !string.IsNullOrEmpty((string)x.Nombre?.ToString()) && !string.IsNullOrWhiteSpace(x.Nombre?.ToString()))
+                        .GroupBy(x => ((string)x.Nombre).Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => (int)g.First().Id, StringComparer.OrdinalIgnoreCase);
+                    var dictValor = valores.ToDictionary(
+                        x => ((string)x.Nombre).Trim() + " (" + ((string)x.Unidad_Medida) + ")",
+                        x => new { ID = (int)x.ID, Nombre = (string)x.Nombre, Unidad = (string)x.Unidad_Medida });
+                    var dictValorPorId = valores.ToDictionary(x => (int)x.ID, x => new { ID = (int)x.ID, Nombre = (string)x.Nombre, Unidad = (string)x.Unidad_Medida });
+
+                    if (!archivo.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                        return Json(new { ok = false, mensaje = "Solo se aceptan archivos .xlsx." });
+
+                    using var ms = new MemoryStream();
+                    await archivo.CopyToAsync(ms);
+                    ms.Position = 0;
+
+                    using var wb = new XLWorkbook(ms);
+                    var ws = wb.Worksheet(1);
+                    var ultimaFilaUsada = ws.LastRowUsed()?.RowNumber() ?? 0;
+                    if (ultimaFilaUsada < 2)
+                        return Json(new { ok = false, mensaje = "El archivo no contiene filas de datos." });
+
+                    // Mapeo de columnas por nombre de encabezado
+                    var cols = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    var filaEncabezado = ws.Row(1);
+                    for (int c = 1; c <= ws.LastColumnUsed()?.ColumnNumber(); c++)
+                    {
+                        string nombre = (filaEncabezado.Cell(c).GetString() ?? "").Trim();
+                        if (!string.IsNullOrEmpty(nombre) && !cols.ContainsKey(nombre))
+                            cols[nombre] = c;
+                    }
+                    int Col(string nombre) => cols.TryGetValue(nombre, out var c) ? c : -1;
+
+                    var colPerfil = Col("Perfil");
+                    var colTipo = Col("Tipo de Objetivo");
+                    var colPeriodo = Col("Periodo");
+                    var colDesde = Col("Fecha Desde");
+                    var colHasta = Col("Fecha Hasta");
+                    var colVendedor = Col("Vendedor");
+                    var colCliente = Col("Cliente");
+                    var colSku = Col("SKU");
+                    var colCc = Col("CC");
+                    var colLinea = Col("Linea");
+                    var colProveedor = Col("Proveedor");
+                    var colDescripcion = Col("Descripcion");
+                    var colValor = Col("Valor (ID_Catalogo_ValorObjetivo o nombre)");
+                    var colMin = Col("Valor Minimo");
+                    var colMax = Col("Valor Maximo");
+                    var colMeta = Col("Meta");
+
+                    if (colPerfil < 0 || colTipo < 0 || colPeriodo < 0 || colDesde < 0)
+                        return Json(new { ok = false, mensaje = "La plantilla no tiene las columnas requeridas (Perfil, Tipo de Objetivo, Periodo, Fecha Desde)." });
+
+                    int? idUsuario = await ObtenerIdUsuarioAsync(conn);
+
+                    string Texto(int fila, int col) => col < 0 ? "" : ((ws.Cell(fila, col).GetString()) ?? "").Trim();
+                    DateTime? Fecha(int fila, int col)
+                    {
+                        if (col < 0) return null;
+                        var celda = ws.Cell(fila, col);
+                        if (celda.IsEmpty()) return null;
+                        if (celda.DataType == XLDataType.DateTime) return celda.GetDateTime();
+                        string s = celda.GetString().Trim();
+                        if (string.IsNullOrEmpty(s)) return null;
+                        if (DateTime.TryParse(s, CultureInfo.GetCultureInfo("es-MX"), DateTimeStyles.None, out var d)) return d;
+                        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d2)) return d2;
+                        return null;
+                    }
+                    decimal? DecimalCelda(int fila, int col)
+                    {
+                        if (col < 0) return null;
+                        var celda = ws.Cell(fila, col);
+                        if (celda.IsEmpty()) return null;
+                        if (celda.DataType == XLDataType.Number) return (decimal)celda.GetDouble();
+                        string s = celda.GetString().Trim();
+                        if (string.IsNullOrEmpty(s)) return null;
+                        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.GetCultureInfo("es-MX"), out var d)) return d;
+                        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d2)) return d2;
+                        return null;
+                    }
+
+                    // Agrupar por clave natural (todo excepto metas y estado)
+                    var grupos = new Dictionary<string, List<ObjetivoCargaRow>>();
+                    for (int fila = 2; fila <= ultimaFilaUsada; fila++)
+                    {
+                        string perfilN = Texto(fila, colPerfil);
+                        string tipoN = Texto(fila, colTipo);
+                        if (string.IsNullOrEmpty(perfilN) && string.IsNullOrEmpty(tipoN))
+                            continue;
+
+                        string clave = string.Join("|", new[] {
+                            perfilN.ToUpperInvariant(), tipoN.ToUpperInvariant(), Texto(fila, colPeriodo).ToUpperInvariant(),
+                            Fecha(fila, colDesde)?.ToString("yyyy-MM-dd") ?? "",
+                            Fecha(fila, colHasta)?.ToString("yyyy-MM-dd") ?? "",
+                            Texto(fila, colVendedor).Trim().ToUpperInvariant(),
+                            Texto(fila, colCliente).Trim().ToUpperInvariant(),
+                            Texto(fila, colSku).Trim().ToUpperInvariant(),
+                            Texto(fila, colCc).Trim().ToUpperInvariant(),
+                            Texto(fila, colLinea).Trim().ToUpperInvariant(),
+                            Texto(fila, colProveedor).Trim().ToUpperInvariant()
+                        });
+
+                        var row = new ObjetivoCargaRow();
+                        row.Fila = fila;
+                        row.PerfilNombre = perfilN;
+                        row.TipoNombre = tipoN;
+                        row.Periodo = Texto(fila, colPeriodo);
+                        row.FechaDesde = Fecha(fila, colDesde);
+                        row.FechaHasta = Fecha(fila, colHasta);
+                        row.VendedorTexto = Texto(fila, colVendedor);
+                        row.Cliente = Texto(fila, colCliente);
+                        row.Sku = Texto(fila, colSku);
+                        row.Cc = Texto(fila, colCc);
+                        row.Linea = Texto(fila, colLinea);
+                        row.Proveedor = Texto(fila, colProveedor);
+                        row.Descripcion = Texto(fila, colDescripcion);
+                        row.ValorTexto = Texto(fila, colValor);
+                        row.ValorMinimo = DecimalCelda(fila, colMin);
+                        row.ValorMaximo = DecimalCelda(fila, colMax);
+                        row.Meta = DecimalCelda(fila, colMeta);
+
+                        if (!grupos.TryGetValue(clave, out var lista))
+                        {
+                            lista = new List<ObjetivoCargaRow>();
+                            grupos[clave] = lista;
+                        }
+                        lista.Add(row);
+                    }
+
+                    using (var transaccion = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            foreach (var grupo in grupos.Values)
+                            {
+                                var primera = grupo[0];
+
+                                // Resolver PKs
+                                int perfilId = dictPerfil.TryGetValue(primera.PerfilNombre.Trim().ToUpperInvariant(), out var pid) ? pid : -1;
+                                int tipoId = dictTipo.TryGetValue(primera.TipoNombre.Trim().ToUpperInvariant(), out var tid) ? tid : -1;
+
+                                if (perfilId <= 0) { errores.Add($"Fila {primera.Fila}: Perfil '{primera.PerfilNombre}' no encontrado."); continue; }
+                                if (tipoId <= 0) { errores.Add($"Fila {primera.Fila}: Tipo de Objetivo '{primera.TipoNombre}' no encontrado."); continue; }
+                                if (!primera.FechaDesde.HasValue) { errores.Add($"Fila {primera.Fila}: Fecha Desde inválida."); continue; }
+
+                                int? vendedorId = null;
+                                if (!string.IsNullOrEmpty(primera.VendedorTexto))
+                                {
+                                    string vendKey = primera.VendedorTexto.Contains('-')
+                                        ? primera.VendedorTexto.Split('-')[0].Trim().ToUpperInvariant()
+                                        : primera.VendedorTexto.Trim().ToUpperInvariant();
+                                    if (dictVendedor.TryGetValue(vendKey, out var vid)) vendedorId = vid;
+                                    else if (dictVendedorNombre.TryGetValue(vendKey, out var vidNombre)) vendedorId = vidNombre;
+                                    else { errores.Add($"Fila {primera.Fila}: Vendedor '{primera.VendedorTexto}' no encontrado."); continue; }
+                                }
+
+                                // Buscar objetivo existente por clave natural
+                                var existente = await conn.QueryFirstOrDefaultAsync<dynamic>(@"
+                                    SELECT TOP 1 ID, Estado FROM dbo.Objetivos
+                                    WHERE ID_Perfil = @Perfil
+                                      AND ID_Tipo_Objetivo = @Tipo
+                                      AND UPPER(LTRIM(RTRIM(Tipo_Periodo_Cumplimiento))) = @Periodo
+                                      AND Fecha_Desde = @Desde
+                                      AND ISNULL(Fecha_Hasta, '19000101') = @Hasta
+                                      AND ISNULL(UPPER(LTRIM(RTRIM(Proveedor))), '') = @Prov
+                                      AND ISNULL(UPPER(LTRIM(RTRIM(ID_Cliente))), '') = @Cliente
+                                      AND ISNULL(UsuarioID_Vendedor, 0) = @Vendedor
+                                      AND ISNULL(UPPER(LTRIM(RTRIM(SKU))), '') = @Sku
+                                      AND ISNULL(UPPER(LTRIM(RTRIM(CC))), '') = @Cc
+                                      AND ISNULL(UPPER(LTRIM(RTRIM(LINEA))), '') = @Linea",
+                                    new
+                                    {
+                                        Perfil = perfilId,
+                                        Tipo = tipoId,
+                                        Periodo = (primera.Periodo ?? "").Trim().ToUpperInvariant(),
+                                        Desde = primera.FechaDesde.Value,
+                                        Hasta = primera.FechaHasta?.ToString("yyyy-MM-dd") ?? "19000101",
+                                        Prov = (primera.Proveedor ?? "").Trim().ToUpperInvariant(),
+                                        Cliente = (primera.Cliente ?? "").Trim().ToUpperInvariant(),
+                                        Vendedor = vendedorId ?? 0,
+                                        Sku = (primera.Sku ?? "").Trim().ToUpperInvariant(),
+                                        Cc = (primera.Cc ?? "").Trim().ToUpperInvariant(),
+                                        Linea = (primera.Linea ?? "").Trim().ToUpperInvariant()
+                                    }, transaccion);
+
+                                int objId;
+                                if (existente == null)
+                                {
+                                    // INSERT
+                                    string sqlInsert = @"
+                                        INSERT INTO dbo.Objetivos (
+                                            ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento,
+                                            Fecha_Desde, Fecha_Hasta, Descripcion_Objetivo,
+                                            ID_Cliente, UsuarioID_Vendedor, Proveedor, SKU, CC, LINEA,
+                                            Estado, UsuarioID_Creacion, Fecha_Creacion
+                                        ) VALUES (
+                                            @ID_Perfil, @ID_Tipo_Objetivo, @Tipo_Periodo_Cumplimiento,
+                                            @Fecha_Desde, @Fecha_Hasta, @Descripcion_Objetivo,
+                                            @ID_Cliente, @UsuarioID_Vendedor, @Proveedor, @SKU, @CC, @LINEA,
+                                            'Pendiente', @UsuarioCreacion, GETDATE()
+                                        );
+                                        SELECT CAST(SCOPE_IDENTITY() as int);";
+
+                                    objId = await conn.QuerySingleAsync<int>(sqlInsert, new
+                                    {
+                                        ID_Perfil = perfilId,
+                                        ID_Tipo_Objetivo = tipoId,
+                                        Tipo_Periodo_Cumplimiento = (primera.Periodo ?? "").Trim(),
+                                        Fecha_Desde = primera.FechaDesde.Value,
+                                        Fecha_Hasta = primera.FechaHasta,
+                                        Descripcion_Objetivo = primera.Descripcion ?? "",
+                                        ID_Cliente = string.IsNullOrWhiteSpace(primera.Cliente) ? null : primera.Cliente,
+                                        UsuarioID_Vendedor = vendedorId,
+                                        Proveedor = string.IsNullOrWhiteSpace(primera.Proveedor) ? null : primera.Proveedor,
+                                        SKU = string.IsNullOrWhiteSpace(primera.Sku) ? null : primera.Sku,
+                                        CC = string.IsNullOrWhiteSpace(primera.Cc) ? null : primera.Cc,
+                                        LINEA = string.IsNullOrWhiteSpace(primera.Linea) ? null : primera.Linea,
+                                        UsuarioCreacion = idUsuario ?? 1
+                                    }, transaccion);
+                                    insertados++;
+                                }
+                                else if ((string)existente.Estado == "Pendiente")
+                                {
+                                    objId = (int)existente.ID;
+                                    string sqlUpdate = @"
+                                        UPDATE dbo.Objetivos
+                                        SET Descripcion_Objetivo = @Descripcion,
+                                            UsuarioID_Modificacion = @UsuarioMod,
+                                            Fecha_Modificacion = GETDATE()
+                                        WHERE ID = @ID";
+                                    await conn.ExecuteAsync(sqlUpdate, new
+                                    {
+                                        Descripcion = primera.Descripcion ?? "",
+                                        UsuarioMod = idUsuario ?? 1,
+                                        ID = objId
+                                    }, transaccion);
+
+                                    await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @ID", new { ID = objId }, transaccion);
+                                    actualizados++;
+                                }
+                                else
+                                {
+                                    omitidos++; // ya autorizado/cumplido/otro estado: no se toca
+                                    continue;
+                                }
+
+                                // Metas (una fila por meta)
+                                var metasProcesadas = new HashSet<int>();
+                                foreach (var filaMeta in grupo)
+                                {
+                                    if (string.IsNullOrEmpty(filaMeta.ValorTexto)) continue;
+
+                                    int valorId = -1;
+                                    string valorNombre = filaMeta.ValorTexto.Trim();
+                                    string valorUnidad = "";
+                                    if (int.TryParse(valorNombre, out int valorIdDirecto))
+                                    {
+                                        valorId = valorIdDirecto;
+                                        if (dictValorPorId.TryGetValue(valorId, out var infoId))
+                                        {
+                                            valorNombre = infoId.Nombre;
+                                            valorUnidad = infoId.Unidad;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var match = dictValor.FirstOrDefault(x => string.Equals(x.Key, valorNombre, StringComparison.OrdinalIgnoreCase));
+                                        if (match.Value == null)
+                                        {
+                                            var matchSimple = dictValor.FirstOrDefault(x => x.Key.Split('(')[0].Trim().Equals(valorNombre, StringComparison.OrdinalIgnoreCase));
+                                            if (matchSimple.Value != null) { valorId = matchSimple.Value.ID; valorNombre = matchSimple.Value.Nombre; valorUnidad = matchSimple.Value.Unidad; }
+                                            else { errores.Add($"Fila {filaMeta.Fila}: Valor '{valorNombre}' no encontrado en el catálogo."); continue; }
+                                        }
+                                        else { valorId = match.Value.ID; valorNombre = match.Value.Nombre; valorUnidad = match.Value.Unidad; }
+                                    }
+
+                                    if (valorId <= 0) { errores.Add($"Fila {filaMeta.Fila}: Valor inválido."); continue; }
+                                    if (!metasProcesadas.Add(valorId))
+                                    {
+                                        errores.Add($"Fila {filaMeta.Fila}: El valor '{valorNombre}' ya viene duplicado para el mismo objetivo; solo se consideró su primera fila.");
+                                        continue;
+                                    }
+
+                                    string sqlMeta = @"
+                                        INSERT INTO dbo.Objetivo_Valor (
+                                            ID_Objetivo, ID_Catalogo_ValorObjetivo, Tipo_Valor, Unidad_Medida,
+                                            Valor_Minimo, Valor_Maximo, Valor_Objetivo
+                                        ) VALUES (
+                                            @ID_Objetivo, @ID_Catalogo, @TipoValor, @Unidad,
+                                            @Minimo, @Maximo, @Meta
+                                        )";
+                                    await conn.ExecuteAsync(sqlMeta, new
+                                    {
+                                        ID_Objetivo = objId,
+                                        ID_Catalogo = valorId,
+                                        TipoValor = filaMeta.ValorTexto.Trim(),
+                                        Unidad = valorUnidad,
+                                        Minimo = filaMeta.ValorMinimo,
+                                        Maximo = filaMeta.ValorMaximo,
+                                        Meta = filaMeta.Meta
+                                    }, transaccion);
+                                }
+                            }
+
+                            transaccion.Commit();
+                        }
+                        catch
+                        {
+                            transaccion.Rollback();
+                            throw;
+                        }
+                    }
+
+                    string mensaje = $"Se insertaron {insertados}, se actualizaron {actualizados} y se omitieron {omitidos} objetivo(s).";
+                    if (errores.Count > 0)
+                        mensaje += " Con " + errores.Count + " fila(s) con error.";
+
+                    return Json(new { ok = true, mensaje, insertados, actualizados, omitidos, errores });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = "Error al procesar el archivo: " + ex.Message });
+            }
+        }
+
         [HttpPost]
         [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
         public async Task<IActionResult> CrearTipoObjetivo(int idPerfil, string nombre, string descripcion)
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -725,7 +1171,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 string connectionString =
-                    _configuration.GetConnectionString("CadenaSQLSIGO");
+                    _configuration.GetConnectionString("DefaultConnection");
 
                 using (var conn = new SqlConnection(connectionString)) 
                 {
@@ -763,6 +1209,27 @@ namespace Plataforma_CG.Controllers
                     message = ex.Message
                 });
             }
+        }
+
+        private class ObjetivoCargaRow
+        {
+            public int Fila { get; set; }
+            public string PerfilNombre { get; set; }
+            public string TipoNombre { get; set; }
+            public string Periodo { get; set; }
+            public DateTime? FechaDesde { get; set; }
+            public DateTime? FechaHasta { get; set; }
+            public string VendedorTexto { get; set; }
+            public string Cliente { get; set; }
+            public string Sku { get; set; }
+            public string Cc { get; set; }
+            public string Linea { get; set; }
+            public string Proveedor { get; set; }
+            public string Descripcion { get; set; }
+            public string ValorTexto { get; set; }
+            public decimal? ValorMinimo { get; set; }
+            public decimal? ValorMaximo { get; set; }
+            public decimal? Meta { get; set; }
         }
     }
 }
