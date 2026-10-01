@@ -526,6 +526,129 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        // =======================================================
+        // PERMISOS A MÓDULOS POR USUARIO (L/E/E)
+        // =======================================================
+
+        // Lista de usuarios (solo UsuarioSQL) para el selector
+        [HttpGet]
+        public async Task<IActionResult> ObtenerListaUsuarios()
+        {
+            try
+            {
+                var usuarios = await _db.UsuarioSQL
+                    .Where(u => !string.IsNullOrEmpty(u.Usuario))
+                    .Select(u => new { key = u.Usuario, nombre = u.Nombre ?? u.Usuario })
+                    .OrderBy(x => x.nombre)
+                    .ToListAsync();
+
+                return Json(usuarios);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = ex.Message });
+            }
+        }
+
+        // Matriz de permisos (L/E/E) de un usuario sobre todos los módulos activos
+        [HttpGet]
+        public async Task<IActionResult> ObtenerPermisosPorUsuario(string usuarioKey)
+        {
+            try
+            {
+                usuarioKey = (usuarioKey ?? "").Trim();
+                var modulos = await _db.ModulosSistema.Where(m => m.Activo).ToListAsync();
+
+                var permisosGuardados = await _db.UsuarioPermisoModulo
+                                                 .Where(p => p.UsuarioKey == usuarioKey && p.Activo)
+                                                 .ToListAsync();
+
+                var matrizPermisos = modulos.Select(m => {
+                    var permisoBD = permisosGuardados.FirstOrDefault(p => p.ModuloId == m.Id);
+                    return new PermisoModuloDto
+                    {
+                        ModuloId = m.Id,
+                        NombreModulo = m.Nombre,
+                        ClaveModulo = m.Clave,
+                        PuedeLeer = permisoBD?.PuedeLeer ?? false,
+                        PuedeEscribir = permisoBD?.PuedeEscribir ?? false,
+                        PuedeEliminar = permisoBD?.PuedeEliminar ?? false
+                    };
+                }).ToList();
+
+                return Json(matrizPermisos);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GuardarPermisosModulosUsuario([FromBody] GuardarPermisosModulosUsuarioDto datos)
+        {
+            if (datos == null || datos.Permisos == null || string.IsNullOrWhiteSpace(datos.UsuarioKey))
+                return Json(new { ok = false, mensaje = "Datos inválidos o vacíos." });
+
+            datos.UsuarioKey = datos.UsuarioKey.Trim();
+
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                // Solo se guardan los módulos marcados (con al menos un checkbox activo).
+                // Los módulos sin marcar se eliminan para que hereden el permiso del perfil.
+                var marcados = datos.Permisos
+                    .Where(p => p.PuedeLeer || p.PuedeEscribir || p.PuedeEliminar)
+                    .ToList();
+
+                var permisosActuales = await _db.UsuarioPermisoModulo
+                                                .Where(p => p.UsuarioKey == datos.UsuarioKey)
+                                                .ToListAsync();
+
+                // Elimina los registros guardados previamente que ya no están marcados
+                var idsMarcados = marcados.Select(m => m.ModuloId).ToList();
+                var aEliminar = permisosActuales.Where(p => !idsMarcados.Contains(p.ModuloId)).ToList();
+                if (aEliminar.Count > 0)
+                    _db.UsuarioPermisoModulo.RemoveRange(aEliminar);
+
+                foreach (var item in marcados)
+                {
+                    var permisoBD = permisosActuales.FirstOrDefault(p => p.ModuloId == item.ModuloId);
+
+                    if (permisoBD != null)
+                    {
+                        permisoBD.PuedeLeer = item.PuedeLeer;
+                        permisoBD.PuedeEscribir = item.PuedeEscribir;
+                        permisoBD.PuedeEliminar = item.PuedeEliminar;
+                        permisoBD.FechaModificacion = DateTime.Now;
+                    }
+                    else
+                    {
+                        _db.UsuarioPermisoModulo.Add(new UsuarioPermisoModulo
+                        {
+                            UsuarioKey = datos.UsuarioKey,
+                            ModuloId = item.ModuloId,
+                            PuedeLeer = item.PuedeLeer,
+                            PuedeEscribir = item.PuedeEscribir,
+                            PuedeEliminar = item.PuedeEliminar,
+                            Activo = true,
+                            FechaCreacion = DateTime.Now
+                        });
+                    }
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Json(new { ok = true, mensaje = "Permisos del usuario guardados correctamente." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return Json(new { ok = false, mensaje = "Error al guardar: " + ex.Message });
+            }
+        }
+
 
     }
 
@@ -550,6 +673,12 @@ namespace Plataforma_CG.Controllers
     public class GuardarPermisosModulosDto
     {
         public int PerfilId { get; set; }
+        public List<PermisoModuloDto> Permisos { get; set; }
+    }
+
+    public class GuardarPermisosModulosUsuarioDto
+    {
+        public string UsuarioKey { get; set; }
         public List<PermisoModuloDto> Permisos { get; set; }
     }
 }

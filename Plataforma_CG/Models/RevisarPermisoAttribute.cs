@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data;
+using Plataforma_CG.Models;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -35,59 +36,42 @@ namespace Plataforma_CG.Filters
         {
             var login = (context.HttpContext.User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == _claveModulo
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, _claveModulo);
 
-            bool tieneAcceso = false;
-
-            if (permiso != null)
+            bool tieneAcceso = _tipoPermiso.ToUpper() switch
             {
-                // Validacion dinamica segun el permiso solicitado
-                tieneAcceso = _tipoPermiso.ToUpper() switch
-                {
-                    "LEER" => permiso.PuedeLeer,
-                    "ESCRIBIR" => permiso.PuedeEscribir,
-                    "ELIMINAR" => permiso.PuedeEliminar,
-                    _ => false
-                };
-            }
+                "LEER" => puedeLeer,
+                "ESCRIBIR" => puedeEscribir,
+                "ELIMINAR" => puedeEliminar,
+                _ => false
+            };
 
             if (!tieneAcceso)
             {
-                // Verifica si la peticion es AJAX/Fetch o carga de vista normal
-                var isAjax = context.HttpContext.Request.Headers["X-Requested-With"] == "XMLHttpRequest" ||
-                             context.HttpContext.Request.Headers["Accept"].ToString().Contains("application/json");
-
-                if (isAjax)
-                {
-                    context.Result = new JsonResult(new { ok = false, mensaje = "Acceso denegado. Permisos insuficientes." })
-                    {
-                        StatusCode = 403
-                    };
-                }
-                else
-                {
-                    context.Result = new ForbidResult();
-                }
+                returnForbidden(context);
                 return;
             }
 
-            // Permite que el codigo original del controlador se ejecute
             await next();
+        }
+
+        private static void returnForbidden(ActionExecutingContext context)
+        {
+            var isAjax = context.HttpContext.Request.Headers["X-Requested-With"] == "XMLHttpRequest" ||
+                         context.HttpContext.Request.Headers["Accept"].ToString().Contains("application/json");
+
+            if (isAjax)
+            {
+                context.Result = new JsonResult(new { ok = false, mensaje = "Acceso denegado. Permisos insuficientes." })
+                {
+                    StatusCode = 403
+                };
+            }
+            else
+            {
+                context.Result = new ForbidResult();
+            }
         }
     }
 }

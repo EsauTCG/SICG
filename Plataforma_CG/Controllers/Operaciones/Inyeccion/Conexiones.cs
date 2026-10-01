@@ -17,27 +17,38 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
         {
             try
             {
-                string rutaLogo = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "LOGO_CARNESG.JPG");
+                string datos = GenerarEtiqueta(model, lote, prod);
+                return EnviarEtiqueta(ip, datos);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Excepción al generar impresión: {ex.Message}");
+            }
+        }
 
-                if (!File.Exists(rutaLogo))
-                {
-                    return (false, $"No se encontró el logo en la ruta: {rutaLogo}");
-                }
+        public string GenerarEtiqueta(EntradaModel model, string lote, string prod)
+        {
+            ArgumentNullException.ThrowIfNull(model);
 
-                string gfaLogo = ConvertirImagenAGFA(rutaLogo, 400, 110);
+            string rutaLogo = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "LOGO_CARNESG.JPG");
 
-                string pes = model.TipoPeso == "Man"
-                    ? "Manual"
-                    : model.TipoPeso == "Aut"
-                        ? "Automatico"
-                        : "Modificacion";
+            if (!File.Exists(rutaLogo))
+                throw new FileNotFoundException("No se encontró el logo requerido por la etiqueta.", rutaLogo);
 
-                string productoSeguro = LimpiarTextoZpl(prod);
-                string loteSeguro = LimpiarTextoZpl(lote);
-                string skuSeguro = LimpiarTextoZpl(model.SKU ?? "");
-                string folioSeguro = LimpiarTextoZpl(model.Folio ?? "");
+            string gfaLogo = ConvertirImagenAGFA(rutaLogo, 400, 110);
 
-                string datos = $@"
+            string pes = model.TipoPeso == "Man"
+                ? "Manual"
+                : model.TipoPeso == "Aut"
+                    ? "Automatico"
+                    : "Modificacion";
+
+            string productoSeguro = LimpiarTextoZpl(prod);
+            string loteSeguro = LimpiarTextoZpl(lote);
+            string skuSeguro = LimpiarTextoZpl(model.SKU ?? "");
+            string folioSeguro = LimpiarTextoZpl(model.Folio ?? "");
+
+            string payload = $@"
 ^XA
 ^CI28
 ^PW812
@@ -78,13 +89,13 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
 
 ^XZ";
 
-                return Imprimir(ip, 9100, datos);
-            }
-            catch (Exception ex)
-            {
-                return (false, $"Excepción al generar impresión: {ex.Message}");
-            }
+            // La impresora recibe bytes ASCII; devolver esa misma representación
+            // garantiza que la bitácora y su SHA-256 describan exactamente lo enviado.
+            return Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(payload));
         }
+
+        public (bool ok, string mensaje) EnviarEtiqueta(string ip, string payloadZpl) =>
+            Imprimir(ip, 9100, payloadZpl);
 
         private static string LimpiarTextoZpl(string texto)
         {

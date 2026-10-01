@@ -5,6 +5,10 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
 }
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
 <style>
     :root {
         --bg: #f0dede;
@@ -376,6 +380,11 @@
 
     #tablaPrecios th:nth-child(8), #tablaPrecios td:nth-child(8) {
         width: 180px;
+    }
+
+    #tablaPrecios th:nth-child(9), #tablaPrecios td:nth-child(9) {
+        width: 82px;
+        text-align: center;
     }
 
     .pager {
@@ -987,9 +996,2648 @@
         border-radius: 0;
         resize: vertical;
     }
+
+    /* ── MODAL DE AUDITORÍA DE PRECIOS ─────────────────────────── */
+    .audit-modal-dialog {
+        max-width: 98vw !important;
+        width: 98vw !important;
+        margin: 1rem auto !important;
+    }
+
+    .audit-filters {
+        display: grid;
+        grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(220px, 1.6fr) 150px 150px 150px 160px;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .audit-filters .form-label {
+        display: block;
+        margin-bottom: 3px;
+        color: #5c1a1a;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .audit-filters .form-control,
+    .audit-filters .form-select {
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 3px 7px !important;
+        border-radius: 0 !important;
+        border: 1px solid #b48787 !important;
+        background: #fffdfd !important;
+        color: #421414 !important;
+        font-size: 12px !important;
+        box-shadow: none !important;
+    }
+
+    .audit-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 9px;
+    }
+
+    .audit-kpis {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        gap: 8px;
+        margin: 10px 0;
+    }
+
+    .audit-kpi {
+        min-height: 62px;
+        padding: 8px 10px;
+        border: 1px solid #d8bcbc;
+        background: linear-gradient(#fffefe, #f3e4e4);
+        text-align: center;
+    }
+
+    .audit-kpi-title {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #7a0000;
+        margin-bottom: 4px;
+    }
+
+    .audit-kpi-value {
+        font-size: 18px;
+        font-weight: 900;
+        color: #401515;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .audit-table-wrap {
+        overflow: auto;
+        max-height: 58vh;
+        border: 1px solid #d8bcbc;
+        background: #fffafa;
+    }
+
+    #tablaHistoricoPrecios {
+        min-width: 2050px;
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        margin: 0;
+        font-size: 11px;
+    }
+
+    #tablaHistoricoPrecios thead th {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        padding: 6px 5px;
+        white-space: nowrap;
+        color: #fff;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
+        border-right: 1px solid #8e3b3b;
+        border-bottom: 1px solid #5c0000;
+    }
+
+    #tablaHistoricoPrecios tbody td {
+        padding: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #111;
+        background: #fffafa;
+        border-right: 1px solid #d8bcbc;
+        border-bottom: 1px solid #d8bcbc;
+        vertical-align: middle;
+    }
+
+    #tablaHistoricoPrecios tbody tr:nth-child(even) td {
+        background: #f9eded;
+    }
+
+    #tablaHistoricoPrecios tbody tr:hover td {
+        background: #f4dddd;
+    }
+
+    .audit-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 82px;
+        padding: 2px 6px;
+        border: 1px solid transparent;
+        font-size: 10px;
+        font-weight: 900;
+    }
+
+    .audit-action-insert {
+        color: #0f5132;
+        background: #d1e7dd;
+        border-color: #badbcc;
+    }
+
+    .audit-action-update {
+        color: #084298;
+        background: #cfe2ff;
+        border-color: #b6d4fe;
+    }
+
+    .audit-action-sin-cambio {
+        color: #664d03;
+        background: #fff3cd;
+        border-color: #ffecb5;
+    }
+
+    .audit-diff-up {
+        color: #146c43 !important;
+        font-weight: 800;
+        background: #e7f6ee !important;
+    }
+
+    .audit-diff-down {
+        color: #b02a37 !important;
+        font-weight: 800;
+        background: #fdebec !important;
+    }
+
+    .audit-diff-zero {
+        color: #6c757d !important;
+    }
+
+    .audit-client-count-btn {
+        min-width: 118px;
+        height: 25px;
+        padding: 2px 8px;
+        border: 1px solid #7f0a0a;
+        background: linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .audit-client-count-btn:hover {
+        filter: brightness(1.08);
+    }
+
+    .hist-clientes-detail-row td {
+        padding: 0 !important;
+        background: #f8eeee !important;
+        white-space: normal !important;
+        overflow: visible !important;
+    }
+
+    .audit-client-panel {
+        padding: 10px;
+        border-top: 2px solid #8b0000;
+        background: #fffafa;
+    }
+
+    .audit-client-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #5c1a1a;
+    }
+
+    .audit-client-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+        gap: 5px;
+        max-height: 260px;
+        overflow: auto;
+        padding-right: 4px;
+    }
+
+    .audit-client-item {
+        padding: 5px 7px;
+        border: 1px solid #d8bcbc;
+        background: #fff;
+        color: #2f1717;
+        font-size: 11px;
+        line-height: 1.25;
+    }
+
+    .audit-client-code {
+        display: inline-block;
+        min-width: 70px;
+        margin-right: 6px;
+        font-weight: 900;
+        color: #7a0000;
+    }
+
+
+    .btn-audit-row {
+        width: 28px;
+        height: 24px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #5b21b6;
+        color: #fff;
+        background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%);
+        cursor: pointer;
+    }
+
+    .btn-audit-row:hover {
+        filter: brightness(.95);
+    }
+
+    .audit-pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 8px 0 0;
+    }
+
+    @@media (max-width: 1400px) {
+        .audit-filters {
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
+        }
+
+        .audit-kpis {
+            grid-template-columns: repeat(3, minmax(120px, 1fr));
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .audit-modal-dialog {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            margin: 0 !important;
+        }
+
+        .audit-filters,
+        .audit-kpis {
+            grid-template-columns: 1fr;
+        }
+    }
+
+
+    /* ============================================================
+       GRID COMPACTO FINAL — CATÁLOGO DE PRECIOS POR CLIENTE
+       Fuente: Poppins
+       Conserva Razor, IDs, paginación, búsqueda, sincronización,
+       histórico/auditoría, análisis semanal, competencia y JS.
+       ============================================================ */
+
+    .catalogo-precios-cliente-app {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        container-type: inline-size;
+        container-name: catalogo-precios-cliente;
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+    }
+
+    .catalogo-precios-cliente-app,
+    .catalogo-precios-cliente-app > *,
+    .catalogo-precios-cliente-app .content,
+    .catalogo-precios-cliente-app .workspace,
+    .catalogo-precios-cliente-app .section,
+    .catalogo-precios-cliente-app .toolbar,
+    .catalogo-precios-cliente-app .table-wrap,
+    .catalogo-precios-cliente-app .pager {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .catalogo-precios-cliente-app button,
+    .catalogo-precios-cliente-app input,
+    .catalogo-precios-cliente-app select,
+    .catalogo-precios-cliente-app textarea,
+    .catalogo-precios-cliente-app table,
+    #modalAnalisisSemanal,
+    #modalImportarCompetencia,
+    #modalHistoricoPrecios {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+    }
+
+    /* Encabezado compacto */
+    .catalogo-precios-cliente-app .titlebar {
+        display: flex !important;
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0 7px !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 5px !important;
+        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%) !important;
+        color: #fff !important;
+        border-bottom: 1px solid #5c0000 !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        line-height: 1 !important;
+    }
+
+    .catalogo-precios-cliente-app .titlebar .actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+    }
+
+    .catalogo-precios-cliente-app .titlebar .win-btn {
+        width: 7px !important;
+        height: 7px !important;
+        border-radius: 50% !important;
+        border: 0 !important;
+        background: rgba(255,255,255,.72) !important;
+    }
+
+    /* ============================================================
+       TOOLBAR
+       Buscador + Excel + Sync + Histórico + Gestión + loader
+       ============================================================ */
+    .catalogo-precios-cliente-app .toolbar {
+        display: grid !important;
+        grid-template-columns:
+            minmax(260px, 1fr)
+            max-content
+            max-content
+            max-content
+            max-content
+            max-content !important;
+        gap: 4px !important;
+        align-items: end !important;
+        width: 100% !important;
+        padding: 4px 5px !important;
+        flex-wrap: nowrap !important;
+        font-size: 8px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar .group {
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: none !important;
+        gap: 1px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar label {
+        display: none !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar input,
+    .catalogo-precios-cliente-app .toolbar .form-control {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 2px 6px !important;
+        border-radius: 0 !important;
+        font-size: 8px !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn,
+    #modalAnalisisSemanal .tool-btn,
+    #modalImportarCompetencia .tool-btn,
+    #modalHistoricoPrecios .tool-btn {
+        min-width: 0 !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 7px !important;
+        gap: 3px !important;
+        border-radius: 0 !important;
+        font-size: 7.3px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+        white-space: nowrap !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn i,
+    #modalAnalisisSemanal .tool-btn i,
+    #modalImportarCompetencia .tool-btn i,
+    #modalHistoricoPrecios .tool-btn i {
+        font-size: 8px !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-dropdown {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu {
+        min-width: 185px !important;
+        padding: 2px !important;
+        border-radius: 0 !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item {
+        min-height: 23px !important;
+        padding: 3px 5px !important;
+        gap: 3px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    .catalogo-precios-cliente-app #loader {
+        align-self: center !important;
+        margin: 0 !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    /* Contenido */
+    .catalogo-precios-cliente-app .content {
+        width: 100% !important;
+        padding: 4px !important;
+    }
+
+    .catalogo-precios-cliente-app .workspace {
+        width: 100% !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .catalogo-precios-cliente-app .section {
+        width: 100% !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .catalogo-precios-cliente-app .section-title {
+        min-height: 24px !important;
+        padding: 4px 6px !important;
+        gap: 4px !important;
+        font-size: 8px !important;
+        line-height: 1 !important;
+    }
+
+    .catalogo-precios-cliente-app .status-chip,
+    .catalogo-precios-cliente-app #pageInfo {
+        min-height: 20px !important;
+        padding: 2px 5px !important;
+        gap: 3px !important;
+        border-radius: 2px !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+    }
+
+    /* ============================================================
+       TABLA PRINCIPAL — 9 columnas
+       ============================================================ */
+    .catalogo-precios-cliente-app .table-wrap {
+        width: 100% !important;
+        min-height: 300px !important;
+        height: clamp(300px, 59dvh, 690px) !important;
+        max-height: 690px !important;
+        overflow: auto !important;
+        scrollbar-gutter: stable;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios {
+        width: 100% !important;
+        min-width: 1050px !important;
+        table-layout: fixed !important;
+        font-size: 7.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap thead th {
+        padding: 4px 3px !important;
+        font-size: 6.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap tbody td {
+        padding: 3px !important;
+        font-size: 7.8px !important;
+        line-height: 1.05 !important;
+        font-weight: 400 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(1),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(1) { width: 82px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(2),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(2) { width: 225px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(3),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(3) { width: 85px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(4),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(4) { width: 220px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(5),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(5) { width: 72px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(6),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(6) { width: 82px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(7),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(7) { width: 90px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(8),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(8) { width: 135px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(9),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(9) { width: 57px !important; }
+
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(2),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(4),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(8) {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    .catalogo-precios-cliente-app .btn-audit-row {
+        width: 22px !important;
+        min-width: 22px !important;
+        height: 20px !important;
+        min-height: 20px !important;
+        padding: 0 !important;
+        font-size: 7px !important;
+    }
+
+    /* Paginación */
+    .catalogo-precios-cliente-app .pager {
+        display: grid !important;
+        grid-template-columns: max-content minmax(0, 1fr) max-content !important;
+        gap: 4px !important;
+        align-items: center !important;
+        width: 100% !important;
+        padding: 4px 5px !important;
+    }
+
+    .catalogo-precios-cliente-app .pager .btn {
+        min-width: 76px !important;
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 0 6px !important;
+        border-radius: 0 !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+    }
+
+    .catalogo-precios-cliente-app .pager > .d-flex {
+        min-width: 0 !important;
+        justify-content: center !important;
+    }
+
+    .catalogo-precios-cliente-app #pageInfo {
+        max-width: 100% !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    /* Statusbar interno muy compacto */
+    .catalogo-precios-cliente-app .statusbar {
+        min-height: 18px !important;
+        padding: 2px 5px !important;
+        gap: 3px !important;
+        font-size: 6.2px !important;
+        line-height: 1 !important;
+        align-items: center !important;
+    }
+
+    .catalogo-precios-cliente-app .statusbar > div {
+        min-width: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* ============================================================
+       MODAL ANÁLISIS SEMANAL
+       ============================================================ */
+    #modalAnalisisSemanal .modal-dialog {
+        width: min(1500px, 97vw) !important;
+        max-width: min(1500px, 97vw) !important;
+        margin: .35rem auto !important;
+    }
+
+    #modalAnalisisSemanal .modal-content {
+        border-radius: 0 !important;
+    }
+
+    #modalAnalisisSemanal .modal-header {
+        min-height: 36px !important;
+        padding: 4px 6px !important;
+    }
+
+    #modalAnalisisSemanal .modal-title {
+        font-size: 9px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+    }
+
+    #modalAnalisisSemanal .modal-body {
+        padding: 4px !important;
+        font-size: 7.5px !important;
+    }
+
+    #modalAnalisisSemanal .section {
+        margin-bottom: 4px !important;
+        border-radius: 0 !important;
+    }
+
+    #modalAnalisisSemanal .section-title {
+        min-height: 23px !important;
+        padding: 4px 5px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalAnalisisSemanal .section-body {
+        padding: 5px !important;
+    }
+
+    #modalAnalisisSemanal .section-body > .row {
+        display: grid !important;
+        grid-template-columns: 2fr 4fr 3fr 3fr !important;
+        gap: 4px !important;
+        margin: 0 !important;
+    }
+
+    #modalAnalisisSemanal .section-body > .row > [class*="col-"] {
+        width: auto !important;
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+    #modalAnalisisSemanal .form-label {
+        margin-bottom: 2px !important;
+        font-size: 6.8px !important;
+        line-height: 1 !important;
+    }
+
+    #modalAnalisisSemanal .form-control,
+    #modalAnalisisSemanal .form-select,
+    #modalAnalisisSemanal input,
+    #modalAnalisisSemanal select {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 2px 5px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalAnalisisSemanal textarea,
+    #modalAnalisisSemanal #anaSku {
+        min-height: 43px !important;
+        height: 43px !important;
+        padding: 3px 5px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1.1 !important;
+    }
+
+    #modalAnalisisSemanal #anaSkuCount {
+        font-size: 6.5px !important;
+    }
+
+    #modalAnalisisSemanal .analisis-grid-wrap {
+        max-height: 58vh !important;
+        overflow: auto !important;
+        scrollbar-gutter: stable;
+    }
+
+    #modalAnalisisSemanal #tablaAnalisisSemanal {
+        width: 100% !important;
+        min-width: 2050px !important;
+        table-layout: fixed !important;
+        font-size: 7px !important;
+    }
+
+    #modalAnalisisSemanal #tablaAnalisisSemanal th,
+    #modalAnalisisSemanal #tablaAnalisisSemanal td {
+        padding: 3px !important;
+        font-size: 6.8px !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalAnalisisSemanal .ana-precio-input,
+    #modalAnalisisSemanal .ana-comentario-input,
+    #modalAnalisisSemanal .imp-cap-input {
+        min-height: 22px !important;
+        height: 22px !important;
+        padding: 1px 3px !important;
+        font-size: 6.8px !important;
+    }
+
+    #modalAnalisisSemanal .modal-footer {
+        min-height: 32px !important;
+        padding: 4px 5px !important;
+    }
+
+    /* ============================================================
+       MODAL IMPORTAR COMPETENCIA
+       ============================================================ */
+    #modalImportarCompetencia .modal-dialog {
+        width: min(1250px, 96vw) !important;
+        max-width: min(1250px, 96vw) !important;
+        margin: .35rem auto !important;
+    }
+
+    #modalImportarCompetencia .modal-content {
+        border-radius: 0 !important;
+    }
+
+    #modalImportarCompetencia .modal-header {
+        min-height: 36px !important;
+        padding: 4px 6px !important;
+    }
+
+    #modalImportarCompetencia .modal-title {
+        font-size: 9px !important;
+        line-height: 1 !important;
+    }
+
+    #modalImportarCompetencia .imp-modal-body {
+        padding: 5px !important;
+    }
+
+    #modalImportarCompetencia .imp-step {
+        margin-bottom: 4px !important;
+    }
+
+    #modalImportarCompetencia .imp-step-title {
+        min-height: 24px !important;
+        padding: 4px 5px !important;
+        gap: 4px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalImportarCompetencia .imp-step-num {
+        width: 15px !important;
+        height: 15px !important;
+        flex: 0 0 15px !important;
+        font-size: 6.5px !important;
+    }
+
+    #modalImportarCompetencia .imp-step-body {
+        padding: 5px !important;
+    }
+
+    #modalImportarCompetencia .imp-alert {
+        margin-bottom: 4px !important;
+        padding: 4px 6px !important;
+        font-size: 7px !important;
+        line-height: 1.15 !important;
+    }
+
+    #modalImportarCompetencia .imp-btn,
+    #modalImportarCompetencia .imp-chip {
+        min-height: 23px !important;
+        height: 23px !important;
+        padding: 0 6px !important;
+        gap: 3px !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+        border-radius: 0 !important;
+    }
+
+    #modalImportarCompetencia .imp-filter-bar {
+        gap: 3px !important;
+        margin-bottom: 4px !important;
+    }
+
+    #modalImportarCompetencia .imp-table {
+        min-width: 760px !important;
+        font-size: 7px !important;
+    }
+
+    #modalImportarCompetencia .imp-table th,
+    #modalImportarCompetencia .imp-table td {
+        padding: 3px 4px !important;
+        font-size: 7px !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalImportarCompetencia .imp-table input,
+    #modalImportarCompetencia .imp-table select,
+    #modalImportarCompetencia .imp-sku-search,
+    #modalImportarCompetencia .imp-cap-input {
+        min-height: 22px !important;
+        height: 22px !important;
+        padding: 1px 3px !important;
+        font-size: 6.8px !important;
+    }
+
+    #modalImportarCompetencia .imp-summary-row {
+        margin-top: 4px !important;
+        gap: 4px !important;
+    }
+
+    #modalImportarCompetencia .modal-footer {
+        min-height: 32px !important;
+        padding: 4px 5px !important;
+    }
+
+    /* ============================================================
+       MODAL HISTÓRICO / AUDITORÍA
+       ============================================================ */
+    #modalHistoricoPrecios .audit-modal-dialog {
+        width: min(1500px, 97vw) !important;
+        max-width: min(1500px, 97vw) !important;
+        margin: .35rem auto !important;
+    }
+
+    #modalHistoricoPrecios .modal-content {
+        border-radius: 0 !important;
+    }
+
+    #modalHistoricoPrecios .modal-header {
+        min-height: 36px !important;
+        padding: 4px 6px !important;
+    }
+
+    #modalHistoricoPrecios .modal-title {
+        font-size: 9px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .modal-body {
+        padding: 4px !important;
+        font-size: 7.5px !important;
+    }
+
+    #modalHistoricoPrecios .section {
+        margin-bottom: 4px !important;
+    }
+
+    #modalHistoricoPrecios .section-title {
+        min-height: 23px !important;
+        padding: 4px 5px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .section-body {
+        padding: 5px !important;
+    }
+
+    #modalHistoricoPrecios .audit-filters {
+        display: grid !important;
+        grid-template-columns:
+            minmax(85px, .8fr)
+            minmax(110px, 1fr)
+            minmax(165px, 1.6fr)
+            minmax(95px, .8fr)
+            minmax(95px, .8fr)
+            minmax(100px, .85fr)
+            minmax(75px, .65fr) !important;
+        gap: 4px !important;
+        align-items: end !important;
+    }
+
+    #modalHistoricoPrecios .form-label {
+        margin-bottom: 2px !important;
+        font-size: 6.7px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .form-control,
+    #modalHistoricoPrecios .form-select,
+    #modalHistoricoPrecios input,
+    #modalHistoricoPrecios select {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 2px 5px !important;
+        border-radius: 0 !important;
+        font-size: 7.3px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-actions {
+        display: grid !important;
+        grid-template-columns: minmax(180px, 1fr) max-content max-content max-content max-content !important;
+        gap: 4px !important;
+        align-items: end !important;
+        margin-top: 4px !important;
+    }
+
+    #modalHistoricoPrecios .audit-actions > div {
+        min-width: 0 !important;
+    }
+
+    #modalHistoricoPrecios #histLoader {
+        font-size: 6.8px !important;
+        line-height: 1 !important;
+        align-self: center !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpis {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 4px !important;
+        margin: 4px 0 !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi {
+        min-height: 44px !important;
+        padding: 4px 5px !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi-title {
+        margin-bottom: 2px !important;
+        font-size: 6.4px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi-value {
+        font-size: 12px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-table-wrap {
+        max-height: 57vh !important;
+        overflow: auto !important;
+        scrollbar-gutter: stable;
+    }
+
+    #modalHistoricoPrecios #tablaHistoricoPrecios {
+        min-width: 1550px !important;
+        font-size: 7px !important;
+    }
+
+    #modalHistoricoPrecios #tablaHistoricoPrecios th,
+    #modalHistoricoPrecios #tablaHistoricoPrecios td {
+        padding: 3px !important;
+        font-size: 6.8px !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalHistoricoPrecios .audit-action,
+    #modalHistoricoPrecios .audit-client-count-btn {
+        min-width: 55px !important;
+        min-height: 20px !important;
+        height: 20px !important;
+        padding: 1px 4px !important;
+        font-size: 6.3px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-panel {
+        padding: 5px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-panel-head {
+        margin-bottom: 4px !important;
+        font-size: 7px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+        gap: 3px !important;
+        max-height: 190px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-item {
+        padding: 3px 4px !important;
+        font-size: 6.8px !important;
+        line-height: 1.1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-pager {
+        padding: 4px 0 0 !important;
+        gap: 4px !important;
+    }
+
+    #modalHistoricoPrecios .status-chip,
+    #modalHistoricoPrecios #histPageInfo {
+        min-height: 20px !important;
+        padding: 2px 5px !important;
+        font-size: 6.8px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistoricoPrecios .modal-footer {
+        min-height: 32px !important;
+        padding: 4px 5px !important;
+    }
+
+    /* ============================================================
+       FOOTER GLOBAL DE _Layout2
+       Evita el espacio vacío grande debajo del módulo.
+       ============================================================ */
+    body:has(.catalogo-precios-cliente-app) .layout-main-content,
+    body:has(.catalogo-precios-cliente-app) .layout-main-content .layout-container-fluid,
+    body:has(.catalogo-precios-cliente-app) main[role="main"] {
+        min-height: 0 !important;
+        height: auto !important;
+    }
+
+    body:has(.catalogo-precios-cliente-app) .layout-main-content {
+        flex: 0 0 auto !important;
+    }
+
+    body:has(.catalogo-precios-cliente-app) footer,
+    body:has(.catalogo-precios-cliente-app) .footer {
+        position: static !important;
+        margin-top: 4px !important;
+        padding-top: 6px !important;
+        padding-bottom: 6px !important;
+        min-height: 30px !important;
+    }
+
+    /* ============================================================
+       RESPUESTA AL ANCHO REAL DEL SIDEBAR
+       ============================================================ */
+    @@container catalogo-precios-cliente (max-width: 1200px) {
+        .catalogo-precios-cliente-app .toolbar {
+            grid-template-columns: minmax(220px, 1fr) repeat(4, max-content) !important;
+        }
+
+        .catalogo-precios-cliente-app #loader {
+            grid-column: 1 / -1 !important;
+            justify-self: end !important;
+        }
+
+        .catalogo-precios-cliente-app .table-wrap {
+            height: 55dvh !important;
+        }
+    }
+
+    @@container catalogo-precios-cliente (max-width: 900px) {
+        .catalogo-precios-cliente-app .toolbar {
+            grid-template-columns: minmax(0, 1fr) repeat(2, max-content) !important;
+        }
+
+        .catalogo-precios-cliente-app .toolbar .group {
+            grid-column: 1 / -1 !important;
+        }
+
+        .catalogo-precios-cliente-app .table-wrap {
+            height: 51dvh !important;
+            min-height: 270px !important;
+        }
+    }
+
+    @@container catalogo-precios-cliente (max-width: 620px) {
+        .catalogo-precios-cliente-app .toolbar {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .catalogo-precios-cliente-app .toolbar .group,
+        .catalogo-precios-cliente-app #loader {
+            grid-column: 1 / -1 !important;
+        }
+
+        .catalogo-precios-cliente-app .tool-btn,
+        .catalogo-precios-cliente-app .gestion-dropdown,
+        .catalogo-precios-cliente-app #btnGestionCompetencia {
+            width: 100% !important;
+        }
+
+        .catalogo-precios-cliente-app .content {
+            padding: 0 !important;
+        }
+
+        .catalogo-precios-cliente-app .pager {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        .catalogo-precios-cliente-app .pager > .d-flex {
+            grid-column: 1 / -1 !important;
+            grid-row: 1 !important;
+        }
+
+        .catalogo-precios-cliente-app .pager .btn {
+            width: 100% !important;
+        }
+
+        .catalogo-precios-cliente-app .statusbar {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        #modalAnalisisSemanal .section-body > .row {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #modalHistoricoPrecios .audit-filters,
+        #modalHistoricoPrecios .audit-kpis {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #modalHistoricoPrecios .audit-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #modalHistoricoPrecios .audit-actions > div {
+            grid-column: 1 / -1 !important;
+        }
+    }
+
+    @@media (max-width: 560px) {
+        #modalAnalisisSemanal .section-body > .row,
+        #modalHistoricoPrecios .audit-filters,
+        #modalHistoricoPrecios .audit-kpis,
+        #modalHistoricoPrecios .audit-actions {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modalAnalisisSemanal .modal-dialog,
+        #modalImportarCompetencia .modal-dialog,
+        #modalHistoricoPrecios .audit-modal-dialog {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+        }
+    }
+
+
+    /* ============================================================
+       AJUSTE FINAL DE LEGIBILIDAD
+       Sube la escala tipográfica sin perder el GRID compacto.
+       ============================================================ */
+
+    /* Vista principal */
+    .catalogo-precios-cliente-app .titlebar {
+        font-size: 10px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar {
+        font-size: 8.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar input,
+    .catalogo-precios-cliente-app .toolbar .form-control {
+        min-height: 27px !important;
+        height: 27px !important;
+        padding: 3px 6px !important;
+        font-size: 8.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn,
+    #modalAnalisisSemanal .tool-btn,
+    #modalImportarCompetencia .tool-btn,
+    #modalHistoricoPrecios .tool-btn {
+        min-height: 27px !important;
+        height: 27px !important;
+        padding: 0 8px !important;
+        font-size: 8.2px !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn i,
+    #modalAnalisisSemanal .tool-btn i,
+    #modalImportarCompetencia .tool-btn i,
+    #modalHistoricoPrecios .tool-btn i {
+        font-size: 8.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item {
+        min-height: 25px !important;
+        padding: 4px 6px !important;
+        font-size: 8.2px !important;
+    }
+
+    .catalogo-precios-cliente-app #loader {
+        font-size: 7.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .section-title {
+        font-size: 8.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .status-chip,
+    .catalogo-precios-cliente-app #pageInfo {
+        font-size: 7.8px !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios {
+        font-size: 8.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap thead th {
+        padding: 5px 4px !important;
+        font-size: 7.6px !important;
+        line-height: 1.05 !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap tbody td {
+        padding: 4px !important;
+        font-size: 8.8px !important;
+        line-height: 1.08 !important;
+    }
+
+    .catalogo-precios-cliente-app .btn-audit-row {
+        width: 24px !important;
+        min-width: 24px !important;
+        height: 22px !important;
+        min-height: 22px !important;
+        font-size: 7.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .pager .btn {
+        min-height: 26px !important;
+        height: 26px !important;
+        font-size: 7.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .statusbar {
+        min-height: 19px !important;
+        padding: 2px 5px !important;
+        font-size: 6.8px !important;
+    }
+
+    /* ============================================================
+       ANÁLISIS SEMANAL
+       ============================================================ */
+    #modalAnalisisSemanal .modal-title {
+        font-size: 10px !important;
+    }
+
+    #modalAnalisisSemanal .modal-body {
+        font-size: 8.2px !important;
+    }
+
+    #modalAnalisisSemanal .section-title {
+        min-height: 25px !important;
+        font-size: 8.3px !important;
+    }
+
+    #modalAnalisisSemanal .form-label {
+        font-size: 7.6px !important;
+    }
+
+    #modalAnalisisSemanal .form-control,
+    #modalAnalisisSemanal .form-select,
+    #modalAnalisisSemanal input,
+    #modalAnalisisSemanal select {
+        min-height: 26px !important;
+        height: 26px !important;
+        padding: 3px 5px !important;
+        font-size: 8.2px !important;
+    }
+
+    #modalAnalisisSemanal textarea,
+    #modalAnalisisSemanal #anaSku {
+        min-height: 48px !important;
+        height: 48px !important;
+        font-size: 8.2px !important;
+    }
+
+    #modalAnalisisSemanal #anaSkuCount {
+        font-size: 7.2px !important;
+    }
+
+    #modalAnalisisSemanal #tablaAnalisisSemanal {
+        font-size: 7.8px !important;
+    }
+
+    #modalAnalisisSemanal #tablaAnalisisSemanal th,
+    #modalAnalisisSemanal #tablaAnalisisSemanal td {
+        padding: 4px !important;
+        font-size: 7.6px !important;
+        line-height: 1.08 !important;
+    }
+
+    #modalAnalisisSemanal .ana-precio-input,
+    #modalAnalisisSemanal .ana-comentario-input,
+    #modalAnalisisSemanal .imp-cap-input {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 2px 4px !important;
+        font-size: 7.6px !important;
+    }
+
+    /* ============================================================
+       IMPORTAR COMPETENCIA
+       ============================================================ */
+    #modalImportarCompetencia .modal-title {
+        font-size: 10px !important;
+    }
+
+    #modalImportarCompetencia .imp-step-title {
+        min-height: 26px !important;
+        font-size: 8.3px !important;
+    }
+
+    #modalImportarCompetencia .imp-step-num {
+        width: 17px !important;
+        height: 17px !important;
+        flex: 0 0 17px !important;
+        font-size: 7.2px !important;
+    }
+
+    #modalImportarCompetencia .imp-alert {
+        padding: 5px 7px !important;
+        font-size: 7.8px !important;
+        line-height: 1.18 !important;
+    }
+
+    #modalImportarCompetencia .imp-btn,
+    #modalImportarCompetencia .imp-chip {
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 7px !important;
+        font-size: 7.8px !important;
+    }
+
+    #modalImportarCompetencia .imp-table {
+        font-size: 7.8px !important;
+    }
+
+    #modalImportarCompetencia .imp-table th,
+    #modalImportarCompetencia .imp-table td {
+        padding: 4px !important;
+        font-size: 7.8px !important;
+        line-height: 1.08 !important;
+    }
+
+    #modalImportarCompetencia .imp-table input,
+    #modalImportarCompetencia .imp-table select,
+    #modalImportarCompetencia .imp-sku-search,
+    #modalImportarCompetencia .imp-cap-input {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 2px 4px !important;
+        font-size: 7.6px !important;
+    }
+
+    /* ============================================================
+       HISTÓRICO / AUDITORÍA
+       ============================================================ */
+    #modalHistoricoPrecios .modal-title {
+        font-size: 10px !important;
+    }
+
+    #modalHistoricoPrecios .modal-body {
+        font-size: 8.2px !important;
+    }
+
+    #modalHistoricoPrecios .section-title {
+        min-height: 25px !important;
+        font-size: 8.3px !important;
+    }
+
+    #modalHistoricoPrecios .form-label {
+        font-size: 7.5px !important;
+    }
+
+    #modalHistoricoPrecios .form-control,
+    #modalHistoricoPrecios .form-select,
+    #modalHistoricoPrecios input,
+    #modalHistoricoPrecios select {
+        min-height: 26px !important;
+        height: 26px !important;
+        padding: 3px 5px !important;
+        font-size: 8.1px !important;
+    }
+
+    #modalHistoricoPrecios #histLoader {
+        font-size: 7.5px !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi {
+        min-height: 48px !important;
+        padding: 5px 6px !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi-title {
+        font-size: 7.2px !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi-value {
+        font-size: 13px !important;
+    }
+
+    #modalHistoricoPrecios #tablaHistoricoPrecios {
+        font-size: 7.8px !important;
+    }
+
+    #modalHistoricoPrecios #tablaHistoricoPrecios th,
+    #modalHistoricoPrecios #tablaHistoricoPrecios td {
+        padding: 4px !important;
+        font-size: 7.6px !important;
+        line-height: 1.08 !important;
+    }
+
+    #modalHistoricoPrecios .audit-action,
+    #modalHistoricoPrecios .audit-client-count-btn {
+        min-height: 22px !important;
+        height: 22px !important;
+        padding: 2px 5px !important;
+        font-size: 7.1px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-panel-head {
+        font-size: 7.8px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-item {
+        padding: 4px 5px !important;
+        font-size: 7.6px !important;
+        line-height: 1.15 !important;
+    }
+
+    #modalHistoricoPrecios .status-chip,
+    #modalHistoricoPrecios #histPageInfo {
+        font-size: 7.6px !important;
+    }
+
+
+    /* ============================================================
+       LEGIBILIDAD ALTA — CATÁLOGO DE PRECIOS POR CLIENTE
+       ============================================================ */
+
+    .catalogo-precios-cliente-app .titlebar {
+        min-height:32px !important; height:32px !important;
+        font-size:11.5px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar {
+        gap:5px !important; padding:5px 6px !important;
+        font-size:10px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar input,
+    .catalogo-precios-cliente-app .toolbar .form-control {
+        min-height:29px !important; height:29px !important;
+        padding:3px 8px !important; font-size:10px !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn,
+    #modalAnalisisSemanal .tool-btn,
+    #modalImportarCompetencia .tool-btn,
+    #modalHistoricoPrecios .tool-btn {
+        min-height:29px !important; height:29px !important;
+        padding:0 9px !important; gap:4px !important;
+        font-size:9.3px !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn i,
+    #modalAnalisisSemanal .tool-btn i,
+    #modalImportarCompetencia .tool-btn i,
+    #modalHistoricoPrecios .tool-btn i {
+        font-size:9.8px !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item {
+        min-height:27px !important; padding:5px 7px !important;
+        font-size:9px !important;
+    }
+
+    .catalogo-precios-cliente-app #loader { font-size:8.8px !important; }
+
+    .catalogo-precios-cliente-app .section-title {
+        min-height:26px !important; padding:5px 7px !important;
+        font-size:10px !important;
+    }
+
+    .catalogo-precios-cliente-app .status-chip,
+    .catalogo-precios-cliente-app #pageInfo {
+        min-height:22px !important; padding:3px 6px !important;
+        font-size:9px !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios {
+        min-width:1180px !important;
+        font-size:10.2px !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap thead th {
+        padding:6px 5px !important;
+        font-size:9px !important; line-height:1.1 !important;
+    }
+
+    .catalogo-precios-cliente-app .table-wrap tbody td {
+        padding:5px !important;
+        font-size:10.2px !important; line-height:1.12 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(1),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(1){width:90px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(2),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(2){width:250px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(3),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(3){width:95px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(4),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(4){width:245px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(5),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(5){width:80px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(6),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(6){width:90px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(7),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(7){width:100px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(8),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(8){width:155px !important;}
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(9),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(9){width:65px !important;}
+
+    .catalogo-precios-cliente-app .btn-audit-row {
+        width:26px !important; min-width:26px !important;
+        height:24px !important; min-height:24px !important;
+        font-size:8.5px !important;
+    }
+
+    .catalogo-precios-cliente-app .pager { padding:5px 6px !important; }
+    .catalogo-precios-cliente-app .pager .btn {
+        min-height:28px !important; height:28px !important;
+        padding:0 8px !important; font-size:9px !important;
+    }
+
+    .catalogo-precios-cliente-app .statusbar {
+        min-height:21px !important; padding:3px 6px !important;
+        gap:5px !important; font-size:7.8px !important;
+    }
+
+    /* Modales: misma escala de lectura */
+    #modalAnalisisSemanal .modal-title,
+    #modalImportarCompetencia .modal-title,
+    #modalHistoricoPrecios .modal-title {
+        font-size:11px !important;
+    }
+
+    #modalAnalisisSemanal .modal-body,
+    #modalHistoricoPrecios .modal-body {
+        font-size:9.2px !important;
+    }
+
+    #modalAnalisisSemanal .section-title,
+    #modalImportarCompetencia .imp-step-title,
+    #modalHistoricoPrecios .section-title {
+        min-height:27px !important;
+        font-size:9.5px !important;
+    }
+
+    #modalAnalisisSemanal .form-label,
+    #modalHistoricoPrecios .form-label {
+        font-size:8.5px !important;
+    }
+
+    #modalAnalisisSemanal .form-control,
+    #modalAnalisisSemanal .form-select,
+    #modalAnalisisSemanal input,
+    #modalAnalisisSemanal select,
+    #modalHistoricoPrecios .form-control,
+    #modalHistoricoPrecios .form-select,
+    #modalHistoricoPrecios input,
+    #modalHistoricoPrecios select {
+        min-height:29px !important; height:29px !important;
+        padding:3px 6px !important; font-size:9.2px !important;
+    }
+
+    #modalAnalisisSemanal textarea,
+    #modalAnalisisSemanal #anaSku {
+        min-height:52px !important; height:52px !important;
+        font-size:9.2px !important;
+    }
+
+    #modalAnalisisSemanal #tablaAnalisisSemanal {
+        min-width:2250px !important; font-size:8.7px !important;
+    }
+    #modalAnalisisSemanal #tablaAnalisisSemanal th,
+    #modalAnalisisSemanal #tablaAnalisisSemanal td {
+        padding:5px 4px !important;
+        font-size:8.5px !important; line-height:1.1 !important;
+    }
+
+    #modalImportarCompetencia .imp-alert,
+    #modalImportarCompetencia .imp-btn,
+    #modalImportarCompetencia .imp-chip,
+    #modalImportarCompetencia .imp-table,
+    #modalImportarCompetencia .imp-table th,
+    #modalImportarCompetencia .imp-table td {
+        font-size:8.8px !important;
+    }
+
+    #modalImportarCompetencia .imp-btn,
+    #modalImportarCompetencia .imp-chip {
+        min-height:28px !important; height:28px !important;
+    }
+
+    #modalImportarCompetencia .imp-table th,
+    #modalImportarCompetencia .imp-table td {
+        padding:5px !important; line-height:1.1 !important;
+    }
+
+    #modalImportarCompetencia .imp-table input,
+    #modalImportarCompetencia .imp-table select,
+    #modalImportarCompetencia .imp-sku-search,
+    #modalImportarCompetencia .imp-cap-input {
+        min-height:27px !important; height:27px !important;
+        font-size:8.5px !important;
+    }
+
+    #modalHistoricoPrecios .audit-kpi-title {font-size:8.2px !important;}
+    #modalHistoricoPrecios .audit-kpi-value {font-size:14px !important;}
+
+    #modalHistoricoPrecios #tablaHistoricoPrecios {
+        min-width:1700px !important; font-size:8.7px !important;
+    }
+    #modalHistoricoPrecios #tablaHistoricoPrecios th,
+    #modalHistoricoPrecios #tablaHistoricoPrecios td {
+        padding:5px 4px !important;
+        font-size:8.5px !important; line-height:1.1 !important;
+    }
+
+    #modalHistoricoPrecios .audit-action,
+    #modalHistoricoPrecios .audit-client-count-btn {
+        min-height:25px !important; height:25px !important;
+        font-size:8px !important;
+    }
+
+    #modalHistoricoPrecios .audit-client-panel-head {font-size:8.8px !important;}
+    #modalHistoricoPrecios .audit-client-item {
+        padding:5px 6px !important;
+        font-size:8.5px !important; line-height:1.16 !important;
+    }
+
+    #modalHistoricoPrecios .status-chip,
+    #modalHistoricoPrecios #histPageInfo {
+        font-size:8.5px !important;
+    }
+
 </style>
 
-<div class="window">
+
+<style id="catalogo-precios-erp-tinto-final">
+    /* ===============================================================
+       CATÁLOGO PRECIOS POR CLIENTE
+       MISMO LENGUAJE VISUAL DEL CATÁLOGO SAP
+       Poppins + ERP compacto + tinto discreto
+       =============================================================== */
+
+    .catalogo-precios-cliente-app {
+        --erp-bg: #eef2f4;
+        --erp-panel: #f4f6f7;
+        --erp-head: #dce4e8;
+        --erp-head-2: #d1dbe0;
+        --erp-line: #bec9cf;
+        --erp-line-soft: #d3dce1;
+        --erp-text: #40383a;
+        --erp-muted: #71808a;
+        --erp-row-alt: #f7f9fa;
+        --erp-row-hover: #f5eaec;
+
+        --erp-tinto: #7a2029;
+        --erp-tinto-dark: #5e1820;
+        --erp-tinto-soft: #f1e4e6;
+
+        --erp-green: #25824d;
+        --erp-green-dark: #1d6d40;
+
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: var(--erp-bg) !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+
+        color: var(--erp-text) !important;
+        font-family: "Poppins", sans-serif !important;
+    }
+
+    .catalogo-precios-cliente-app *,
+    #modalAnalisisSemanal *,
+    #modalImportarCompetencia *,
+    #modalHistoricoPrecios * {
+        font-family: "Poppins", sans-serif !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Sin barra decorativa tipo Windows */
+    .catalogo-precios-cliente-app .titlebar {
+        display: none !important;
+    }
+
+    /* ===============================================================
+       TOOLBAR
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .toolbar {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns:
+            minmax(300px, 1fr)
+            max-content
+            max-content
+            max-content
+            max-content !important;
+
+        align-items: end !important;
+        gap: 7px !important;
+
+        margin: 0 !important;
+        padding: 9px 11px 10px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+
+        border: 0 !important;
+        border-bottom: 1px solid var(--erp-line) !important;
+
+        font-size: 10px !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar .group {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        gap: 0 !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar .group::before {
+        content: "Buscar";
+
+        display: block !important;
+
+        margin: 0 0 4px 1px !important;
+
+        color: #5b5153 !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar label {
+        display: none !important;
+    }
+
+    .catalogo-precios-cliente-app #searchInput {
+        width: 100% !important;
+        height: 30px !important;
+        min-height: 30px !important;
+
+        padding: 0 9px !important;
+
+        background: #fff !important;
+        color: #4a4143 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 1px !important;
+
+        box-shadow: inset 0 1px 2px rgba(0,0,0,.025) !important;
+        outline: none !important;
+
+        font-family: "Poppins", sans-serif !important;
+        font-size: 10.5px !important;
+        line-height: 30px !important;
+        font-weight: 400 !important;
+    }
+
+    .catalogo-precios-cliente-app #searchInput::placeholder {
+        color: #919da4 !important;
+    }
+
+    .catalogo-precios-cliente-app #searchInput:focus {
+        border-color: #9e7479 !important;
+        box-shadow: 0 0 0 1px rgba(122,32,41,.08) !important;
+    }
+
+    /* ===============================================================
+       BOTONES
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .tool-btn {
+        min-width: 0 !important;
+        height: 30px !important;
+        min-height: 30px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        gap: 5px !important;
+
+        padding: 0 9px !important;
+
+        border-radius: 2px !important;
+        border: 1px solid transparent !important;
+
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.12) !important;
+
+        color: #fff !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn i {
+        font-size: 10.5px !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn-success {
+        background: var(--erp-green) !important;
+        border-color: var(--erp-green-dark) !important;
+        color: #fff !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn-success:hover {
+        background: var(--erp-green-dark) !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn-primary {
+        background: var(--erp-tinto) !important;
+        border-color: var(--erp-tinto-dark) !important;
+        color: #fff !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn-primary:hover {
+        background: var(--erp-tinto-dark) !important;
+    }
+
+    /*
+       Histórico no queda morado.
+       Se integra como botón neutro/tinto.
+    */
+    .catalogo-precios-cliente-app .tool-btn-purple {
+        background: #6d6265 !important;
+        border-color: #5c5355 !important;
+        color: #fff !important;
+    }
+
+    .catalogo-precios-cliente-app .tool-btn-purple:hover {
+        background: #5a5153 !important;
+    }
+
+    .catalogo-precios-cliente-app #loader {
+        grid-column: 1 / -1 !important;
+
+        font-size: 9px !important;
+        font-weight: 500 !important;
+        color: #75686b !important;
+    }
+
+    /* Dropdown Gestión */
+    .catalogo-precios-cliente-app .gestion-menu {
+        min-width: 205px !important;
+
+        padding: 3px !important;
+
+        background: #fff !important;
+
+        border: 1px solid #cbbfc1 !important;
+        border-radius: 2px !important;
+
+        box-shadow: 0 5px 14px rgba(0,0,0,.12) !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item {
+        min-height: 27px !important;
+
+        display: flex !important;
+        align-items: center !important;
+
+        gap: 6px !important;
+
+        padding: 4px 7px !important;
+
+        color: #514749 !important;
+
+        border-radius: 1px !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 500 !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item:hover {
+        background: var(--erp-tinto-soft) !important;
+        color: var(--erp-tinto-dark) !important;
+    }
+
+    /* ===============================================================
+       CONTENIDO
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .content,
+    .catalogo-precios-cliente-app .workspace,
+    .catalogo-precios-cliente-app .section {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: var(--erp-bg) !important;
+
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Franja buscador visual encima de tabla */
+    .catalogo-precios-cliente-app .table-search-strip {
+        width: 100% !important;
+
+        min-height: 36px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+
+        padding: 5px 11px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #edf2f4 0%,
+                #e4eaed 100%
+            ) !important;
+
+        border-bottom: 1px solid var(--erp-line) !important;
+    }
+
+    .catalogo-precios-cliente-app .table-search-display {
+        width: min(520px, 46vw) !important;
+        height: 26px !important;
+
+        display: flex !important;
+        align-items: center !important;
+
+        padding: 0 8px !important;
+
+        background: rgba(255,255,255,.55) !important;
+
+        border: 1px solid #c3cdd2 !important;
+
+        color: #819099 !important;
+
+        font-size: 9.5px !important;
+        font-weight: 400 !important;
+    }
+
+    /* ===============================================================
+       TABLA PRINCIPAL
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .table-wrap {
+        width: 100% !important;
+
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: calc(100vh - 300px) !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: #fff !important;
+
+        border: 0 !important;
+        border-top: 0 !important;
+
+        overflow: auto !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios {
+        width: 100% !important;
+        min-width: 1180px !important;
+
+        margin: 0 !important;
+
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+
+        background: #fff !important;
+
+        font-size: 9.7px !important;
+        line-height: 1.05 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios thead {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 20 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios thead tr,
+    .catalogo-precios-cliente-app #tablaPrecios thead th {
+        background:
+            linear-gradient(
+                180deg,
+                var(--erp-head) 0%,
+                var(--erp-head-2) 100%
+            ) !important;
+
+        color: #544a4c !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios thead th {
+        position: sticky !important;
+        top: 0 !important;
+
+        height: 31px !important;
+        min-height: 31px !important;
+
+        padding: 4px 6px !important;
+
+        border: 1px solid var(--erp-line) !important;
+
+        box-shadow: none !important;
+
+        vertical-align: middle !important;
+
+        font-size: 8.8px !important;
+        line-height: 1.05 !important;
+        font-weight: 600 !important;
+        letter-spacing: .01em !important;
+        text-transform: uppercase !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios thead th::after {
+        content: "↕";
+        margin-left: 3px;
+
+        color: #87949c !important;
+
+        font-size: 7.5px !important;
+        font-weight: 400 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody td {
+        height: 27px !important;
+        min-height: 27px !important;
+
+        padding: 3px 6px !important;
+
+        background: #fff !important;
+        color: #463d3f !important;
+
+        border: 1px solid var(--erp-line-soft) !important;
+
+        vertical-align: middle !important;
+
+        font-size: 9.7px !important;
+        line-height: 1.05 !important;
+        font-weight: 400 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody tr:nth-child(even) td {
+        background: var(--erp-row-alt) !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody tr:hover td {
+        background: var(--erp-row-hover) !important;
+    }
+
+    /* Columnas */
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(1),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(1) {
+        width: 9% !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(2),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(2) {
+        width: 20% !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(3),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(3) {
+        width: 9% !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(4),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(4) {
+        width: 22% !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(5),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(5) {
+        width: 8% !important;
+        text-align: right !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(6),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(6) {
+        width: 8% !important;
+        text-align: right !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(7),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(7) {
+        width: 8% !important;
+        text-align: right !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(8),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(8) {
+        width: 12% !important;
+        text-align: center !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios th:nth-child(9),
+    .catalogo-precios-cliente-app #tablaPrecios td:nth-child(9) {
+        width: 4% !important;
+        text-align: center !important;
+    }
+
+    /* Botón auditoría de cada fila */
+    .catalogo-precios-cliente-app .btn-audit-row {
+        width: 23px !important;
+        min-width: 23px !important;
+        height: 22px !important;
+        min-height: 22px !important;
+
+        padding: 0 !important;
+
+        border: 1px solid #8d6268 !important;
+        border-radius: 2px !important;
+
+        background: #7a2029 !important;
+        color: #fff !important;
+
+        box-shadow: none !important;
+    }
+
+    .catalogo-precios-cliente-app .btn-audit-row:hover {
+        background: #5e1820 !important;
+    }
+
+    /* ===============================================================
+       PAGINACIÓN NUMÉRICA
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .pager {
+        width: 100% !important;
+
+        min-height: 42px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+
+        gap: 0 !important;
+
+        margin: 0 !important;
+        padding: 6px 11px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #edf2f4 0%,
+                #e4eaed 100%
+            ) !important;
+
+        border: 0 !important;
+        border-top: 1px solid #c2ccd2 !important;
+    }
+
+    .catalogo-precios-cliente-app .pagination-numeric {
+        display: flex !important;
+        align-items: center !important;
+
+        gap: 0 !important;
+    }
+
+    .catalogo-precios-cliente-app .page-num-btn {
+        min-width: 30px !important;
+        height: 29px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        margin-left: -1px !important;
+        padding: 0 7px !important;
+
+        background: #f7f9fa !important;
+        color: #53636c !important;
+
+        border: 1px solid #bdc8ce !important;
+        border-radius: 0 !important;
+
+        box-shadow: none !important;
+
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+        font-weight: 500 !important;
+
+        cursor: pointer !important;
+    }
+
+    .catalogo-precios-cliente-app .page-num-btn:hover:not(:disabled) {
+        background: var(--erp-tinto-soft) !important;
+        color: var(--erp-tinto-dark) !important;
+    }
+
+    .catalogo-precios-cliente-app .page-num-btn.active {
+        position: relative !important;
+        z-index: 2 !important;
+
+        background: var(--erp-tinto) !important;
+        border-color: var(--erp-tinto) !important;
+        color: #fff !important;
+    }
+
+    .catalogo-precios-cliente-app .page-num-btn:disabled {
+        opacity: .45 !important;
+        cursor: default !important;
+    }
+
+    .catalogo-precios-cliente-app .page-ellipsis {
+        min-width: 30px !important;
+        height: 29px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        margin-left: -1px !important;
+
+        background: #f3f6f7 !important;
+        color: #7c8991 !important;
+
+        border: 1px solid #bdc8ce !important;
+
+        font-size: 9px !important;
+    }
+
+    /* ===============================================================
+       STATUSBAR
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .statusbar {
+        min-height: 25px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+
+        gap: 12px !important;
+
+        padding: 4px 9px !important;
+
+        background: #e1e8eb !important;
+        color: #6d7b83 !important;
+
+        border: 0 !important;
+        border-top: 1px solid #bec9cf !important;
+
+        font-size: 8.6px !important;
+        line-height: 1 !important;
+        font-weight: 400 !important;
+    }
+
+    /* ===============================================================
+       MODALES / VISTAS SECUNDARIAS
+       Mantener funcionalidad, unificar tipografía y colores.
+       =============================================================== */
+
+    #modalAnalisisSemanal .modal-header,
+    #modalImportarCompetencia .modal-header,
+    #modalHistoricoPrecios .modal-header,
+    #modalAnalisisSemanal .section-title,
+    #modalImportarCompetencia .section-title,
+    #modalHistoricoPrecios .section-title,
+    #modalImportarCompetencia .imp-step-title {
+        background:
+            linear-gradient(
+                180deg,
+                #7a2029 0%,
+                #651b23 55%,
+                #51141b 100%
+            ) !important;
+
+        color: #fff !important;
+
+        border-color: #51141b !important;
+    }
+
+    #modalAnalisisSemanal .modal-body,
+    #modalImportarCompetencia .modal-body,
+    #modalHistoricoPrecios .modal-body {
+        background: #f3eff0 !important;
+    }
+
+    #modalAnalisisSemanal .table-wrap thead th,
+    #modalImportarCompetencia .imp-table th,
+    #modalHistoricoPrecios #tablaHistoricoPrecios thead th {
+        background:
+            linear-gradient(
+                180deg,
+                #e2e7ea 0%,
+                #d6dfe3 100%
+            ) !important;
+
+        color: #52484a !important;
+
+        border-color: #bec9cf !important;
+    }
+
+    #modalAnalisisSemanal .table-wrap tbody td,
+    #modalImportarCompetencia .imp-table td,
+    #modalHistoricoPrecios #tablaHistoricoPrecios tbody td {
+        background: #fff !important;
+        color: #463d3f !important;
+
+        border-color: #d3dce1 !important;
+    }
+
+    #modalAnalisisSemanal .table-wrap tbody tr:nth-child(even) td,
+    #modalImportarCompetencia .imp-table tr:nth-child(even) td,
+    #modalHistoricoPrecios #tablaHistoricoPrecios tbody tr:nth-child(even) td {
+        background: #f7f9fa !important;
+    }
+
+    #modalAnalisisSemanal .table-wrap tbody tr:hover td,
+    #modalImportarCompetencia .imp-table tr:hover td,
+    #modalHistoricoPrecios #tablaHistoricoPrecios tbody tr:hover td {
+        background: #f5eaec !important;
+    }
+
+    /* ===============================================================
+       RESPONSIVE
+       =============================================================== */
+
+    @@media (max-width: 1150px) {
+        .catalogo-precios-cliente-app .toolbar {
+            grid-template-columns:
+                minmax(230px, 1fr)
+                max-content
+                max-content !important;
+        }
+
+        .catalogo-precios-cliente-app .gestion-dropdown,
+        .catalogo-precios-cliente-app #btnHistoricoPrecios {
+            grid-row: 2 !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .catalogo-precios-cliente-app .toolbar {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        .catalogo-precios-cliente-app .toolbar .group {
+            grid-column: 1 / -1 !important;
+        }
+
+        .catalogo-precios-cliente-app .tool-btn,
+        .catalogo-precios-cliente-app .gestion-dropdown,
+        .catalogo-precios-cliente-app .gestion-dropdown > button {
+            width: 100% !important;
+        }
+
+        .catalogo-precios-cliente-app .table-search-display {
+            width: 70vw !important;
+        }
+
+        .catalogo-precios-cliente-app .pager {
+            justify-content: center !important;
+            overflow-x: auto !important;
+        }
+    }
+</style>
+
+
+<style id="catalogo-precios-texto-marcado-final">
+    /* ===============================================================
+       CATÁLOGO DE PRECIOS POR CLIENTE
+       TEXTO MÁS NÍTIDO Y MARCADO + ICONOS CORRECTOS
+       =============================================================== */
+
+    .catalogo-precios-cliente-app {
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
+    }
+
+    .catalogo-precios-cliente-app,
+    .catalogo-precios-cliente-app button,
+    .catalogo-precios-cliente-app input,
+    .catalogo-precios-cliente-app select,
+    .catalogo-precios-cliente-app textarea,
+    .catalogo-precios-cliente-app table,
+    #modalAnalisisSemanal,
+    #modalImportarCompetencia,
+    #modalHistoricoPrecios {
+        font-family: "Poppins", sans-serif !important;
+    }
+
+    /* ===============================================================
+       FIX BOOTSTRAP ICONS
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .bi,
+    .catalogo-precios-cliente-app .bi::before,
+    .catalogo-precios-cliente-app [class^="bi-"],
+    .catalogo-precios-cliente-app [class*=" bi-"],
+    #modalAnalisisSemanal .bi,
+    #modalAnalisisSemanal .bi::before,
+    #modalImportarCompetencia .bi,
+    #modalImportarCompetencia .bi::before,
+    #modalHistoricoPrecios .bi,
+    #modalHistoricoPrecios .bi::before {
+        font-family: "bootstrap-icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        font-variant: normal !important;
+        text-transform: none !important;
+        line-height: 1 !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+    }
+
+    /* ===============================================================
+       TABLA PRINCIPAL — MÁS LEGIBLE
+       =============================================================== */
+
+    .catalogo-precios-cliente-app #tablaPrecios thead th {
+        color: #3f4549 !important;
+
+        font-size: 9.4px !important;
+        font-weight: 700 !important;
+        line-height: 1.08 !important;
+        letter-spacing: .01em !important;
+
+        border-color: #aebbc3 !important;
+
+        text-shadow: 0 0 .01px currentColor !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody td {
+        color: #30373b !important;
+
+        font-size: 10.2px !important;
+        font-weight: 500 !important;
+        line-height: 1.12 !important;
+
+        border-color: #c5d0d6 !important;
+
+        text-shadow: 0 0 .01px currentColor !important;
+    }
+
+    /* SKU */
+    .catalogo-precios-cliente-app #tablaPrecios tbody td:nth-child(1) {
+        color: #293135 !important;
+        font-weight: 600 !important;
+    }
+
+    /* Producto */
+    .catalogo-precios-cliente-app #tablaPrecios tbody td:nth-child(2) {
+        color: #252d31 !important;
+        font-weight: 500 !important;
+    }
+
+    /* Cliente */
+    .catalogo-precios-cliente-app #tablaPrecios tbody td:nth-child(3),
+    .catalogo-precios-cliente-app #tablaPrecios tbody td:nth-child(4) {
+        color: #333b3f !important;
+        font-weight: 500 !important;
+    }
+
+    /* Precio */
+    .catalogo-precios-cliente-app #tablaPrecios tbody td:nth-child(7) {
+        color: #292f33 !important;
+        font-weight: 600 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody tr:nth-child(even) td {
+        background: #f2f5f6 !important;
+    }
+
+    .catalogo-precios-cliente-app #tablaPrecios tbody tr:hover td {
+        background: #f3e7e9 !important;
+        color: #272d31 !important;
+    }
+
+    /* ===============================================================
+       BUSCADOR
+       =============================================================== */
+
+    .catalogo-precios-cliente-app #searchInput {
+        color: #353b3f !important;
+        font-size: 10.8px !important;
+        font-weight: 500 !important;
+    }
+
+    .catalogo-precios-cliente-app #searchInput::placeholder {
+        color: #7d898f !important;
+        font-weight: 400 !important;
+        opacity: 1 !important;
+    }
+
+    .catalogo-precios-cliente-app .toolbar .group::before {
+        color: #454d51 !important;
+        font-size: 9.8px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       BOTONES
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .tool-btn {
+        font-size: 9.8px !important;
+        font-weight: 700 !important;
+    }
+
+    .catalogo-precios-cliente-app .gestion-menu .dropdown-item {
+        color: #3f464a !important;
+        font-size: 9.8px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       PAGINACIÓN
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .page-num-btn {
+        color: #424b50 !important;
+        font-size: 9.8px !important;
+        font-weight: 600 !important;
+    }
+
+    .catalogo-precios-cliente-app .page-num-btn.active {
+        background: #7a2029 !important;
+        border-color: #7a2029 !important;
+        color: #fff !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       STATUSBAR
+       =============================================================== */
+
+    .catalogo-precios-cliente-app .statusbar {
+        color: #59666d !important;
+        font-size: 9px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       MODALES — MISMA LEGIBILIDAD
+       =============================================================== */
+
+    #modalAnalisisSemanal .modal-title,
+    #modalImportarCompetencia .modal-title,
+    #modalHistoricoPrecios .modal-title {
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 700 !important;
+    }
+
+    #modalAnalisisSemanal table thead th,
+    #modalImportarCompetencia table thead th,
+    #modalHistoricoPrecios table thead th {
+        color: #3f4549 !important;
+        font-weight: 700 !important;
+    }
+
+    #modalAnalisisSemanal table tbody td,
+    #modalImportarCompetencia table tbody td,
+    #modalHistoricoPrecios table tbody td {
+        color: #30373b !important;
+        font-weight: 500 !important;
+    }
+
+    #modalAnalisisSemanal input,
+    #modalAnalisisSemanal select,
+    #modalAnalisisSemanal textarea,
+    #modalImportarCompetencia input,
+    #modalImportarCompetencia select,
+    #modalImportarCompetencia textarea,
+    #modalHistoricoPrecios input,
+    #modalHistoricoPrecios select,
+    #modalHistoricoPrecios textarea {
+        color: #343b3f !important;
+        font-weight: 500 !important;
+    }
+</style>
+
+<div class="window catalogo-precios-cliente-app">
     <div class="titlebar">
         <div>Catálogo de Precios por Cliente</div>
         <div class="actions">
@@ -1006,11 +3654,15 @@
         </div>
 
         <button id="btnDescargarExcel" class="tool-btn tool-btn-success">
-            <i class="bi bi-file-earmark-excel"></i> Descargar Excel
+            <i class="bi bi-file-earmark-excel-fill"></i> Excel
         </button>
 
         <button id="btnSincronizar" class="tool-btn tool-btn-primary">
-            <i class="bi bi-arrow-repeat"></i> Sincronizar
+            <i class="bi bi-cloud-arrow-down-fill"></i> Sincronizar
+        </button>
+
+        <button id="btnHistoricoPrecios" class="tool-btn tool-btn-purple" type="button">
+            <i class="bi bi-clock-history"></i> Histórico / Auditoría
         </button>
 
         <div class="dropdown gestion-dropdown">
@@ -1051,6 +3703,10 @@
                     <span class="status-chip">Fuente: SAP</span>
                 </div> *@
 
+                <div class="table-search-strip">
+                    <div class="table-search-display">Buscar aquí</div>
+                </div>
+
                 <div class="table-wrap">
                     <table id="tablaPrecios" class="table table-bordered table-hover mb-0">
                         <thead>
@@ -1063,6 +3719,7 @@
                                 <th>Lista</th>
                                 <th>Precio</th>
                                 <th>Última Modificación</th>
+                                <th>Auditoría</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -1070,22 +3727,14 @@
                 </div>
 
                 <div class="pager">
-                    <button id="prevPage" class="btn btn-outline-secondary">
-                        <i class="bi bi-chevron-left"></i> Anterior
-                    </button>
-                    <div class="d-flex align-items-center gap-2">
-                        <span id="pageInfo"><i class="bi bi-info-circle"></i> — </span>
-                    </div>
-                    <button id="nextPage" class="btn btn-outline-secondary">
-                        Siguiente <i class="bi bi-chevron-right"></i>
-                    </button>
+                    <div id="numericPager" class="pagination-numeric"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="statusbar">
-        <div>Registro listo</div>
+        <div id="statusPageInfo">Registro listo</div>
         <div>Usuario: @User.Identity.Name</div>
         <div>Empresa: Carnes G SA de CV</div>
         <div>Módulo: Precios por Cliente</div>
@@ -1392,6 +4041,172 @@
         </div>
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════
+     MODAL: HISTÓRICO / AUDITORÍA DE PRECIOS
+══════════════════════════════════════════ -->
+<div class="modal fade" id="modalHistoricoPrecios" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl audit-modal-dialog">
+        <div class="modal-content" style="border-radius:0;">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Histórico y auditoría de precios
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body" style="background:#f4e4e4;">
+                <div class="section mb-2">
+                    <div class="section-title">
+                        Filtros de auditoría
+                        <span class="status-chip">1 fila por SKU y cambio de precio</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="audit-filters">
+                            <div>
+                                <label class="form-label" for="histSku">SKU</label>
+                                <input type="text" id="histSku" class="form-control" placeholder="Ej. D004" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histCliente">Cliente</label>
+                                <input type="text" id="histCliente" class="form-control" placeholder="Código o nombre" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histSearch">Búsqueda general</label>
+                                <input type="text" id="histSearch" class="form-control" placeholder="Producto, lista, usuario o lote" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histFechaDesde">Desde</label>
+                                <input type="date" id="histFechaDesde" class="form-control" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histFechaHasta">Hasta</label>
+                                <input type="date" id="histFechaHasta" class="form-control" />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histAccion">Acción</label>
+                                <select id="histAccion" class="form-select">
+                                    <option value="CAMBIOS" selected>Solo cambios</option>
+                                    <option value="UPDATE">UPDATE</option>
+                                    <option value="INSERT">INSERT</option>
+                                    <option value="SIN_CAMBIO">SIN CAMBIO</option>
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="histLista">Id lista</label>
+                                <input type="number" id="histLista" class="form-control" min="1" placeholder="Todas" />
+                            </div>
+                        </div>
+
+                        <div class="audit-actions">
+                            <div style="min-width:230px;flex:1 1 260px;">
+                                <label class="form-label" for="histUsuario">Usuario</label>
+                                <input type="text" id="histUsuario" class="form-control" placeholder="Nombre del usuario que realizó el cambio" />
+                            </div>
+
+                            <button type="button" class="tool-btn tool-btn-primary" id="btnHistBuscar">
+                                <i class="bi bi-search"></i> Consultar
+                            </button>
+
+                            <button type="button" class="tool-btn tool-btn-secondary" id="btnHistLimpiar">
+                                <i class="bi bi-eraser"></i> Limpiar
+                            </button>
+
+                            <button type="button" class="tool-btn tool-btn-success" id="btnHistExcel">
+                                <i class="bi bi-file-earmark-excel-fill"></i> Excel
+                            </button>
+
+                            <span id="histLoader" style="display:none;font-size:12px;font-weight:700;color:#7a0000;">
+                                ⏳ Consultando auditoría…
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="audit-kpis">
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Cambios de SKU</div>
+                        <div class="audit-kpi-value" id="histKpiTotal">0</div>
+                    </div>
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Impactos cliente-SKU</div>
+                        <div class="audit-kpi-value" id="histKpiClientes">0</div>
+                    </div>
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Insertados</div>
+                        <div class="audit-kpi-value" id="histKpiInsert">0</div>
+                    </div>
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Actualizados</div>
+                        <div class="audit-kpi-value" id="histKpiUpdate">0</div>
+                    </div>
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Aumentos</div>
+                        <div class="audit-kpi-value" id="histKpiSubidas">0</div>
+                    </div>
+                    <div class="audit-kpi">
+                        <div class="audit-kpi-title">Reducciones</div>
+                        <div class="audit-kpi-value" id="histKpiBajadas">0</div>
+                    </div>
+                </div>
+
+                <div class="audit-table-wrap">
+                    <table id="tablaHistoricoPrecios">
+                        <thead>
+                            <tr>
+                                <th style="width:155px;">Fecha actualización</th>
+                                <th style="width:95px;">Acción</th>
+                                <th style="width:95px;">SKU</th>
+                                <th style="width:250px;">Producto</th>
+                                <th style="width:120px;">Master</th>
+                                <th style="width:180px;">Lista</th>
+                                <th style="width:110px;">Precio anterior</th>
+                                <th style="width:110px;">Precio nuevo</th>
+                                <th style="width:100px;">Diferencia</th>
+                                <th style="width:90px;">Variación</th>
+                                <th style="width:105px;">Fecha corte</th>
+                                <th style="width:105px;">Fecha uso</th>
+                                <th style="width:170px;">Usuario</th>
+                                <th style="width:150px;">Clientes afectados</th>
+                                <th style="width:285px;">Lote</th>
+                            </tr>
+                        </thead>
+                        <tbody id="histBody">
+                            <tr>
+                                <td colspan="15" class="text-center py-4">Abre el reporte para consultar los cambios.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="audit-pager">
+                    <button type="button" class="tool-btn tool-btn-secondary" id="histPrev">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </button>
+
+                    <span class="status-chip" id="histPageInfo">Página 1 de 1</span>
+
+                    <button type="button" class="tool-btn tool-btn-secondary" id="histNext">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background:#f7eaea;padding:8px 14px;">
+                <button type="button" class="tool-btn tool-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
    @*  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script> *@
     <script>
@@ -1405,6 +4220,10 @@
         let totalItems = 0;
         let modalAnalisisSemanal = null;
         let modalImportarComp = null;
+        let modalHistoricoPrecios = null;
+        let histPage = 1;
+        let histPageSize = 50;
+        let histTotalPages = 1;
 
         function debounce(fn, ms = 350) {
         let t;
@@ -1439,12 +4258,109 @@
         return 'reco-mantener';
         }
 
+
+        function renderNumericPager() {
+            const host = document.getElementById("numericPager");
+            if (!host) return;
+
+            host.innerHTML = "";
+
+            const total = Math.max(1, Number(totalPages || 1));
+            const actual = Math.max(1, Math.min(Number(currentPage || 1), total));
+
+            function addButton(label, page, options = {}) {
+                const btn = document.createElement("button");
+
+                btn.type = "button";
+                btn.className = "page-num-btn";
+                btn.textContent = label;
+
+                if (options.active) {
+                    btn.classList.add("active");
+                }
+
+                if (options.disabled) {
+                    btn.disabled = true;
+                }
+
+                if (!options.disabled && !options.active) {
+                    btn.addEventListener("click", () => {
+                        currentPage = page;
+                        cargarPrecios(currentPage, currentSearch);
+                    });
+                }
+
+                host.appendChild(btn);
+            }
+
+            function addEllipsis() {
+                const span = document.createElement("span");
+                span.className = "page-ellipsis";
+                span.textContent = "…";
+                host.appendChild(span);
+            }
+
+            addButton(
+                "‹",
+                actual - 1,
+                { disabled: actual <= 1 }
+            );
+
+            let pages = [];
+
+            if (total <= 9) {
+                pages = Array.from(
+                    { length: total },
+                    (_, i) => i + 1
+                );
+            }
+            else {
+                let start = Math.max(2, actual - 3);
+                let end = Math.min(total - 1, actual + 3);
+
+                pages.push(1);
+
+                if (start > 2) {
+                    pages.push("...");
+                }
+
+                for (let p = start; p <= end; p++) {
+                    pages.push(p);
+                }
+
+                if (end < total - 1) {
+                    pages.push("...");
+                }
+
+                pages.push(total);
+            }
+
+            pages.forEach(p => {
+                if (p === "...") {
+                    addEllipsis();
+                }
+                else {
+                    addButton(
+                        String(p),
+                        p,
+                        { active: p === actual }
+                    );
+                }
+            });
+
+            addButton(
+                "›",
+                actual + 1,
+                { disabled: actual >= total }
+            );
+        }
+
+
         async function cargarPrecios(page = 1, search = "") {
         const tbody = document.querySelector("#tablaPrecios tbody");
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4">⏳ Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4">⏳ Cargando...</td></tr>`;
         document.getElementById("loader").style.display = "inline";
-        document.getElementById("prevPage").disabled = true;
-        document.getElementById("nextPage").disabled = true;
+
 
         try {
         const res = await fetch(`/Comercial/GetCatalogoPrecioJsonPaged?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`);
@@ -1458,38 +4374,407 @@
         totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
 
         if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-warning py-4">No hay registros para mostrar.</td></tr>`;
-        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-info-circle"></i> Sin resultados`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-warning py-4">No hay registros para mostrar.</td></tr>`;
+        document.getElementById("statusPageInfo").textContent = "Sin resultados";
+        renderNumericPager();
         return;
         }
 
         rows.forEach(p => {
+        const sku = p.productoCodigo ?? p.ProductoCodigo ?? p.itemCode ?? "";
+        const cliente = p.cliente ?? p.Cliente ?? "";
         const tr = document.createElement("tr");
         tr.innerHTML = `
-        <td>${p.productoCodigo ?? p.ProductoCodigo ?? p.itemCode ?? "—"}</td>
+        <td>${sku || "—"}</td>
         <td>${p.productoNombre ?? p.ProductoNombre ?? "—"}</td>
-        <td>${p.cliente ?? p.Cliente ?? "—"}</td>
+        <td>${cliente || "—"}</td>
         <td>${p.clienteNombre ?? p.ClienteNombre ?? "—"}</td>
         <td>${p.priceListNum ?? p.PriceListNum ?? "—"}</td>
         <td>${p.priceListName ?? p.PriceListName ?? "—"}</td>
         <td class="text-end">${fmtMoney(p.precio ?? p.Precio)}</td>
         <td>${(p.fechaModificacion ?? p.FechaModificacion) ? new Date(p.fechaModificacion ?? p.FechaModificacion).toLocaleString('es-MX') : "—"}</td>
+        <td class="text-center">
+            <button type="button"
+                    class="btn-audit-row"
+                    data-hist-sku="${impEscapeHtml(sku)}"
+                    data-hist-cliente="${impEscapeHtml(cliente)}"
+                    title="Ver historial de este precio">
+                <i class="bi bi-clock-history"></i>
+            </button>
+        </td>
         `;
         tbody.appendChild(tr);
         });
 
         currentPage = Number(data.page || page);
         pageSize = Number(data.pageSize || pageSize);
-        document.getElementById("pageInfo").innerHTML =
-        `<i class="bi bi-collection"></i> Página <strong>${currentPage}</strong> de <strong>${totalPages}</strong> · Registros: <strong>${totalItems.toLocaleString('es-MX')}</strong>`;
+        document.getElementById("statusPageInfo").textContent =
+        `Página ${currentPage} de ${totalPages} · Registros: ${totalItems.toLocaleString('es-MX')}`;
+        renderNumericPager();
         } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
-        document.getElementById("pageInfo").innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">Error: ${err.message}</td></tr>`;
+        document.getElementById("statusPageInfo").textContent = "Error";
         } finally {
         document.getElementById("loader").style.display = "none";
-        document.getElementById("prevPage").disabled = currentPage <= 1;
-        document.getElementById("nextPage").disabled = currentPage >= totalPages;
+
         }
+        }
+
+
+        /* ═══════════════════════════════════════════════════════════
+           HISTÓRICO / AUDITORÍA RESUMIDA DE PRECIOS
+        ═══════════════════════════════════════════════════════════ */
+        function histPick(obj, ...keys) {
+            for (const key of keys) {
+                if (obj && obj[key] !== undefined && obj[key] !== null) return obj[key];
+            }
+            return null;
+        }
+
+        function histFmtDateTime(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('es-MX');
+        }
+
+        function histFmtDate(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            return Number.isNaN(d.getTime())
+                ? String(value).slice(0, 10)
+                : d.toLocaleDateString('es-MX');
+        }
+
+        function histFmtMoney(value) {
+            if (value === null || value === undefined || value === '') return '—';
+            return fmtMoney(value);
+        }
+
+        function histAccionInfo(value) {
+            const accion = String(value || '').toUpperCase().trim();
+            if (accion === 'INSERT') return { texto: 'INSERT', clase: 'audit-action-insert' };
+            if (accion === 'UPDATE') return { texto: 'UPDATE', clase: 'audit-action-update' };
+            if (accion === 'SIN_CAMBIO') return { texto: 'SIN CAMBIO', clase: 'audit-action-sin-cambio' };
+            return { texto: accion || '—', clase: '' };
+        }
+
+        function histDiffClass(value) {
+            const n = Number(value || 0);
+            if (n > 0) return 'audit-diff-up';
+            if (n < 0) return 'audit-diff-down';
+            return 'audit-diff-zero';
+        }
+
+        function histSetText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = Number(value || 0).toLocaleString('es-MX');
+        }
+
+        function histFechaHaceDiasISO(dias) {
+            const d = new Date();
+            d.setDate(d.getDate() - dias);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function histBuildQuery(page = 1) {
+            const qs = new URLSearchParams();
+            qs.set('page', page);
+            qs.set('pageSize', histPageSize);
+
+            const fields = {
+                search: document.getElementById('histSearch')?.value || '',
+                sku: document.getElementById('histSku')?.value || '',
+                cliente: document.getElementById('histCliente')?.value || '',
+                accion: document.getElementById('histAccion')?.value || '',
+                usuario: document.getElementById('histUsuario')?.value || '',
+                priceListNum: document.getElementById('histLista')?.value || '',
+                fechaDesde: document.getElementById('histFechaDesde')?.value || '',
+                fechaHasta: document.getElementById('histFechaHasta')?.value || ''
+            };
+
+            Object.entries(fields).forEach(([key, value]) => {
+                const clean = String(value ?? '').trim();
+                if (clean) qs.set(key, clean);
+            });
+
+            return qs;
+        }
+
+        function descargarHistoricoPreciosExcel() {
+            const btn = document.getElementById('btnHistExcel');
+            const textoOriginal = btn?.innerHTML || '';
+
+            const qs = histBuildQuery(1);
+            // El Excel debe traer TODOS los resultados filtrados, no solo la página visible.
+            qs.delete('page');
+            qs.delete('pageSize');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generando Excel...';
+            }
+
+            // Content-Disposition=attachment evita abandonar la pantalla.
+            window.location.href = `/Comercial/ExportarHistoricoCatalogoPreciosExcel?${qs.toString()}`;
+
+            // La navegación de descarga no expone un evento confiable de finalización.
+            setTimeout(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                }
+            }, 2500);
+        }
+
+
+        function histLimpiarFiltros() {
+            [
+                'histSearch',
+                'histSku',
+                'histCliente',
+                'histUsuario',
+                'histLista'
+            ].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+
+            const desde = document.getElementById('histFechaDesde');
+            const hasta = document.getElementById('histFechaHasta');
+            const accion = document.getElementById('histAccion');
+
+            if (desde) desde.value = histFechaHaceDiasISO(30);
+            if (hasta) hasta.value = hoyLocalISO();
+            if (accion) accion.value = 'CAMBIOS';
+        }
+
+        function histCerrarDetalleClientes() {
+            document.querySelectorAll('.hist-clientes-detail-row').forEach(row => row.remove());
+        }
+
+        function histDecimalParam(value) {
+            if (value === null || value === undefined || value === '') return '';
+            const n = Number(value);
+            return Number.isFinite(n) ? String(n) : '';
+        }
+
+        async function histToggleClientes(button) {
+            const parentRow = button.closest('tr');
+            if (!parentRow) return;
+
+            const currentDetail = parentRow.nextElementSibling;
+            if (currentDetail?.classList.contains('hist-clientes-detail-row')) {
+                currentDetail.remove();
+                return;
+            }
+
+            histCerrarDetalleClientes();
+
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'hist-clientes-detail-row';
+            detailRow.innerHTML = `
+                <td colspan="15">
+                    <div class="audit-client-panel">
+                        <div class="audit-client-panel-head">
+                            <span>Clientes afectados</span>
+                            <span>⏳ Consultando lista...</span>
+                        </div>
+                    </div>
+                </td>`;
+            parentRow.insertAdjacentElement('afterend', detailRow);
+
+            const qs = new URLSearchParams();
+            qs.set('loteId', button.dataset.lote || '');
+            qs.set('sku', button.dataset.sku || '');
+            qs.set('priceListNum', button.dataset.lista || '0');
+            qs.set('accion', button.dataset.accion || '');
+
+            const anterior = button.dataset.anterior;
+            const nuevo = button.dataset.nuevo;
+            if (anterior !== undefined && anterior !== '') qs.set('precioAnterior', anterior);
+            if (nuevo !== undefined && nuevo !== '') qs.set('precioNuevo', nuevo);
+
+            try {
+                const res = await fetch(`/Comercial/ObtenerClientesAfectadosHistoricoPrecios?${qs.toString()}`, {
+                    cache: 'no-store'
+                });
+
+                const raw = await res.text();
+                if (!res.ok) throw new Error(raw || 'No se pudo consultar la lista de clientes.');
+
+                const data = JSON.parse(raw);
+                const clientes = Array.isArray(data.clientes) ? data.clientes : [];
+                const panel = detailRow.querySelector('.audit-client-panel');
+
+                if (!clientes.length) {
+                    panel.innerHTML = `
+                        <div class="audit-client-panel-head">
+                            <span>Clientes afectados</span>
+                            <span>0 clientes</span>
+                        </div>
+                        <div class="text-muted">No se encontraron clientes para este cambio.</div>`;
+                    return;
+                }
+
+                panel.innerHTML = `
+                    <div class="audit-client-panel-head">
+                        <span>
+                            SKU ${impEscapeHtml(button.dataset.sku || '')} ·
+                            ${clientes.length.toLocaleString('es-MX')} clientes afectados
+                        </span>
+                        <button type="button" class="tool-btn tool-btn-secondary btn-cerrar-clientes">
+                            Cerrar lista
+                        </button>
+                    </div>
+                    <div class="audit-client-grid">
+                        ${clientes.map(c => {
+                            const codigo = histPick(c, 'cliente', 'Cliente') || '—';
+                            const nombre = histPick(c, 'clienteNombre', 'ClienteNombre') || 'Sin nombre';
+                            return `
+                                <div class="audit-client-item">
+                                    <span class="audit-client-code">${impEscapeHtml(codigo)}</span>
+                                    <span>${impEscapeHtml(nombre)}</span>
+                                </div>`;
+                        }).join('')}
+                    </div>`;
+            } catch (e) {
+                console.error(e);
+                const panel = detailRow.querySelector('.audit-client-panel');
+                panel.innerHTML = `
+                    <div class="audit-client-panel-head">
+                        <span>Clientes afectados</span>
+                        <button type="button" class="tool-btn tool-btn-secondary btn-cerrar-clientes">Cerrar</button>
+                    </div>
+                    <div class="text-danger">${impEscapeHtml(e.message)}</div>`;
+            }
+        }
+
+        async function cargarHistoricoPrecios(page = 1) {
+            const body = document.getElementById('histBody');
+            const loader = document.getElementById('histLoader');
+            const prev = document.getElementById('histPrev');
+            const next = document.getElementById('histNext');
+
+            if (!body) return;
+
+            histCerrarDetalleClientes();
+            body.innerHTML = `<tr><td colspan="15" class="text-center py-4">⏳ Consultando cambios resumidos...</td></tr>`;
+            if (loader) loader.style.display = 'inline';
+            if (prev) prev.disabled = true;
+            if (next) next.disabled = true;
+
+            try {
+                const res = await fetch(`/Comercial/ObtenerHistoricoCatalogoPrecios?${histBuildQuery(page).toString()}`, {
+                    cache: 'no-store'
+                });
+
+                const raw = await res.text();
+                if (!res.ok) throw new Error(raw || 'No se pudo consultar el histórico resumido.');
+
+                const data = JSON.parse(raw);
+                const registros = Array.isArray(data.registros) ? data.registros : [];
+                const resumen = data.resumen || {};
+                const total = Number(data.total || histPick(resumen, 'total', 'Total') || 0);
+                const pageSizeResp = Number(data.pageSize || histPageSize);
+
+                histPage = Number(data.page || page);
+                histTotalPages = Math.max(1, Math.ceil(total / pageSizeResp));
+
+                histSetText('histKpiTotal', total);
+                histSetText('histKpiClientes', histPick(resumen, 'impactosClientes', 'ImpactosClientes'));
+                histSetText('histKpiInsert', histPick(resumen, 'insertados', 'Insertados'));
+                histSetText('histKpiUpdate', histPick(resumen, 'actualizados', 'Actualizados'));
+                histSetText('histKpiSubidas', histPick(resumen, 'subidas', 'Subidas'));
+                histSetText('histKpiBajadas', histPick(resumen, 'bajadas', 'Bajadas'));
+
+                const pageInfo = document.getElementById('histPageInfo');
+                if (pageInfo) {
+                    pageInfo.textContent = `Página ${histPage} de ${histTotalPages} · ${total.toLocaleString('es-MX')} cambios de SKU`;
+                }
+
+                if (!registros.length) {
+                    body.innerHTML = `<tr><td colspan="15" class="text-center py-4">No se encontraron cambios con los filtros seleccionados.</td></tr>`;
+                    return;
+                }
+
+                body.innerHTML = registros.map(r => {
+                    const accionInfo = histAccionInfo(histPick(r, 'accion', 'Accion'));
+                    const diferencia = Number(histPick(r, 'diferencia', 'Diferencia') || 0);
+                    const variacion = histPick(r, 'variacionPct', 'VariacionPct');
+                    const lote = String(histPick(r, 'loteId', 'LoteId') || '');
+                    const sku = String(histPick(r, 'productoCodigo', 'ProductoCodigo') || '');
+                    const lista = histPick(r, 'priceListNum', 'PriceListNum');
+                    const precioAnterior = histPick(r, 'precioAnterior', 'PrecioAnterior');
+                    const precioNuevo = histPick(r, 'precioNuevo', 'PrecioNuevo');
+                    const clientes = Number(histPick(r, 'clientesAfectados', 'ClientesAfectados') || 0);
+
+                    return `
+                        <tr>
+                            <td title="${impEscapeHtml(histFmtDateTime(histPick(r, 'fechaGuardado', 'FechaGuardado')))}">
+                                ${impEscapeHtml(histFmtDateTime(histPick(r, 'fechaGuardado', 'FechaGuardado')))}
+                            </td>
+                            <td>
+                                <span class="audit-action ${accionInfo.clase}">${impEscapeHtml(accionInfo.texto)}</span>
+                            </td>
+                            <td>${impEscapeHtml(sku || '—')}</td>
+                            <td title="${impEscapeHtml(histPick(r, 'productoNombre', 'ProductoNombre') || '')}">
+                                ${impEscapeHtml(histPick(r, 'productoNombre', 'ProductoNombre') || '—')}
+                            </td>
+                            <td>${impEscapeHtml(histPick(r, 'master', 'Master') || '—')}</td>
+                            <td title="${impEscapeHtml(histPick(r, 'priceListName', 'PriceListName') || '')}">
+                                ${impEscapeHtml(lista ?? '—')} - ${impEscapeHtml(histPick(r, 'priceListName', 'PriceListName') || '—')}
+                            </td>
+                            <td class="num">${histFmtMoney(precioAnterior)}</td>
+                            <td class="num">${histFmtMoney(precioNuevo)}</td>
+                            <td class="num ${histDiffClass(diferencia)}">${histFmtMoney(diferencia)}</td>
+                            <td class="num ${histDiffClass(diferencia)}">
+                                ${variacion === null || variacion === undefined ? '—' : `${Number(variacion).toFixed(2)}%`}
+                            </td>
+                            <td>${impEscapeHtml(histFmtDate(histPick(r, 'fechaCorte', 'FechaCorte')))}</td>
+                            <td>${impEscapeHtml(histFmtDate(histPick(r, 'fechaUso', 'FechaUso')))}</td>
+                            <td>${impEscapeHtml(histPick(r, 'usuario', 'Usuario') || '—')}</td>
+                            <td class="text-center">
+                                <button type="button"
+                                        class="audit-client-count-btn btn-hist-clientes"
+                                        data-lote="${impEscapeHtml(lote)}"
+                                        data-sku="${impEscapeHtml(sku)}"
+                                        data-lista="${impEscapeHtml(lista ?? '')}"
+                                        data-accion="${impEscapeHtml(histPick(r, 'accion', 'Accion') || '')}"
+                                        data-anterior="${impEscapeHtml(histDecimalParam(precioAnterior))}"
+                                        data-nuevo="${impEscapeHtml(histDecimalParam(precioNuevo))}">
+                                    <i class="bi bi-people"></i>
+                                    ${clientes.toLocaleString('es-MX')} clientes
+                                </button>
+                            </td>
+                            <td title="${impEscapeHtml(lote)}">${impEscapeHtml(lote || '—')}</td>
+                        </tr>`;
+                }).join('');
+            } catch (e) {
+                console.error(e);
+                body.innerHTML = `<tr><td colspan="15" class="text-center text-danger py-4">${impEscapeHtml(e.message)}</td></tr>`;
+                const pageInfo = document.getElementById('histPageInfo');
+                if (pageInfo) pageInfo.textContent = 'Error al consultar';
+            } finally {
+                if (loader) loader.style.display = 'none';
+                if (prev) prev.disabled = histPage <= 1;
+                if (next) next.disabled = histPage >= histTotalPages;
+            }
+        }
+
+        async function abrirHistoricoPrecios(sku = '', cliente = '', limpiar = false) {
+            if (limpiar) histLimpiarFiltros();
+
+            const skuInput = document.getElementById('histSku');
+            const clienteInput = document.getElementById('histCliente');
+
+            if (skuInput) skuInput.value = sku || '';
+            if (clienteInput) clienteInput.value = cliente || '';
+
+            modalHistoricoPrecios?.show();
+            await cargarHistoricoPrecios(1);
         }
 
         async function cargarAnalisisSemanal() {
@@ -2789,6 +6074,7 @@ document.getElementById('impBtnPegarSkus')?.addEventListener('click', function (
 
         modalAnalisisSemanal = new bootstrap.Modal(document.getElementById('modalAnalisisSemanal'));
         modalImportarComp = new bootstrap.Modal(document.getElementById('modalImportarCompetencia'));
+        modalHistoricoPrecios = new bootstrap.Modal(document.getElementById('modalHistoricoPrecios'));
 
             document.getElementById('anaAlcanceClientes')?.addEventListener('change', function () {
                 actualizarModoDestinoPrecio();
@@ -2842,6 +6128,72 @@ document.getElementById('impBtnPegarSkus')?.addEventListener('click', function (
                 e.preventDefault();
                 guardarPrecioPublicoDesdeAnalisis();
             });
+
+
+        /* Histórico / Auditoría */
+        document.getElementById('btnHistoricoPrecios')?.addEventListener('click', function () {
+            abrirHistoricoPrecios('', '', true);
+        });
+
+        document.getElementById('btnHistBuscar')?.addEventListener('click', function () {
+            cargarHistoricoPrecios(1);
+        });
+
+        document.getElementById('btnHistLimpiar')?.addEventListener('click', function () {
+            histLimpiarFiltros();
+            cargarHistoricoPrecios(1);
+        });
+
+        document.getElementById('btnHistExcel')?.addEventListener('click', function () {
+            descargarHistoricoPreciosExcel();
+        });
+
+        document.getElementById('histPrev')?.addEventListener('click', function () {
+            if (histPage > 1) cargarHistoricoPrecios(histPage - 1);
+        });
+
+        document.getElementById('histNext')?.addEventListener('click', function () {
+            if (histPage < histTotalPages) cargarHistoricoPrecios(histPage + 1);
+        });
+
+        document.querySelectorAll(
+            '#histSearch,#histSku,#histCliente,#histUsuario,#histLista,#histFechaDesde,#histFechaHasta'
+        ).forEach(el => {
+            el.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cargarHistoricoPrecios(1);
+                }
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-audit-row');
+            if (!btn) return;
+
+            e.preventDefault();
+            histLimpiarFiltros();
+            abrirHistoricoPrecios(
+                btn.dataset.histSku || '',
+                '',
+                false
+            );
+        });
+
+        document.addEventListener('click', function (e) {
+            const btnClientes = e.target.closest('.btn-hist-clientes');
+            if (btnClientes) {
+                e.preventDefault();
+                histToggleClientes(btnClientes);
+                return;
+            }
+
+            const btnCerrar = e.target.closest('.btn-cerrar-clientes');
+            if (btnCerrar) {
+                e.preventDefault();
+                btnCerrar.closest('.hist-clientes-detail-row')?.remove();
+            }
+        });
 
         /* Análisis semanal */
             document.getElementById('btnGestionAnalisis')?.addEventListener('click', async function () {
@@ -2914,21 +6266,19 @@ document.getElementById('impBtnPegarSkus')?.addEventListener('click', function (
         cargarPrecios(currentPage, currentSearch);
         }, 350);
 
-        document.getElementById("searchInput").addEventListener("input", doSearch);
+        document.getElementById("searchInput").addEventListener("input", function () {
+            const mirror = document.querySelector(".catalogo-precios-cliente-app .table-search-display");
 
-        document.getElementById("prevPage").addEventListener("click", function () {
-        if (currentPage > 1) {
-        currentPage--;
-        cargarPrecios(currentPage, currentSearch);
-        }
+            if (mirror) {
+                mirror.textContent =
+                    this.value.trim() ||
+                    "Buscar aquí";
+            }
+
+            doSearch();
         });
 
-        document.getElementById("nextPage").addEventListener("click", function () {
-        if (currentPage < totalPages) {
-        currentPage++;
-        cargarPrecios(currentPage, currentSearch);
-        }
-        });
+
 
         document.getElementById("btnDescargarExcel").addEventListener("click", function () {
         const search = document.getElementById("searchInput").value || "";

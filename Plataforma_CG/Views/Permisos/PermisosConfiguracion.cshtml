@@ -750,6 +750,11 @@
                 <i class="fa-solid fa-sliders me-1"></i> Permisos a Módulos (L/E/E)
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('modulosUsuario', this)">
+                <i class="fa-solid fa-user-shield me-1"></i> Permisos por Usuario (L/E/E)
+            </button>
+        </li>
     </ul>
 
     <div class="dashboard-panel p-3 p-md-4">
@@ -832,14 +837,66 @@
                             <th class="text-center" style="width: 150px;">Puede Leer</th>
                             <th class="text-center" style="width: 150px;">Puede Escribir</th>
                             <th class="text-center" style="width: 150px;">Puede Eliminar</th>
+                            <th class="text-center" style="width: 110px;">Etiquetas</th>
                         </tr>
                     </thead>
                     <tbody id="bodyModulos">
                         <tr>
-                            <td colspan="4" class="text-center text-muted py-5">
+                            <td colspan="5" class="text-center text-muted py-5">
                                 <i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i>
                                 <span class="fw-bold fs-6">Seleccione un perfil arriba</span><br>
                                 <small>Los permisos de módulos se cargarán en esta tabla.</small>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-modulosUsuario" class="tab-content">
+            <div class="row align-items-end mb-4 bg-light p-3 rounded border mx-0">
+                <div class="col-12 col-md-6 mb-3 mb-md-0">
+                    <label class="fw-bold text-muted mb-1" style="font-size: 0.75rem;">SELECCIONAR USUARIO PARA CONFIGURAR</label>
+                    <input type="text" id="buscarUsuarioModulos" class="form-control border-secondary mb-2" placeholder="Buscar usuario por nombre o usuario...">
+                    <select id="selectUsuarioModulos" class="form-select border-secondary fw-bold" onchange="cargarPermisosModulosUsuario()">
+                        <option value="">-- Elija un usuario de la lista --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 d-flex justify-content-md-end gap-2">
+                    <button class="btn btn-outline-dark btn-sm fw-bold px-3" onclick="cargarListaUsuarios()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refrescar Usuarios
+                    </button>
+                    <button class="btn btn-outline-dark btn-sm fw-bold px-3" onclick="abrirModalNuevoModulo()">
+                        <i class="bi bi-plus-square-dotted me-1"></i> Nuevo Módulo
+                    </button>
+                    <button class="btn btn-brand btn-sm px-4 shadow-sm" onclick="guardarPermisosModulosUsuario()">
+                        <i class="bi bi-save me-1"></i> Guardar Permisos (L/E/E)
+                    </button>
+                </div>
+            </div>
+
+            <div class="alert alert-warning fw-bold py-2 small mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Solo se guardan los módulos que marques; sus permisos <u>sobrescriben</u> a los del perfil. Los módulos sin marcar heredan el permiso del perfil del usuario.
+            </div>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-custom align-middle mb-0" id="tablaModulosUsuario">
+                    <thead>
+                        <tr>
+                            <th>Módulo del Sistema</th>
+                            <th class="text-center" style="width: 150px;">Puede Leer</th>
+                            <th class="text-center" style="width: 150px;">Puede Escribir</th>
+                            <th class="text-center" style="width: 150px;">Puede Eliminar</th>
+                            <th class="text-center" style="width: 110px;">Etiquetas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyModulosUsuario">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">
+                                <i class="bi bi-person-badge-fill fs-2 d-block mb-3 opacity-50"></i>
+                                <span class="fw-bold fs-6">Seleccione un usuario arriba</span><br>
+                                <small>Los permisos de módulos del usuario se cargarán en esta tabla.</small>
                             </td>
                         </tr>
                     </tbody>
@@ -893,6 +950,37 @@
             <div class="modal-footer bg-light border-0">
                 <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal" id="btnCerrarModalModulo">Cancelar</button>
                 <button type="button" class="btn btn-brand fw-bold" onclick="guardarNuevoModulo()" id="btnCrearModulo">Crear Módulo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVerEtiquetas" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background-color: var(--brand-main);">
+                <h6 class="modal-title fw-bold">Etiquetas RevisarPermiso</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-copy me-1"></i>
+                    Módulo: <strong id="lblEtiquetaModuloNombre"></strong>
+                    <span class="text-secondary">(<code id="lblEtiquetaModuloClave"></code>)</span>
+                </p>
+                <div class="bg-dark text-white p-3 rounded" style="font-family: monospace; font-size: 0.9rem;">
+                    <span class="text-success">// Consultar datos</span><br>
+                    [RevisarPermiso("<span id="lblVerClave1" class="text-warning"></span>", "LEER")]<br><br>
+
+                    <span class="text-success">// Guardar registros</span><br>
+                    [RevisarPermiso("<span id="lblVerClave2" class="text-warning"></span>", "ESCRIBIR")]<br><br>
+
+                    <span class="text-success">// Borrar registros</span><br>
+                    [RevisarPermiso("<span id="lblVerClave3" class="text-warning"></span>", "ELIMINAR")]
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-brand fw-bold px-4" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -983,11 +1071,11 @@
             let tbody = document.getElementById("bodyModulos");
 
             if (!perfilId) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i><span class="fw-bold fs-6">Seleccione un perfil arriba</span></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i><span class="fw-bold fs-6">Seleccione un perfil arriba</span></td></tr>';
                 return;
             }
 
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 fw-bold text-muted">Cargando permisos...</div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 fw-bold text-muted">Cargando permisos...</div></td></tr>';
 
             try {
                 let response = await fetch(`/Permisos/ObtenerPermisosPorPerfil?perfilId=${perfilId}`);
@@ -996,7 +1084,7 @@
                 tbody.innerHTML = "";
 
                 if(permisos.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">No hay módulos registrados en el sistema.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4 fw-bold">No hay módulos registrados en el sistema.</td></tr>';
                     return;
                 }
 
@@ -1015,14 +1103,19 @@
                         <td class="text-center align-middle border-end">
                             <input type="checkbox" class="chk-escribir" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEscribir ? 'checked' : ''}>
                         </td>
-                        <td class="text-center align-middle">
+                        <td class="text-center align-middle border-end">
                             <input type="checkbox" class="chk-eliminar" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEliminar ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle">
+                            <button type="button" class="btn btn-outline-secondary btn-sm border-0" title="Ver etiquetas RevisarPermiso de este módulo" onclick="verEtiquetasModulo('${escapeHtml(p.claveModulo)}','${escapeHtml(p.nombreModulo)}')">
+                                <i class="bi bi-code-slash"></i>
+                            </button>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">Error de comunicación con el servidor.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4 fw-bold">Error de comunicación con el servidor.</td></tr>';
             }
         }
 
@@ -1109,6 +1202,9 @@
                     if (document.getElementById("selectPerfilModulos").value) {
                         cargarPermisosModulos();
                     }
+                    if (document.getElementById("selectUsuarioModulos").value) {
+                        cargarPermisosModulosUsuario();
+                    }
                 } else {
                     alert("Error: " + result.mensaje);
                 }
@@ -1128,5 +1224,162 @@
             document.getElementById('lblGeneradaClave2').textContent = clave;
             document.getElementById('lblGeneradaClave3').textContent = clave;
         }
+
+        function verEtiquetasModulo(clave, nombre) {
+            document.getElementById('lblEtiquetaModuloNombre').textContent = nombre || "";
+            document.getElementById('lblEtiquetaModuloClave').textContent = clave || "";
+            document.getElementById('lblVerClave1').textContent = clave || "";
+            document.getElementById('lblVerClave2').textContent = clave || "";
+            document.getElementById('lblVerClave3').textContent = clave || "";
+
+            new bootstrap.Modal(document.getElementById('modalVerEtiquetas')).show();
+        }
+
+        // ============================================================
+        // PESTAÑA 3: PERMISOS A MÓDULOS POR USUARIO (L/E/E)
+        // ============================================================
+        function poblarSelectUsuarios(usuarios) {
+            const select = document.getElementById("selectUsuarioModulos");
+            const valorAnterior = select.value;
+            let html = '<option value="">-- Elija un usuario de la lista --</option>';
+            usuarios.forEach(u => {
+                html += `<option value="${escapeHtml(u.key)}">${escapeHtml(u.nombre)} (${escapeHtml(u.key)})</option>`;
+            });
+            select.innerHTML = html;
+            if (valorAnterior) select.value = valorAnterior;
+            filtrarUsuarios();
+        }
+
+        function escapeHtml(texto) {
+            return String(texto || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function filtrarUsuarios() {
+            const texto = (document.getElementById("buscarUsuarioModulos").value || "").toLowerCase().trim();
+            const select = document.getElementById("selectUsuarioModulos");
+            Array.from(select.options).forEach(opt => {
+                if (!opt.value) return;
+                opt.style.display = opt.text.toLowerCase().includes(texto) ? "" : "none";
+            });
+        }
+
+        document.getElementById("buscarUsuarioModulos").addEventListener("input", filtrarUsuarios);
+
+        async function cargarListaUsuarios() {
+            const select = document.getElementById("selectUsuarioModulos");
+            const valorAnterior = select.value;
+            const opcionGuardada = select.innerHTML;
+            try {
+                let response = await fetch('/Permisos/ObtenerListaUsuarios');
+                if (!response.ok) throw new Error();
+                let usuarios = await response.json();
+                poblarSelectUsuarios(usuarios);
+                if (valorAnterior) select.value = valorAnterior;
+            } catch (error) {
+                select.innerHTML = opcionGuardada;
+                alert("Error al cargar la lista de usuarios.");
+            }
+        }
+
+        async function cargarPermisosModulosUsuario() {
+            let usuarioKey = document.getElementById("selectUsuarioModulos").value;
+            let tbody = document.getElementById("bodyModulosUsuario");
+
+            if (!usuarioKey) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-person-badge-fill fs-2 d-block mb-3 opacity-50"></i><span class="fw-bold fs-6">Seleccione un usuario arriba</span></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 fw-bold text-muted">Cargando permisos...</div></td></tr>';
+
+            try {
+                let response = await fetch(`/Permisos/ObtenerPermisosPorUsuario?usuarioKey=${encodeURIComponent(usuarioKey)}`);
+                if (!response.ok) throw new Error();
+                let permisos = await response.json();
+
+                tbody.innerHTML = "";
+
+                if (permisos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4 fw-bold">No hay módulos registrados en el sistema.</td></tr>';
+                    return;
+                }
+
+                permisos.forEach(p => {
+                    let tr = document.createElement("tr");
+                    tr.dataset.moduloId = p.moduloId;
+
+                    tr.innerHTML = `
+                        <td class="align-middle fw-bold px-4 border-end">
+                            ${p.nombreModulo} <br>
+                            <small class="text-muted fw-normal">${p.claveModulo}</small>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-leer-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeLeer ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-escribir-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEscribir ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-eliminar-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEliminar ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle">
+                            <button type="button" class="btn btn-outline-secondary btn-sm border-0" title="Ver etiquetas RevisarPermiso de este módulo" onclick="verEtiquetasModulo('${escapeHtml(p.claveModulo)}','${escapeHtml(p.nombreModulo)}')">
+                                <i class="bi bi-code-slash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4 fw-bold">Error de comunicación con el servidor (¿tabla UsuarioPermisoModulo creada?).</td></tr>';
+            }
+        }
+
+        async function guardarPermisosModulosUsuario() {
+            let usuarioKey = document.getElementById("selectUsuarioModulos").value;
+            if (!usuarioKey) {
+                alert("Por favor, selecciona un usuario primero.");
+                return;
+            }
+
+            let permisosArray = [];
+            let filas = document.querySelectorAll("#bodyModulosUsuario tr");
+
+            filas.forEach(tr => {
+                if (tr.dataset.moduloId) {
+                    permisosArray.push({
+                        moduloId: parseInt(tr.dataset.moduloId),
+                        puedeLeer: tr.querySelector(".chk-leer-u").checked,
+                        puedeEscribir: tr.querySelector(".chk-escribir-u").checked,
+                        puedeEliminar: tr.querySelector(".chk-eliminar-u").checked
+                    });
+                }
+            });
+
+            let data = {
+                usuarioKey: usuarioKey,
+                permisos: permisosArray
+            };
+
+            try {
+                let response = await fetch('/Permisos/GuardarPermisosModulosUsuario', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                let result = await response.json();
+                if (result.ok) {
+                    alert("Exito: " + result.mensaje);
+                } else {
+                    alert("Error: " + result.mensaje);
+                }
+            } catch (error) {
+                alert("Ocurrio un error al intentar guardar los permisos del usuario.");
+            }
+        }
+
+        // Cargar usuarios al entrar por primera vez a la pestaña
+        cargarListaUsuarios();
     </script>
 }

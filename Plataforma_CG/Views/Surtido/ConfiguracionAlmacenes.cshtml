@@ -1,0 +1,346 @@
+@model Plataforma_CG.ViewModels.SurtidoConfiguracionAlmacenesVM
+
+@{
+    ViewData["Title"] = "Configuración de almacenes";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    body {
+        background:#f4f7fb;
+    }
+
+    .cfg-wrap {
+        max-width:1120px;
+        margin:0 auto;
+        padding:14px 12px 34px;
+    }
+
+    .cfg-head {
+        color:#fff;
+        background:linear-gradient(135deg,#151027,#392866);
+        border-radius:18px;
+        padding:17px;
+        box-shadow:0 14px 34px rgba(20,10,50,.14);
+    }
+
+    .cfg-head-row {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        flex-wrap:wrap;
+    }
+
+    .cfg-kicker {
+        opacity:.67;
+        font-size:.67rem;
+        font-weight:950;
+        letter-spacing:.09em;
+    }
+
+    .cfg-title {
+        margin-top:3px;
+        font-size:1.4rem;
+        font-weight:950;
+    }
+
+    .cfg-sub {
+        opacity:.76;
+        font-size:.75rem;
+        margin-top:4px;
+    }
+
+    .cfg-back {
+        text-decoration:none!important;
+        color:#fff!important;
+        padding:8px 12px;
+        border:1px solid rgba(255,255,255,.22);
+        background:rgba(255,255,255,.08);
+        border-radius:999px;
+        font-size:.72rem;
+        font-weight:900;
+    }
+
+    .cfg-info {
+        margin-top:10px;
+        background:#eef5ff;
+        border:1px solid #cedfff;
+        color:#365b89;
+        border-radius:13px;
+        padding:11px 13px;
+        font-size:.75rem;
+    }
+
+    .cfg-card {
+        margin-top:10px;
+        background:#fff;
+        border:1px solid #dbe4ee;
+        border-radius:15px;
+        overflow:hidden;
+    }
+
+    .cfg-table-wrap {
+        overflow:auto;
+    }
+
+    .cfg-table {
+        width:100%;
+        border-collapse:collapse;
+        min-width:800px;
+    }
+
+    .cfg-table th {
+        padding:10px;
+        background:#f5f7fb;
+        border-bottom:1px solid #dbe4ee;
+        color:#53667a;
+        font-size:.65rem;
+        text-transform:uppercase;
+        font-weight:950;
+        text-align:left;
+    }
+
+    .cfg-table td {
+        padding:11px 10px;
+        border-bottom:1px solid #edf1f5;
+        font-size:.76rem;
+        color:#27384c;
+        vertical-align:middle;
+    }
+
+    .codigo {
+        color:#6f42c1;
+        font-weight:950;
+    }
+
+    .nombre {
+        color:#152235;
+        font-weight:900;
+    }
+
+    .cfg-status {
+        display:inline-flex;
+        border-radius:999px;
+        padding:4px 7px;
+        font-size:.60rem;
+        font-weight:950;
+    }
+
+    .cfg-status.ok {
+        background:#e8f7ef;
+        color:#198754;
+    }
+
+    .cfg-status.pending {
+        background:#fff3df;
+        color:#b86500;
+    }
+
+    .switch {
+        display:flex;
+        align-items:center;
+        gap:8px;
+        font-weight:900;
+    }
+
+    .switch input {
+        width:18px;
+        height:18px;
+    }
+
+    .cfg-footer {
+        padding:12px;
+        display:flex;
+        justify-content:flex-end;
+        border-top:1px solid #dbe4ee;
+        background:#fafbfd;
+    }
+
+    .cfg-save {
+        border:0;
+        border-radius:9px;
+        padding:9px 14px;
+        background:#6f42c1;
+        color:#fff;
+        font-size:.75rem;
+        font-weight:950;
+    }
+
+    body[data-theme="dark"] .cfg-card {
+        background:#111827!important;
+        border-color:rgba(255,255,255,.12)!important;
+    }
+
+    body[data-theme="dark"] .cfg-table th {
+        background:#172033!important;
+        color:#f8fafc!important;
+        border-color:rgba(255,255,255,.12)!important;
+    }
+
+    body[data-theme="dark"] .cfg-table td,
+    body[data-theme="dark"] .nombre {
+        color:#e5e7eb!important;
+        border-color:rgba(255,255,255,.09)!important;
+    }
+
+    body[data-theme="dark"] .cfg-footer {
+        background:#111827!important;
+        border-color:rgba(255,255,255,.12)!important;
+    }
+</style>
+
+
+<div class="cfg-wrap">
+
+    <section class="cfg-head">
+        <div class="cfg-head-row">
+
+            <div>
+                <div class="cfg-kicker">
+                    SIGO · REGLAS WMS
+                </div>
+
+                <div class="cfg-title">
+                    Configuración de almacenes
+                </div>
+
+                <div class="cfg-sub">
+                    Define desde SIGO cuáles almacenes
+                    obligan ubicación física.
+                </div>
+            </div>
+
+            <a class="cfg-back"
+               href="@Url.Action(
+                    "Surtido_cedis",
+                    "Surtido"
+               )">
+                ← Volver a Surtido
+            </a>
+
+        </div>
+    </section>
+
+
+    @if (TempData["Exito"] != null)
+    {
+        <div class="alert alert-success mt-3">
+            @TempData["Exito"]
+        </div>
+    }
+
+
+    <div class="cfg-info">
+        <strong>Catálogo:</strong> appsettings.json → Warehouses.
+        <strong>Regla operativa:</strong> SIGO → dbo.SurtidoAlmacenConfiguracion.
+        CommerciaNet no decide si el WMS obliga ubicación.
+    </div>
+
+
+    <form method="post"
+          action="@Url.Action(
+                "GuardarConfiguracionAlmacenes",
+                "Surtido"
+          )">
+
+        @Html.AntiForgeryToken()
+
+        <section class="cfg-card">
+
+            <div class="cfg-table-wrap">
+
+                <table class="cfg-table">
+
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Almacén</th>
+                            <th>Sucursal</th>
+                            <th>Clasificación</th>
+                            <th>Estado regla</th>
+                            <th>Obliga ubicación</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var a in Model.Almacenes)
+                        {
+                            <tr>
+
+                                <td class="codigo">
+                                    @a.Codigo
+
+                                    <input type="hidden"
+                                           name="codigos"
+                                           value="@a.Codigo" />
+                                </td>
+
+                                <td class="nombre">
+                                    @a.Nombre
+                                </td>
+
+                                <td>
+                                    @a.Sucursal
+                                </td>
+
+                                <td>
+                                    @a.Clasificacion
+                                </td>
+
+                                <td>
+                                    @if (a.TieneConfiguracionUbicacion)
+                                    {
+                                        <span class="cfg-status ok">
+                                            CONFIGURADO
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cfg-status pending">
+                                            SIN CONFIGURAR
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>
+                                    <label class="switch">
+
+                                        <input type="checkbox"
+                                               name="obligaUbicacion"
+                                               value="@a.Codigo"
+                                               @(a.ObligaUbicacion ? "checked" : "") />
+
+                                        <span>
+                                            @(a.ObligaUbicacion
+                                                ? "Sí"
+                                                : "No")
+                                        </span>
+
+                                    </label>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+            <div class="cfg-footer">
+
+                <button type="submit"
+                        class="cfg-save">
+                    Guardar configuración
+                </button>
+
+            </div>
+
+        </section>
+
+    </form>
+
+</div>

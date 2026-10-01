@@ -991,7 +991,7 @@ namespace Plataforma_CG.Controllers
                     VentasTexto = "VENTAS - CARNES G",
                     EmailVentas = "ventas.as@carnesg.net",
                     CertificacionTexto = "CONTAMOS CON CERTIFICACIÓN / PRODUCTO EMPACADO AL ALTO VACÍO",
-                    LogoBytes = LeerArchivoWebRoot("images/logoPDF.png"),
+                    LogoBytes = LeerArchivoWebRoot("images/logoCubo.png"),
                     SelloBytes = LeerArchivoWebRoot("images/logoTIF.png")
                 },
                 VigenciaTexto = $"VIGENCIA DE PRECIOS: DEL {DateTime.Today:dd} AL {DateTime.Today.AddDays(6):dd} DE {DateTime.Today:MMMM yyyy}".ToUpper(),
@@ -1165,33 +1165,14 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "REGLAS_COMERCIALES"
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-            {
-                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
-            }
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "REGLAS_COMERCIALES");
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
     }

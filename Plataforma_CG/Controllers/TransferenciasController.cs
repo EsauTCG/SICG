@@ -571,8 +571,155 @@ ov AS (
     FROM dbo.OrdenVenta o
     INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
     WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 4
+      AND o.Estatus BETWEEN 1 AND 6
       AND ser.Sucursal = 'MATRIZ'
+),
+
+/* Pedido original por OV + SKU */
+ov_peso_agg AS (
+    SELECT
+        PedidoId = op.PedidoId,
+        SKU = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
+        KgPedido = SUM(CAST(ISNULL(op.Peso, 0) AS DECIMAL(18,4)))
+    FROM dbo.OrdenVentaProducto op
+    INNER JOIN ov
+        ON ov.Id = op.PedidoId
+    WHERE ISNULL(op.Eliminado, 0) = 0
+    GROUP BY
+        op.PedidoId,
+        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
+),
+
+/* Estado operativo de cada SolicitudSurtido */
+solicitud_estado AS (
+    SELECT
+        se.SolicitudSurtidoId,
+        EsCerrado =
+            MAX(
+                CASE
+                    WHEN se.FechaValidacion IS NOT NULL
+                      OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.SurtidoEncabezado se
+    GROUP BY
+        se.SolicitudSurtidoId
+),
+
+/*
+   Cierre total de la OV.
+   Si todos sus subpedidos ya están cerrados, ya no existe
+   compromiso pendiente aunque el surtido físico haya sido menor.
+*/
+ov_estado_cierre AS (
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        TotalSubpedidos = COUNT_BIG(*),
+        SubpedidosCerrados =
+            SUM(
+                CASE
+                    WHEN ISNULL(se.EsCerrado, 0) = 1 THEN 1
+                    ELSE 0
+                END
+            )
+    FROM dbo.Subpedido sp
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+    LEFT JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+    GROUP BY
+        sp.OrdenVentaId
+),
+
+/*
+   Kilos de subpedidos que ya quedaron cerrados.
+   Esto permite manejar correctamente una OV con varios subpedidos:
+   sólo queda comprometida la parte que todavía sigue abierta.
+*/
+ov_cerrado_sku AS (
+    SELECT
+        PedidoId = sp.OrdenVentaId,
+        SKU = UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, '')))),
+        KgCerrado =
+            SUM(
+                CAST(
+                    ISNULL(spp.KilosCaja, 0)
+                    AS DECIMAL(18,4)
+                )
+            )
+    FROM dbo.Subpedido sp
+    INNER JOIN ov
+        ON ov.Id = sp.OrdenVentaId
+    INNER JOIN dbo.SubpedidoProductos spp
+        ON spp.SubpedidoId = sp.Id
+    INNER JOIN solicitud_estado se
+        ON se.SolicitudSurtidoId =
+           TRY_CONVERT(
+               INT,
+               NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+           )
+       AND se.EsCerrado = 1
+    WHERE
+        NULLIF(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))), '') IS NOT NULL
+    GROUP BY
+        sp.OrdenVentaId,
+        UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, ''))))
+),
+
+/*
+   Pendiente contractual real:
+   - OV totalmente cerrada = 0
+   - OV parcialmente cerrada = Pedido original menos kilos cerrados
+   - el surtido físico se conserva por separado como surtido real
+*/
+ov_pendiente_sku AS (
+    SELECT
+        ov.Id,
+        ov.Cliente,
+        ov.VendedorId,
+        ov.Estatus,
+        ov.FechaDate,
+        p.SKU,
+
+        KgPendiente =
+            CAST(
+                CASE
+                    WHEN
+                        ISNULL(ec.TotalSubpedidos, 0) > 0
+                        AND ISNULL(ec.SubpedidosCerrados, 0)
+                            = ISNULL(ec.TotalSubpedidos, 0)
+                        THEN 0
+
+                    WHEN
+                        (
+                            ISNULL(p.KgPedido, 0)
+                            - ISNULL(cs.KgCerrado, 0)
+                        ) <= 0
+                        THEN 0
+
+                    ELSE
+                        (
+                            ISNULL(p.KgPedido, 0)
+                            - ISNULL(cs.KgCerrado, 0)
+                        )
+                END
+                AS DECIMAL(18,4)
+            )
+
+    FROM ov
+    INNER JOIN ov_peso_agg p
+        ON p.PedidoId = ov.Id
+    LEFT JOIN ov_estado_cierre ec
+        ON ec.PedidoId = ov.Id
+    LEFT JOIN ov_cerrado_sku cs
+        ON cs.PedidoId = ov.Id
+       AND cs.SKU = p.SKU
 ),
 
 presupuestos_cedis AS (
@@ -592,22 +739,22 @@ presupuestos_cedis AS (
 consumo_cedis_base AS (
     SELECT Canal, SKU, Mes, Anio, SUM(Kg) Kg
     FROM (
-        -- OV CEDIS
+        -- OV CEDIS: sólo kilos que siguen pendientes
         SELECT
             Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            SKU   = UPPER(op.ProductoCodigo),
-            Mes   = MONTH(ov.FechaDate),
-            Anio  = YEAR(ov.FechaDate),
-            Kg    = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-        FROM ov
-        JOIN dbo.OrdenVentaProducto op ON op.PedidoId = ov.Id
-        JOIN dbo.ClienteSap cli        ON cli.Cliente = ov.Cliente
+            SKU   = ovp.SKU,
+            Mes   = MONTH(ovp.FechaDate),
+            Anio  = YEAR(ovp.FechaDate),
+            Kg    = SUM(CAST(ISNULL(ovp.KgPendiente, 0) AS DECIMAL(18,4)))
+        FROM ov_pendiente_sku ovp
+        JOIN dbo.ClienteSap cli
+            ON cli.Cliente = ovp.Cliente
         WHERE UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
         GROUP BY
             UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            UPPER(op.ProductoCodigo),
-            MONTH(ov.FechaDate),
-            YEAR(ov.FechaDate)
+            ovp.SKU,
+            MONTH(ovp.FechaDate),
+            YEAR(ovp.FechaDate)
 
         UNION ALL
 
@@ -683,23 +830,21 @@ pres_vendedor_x_canal AS (
 
 consumo_vendedor_normal AS (
     SELECT
-        o.VendedorId,
-        SKU  = UPPER(op.ProductoCodigo),
-        Mes  = MONTH(o.FechaEntrega),
-        Anio = YEAR(o.FechaEntrega),
-        Kg   = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.OrdenVentaProducto op ON op.PedidoId = o.Id
-    JOIN dbo.Series s ON s.NombreSerie = o.Serie
-    JOIN dbo.ClienteSap c ON c.Cliente = o.Cliente
-                         AND ISNULL(UPPER(c.U_CANAL),'') NOT LIKE 'CEDIS%'
-    WHERE  o.Estatus BETWEEN 1 AND 4
-      AND s.Sucursal = 'MATRIZ'
+        ovp.VendedorId,
+        SKU  = ovp.SKU,
+        Mes  = MONTH(ovp.FechaDate),
+        Anio = YEAR(ovp.FechaDate),
+        Kg   = SUM(CAST(ISNULL(ovp.KgPendiente, 0) AS DECIMAL(18,4)))
+    FROM ov_pendiente_sku ovp
+    JOIN dbo.ClienteSap c
+        ON c.Cliente = ovp.Cliente
+       AND ISNULL(UPPER(c.U_CANAL),'') NOT LIKE 'CEDIS%'
+    WHERE ovp.VendedorId IS NOT NULL
     GROUP BY
-        o.VendedorId,
-        UPPER(op.ProductoCodigo),
-        MONTH(o.FechaEntrega),
-        YEAR(o.FechaEntrega)
+        ovp.VendedorId,
+        ovp.SKU,
+        MONTH(ovp.FechaDate),
+        YEAR(ovp.FechaDate)
 ),
 
 consumo_vendedor_desde_cedis AS (
@@ -802,32 +947,12 @@ surtido_transferencias_cedis AS (
         MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
         YEAR(TRY_CONVERT(date, t.FechaSolicitud))
 ),
-surtido_pedidos_transferencia_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(ser.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(ptd.ProductoCodigo))),
-        Mes   = MONTH(TRY_CONVERT(date, pt.FechaSolicitud)),
-        Anio  = YEAR(TRY_CONVERT(date, pt.FechaSolicitud)),
-        KgSurtido = SUM(CAST(ptd.CantidadKg AS DECIMAL(18,4)))
-    FROM dbo.PedidosTransferencia pt
-    JOIN dbo.PedidosTransferenciaDetalle ptd ON ptd.PedidoTransferenciaId = pt.Id
-    JOIN dbo.Series ser ON ser.Sucursal = pt.Destino
-    WHERE pt.FechaSolicitud IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(ser.Canal))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(ser.Canal))),
-        UPPER(LTRIM(RTRIM(ptd.ProductoCodigo))),
-        MONTH(TRY_CONVERT(date, pt.FechaSolicitud)),
-        YEAR(TRY_CONVERT(date, pt.FechaSolicitud))
-),
 surtido_cedis_base AS (
     SELECT Canal, SKU, Mes, Anio, SUM(KgSurtido) AS KgSurtido
     FROM (
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_ov_cedis
         UNION ALL
         SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_transferencias_cedis
-        UNION ALL
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_pedidos_transferencia_cedis
     ) x
     GROUP BY Canal, SKU, Mes, Anio
 ),
@@ -1368,529 +1493,751 @@ ORDER BY Origen;";
             DateTime fechaSolicitud,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(sucursal) || string.IsNullOrWhiteSpace(sku))
-                return BadRequest("Sucursal y SKU son requeridos.");
-
-            const string sql = @"
-DECLARE 
-    @Canal NVARCHAR(100),
-    @Mes   INT,
-    @Anio  INT,
-    @SkuN  NVARCHAR(50);
-
-SET @SkuN = UPPER(LTRIM(RTRIM(@Sku)));
-
--- Canal de la sucursal (Transferencias se relacionan por Series.Sucursal)
-SELECT TOP (1)
-    @Canal = UPPER(LTRIM(RTRIM(s.Canal)))
-FROM dbo.Series s
-WHERE
-    UPPER(LTRIM(RTRIM(s.Sucursal)))     = UPPER(LTRIM(RTRIM(@Sucursal)))
- OR UPPER(LTRIM(RTRIM(s.NombreSerie))) = UPPER(LTRIM(RTRIM(@Sucursal)))
-ORDER BY
-    CASE
-        WHEN UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))) THEN 0
-        ELSE 1
-    END,
-    UPPER(LTRIM(RTRIM(s.Canal)));
-
-SET @Mes  = MONTH(@FechaSolicitud);
-SET @Anio = YEAR(@FechaSolicitud);
-
-WITH
--- =====================================================
--- CATÁLOGOS (mínimos necesarios)
--- =====================================================
-productos AS (
-    SELECT
-        SKU = UPPER(LTRIM(RTRIM(a.ProductoCodigo))),
-        ProductoNombre = COALESCE(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), ''), a.ProductoCodigo)
-    FROM dbo.ArticuloSap a
-),
-clientes AS (
-    SELECT
-        Cliente        = UPPER(LTRIM(RTRIM(cs.Cliente))),
-        NombreCliente  = COALESCE(NULLIF(LTRIM(RTRIM(cs.NombreCliente)), ''), cs.Cliente),
-        VendedorId     = cs.VendedorId,
-        VendedorNombre = LTRIM(RTRIM(cs.VendedorNombre)),
-        U_CANAL        = UPPER(LTRIM(RTRIM(cs.U_CANAL)))
-    FROM dbo.ClienteSap cs
-),
-vendedores AS (
-    SELECT DISTINCT VendedorId, VendedorNombre
-    FROM clientes
-    WHERE VendedorId IS NOT NULL
-),
-
--- =====================================================
--- Vendedores por Canal CEDIS (mapeo CANAL -> VENDEDOR)
--- =====================================================
-canal_vendedores AS (
-    SELECT DISTINCT
-        Canal      = UPPER(LTRIM(RTRIM(c.U_CANAL))),
-        VendedorId = c.VendedorId
-    FROM dbo.ClienteSap c
-    WHERE c.VendedorId IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(c.U_CANAL))) LIKE 'CEDIS%'
-),
-
--- =====================================================
--- OV (MATRIZ) - incluye estatus 5 (igual a reporte)
--- =====================================================
-ov AS (
-    SELECT
-        o.Id,
-        o.Cliente,
-        o.VendedorId,
-        o.Estatus,
-        o.Serie,
-        FechaDate = TRY_CONVERT(date, o.FechaEntrega)
-    FROM dbo.OrdenVenta o
-    INNER JOIN dbo.Series ser ON o.Serie = ser.NombreSerie
-    WHERE o.FechaEntrega IS NOT NULL
-      AND o.Estatus BETWEEN 1 AND 5
-      AND ser.Sucursal = 'MATRIZ'
-),
-
--- OV con surtido existente (para regla Estatus=5)
-ov_con_surtido AS (
-    SELECT DISTINCT o.Id
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-),
-
--- Peso pedido por OV + SKU
-ov_peso_agg AS (
-    SELECT
-        PedidoId = op.PedidoId,
-        SKU      = UPPER(LTRIM(RTRIM(op.ProductoCodigo))),
-        KgPedido = SUM(CAST(op.Peso AS DECIMAL(18,4)))
-    FROM dbo.OrdenVentaProducto op
-    GROUP BY
-        op.PedidoId,
-        UPPER(LTRIM(RTRIM(op.ProductoCodigo)))
-),
-
--- Surtido validado por OV + SKU
-ov_surtido_agg AS (
-    SELECT
-        PedidoId = o.Id,
-        SKU      = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp         ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd    ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    WHERE se.FechaValidacion IS NOT NULL
-    GROUP BY
-        o.Id,
-        UPPER(LTRIM(RTRIM(sd.Articulo)))
-),
-
--- Pendiente real por OV + SKU (pedido - surtido validado, clamp 0)
-ov_pendiente_sku AS (
-    SELECT
-        ov.Id,
-        ov.Cliente,
-        ov.VendedorId,
-        ov.Estatus,
-        ov.FechaDate,
-        p.SKU,
-        KgPendiente =
-            CAST(
-                CASE
-                    WHEN ov.Estatus = 5 AND os.Id IS NOT NULL THEN 0
-                    ELSE
-                        CASE
-                            WHEN (p.KgPedido - ISNULL(sa.KgSurtido,0)) < 0 THEN 0
-                            ELSE (p.KgPedido - ISNULL(sa.KgSurtido,0))
-                        END
-                END
-            AS DECIMAL(18,4))
-    FROM ov
-    JOIN ov_peso_agg p
-        ON p.PedidoId = ov.Id
-    LEFT JOIN ov_surtido_agg sa
-        ON sa.PedidoId = ov.Id
-       AND sa.SKU      = p.SKU
-    LEFT JOIN ov_con_surtido os
-        ON os.Id = ov.Id
-),
-
--- =====================================================
--- PRESUPUESTO CEDIS
--- =====================================================
-presupuestos_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(pc.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        Mes   = pc.Mes,
-        Anio  = pc.Anio,
-        Presupuesto = SUM(pc.PresupuestoAsignado)
-    FROM dbo.PresupuestoCedis pc
-    GROUP BY
-        UPPER(LTRIM(RTRIM(pc.Canal))),
-        UPPER(LTRIM(RTRIM(pc.ProductoCodigo))),
-        pc.Mes, pc.Anio
-),
-
--- =====================================================
--- SURTIDO POR TRANSFERENCIA (AGRUPADO) PARA REBAJAR PENDIENTE
--- =====================================================
-tr_surtido_agg AS (
-    SELECT
-        ts.TransferenciaId,
-        SKU = UPPER(LTRIM(RTRIM(ts.Sku))),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
-    FROM dbo.TransferenciaSurtido ts
-    GROUP BY
-        ts.TransferenciaId,
-        UPPER(LTRIM(RTRIM(ts.Sku)))
-),
-
--- =====================================================
--- CONSUMO CEDIS BASE (PENDIENTE REAL)
---   1) OV CEDIS (pendiente real)
---   2) Transferencias (solicitado - surtido), clamp 0
--- =====================================================
-consumo_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(Kg) Kg
-    FROM (
-        -- OV CEDIS (pendiente real)
-        SELECT
-            Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            SKU   = ovp.SKU,
-            Mes   = MONTH(ovp.FechaDate),
-            Anio  = YEAR(ovp.FechaDate),
-            Kg    = SUM(ovp.KgPendiente)
-        FROM ov_pendiente_sku ovp
-        JOIN dbo.ClienteSap cli ON cli.Cliente = ovp.Cliente
-        WHERE UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
-        GROUP BY
-            UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-            ovp.SKU,
-            MONTH(ovp.FechaDate),
-            YEAR(ovp.FechaDate)
-
-        UNION ALL
-
-        -- Transferencias (pendiente = solicitado - surtido)
-        SELECT
-            Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-            SKU   = UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-            Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-            Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
-            Kg    = SUM(
-                      CASE
-                          WHEN (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0)) < 0 THEN 0
-                          ELSE (CAST(td.CantidadKg AS DECIMAL(18,4)) - ISNULL(tsa.KgSurtido,0))
-                      END
-                   )
-        FROM dbo.Transferencias t
-        JOIN dbo.TransferenciaDetalles td ON td.TransferenciaId = t.Id
-        JOIN dbo.Series s                 ON s.Sucursal = t.Sucursal
-        LEFT JOIN tr_surtido_agg tsa
-               ON tsa.TransferenciaId = t.Id
-              AND tsa.SKU = UPPER(LTRIM(RTRIM(td.ProductoCodigo)))
-        WHERE t.FechaSolicitud IS NOT NULL
-          AND t.Estatus BETWEEN 1 AND 4
-          AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
-        GROUP BY
-            UPPER(LTRIM(RTRIM(s.Canal))),
-            UPPER(LTRIM(RTRIM(td.ProductoCodigo))),
-            MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-            YEAR(TRY_CONVERT(date, t.FechaSolicitud))
-    ) X
-    GROUP BY Canal, SKU, Mes, Anio
-),
-
-todo_cedis AS (
-    SELECT
-        'CEDIS' AS Origen,
-        pc.Mes,
-        pc.Anio,
-        CAST(NULL AS NVARCHAR(50)) AS Cliente,
-        pc.Canal,
-        CAST(NULL AS INT) AS VendedorId,
-        pc.SKU,
-        pc.Presupuesto,
-        ISNULL(cc.Kg,0) AS Kg
-    FROM presupuestos_cedis pc
-    LEFT JOIN consumo_cedis_base cc
-        ON cc.Canal = pc.Canal
-       AND cc.SKU   = pc.SKU
-       AND cc.Mes   = pc.Mes
-       AND cc.Anio  = pc.Anio
-),
-
--- =====================================================
--- PRESUPUESTO VENDEDOR + PRORRATEO DESDE CEDIS (igual al reporte)
--- =====================================================
-presupuestos_vendedor AS (
-    SELECT
-        VendedorId,
-        SKU = UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
-        Mes = pv.Mes,
-        Anio = pv.Anio,
-        Presupuesto = SUM(pv.PresupuestoAsignado)
-    FROM dbo.PresupuestoVendedor pv
-    GROUP BY
-        pv.VendedorId,
-        UPPER(LTRIM(RTRIM(pv.ProductoCodigo))),
-        pv.Mes,
-        pv.Anio
-),
-pres_vendedor_x_canal AS (
-    SELECT
-        cv.Canal,
-        pv.SKU,
-        pv.Mes,
-        pv.Anio,
-        PresTotalCanal = SUM(CAST(pv.Presupuesto AS DECIMAL(18,4)))
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    GROUP BY
-        cv.Canal, pv.SKU, pv.Mes, pv.Anio
-),
-consumo_vendedor_desde_cedis AS (
-    SELECT
-        VendedorId = pv.VendedorId,
-        SKU        = pv.SKU,
-        Mes        = pv.Mes,
-        Anio       = pv.Anio,
-        Kg = SUM(
-            CASE
-                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
-                ELSE (cb.Kg * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
-            END
-        )
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    JOIN pres_vendedor_x_canal pxc
-        ON pxc.Canal = cv.Canal
-       AND pxc.SKU   = pv.SKU
-       AND pxc.Mes   = pv.Mes
-       AND pxc.Anio  = pv.Anio
-    JOIN consumo_cedis_base cb
-        ON cb.Canal = cv.Canal
-       AND cb.SKU   = pv.SKU
-       AND cb.Mes   = pv.Mes
-       AND cb.Anio  = pv.Anio
-    GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
-),
-todo_vendedor AS (
-    SELECT
-        'VENDEDOR' AS Origen,
-        pv.Mes,
-        pv.Anio,
-        CAST(NULL AS NVARCHAR(50)) AS Cliente,
-        CAST(NULL AS NVARCHAR(100)) AS Canal,
-        pv.VendedorId,
-        pv.SKU,
-        pv.Presupuesto,
-        ISNULL(cv.Kg,0) AS Kg
-    FROM presupuestos_vendedor pv
-    LEFT JOIN consumo_vendedor_desde_cedis cv
-        ON cv.VendedorId = pv.VendedorId
-       AND cv.SKU = pv.SKU
-       AND cv.Mes = pv.Mes
-       AND cv.Anio = pv.Anio
-),
-
--- =====================================================
--- SURTIDO REAL CEDIS (ALINEADO AL REPORTE):
---   OV VALIDADO + TransferenciaSurtido (NO PedidosTransferenciaDetalle)
--- =====================================================
-surtido_ov_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-        SKU   = UPPER(LTRIM(RTRIM(sd.Articulo))),
-        Mes   = MONTH(se.FechaValidacion),
-        Anio  = YEAR(se.FechaValidacion),
-        KgSurtido = SUM(CAST(sd.Kg AS DECIMAL(18,4)))
-    FROM dbo.OrdenVenta o
-    JOIN dbo.Subpedido sp           ON sp.OrdenVentaId = o.Id
-    JOIN dbo.SurtidoEncabezado se   ON se.SolicitudSurtidoId = sp.U_DocMeat
-    JOIN dbo.SurtidoDetalle sd      ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
-    JOIN dbo.ClienteSap cli         ON cli.Cliente = o.Cliente
-    WHERE o.Estatus <> 0
-      AND se.FechaValidacion IS NOT NULL
-      AND UPPER(LTRIM(RTRIM(cli.U_CANAL))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(cli.U_CANAL))),
-        UPPER(LTRIM(RTRIM(sd.Articulo))),
-        MONTH(se.FechaValidacion),
-        YEAR(se.FechaValidacion)
-),
-surtido_transferencias_cedis AS (
-    SELECT
-        Canal = UPPER(LTRIM(RTRIM(s.Canal))),
-        SKU   = UPPER(LTRIM(RTRIM(ts.Sku))),
-        Mes   = MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-        Anio  = YEAR(TRY_CONVERT(date, t.FechaSolicitud)),
-        KgSurtido = SUM(CAST(ts.KgSurtido AS DECIMAL(18,4)))
-    FROM dbo.TransferenciaSurtido ts
-    JOIN dbo.Transferencias t ON t.Id = ts.TransferenciaId
-    JOIN dbo.Series s         ON s.Sucursal = t.Sucursal
-    WHERE t.FechaSolicitud IS NOT NULL
-      AND t.Estatus >= 5
-      AND ts.KgSurtido > 0
-      AND UPPER(LTRIM(RTRIM(s.Canal))) LIKE 'CEDIS%'
-    GROUP BY
-        UPPER(LTRIM(RTRIM(s.Canal))),
-        UPPER(LTRIM(RTRIM(ts.Sku))),
-        MONTH(TRY_CONVERT(date, t.FechaSolicitud)),
-        YEAR(TRY_CONVERT(date, t.FechaSolicitud))
-),
-surtido_cedis_base AS (
-    SELECT Canal, SKU, Mes, Anio, SUM(KgSurtido) AS KgSurtido
-    FROM (
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_ov_cedis
-        UNION ALL
-        SELECT Canal, SKU, Mes, Anio, KgSurtido FROM surtido_transferencias_cedis
-    ) x
-    GROUP BY Canal, SKU, Mes, Anio
-),
-surtido_vendedor_desde_cedis AS (
-    SELECT
-        VendedorId = pv.VendedorId,
-        SKU        = pv.SKU,
-        Mes        = pv.Mes,
-        Anio       = pv.Anio,
-        KgSurtido  = SUM(
-            CASE
-                WHEN ISNULL(pxc.PresTotalCanal,0) <= 0 THEN 0
-                ELSE (sb.KgSurtido * (CAST(pv.Presupuesto AS DECIMAL(18,4)) / pxc.PresTotalCanal))
-            END
-        )
-    FROM presupuestos_vendedor pv
-    JOIN canal_vendedores cv
-        ON cv.VendedorId = pv.VendedorId
-    JOIN pres_vendedor_x_canal pxc
-        ON pxc.Canal = cv.Canal
-       AND pxc.SKU   = pv.SKU
-       AND pxc.Mes   = pv.Mes
-       AND pxc.Anio  = pv.Anio
-    JOIN surtido_cedis_base sb
-        ON sb.Canal = cv.Canal
-       AND sb.SKU   = pv.SKU
-       AND sb.Mes   = pv.Mes
-       AND sb.Anio  = pv.Anio
-    GROUP BY
-        pv.VendedorId, pv.SKU, pv.Mes, pv.Anio
-),
-surtido_real AS (
-    SELECT
-        'CEDIS' AS Origen,
-        CAST(NULL AS NVARCHAR(50)) AS Cliente,
-        Canal,
-        CAST(NULL AS INT) AS VendedorId,
-        SKU, Mes, Anio,
-        SUM(KgSurtido) AS KgSurtido
-    FROM surtido_cedis_base
-    GROUP BY Canal, SKU, Mes, Anio
-
-    UNION ALL
-
-    SELECT
-        'VENDEDOR',
-        CAST(NULL AS NVARCHAR(50)),
-        CAST(NULL AS NVARCHAR(100)),
-        VendedorId,
-        SKU, Mes, Anio,
-        SUM(KgSurtido)
-    FROM surtido_vendedor_desde_cedis
-    GROUP BY VendedorId, SKU, Mes, Anio
-)
-
-SELECT
-    t.Origen,
-    t.Mes AS MesConsulta,
-    t.Anio AS AnioConsulta,
-    ISNULL(t.Cliente,'-') AS ClienteCodigo,
-    ISNULL(cl.NombreCliente,'-') AS NombreCliente,
-    ISNULL(t.Canal,'-') AS Canal,
-    ISNULL(COALESCE(vend.VendedorNombre, cl.VendedorNombre), '-') AS VendedorNombre,
-    t.SKU AS ProductoCodigo,
-    prd.ProductoNombre,
-    CAST(t.Presupuesto AS DECIMAL(18,4)) AS PresupuestoAsignado,
-    CAST(t.Kg AS DECIMAL(18,4)) AS KgPedidosMes,
-    CAST(ISNULL(sr.KgSurtido,0) AS DECIMAL(18,4)) AS KgSurtidoReal,
-    CAST(
-        CASE
-            WHEN (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0)) < 0 THEN 0
-            ELSE (t.Presupuesto - ISNULL(t.Kg,0) - ISNULL(sr.KgSurtido,0))
-        END
-    AS DECIMAL(18,4)) AS DisponibleVenta
-FROM (
-    -- CEDIS para el canal/sucursal y mes/año/sku
-    SELECT * FROM todo_cedis
-    WHERE Canal = @Canal AND Mes = @Mes AND Anio = @Anio AND SKU = @SkuN
-
-    UNION ALL
-
-    -- Vendedores ligados a este canal (prorrateo)
-    SELECT * FROM todo_vendedor
-    WHERE Mes = @Mes AND Anio = @Anio AND SKU = @SkuN
-      AND VendedorId IN (SELECT VendedorId FROM canal_vendedores WHERE Canal = @Canal)
-) t
-LEFT JOIN productos  prd  ON prd.SKU = t.SKU
-LEFT JOIN clientes   cl   ON cl.Cliente = t.Cliente
-LEFT JOIN vendedores vend ON vend.VendedorId = t.VendedorId
-LEFT JOIN surtido_real sr
-    ON sr.Origen = t.Origen
-   AND sr.SKU    = t.SKU
-   AND sr.Mes    = t.Mes
-   AND sr.Anio   = t.Anio
-   AND (
-        (t.Origen = 'CEDIS'    AND sr.Canal      = t.Canal)
-     OR (t.Origen = 'VENDEDOR' AND sr.VendedorId = t.VendedorId)
-   )
-ORDER BY
-    Origen,
-    AnioConsulta,
-    MesConsulta,
-    ISNULL(t.Canal,''),
-    t.SKU;
-";
-
-            var conn = _context.Database.GetDbConnection();
-            if (conn.State != System.Data.ConnectionState.Open)
-                await conn.OpenAsync(ct);
-
-            var rows = await conn.QueryAsync<PresupuestoConsumoDto>(
-                new CommandDefinition(
-                    sql,
-                    new { Sucursal = sucursal, Sku = sku, FechaSolicitud = fechaSolicitud },
-                    cancellationToken: ct
-                )
-            );
-
-            // Mantengo tu salida: solo interesa CEDIS
-            var cedis = rows.FirstOrDefault(r => r.Origen == "CEDIS");
-
-            if (cedis == null)
+            if (string.IsNullOrWhiteSpace(sucursal) ||
+                string.IsNullOrWhiteSpace(sku))
             {
-                return Ok(new
-                {
-                    presupuesto = 0m,
-                    disponible = 0m,
-                    enPresupuesto = false
-                });
+                return BadRequest("Sucursal y SKU son requeridos.");
             }
 
-            return Ok(new
-            {
-                presupuesto = cedis.PresupuestoAsignado,
-                disponible = cedis.DisponibleVenta,
-                enPresupuesto = cedis.PresupuestoAsignado > 0m
-            });
-        }
+            const string sql = @"
+        SET NOCOUNT ON;
 
+        DECLARE
+            @Canal       NVARCHAR(100),
+            @Mes         INT,
+            @Anio        INT,
+            @SkuN        NVARCHAR(100),
+            @FechaInicio DATE,
+            @FechaFin    DATE;
+
+        SET @SkuN = UPPER(LTRIM(RTRIM(@Sku)));
+
+        SET @Mes = MONTH(@FechaSolicitud);
+        SET @Anio = YEAR(@FechaSolicitud);
+
+        SET @FechaInicio = DATEFROMPARTS(@Anio, @Mes, 1);
+        SET @FechaFin = DATEADD(MONTH, 1, @FechaInicio);
+
+
+        /* ============================================================
+           1. CANAL DE LA SUCURSAL
+           ============================================================ */
+        SELECT TOP (1)
+            @Canal = UPPER(LTRIM(RTRIM(ISNULL(s.Canal, ''))))
+        FROM dbo.Series s WITH (NOLOCK)
+        WHERE
+               UPPER(LTRIM(RTRIM(ISNULL(s.Sucursal, ''))))
+                   = UPPER(LTRIM(RTRIM(@Sucursal)))
+            OR UPPER(LTRIM(RTRIM(ISNULL(s.NombreSerie, ''))))
+                   = UPPER(LTRIM(RTRIM(@Sucursal)))
+        ORDER BY
+            CASE
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(s.Sucursal, ''))))
+                     = UPPER(LTRIM(RTRIM(@Sucursal)))
+                    THEN 0
+                ELSE 1
+            END,
+            UPPER(LTRIM(RTRIM(ISNULL(s.Canal, ''))));
+
+
+        /*
+         * Si la sucursal no tiene canal, regresamos ceros.
+         */
+        IF NULLIF(@Canal, '') IS NULL
+        BEGIN
+            SELECT
+                CAST(0 AS DECIMAL(18,4)) AS PresupuestoAsignado,
+                CAST(0 AS DECIMAL(18,4)) AS KgPedidosMes,
+                CAST(0 AS DECIMAL(18,4)) AS KgSurtidoReal,
+                CAST(0 AS DECIMAL(18,4)) AS KgDevoluciones,
+                CAST(0 AS DECIMAL(18,4)) AS DisponibleVenta,
+                CAST(NULL AS NVARCHAR(100)) AS Canal;
+
+            RETURN;
+        END;
+
+
+        /* ============================================================
+           2. PRESUPUESTO DEL CANAL
+           ============================================================
+
+           Regla:
+           1) Si existe PresupuestoCedis para CANAL + SKU + MES + AÑO,
+              ese es el presupuesto que manda.
+           2) Si NO existe presupuesto CEDIS para ese SKU, hacemos fallback
+              al total de PresupuestoVendedor de los vendedores ligados
+              a ese mismo canal.
+
+           Esto replica la lógica de prioriza CEDIS / fallback vendedor
+           que ya utilizas en el disponible comercial.
+           ============================================================ */
+        DECLARE @PresupuestoCedis DECIMAL(18,4) = 0;
+        DECLARE @PresupuestoVendedoresCanal DECIMAL(18,4) = 0;
+        DECLARE @Presupuesto DECIMAL(18,4) = 0;
+        DECLARE @OrigenPresupuesto NVARCHAR(30) = 'SIN PRESUPUESTO';
+
+        SELECT
+            @PresupuestoCedis =
+                ISNULL(
+                    SUM(
+                        CAST(
+                            ISNULL(pc.PresupuestoAsignado, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    ),
+                    0
+                )
+        FROM dbo.PresupuestoCedis pc WITH (NOLOCK)
+        WHERE
+            UPPER(LTRIM(RTRIM(ISNULL(pc.Canal, '')))) = @Canal
+            AND UPPER(LTRIM(RTRIM(ISNULL(pc.ProductoCodigo, '')))) = @SkuN
+            AND pc.Mes = @Mes
+            AND pc.Anio = @Anio;
+
+
+        /*
+         * Fallback:
+         * sumar UNA sola vez cada vendedor perteneciente al canal.
+         * Se usa DISTINCT para que un vendedor con varios clientes
+         * no duplique su presupuesto.
+         */
+        ;WITH VendedoresCanal AS
+        (
+            SELECT DISTINCT
+                c.VendedorId
+            FROM dbo.ClienteSap c WITH (NOLOCK)
+            WHERE
+                c.VendedorId IS NOT NULL
+                AND UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) = @Canal
+        )
+        SELECT
+            @PresupuestoVendedoresCanal =
+                ISNULL(
+                    SUM(
+                        CAST(
+                            ISNULL(pv.PresupuestoAsignado, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    ),
+                    0
+                )
+        FROM dbo.PresupuestoVendedor pv WITH (NOLOCK)
+        INNER JOIN VendedoresCanal vc
+            ON vc.VendedorId = pv.VendedorId
+        WHERE
+            pv.Mes = @Mes
+            AND pv.Anio = @Anio
+            AND UPPER(LTRIM(RTRIM(ISNULL(pv.ProductoCodigo, '')))) = @SkuN;
+
+
+        /*
+         * Prioridad CEDIS.
+         */
+        IF @PresupuestoCedis > 0
+        BEGIN
+            SET @Presupuesto = @PresupuestoCedis;
+            SET @OrigenPresupuesto = 'CEDIS';
+        END
+        ELSE IF @PresupuestoVendedoresCanal > 0
+        BEGIN
+            SET @Presupuesto = @PresupuestoVendedoresCanal;
+            SET @OrigenPresupuesto = 'VENDEDORES CANAL';
+        END;
+
+
+        /* ============================================================
+           3. ÓRDENES DE VENTA DEL MES / CANAL / SKU
+           ============================================================ */
+        ;WITH
+        ClientesCanal AS
+        (
+            SELECT DISTINCT
+                Cliente =
+                    UPPER(LTRIM(RTRIM(ISNULL(c.Cliente, ''))))
+            FROM dbo.ClienteSap c WITH (NOLOCK)
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(c.U_CANAL, '')))) = @Canal
+        ),
+
+        OV AS
+        (
+            SELECT
+                o.Id,
+                o.Estatus,
+                Cliente =
+                    UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+            FROM dbo.OrdenVenta o WITH (NOLOCK)
+            INNER JOIN dbo.Series ser WITH (NOLOCK)
+                ON ser.NombreSerie = o.Serie
+            INNER JOIN ClientesCanal cc
+                ON cc.Cliente =
+                   UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+            WHERE
+                o.FechaEntrega >= @FechaInicio
+                AND o.FechaEntrega < @FechaFin
+
+                /*
+                 * Se incluyen 1..6.
+                 * El pendiente se determina por el estado real de cierre
+                 * de las solicitudes, no por la diferencia física surtida.
+                 */
+                AND o.Estatus BETWEEN 1 AND 6
+
+                /*
+                 * La disponibilidad comercial que estás usando como referencia
+                 * corresponde a las OV de MATRIZ.
+                 */
+                AND ser.Sucursal = 'MATRIZ'
+        ),
+
+        OVPeso AS
+        (
+            SELECT
+                op.PedidoId,
+
+                KgPedido =
+                    SUM(
+                        CAST(
+                            ISNULL(op.Peso, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.OrdenVentaProducto op WITH (NOLOCK)
+            INNER JOIN OV o
+                ON o.Id = op.PedidoId
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(op.ProductoCodigo, '')))) = @SkuN
+
+                /*
+                 * IMPORTANTE:
+                 * productos eliminados de la OV no consumen disponible.
+                 */
+                AND ISNULL(op.Eliminado, 0) = 0
+            GROUP BY
+                op.PedidoId
+        ),
+
+        SolicitudEstado AS
+        (
+            SELECT
+                se.SolicitudSurtidoId,
+
+                EsCerrado =
+                    MAX(
+                        CASE
+                            WHEN se.FechaValidacion IS NOT NULL
+                              OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+                                THEN 1
+                            ELSE 0
+                        END
+                    )
+
+            FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+
+            GROUP BY
+                se.SolicitudSurtidoId
+        ),
+
+        EstadoOV AS
+        (
+            SELECT
+                PedidoId = sp.OrdenVentaId,
+                TotalSubpedidos = COUNT_BIG(*),
+
+                SubpedidosCerrados =
+                    SUM(
+                        CASE
+                            WHEN ISNULL(se.EsCerrado, 0) = 1 THEN 1
+                            ELSE 0
+                        END
+                    )
+
+            FROM dbo.Subpedido sp WITH (NOLOCK)
+
+            INNER JOIN OV o
+                ON o.Id = sp.OrdenVentaId
+
+            LEFT JOIN SolicitudEstado se
+                ON se.SolicitudSurtidoId =
+                   TRY_CONVERT(
+                       INT,
+                       NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                   )
+
+            GROUP BY
+                sp.OrdenVentaId
+        ),
+
+        CerradoSku AS
+        (
+            SELECT
+                PedidoId = sp.OrdenVentaId,
+
+                KgCerrado =
+                    SUM(
+                        CAST(
+                            ISNULL(spp.KilosCaja, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+
+            FROM dbo.Subpedido sp WITH (NOLOCK)
+
+            INNER JOIN OV o
+                ON o.Id = sp.OrdenVentaId
+
+            INNER JOIN dbo.SubpedidoProductos spp WITH (NOLOCK)
+                ON spp.SubpedidoId = sp.Id
+
+            INNER JOIN SolicitudEstado se
+                ON se.SolicitudSurtidoId =
+                   TRY_CONVERT(
+                       INT,
+                       NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
+                   )
+               AND se.EsCerrado = 1
+
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(spp.ProductoCodigo, '')))) = @SkuN
+
+            GROUP BY
+                sp.OrdenVentaId
+        ),
+
+        OVPendiente AS
+        (
+            SELECT
+                o.Id,
+
+                KgPendiente =
+                    CAST(
+                        CASE
+                            WHEN
+                                ISNULL(e.TotalSubpedidos, 0) > 0
+                                AND ISNULL(e.SubpedidosCerrados, 0)
+                                    = ISNULL(e.TotalSubpedidos, 0)
+                                THEN 0
+
+                            WHEN
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(c.KgCerrado, 0)
+                                ) <= 0
+                                THEN 0
+
+                            ELSE
+                                (
+                                    ISNULL(p.KgPedido, 0)
+                                    - ISNULL(c.KgCerrado, 0)
+                                )
+                        END
+                        AS DECIMAL(18,4)
+                    )
+
+            FROM OV o
+
+            INNER JOIN OVPeso p
+                ON p.PedidoId = o.Id
+
+            LEFT JOIN EstadoOV e
+                ON e.PedidoId = o.Id
+
+            LEFT JOIN CerradoSku c
+                ON c.PedidoId = o.Id
+        ),
+
+        /* ============================================================
+           4. SURTIDO DE TRANSFERENCIAS AGRUPADO
+           ============================================================ */
+        TransferenciaSurtidoAgg AS
+        (
+            SELECT
+                ts.TransferenciaId,
+
+                KgSurtido =
+                    SUM(
+                        CAST(
+                            ISNULL(ts.KgSurtido, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, '')))) = @SkuN
+            GROUP BY
+                ts.TransferenciaId
+        ),
+
+        /* ============================================================
+           5. TRANSFERENCIAS PENDIENTES
+           ============================================================ */
+        TransferenciasPendientes AS
+        (
+            SELECT
+                t.Id,
+
+                KgPendiente =
+                    SUM(
+                        CAST(
+                            CASE
+                                WHEN
+                                    (
+                                        ISNULL(td.CantidadKg, 0)
+                                        - ISNULL(tsa.KgSurtido, 0)
+                                    ) < 0
+                                    THEN 0
+                                ELSE
+                                    (
+                                        ISNULL(td.CantidadKg, 0)
+                                        - ISNULL(tsa.KgSurtido, 0)
+                                    )
+                            END
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.Transferencias t WITH (NOLOCK)
+            INNER JOIN dbo.TransferenciaDetalles td WITH (NOLOCK)
+                ON td.TransferenciaId = t.Id
+            INNER JOIN dbo.Series s WITH (NOLOCK)
+                ON s.Sucursal = t.Sucursal
+            LEFT JOIN TransferenciaSurtidoAgg tsa
+                ON tsa.TransferenciaId = t.Id
+            WHERE
+                t.FechaSolicitud >= @FechaInicio
+                AND t.FechaSolicitud < @FechaFin
+                AND t.Estatus BETWEEN 1 AND 4
+                AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) = @Canal
+                AND UPPER(LTRIM(RTRIM(ISNULL(td.ProductoCodigo, '')))) = @SkuN
+            GROUP BY
+                t.Id
+        ),
+
+        /* ============================================================
+           6. SURTIDO REAL OV
+              Se imputa por MES DE VALIDACIÓN.
+           ============================================================ */
+        SurtidoRealOV AS
+        (
+            SELECT
+                KgSurtido =
+                    SUM(
+                        CAST(
+                            ISNULL(sd.Kg, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.OrdenVenta o WITH (NOLOCK)
+            INNER JOIN dbo.Series ser WITH (NOLOCK)
+                ON ser.NombreSerie = o.Serie
+            INNER JOIN dbo.ClienteSap cli WITH (NOLOCK)
+                ON UPPER(LTRIM(RTRIM(ISNULL(cli.Cliente, ''))))
+                 = UPPER(LTRIM(RTRIM(ISNULL(o.Cliente, ''))))
+            INNER JOIN dbo.Subpedido sp WITH (NOLOCK)
+                ON sp.OrdenVentaId = o.Id
+            INNER JOIN dbo.SurtidoEncabezado se WITH (NOLOCK)
+                ON se.SolicitudSurtidoId = sp.U_DocMeat
+            INNER JOIN dbo.SurtidoDetalle sd WITH (NOLOCK)
+                ON sd.SolicitudSurtidoId = se.SolicitudSurtidoId
+            WHERE
+                o.Estatus <> 0
+                AND se.FechaValidacion >= @FechaInicio
+                AND se.FechaValidacion < @FechaFin
+                AND ser.Sucursal = 'MATRIZ'
+                AND UPPER(LTRIM(RTRIM(ISNULL(cli.U_CANAL, '')))) = @Canal
+                AND UPPER(LTRIM(RTRIM(ISNULL(sd.Articulo, '')))) = @SkuN
+        ),
+
+        /* ============================================================
+           7. SURTIDO REAL DE TRANSFERENCIAS
+              Se mantiene la misma regla del reporte:
+              transferencias en estatus >= 5.
+           ============================================================ */
+        SurtidoRealTransferencias AS
+        (
+            SELECT
+                KgSurtido =
+                    SUM(
+                        CAST(
+                            ISNULL(ts.KgSurtido, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.TransferenciaSurtido ts WITH (NOLOCK)
+            INNER JOIN dbo.Transferencias t WITH (NOLOCK)
+                ON t.Id = ts.TransferenciaId
+            INNER JOIN dbo.Series s WITH (NOLOCK)
+                ON s.Sucursal = t.Sucursal
+            WHERE
+                t.FechaSolicitud >= @FechaInicio
+                AND t.FechaSolicitud < @FechaFin
+                AND t.Estatus >= 5
+                AND ISNULL(ts.KgSurtido, 0) > 0
+                AND UPPER(LTRIM(RTRIM(ISNULL(s.Canal, '')))) = @Canal
+                AND UPPER(LTRIM(RTRIM(ISNULL(ts.Sku, '')))) = @SkuN
+        ),
+
+        /* ============================================================
+           8. DEVOLUCIONES
+              Se suman nuevamente al disponible.
+           ============================================================ */
+        Devoluciones AS
+        (
+            SELECT
+                KgDevolucion =
+                    SUM(
+                        CAST(
+                            ISNULL(d.Peso, 0)
+                            AS DECIMAL(18,4)
+                        )
+                    )
+            FROM dbo.DevolucionMeat d WITH (NOLOCK)
+            INNER JOIN dbo.ClienteSap cli WITH (NOLOCK)
+                ON UPPER(LTRIM(RTRIM(ISNULL(cli.Cliente, ''))))
+                 = UPPER(LTRIM(RTRIM(ISNULL(d.CodigoSap, ''))))
+            WHERE
+                d.FechaDevolucion >= @FechaInicio
+                AND d.FechaDevolucion < @FechaFin
+                AND UPPER(LTRIM(RTRIM(ISNULL(cli.U_CANAL, '')))) = @Canal
+                AND UPPER(LTRIM(RTRIM(ISNULL(d.Articulo, '')))) = @SkuN
+                AND EXISTS
+                (
+                    SELECT 1
+                    FROM dbo.Subpedido sp WITH (NOLOCK)
+                    WHERE sp.U_DocMeat = d.SolicitudSurtidoId
+                )
+        ),
+
+        /* ============================================================
+           9. TOTALES
+           ============================================================ */
+        Totales AS
+        (
+            SELECT
+                KgPedidosOV =
+                    ISNULL(
+                        (
+                            SELECT SUM(ISNULL(x.KgPendiente, 0))
+                            FROM OVPendiente x
+                        ),
+                        0
+                    ),
+
+                KgPedidosTransferencias =
+                    ISNULL(
+                        (
+                            SELECT SUM(ISNULL(x.KgPendiente, 0))
+                            FROM TransferenciasPendientes x
+                        ),
+                        0
+                    ),
+
+                KgSurtidoOV =
+                    ISNULL(
+                        (
+                            SELECT TOP (1) ISNULL(x.KgSurtido, 0)
+                            FROM SurtidoRealOV x
+                        ),
+                        0
+                    ),
+
+                KgSurtidoTransferencias =
+                    ISNULL(
+                        (
+                            SELECT TOP (1) ISNULL(x.KgSurtido, 0)
+                            FROM SurtidoRealTransferencias x
+                        ),
+                        0
+                    ),
+
+                KgDevoluciones =
+                    ISNULL(
+                        (
+                            SELECT TOP (1) ISNULL(x.KgDevolucion, 0)
+                            FROM Devoluciones x
+                        ),
+                        0
+                    )
+        )
+
+        SELECT
+            PresupuestoAsignado =
+                CAST(@Presupuesto AS DECIMAL(18,4)),
+
+            KgPedidosMes =
+                CAST(
+                    t.KgPedidosOV
+                    + t.KgPedidosTransferencias
+                    AS DECIMAL(18,4)
+                ),
+
+            KgSurtidoReal =
+                CAST(
+                    t.KgSurtidoOV
+                    + t.KgSurtidoTransferencias
+                    AS DECIMAL(18,4)
+                ),
+
+            KgDevoluciones =
+                CAST(
+                    t.KgDevoluciones
+                    AS DECIMAL(18,4)
+                ),
+
+            DisponibleVenta =
+                CAST(
+                    CASE
+                        WHEN
+                            (
+                                @Presupuesto
+
+                                - (
+                                    t.KgPedidosOV
+                                    + t.KgPedidosTransferencias
+                                  )
+
+                                - (
+                                    t.KgSurtidoOV
+                                    + t.KgSurtidoTransferencias
+                                  )
+
+                                + t.KgDevoluciones
+                            ) < 0
+                            THEN 0
+
+                        ELSE
+                            (
+                                @Presupuesto
+
+                                - (
+                                    t.KgPedidosOV
+                                    + t.KgPedidosTransferencias
+                                  )
+
+                                - (
+                                    t.KgSurtidoOV
+                                    + t.KgSurtidoTransferencias
+                                  )
+
+                                + t.KgDevoluciones
+                            )
+                    END
+                    AS DECIMAL(18,4)
+                ),
+
+            Canal =
+                @Canal,
+
+            PresupuestoCedis =
+                CAST(@PresupuestoCedis AS DECIMAL(18,4)),
+
+            PresupuestoVendedoresCanal =
+                CAST(@PresupuestoVendedoresCanal AS DECIMAL(18,4)),
+
+            OrigenPresupuesto =
+                @OrigenPresupuesto
+        FROM Totales t
+
+        OPTION (RECOMPILE);
+        ";
+
+            var conn = _context.Database.GetDbConnection();
+            var shouldClose =
+                conn.State == System.Data.ConnectionState.Closed;
+
+            try
+            {
+                if (shouldClose)
+                    await conn.OpenAsync(ct);
+
+                /*
+                 * Usamos dynamic para que este método sea reemplazable sin obligarte
+                 * a modificar PresupuestoConsumoDto si todavía no tiene alguno de
+                 * los campos de diagnóstico.
+                 */
+                dynamic row = await conn.QuerySingleAsync(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Sucursal = sucursal.Trim(),
+                            Sku = sku.Trim(),
+                            FechaSolicitud = fechaSolicitud.Date
+                        },
+                        commandTimeout: 120,
+                        cancellationToken: ct
+                    )
+                );
+
+                decimal presupuesto =
+                    Convert.ToDecimal(row.PresupuestoAsignado ?? 0m);
+
+                decimal pedidosMes =
+                    Convert.ToDecimal(row.KgPedidosMes ?? 0m);
+
+                decimal surtidoReal =
+                    Convert.ToDecimal(row.KgSurtidoReal ?? 0m);
+
+                decimal devoluciones =
+                    Convert.ToDecimal(row.KgDevoluciones ?? 0m);
+
+                decimal disponible =
+                    Convert.ToDecimal(row.DisponibleVenta ?? 0m);
+
+                decimal presupuestoCedis =
+                    Convert.ToDecimal(row.PresupuestoCedis ?? 0m);
+
+                decimal presupuestoVendedoresCanal =
+                    Convert.ToDecimal(row.PresupuestoVendedoresCanal ?? 0m);
+
+                string origenPresupuesto =
+                    Convert.ToString(row.OrigenPresupuesto ?? "") ?? "";
+
+                string canal =
+                    Convert.ToString(row.Canal ?? "") ?? "";
+
+                /*
+                 * La vista ya espera:
+                 *   data.presupuesto
+                 *   data.disponible
+                 *   data.factorCaja (opcional)
+                 *
+                 * factorCaja queda en 0 aquí porque la propia vista ya conserva
+                 * kilosCaja/factorCaja desde el autocomplete del producto.
+                 */
+                return Ok(new
+                {
+                    presupuesto,
+                    disponible,
+
+                    /*
+                     * Diagnóstico: permite comparar rápidamente contra el reporte.
+                     * No rompe la vista; JavaScript ignora campos adicionales.
+                     */
+                    pedidosMes,
+                    surtidoReal,
+                    devoluciones,
+
+                    /*
+                     * Diagnóstico para comprobar de dónde salió el presupuesto.
+                     */
+                    canal,
+                    presupuestoCedis,
+                    presupuestoVendedoresCanal,
+                    origenPresupuesto,
+
+                    enPresupuesto = presupuesto > 0m,
+                    factorCaja = 0m
+                });
+            }
+            finally
+            {
+                if (shouldClose &&
+                    conn.State != System.Data.ConnectionState.Closed)
+                {
+                    await conn.CloseAsync();
+                }
+            }
+        }
 
         private static (string raw, string username, string usernameEmail) NormalizeLoginTr(string? identityName)
         {
@@ -1901,24 +2248,42 @@ ORDER BY
             return (raw, username, usernameEmail);
         }
 
-        private async Task<List<string>> ObtenerSucursalesPermitidasTransferenciasAsync(CancellationToken ct = default)
+        private async Task<(bool IgnoraFiltroSerieTransferencias, List<string> Sucursales)> ObtenerPermisoSucursalesTransferenciasAsync(CancellationToken ct = default)
         {
             var (raw, username, usernameEmail) = NormalizeLoginTr(User?.Identity?.Name);
 
-            var sucursalesDb = await (
-                from u in _context.UsuarioSQL.AsNoTracking()
-                join us in _context.UsuarioSeries.AsNoTracking()
-                    on u.Id equals us.UsuarioId
-                join s in _context.Series.AsNoTracking()
-                    on us.SerieId equals s.Id
-                where u.Activo
-                   && (
+            var usuario = await _context.UsuarioSQL
+                .AsNoTracking()
+                .Where(u => u.Activo
+                    && (
                         u.Usuario == raw ||
                         u.Usuario == username ||
                         u.Usuario == usernameEmail ||
                         u.Nombre == raw ||
                         u.Nombre == username
-                      )
+                    ))
+                .Select(u => new
+                {
+                    u.Id,
+                    u.IgnoraFiltroSerieTransferencias
+                })
+                .FirstOrDefaultAsync(ct);
+
+            // Se respeta tu comportamiento actual:
+            // si no encuentra usuario SQL, no restringe por serie.
+            if (usuario == null)
+                return (false, new List<string>());
+
+            // ✅ Privilegio especial:
+            // si está activo, regresamos sin sucursales para que NO aplique filtro.
+            if (usuario.IgnoraFiltroSerieTransferencias)
+                return (true, new List<string>());
+
+            var sucursalesDb = await (
+                from us in _context.UsuarioSeries.AsNoTracking()
+                join s in _context.Series.AsNoTracking()
+                    on us.SerieId equals s.Id
+                where us.UsuarioId == usuario.Id
                    && s.Sucursal != null
                    && s.Sucursal != ""
                 select s.Sucursal
@@ -1926,11 +2291,13 @@ ORDER BY
             .Distinct()
             .ToListAsync(ct);
 
-            return sucursalesDb
+            var sucursales = sucursalesDb
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim().ToUpper())
                 .Distinct()
                 .ToList();
+
+            return (false, sucursales);
         }
 
 
@@ -1948,9 +2315,10 @@ ORDER BY
             // Si el usuario tiene series configuradas, solo ve esas sucursales.
             // Si no tiene series configuradas, ve todo.
             // =====================================================
-            var sucursalesPermitidasUsuario = await ObtenerSucursalesPermitidasTransferenciasAsync(HttpContext.RequestAborted);
+            var permisoSeriesTransferencias = await ObtenerPermisoSucursalesTransferenciasAsync(HttpContext.RequestAborted);
+            var sucursalesPermitidasUsuario = permisoSeriesTransferencias.Sucursales;
 
-            if (sucursalesPermitidasUsuario.Any())
+            if (!permisoSeriesTransferencias.IgnoraFiltroSerieTransferencias && sucursalesPermitidasUsuario.Any())
             {
                 q = q.Where(t =>
                     t.Sucursal != null &&
@@ -2270,7 +2638,7 @@ ORDER BY
      .AsNoTracking()
      .Where(s => s.Sucursal != null && s.Sucursal.Trim() != "");
 
-            if (sucursalesPermitidasUsuario.Any())
+            if (!permisoSeriesTransferencias.IgnoraFiltroSerieTransferencias && sucursalesPermitidasUsuario.Any())
             {
                 querySucursales = querySucursales
                     .Where(s => sucursalesPermitidasUsuario.Contains(s.Sucursal.Trim().ToUpper()));
@@ -2465,7 +2833,7 @@ ORDER BY
 
 
 
-       
+
 
         // GET https://localhost:7171/Transferencias/OTransferencia?id=1000
         [HttpGet("Transferencias/OTransferencia")]
@@ -4114,6 +4482,2944 @@ WHEN NOT MATCHED THEN
 
         }
 
+        private const string SqlCaducidadTransferencias = @"
+SET NOCOUNT ON;
+
+/* ============================================================
+   CADUCIDAD POR TRANSFERENCIA (TIF -> P1)
+   - MISMA SALIDA DEL DTO
+   - COLLATION UNIFICADA
+   - BÚSQUEDA DE LOG OPTIMIZADA
+   ============================================================ */
+
+DECLARE @Pedido nvarchar(30) = @pPedido;
+
+;WITH BaseEtiquetas AS
+(
+    SELECT
+        a.TransferenciaId,
+
+        Pedido =
+            LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo)))
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProductoCodigo =
+            CONVERT(nvarchar(50), d.ProductoCodigo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProductoNombre =
+            CONVERT(nvarchar(200), d.ProductoNombre)
+            COLLATE Modern_Spanish_CI_AS,
+
+        Sku =
+            CONVERT(nvarchar(50), c.Sku)
+            COLLATE Modern_Spanish_CI_AS,
+
+        CodigoEtiqueta =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(c.CodigoEtiqueta))
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Kg =
+            CAST(
+                COALESCE(c.Kg, 0)
+                AS decimal(18,4)
+            )
+
+    FROM dbo.PedidosTransferencia a
+
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON a.TransferenciaId = c.TransferenciaId
+
+    INNER JOIN dbo.ArticuloSap d
+        ON c.Sku = d.ProductoCodigo
+
+    WHERE
+        LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo)))
+            COLLATE Modern_Spanish_CI_AS
+        =
+        LTRIM(RTRIM(@Pedido))
+            COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   ETIQUETAS ÚNICAS DEL PEDIDO
+   ============================================================ */
+
+EtiquetasPedido AS
+(
+    SELECT DISTINCT
+
+        CodigoEtiqueta =
+            CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM BaseEtiquetas
+
+    WHERE
+        NULLIF(
+            CodigoEtiqueta COLLATE Modern_Spanish_CI_AS,
+            N''
+        ) IS NOT NULL
+),
+
+/* ============================================================
+   CON LOG
+
+   En vez de recorrer toda ProduccionEtiquetacionLog con
+   ROW_NUMBER(), buscamos TOP 1 solamente para las etiquetas
+   que pertenecen a esta transferencia.
+   ============================================================ */
+
+ConLog AS
+(
+    SELECT
+
+        b.Pedido,
+        b.ProductoCodigo,
+        b.ProductoNombre,
+        b.Sku,
+        b.CodigoEtiqueta,
+        b.Kg,
+
+        Planta =
+            CONVERT(
+                nvarchar(10),
+
+                CASE
+                    WHEN lt.ProduccionId IS NOT NULL
+                        THEN N'TIF'
+
+                    WHEN lp.ProduccionId IS NOT NULL
+                        THEN N'P1'
+
+                    ELSE N'SIN LOG'
+                END
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProduccionId =
+            COALESCE(
+                lt.ProduccionId,
+                lp.ProduccionId
+            ),
+
+        EtiquetacionId =
+            COALESCE(
+                lt.EtiquetacionId,
+                lp.EtiquetacionId
+            )
+
+    FROM BaseEtiquetas b
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+
+        FROM [Meat_TIF].TIF_MEAT.dbo.ProduccionEtiquetacionLog pel
+
+        WHERE
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(pel.CodigoEtiqueta))
+            )
+            COLLATE Modern_Spanish_CI_AS
+            =
+            b.CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+
+        ORDER BY
+            pel.FechaHoraEvento DESC
+
+    ) lt
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+
+        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
+
+        WHERE
+            lt.ProduccionId IS NULL
+
+            AND CONVERT(
+                    nvarchar(200),
+                    LTRIM(RTRIM(pel.CodigoEtiqueta))
+                )
+                COLLATE Modern_Spanish_CI_AS
+                =
+                b.CodigoEtiqueta
+                COLLATE Modern_Spanish_CI_AS
+
+        ORDER BY
+            pel.FechaHoraEvento DESC
+
+    ) lp
+),
+
+/* ============================================================
+   PRODUCCIÓN TIF
+   ============================================================ */
+
+ProdTIF AS
+(
+    SELECT
+
+        pr.ProduccionId,
+
+        SKU =
+            CONVERT(nvarchar(50), pr.Articulo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            CONVERT(date, pr.FechaProduccion),
+
+        PesoKg =
+            CAST(
+                pr.PesoNeto
+                AS decimal(18,4)
+            ),
+
+        pr.LoteId
+
+    FROM [Meat_TIF].TIF_MEAT.dbo.Produccion pr
+),
+
+/* ============================================================
+   PRODUCCIÓN P1
+   ============================================================ */
+
+ProdP1 AS
+(
+    SELECT
+
+        pr.ProduccionId,
+
+        SKU =
+            CONVERT(nvarchar(50), pr.Articulo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            CONVERT(date, pr.FechaProduccion),
+
+        PesoKg =
+            CAST(
+                pr.PesoNeto
+                AS decimal(18,4)
+            ),
+
+        pr.LoteId
+
+    FROM [Meat_P1].Meat.dbo.Produccion pr
+),
+
+/* ============================================================
+   LOTES TIF
+   ============================================================ */
+
+LoteTIF AS
+(
+    SELECT
+
+        l.LoteId,
+
+        Lote =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(l.Nombre))
+            )
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM [Meat_TIF].TIF_MEAT.dbo.Lote l
+),
+
+/* ============================================================
+   LOTES P1
+   ============================================================ */
+
+LoteP1 AS
+(
+    SELECT
+
+        l.LoteId,
+
+        Lote =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(l.Nombre))
+            )
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM [Meat_P1].Meat.dbo.Lote l
+),
+
+/* ============================================================
+   VIDA ÚTIL TIF
+   ============================================================ */
+
+ColTIF AS
+(
+    SELECT
+
+        ColectorId,
+
+        DiasVida =
+            TRY_CONVERT(int, Interface)
+
+    FROM [Meat_TIF].tif_CommerciaNet.dbo.colector
+
+    WHERE
+        SistemaId COLLATE Modern_Spanish_CI_AS
+        =
+        N'ETI' COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   VIDA ÚTIL P1
+   ============================================================ */
+
+ColP1 AS
+(
+    SELECT
+
+        ColectorId,
+
+        DiasVida =
+            TRY_CONVERT(int, Interface)
+
+    FROM [Meat_P1].CommerciaNet.dbo.colector
+
+    WHERE
+        SistemaId COLLATE Modern_Spanish_CI_AS
+        =
+        N'ETI' COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   DETALLE
+   ============================================================ */
+
+Detalle AS
+(
+    SELECT
+
+        c.CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+            AS CodigoEtiqueta,
+
+        c.Planta
+            COLLATE Modern_Spanish_CI_AS
+            AS Planta,
+
+        SKU =
+            COALESCE
+            (
+                NULLIF(
+                    c.Sku
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                NULLIF(
+                    c.ProductoCodigo
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                N'SIN SKU'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Producto =
+            COALESCE
+            (
+                NULLIF(
+                    c.ProductoNombre
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                N'SIN PRODUCTO'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Lote =
+            COALESCE
+            (
+                lt.Lote
+                    COLLATE Modern_Spanish_CI_AS,
+
+                lp.Lote
+                    COLLATE Modern_Spanish_CI_AS,
+
+                N'SIN LOTE'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            COALESCE(
+                pt.FechaProduccion,
+                pp.FechaProduccion
+            ),
+
+        PesoKg =
+            COALESCE
+            (
+                pt.PesoKg,
+                pp.PesoKg,
+                c.Kg,
+                CAST(0 AS decimal(18,4))
+            ),
+
+        DiasVida =
+            COALESCE(
+                ct.DiasVida,
+                cp.DiasVida,
+                0
+            ),
+
+        FechaCaducidad =
+            CASE
+
+                WHEN COALESCE(
+                    pt.FechaProduccion,
+                    pp.FechaProduccion
+                ) IS NULL
+
+                THEN NULL
+
+                ELSE DATEADD
+                (
+                    DAY,
+
+                    COALESCE(
+                        ct.DiasVida,
+                        cp.DiasVida,
+                        0
+                    ),
+
+                    COALESCE(
+                        pt.FechaProduccion,
+                        pp.FechaProduccion
+                    )
+                )
+
+            END,
+
+        FechaSacrificio =
+            sacrificio.FechaSacrificio
+
+    FROM ConLog c
+
+    /* ========================================================
+       PRODUCCIÓN
+       ======================================================== */
+
+    LEFT JOIN ProdTIF pt
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND pt.ProduccionId =
+           c.ProduccionId
+
+
+    LEFT JOIN ProdP1 pp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND pp.ProduccionId =
+           c.ProduccionId
+
+
+    /* ========================================================
+       LOTES
+       ======================================================== */
+
+    LEFT JOIN LoteTIF lt
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND lt.LoteId =
+           pt.LoteId
+
+
+    LEFT JOIN LoteP1 lp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND lp.LoteId =
+           pp.LoteId
+
+
+    /* ========================================================
+       DÍAS DE VIDA
+       ======================================================== */
+
+    LEFT JOIN ColTIF ct
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND ct.ColectorId =
+           c.EtiquetacionId
+
+
+    LEFT JOIN ColP1 cp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND cp.ColectorId =
+           c.EtiquetacionId
+
+
+    /* ========================================================
+       LOTE TIF PARA FECHA DE SACRIFICIO
+
+       Si ya viene de TIF usamos directamente el LoteId de TIF.
+       Si viene de P1 buscamos el lote equivalente en TIF.
+       ======================================================== */
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+
+            LoteIdTIF =
+                CASE
+
+                    WHEN c.Planta
+                            COLLATE Modern_Spanish_CI_AS
+                         =
+                         N'TIF'
+                            COLLATE Modern_Spanish_CI_AS
+
+                    THEN pt.LoteId
+
+                    ELSE ltf.LoteId
+
+                END
+
+        FROM
+        (
+            SELECT
+                Dummy = 1
+        ) d
+
+        LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.Lote ltf
+
+            ON c.Planta
+                    COLLATE Modern_Spanish_CI_AS
+               =
+               N'P1'
+                    COLLATE Modern_Spanish_CI_AS
+
+           AND CONVERT(
+                    nvarchar(200),
+                    LTRIM(RTRIM(ltf.Nombre))
+               )
+               COLLATE Modern_Spanish_CI_AS
+               =
+               lp.Lote
+               COLLATE Modern_Spanish_CI_AS
+
+        ORDER BY
+            ltf.LoteId DESC
+
+    ) loteRef
+
+
+    /* ========================================================
+       FECHA DE SACRIFICIO
+
+       MAX evita que varias SolicitudReferencia dupliquen
+       cajas, kilos o etiquetas.
+       ======================================================== */
+
+    OUTER APPLY
+    (
+        SELECT
+
+            FechaSacrificio =
+                MAX
+                (
+                    TRY_CONVERT(
+                        date,
+                        sr.Referencia,
+                        103
+                    )
+                )
+
+        FROM [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
+
+        WHERE
+            sr.solicitudProduccionid =
+            loteRef.LoteIdTIF
+
+            AND sr.tiporeferenciaId = 47
+
+    ) sacrificio
+),
+
+/* ============================================================
+   NORMALIZADO
+   ============================================================ */
+
+Normalizado AS
+(
+    SELECT
+
+        Planta =
+            Planta
+            COLLATE Modern_Spanish_CI_AS,
+
+        SKU =
+            SKU
+            COLLATE Modern_Spanish_CI_AS,
+
+        Producto =
+            Producto
+            COLLATE Modern_Spanish_CI_AS,
+
+        Lote =
+            Lote
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaSacrificio,
+
+        FechaProduccion,
+
+        FechaCaducidad,
+
+        PesoKg
+
+    FROM Detalle
+)
+
+/* ============================================================
+   RESULTADO FINAL
+   ============================================================ */
+
+SELECT
+
+    planta =
+        n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    sku =
+        n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    producto =
+        n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    lote =
+        n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    fecha_sacrificio =
+        CONVERT(
+            varchar(10),
+            n.FechaSacrificio,
+            103
+        ),
+
+    fecha_produccion =
+        CONVERT(
+            varchar(10),
+            n.FechaProduccion,
+            103
+        ),
+
+    fecha_caducidad =
+        CONVERT(
+            varchar(10),
+            n.FechaCaducidad,
+            103
+        ),
+
+    Cuenta_de_etiqueta =
+        COUNT(1),
+
+    Suma_de_kg =
+        CAST(
+            SUM(n.PesoKg)
+            AS decimal(18,3)
+        )
+
+FROM Normalizado n
+
+GROUP BY
+
+    n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.FechaSacrificio,
+
+    n.FechaProduccion,
+
+    n.FechaCaducidad
+
+ORDER BY
+
+    n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.FechaProduccion,
+
+    n.FechaCaducidad
+
+OPTION (RECOMPILE);
+";
+
+        private const string SqlCaducidadTransferenciasSinSacrificio = @"
+SET NOCOUNT ON;
+
+/* ============================================================
+   CADUCIDAD POR TRANSFERENCIA (TIF -> P1)
+   - MISMA SALIDA DEL DTO
+   - COLLATION UNIFICADA
+   - BÚSQUEDA DE LOG OPTIMIZADA
+   ============================================================ */
+
+DECLARE @Pedido nvarchar(30) = @pPedido;
+
+;WITH BaseEtiquetas AS
+(
+    SELECT
+        a.TransferenciaId,
+
+        Pedido =
+            LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo)))
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProductoCodigo =
+            CONVERT(nvarchar(50), d.ProductoCodigo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProductoNombre =
+            CONVERT(nvarchar(200), d.ProductoNombre)
+            COLLATE Modern_Spanish_CI_AS,
+
+        Sku =
+            CONVERT(nvarchar(50), c.Sku)
+            COLLATE Modern_Spanish_CI_AS,
+
+        CodigoEtiqueta =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(c.CodigoEtiqueta))
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Kg =
+            CAST(
+                COALESCE(c.Kg, 0)
+                AS decimal(18,4)
+            )
+
+    FROM dbo.PedidosTransferencia a
+
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON a.TransferenciaId = c.TransferenciaId
+
+    INNER JOIN dbo.ArticuloSap d
+        ON c.Sku = d.ProductoCodigo
+
+    WHERE
+        LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo)))
+            COLLATE Modern_Spanish_CI_AS
+        =
+        LTRIM(RTRIM(@Pedido))
+            COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   ETIQUETAS ÚNICAS DEL PEDIDO
+   ============================================================ */
+
+EtiquetasPedido AS
+(
+    SELECT DISTINCT
+
+        CodigoEtiqueta =
+            CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM BaseEtiquetas
+
+    WHERE
+        NULLIF(
+            CodigoEtiqueta COLLATE Modern_Spanish_CI_AS,
+            N''
+        ) IS NOT NULL
+),
+
+/* ============================================================
+   CON LOG
+
+   En vez de recorrer toda ProduccionEtiquetacionLog con
+   ROW_NUMBER(), buscamos TOP 1 solamente para las etiquetas
+   que pertenecen a esta transferencia.
+   ============================================================ */
+
+ConLog AS
+(
+    SELECT
+
+        b.Pedido,
+        b.ProductoCodigo,
+        b.ProductoNombre,
+        b.Sku,
+        b.CodigoEtiqueta,
+        b.Kg,
+
+        Planta =
+            CONVERT(
+                nvarchar(10),
+
+                CASE
+                    WHEN lt.ProduccionId IS NOT NULL
+                        THEN N'TIF'
+
+                    WHEN lp.ProduccionId IS NOT NULL
+                        THEN N'P1'
+
+                    ELSE N'SIN LOG'
+                END
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        ProduccionId =
+            COALESCE(
+                lt.ProduccionId,
+                lp.ProduccionId
+            ),
+
+        EtiquetacionId =
+            COALESCE(
+                lt.EtiquetacionId,
+                lp.EtiquetacionId
+            )
+
+    FROM BaseEtiquetas b
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+
+        FROM [Meat_TIF].TIF_MEAT.dbo.ProduccionEtiquetacionLog pel
+
+        WHERE
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(pel.CodigoEtiqueta))
+            )
+            COLLATE Modern_Spanish_CI_AS
+            =
+            b.CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+
+        ORDER BY
+            pel.FechaHoraEvento DESC
+
+    ) lt
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+
+            pel.ProduccionId,
+            pel.EtiquetacionId,
+            pel.FechaHoraEvento
+
+        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
+
+        WHERE
+            lt.ProduccionId IS NULL
+
+            AND CONVERT(
+                    nvarchar(200),
+                    LTRIM(RTRIM(pel.CodigoEtiqueta))
+                )
+                COLLATE Modern_Spanish_CI_AS
+                =
+                b.CodigoEtiqueta
+                COLLATE Modern_Spanish_CI_AS
+
+        ORDER BY
+            pel.FechaHoraEvento DESC
+
+    ) lp
+),
+
+/* ============================================================
+   PRODUCCIÓN TIF
+   ============================================================ */
+
+ProdTIF AS
+(
+    SELECT
+
+        pr.ProduccionId,
+
+        SKU =
+            CONVERT(nvarchar(50), pr.Articulo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            CONVERT(date, pr.FechaProduccion),
+
+        PesoKg =
+            CAST(
+                pr.PesoNeto
+                AS decimal(18,4)
+            ),
+
+        pr.LoteId
+
+    FROM [Meat_TIF].TIF_MEAT.dbo.Produccion pr
+),
+
+/* ============================================================
+   PRODUCCIÓN P1
+   ============================================================ */
+
+ProdP1 AS
+(
+    SELECT
+
+        pr.ProduccionId,
+
+        SKU =
+            CONVERT(nvarchar(50), pr.Articulo)
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            CONVERT(date, pr.FechaProduccion),
+
+        PesoKg =
+            CAST(
+                pr.PesoNeto
+                AS decimal(18,4)
+            ),
+
+        pr.LoteId
+
+    FROM [Meat_P1].Meat.dbo.Produccion pr
+),
+
+/* ============================================================
+   LOTES TIF
+   ============================================================ */
+
+LoteTIF AS
+(
+    SELECT
+
+        l.LoteId,
+
+        Lote =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(l.Nombre))
+            )
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM [Meat_TIF].TIF_MEAT.dbo.Lote l
+),
+
+/* ============================================================
+   LOTES P1
+   ============================================================ */
+
+LoteP1 AS
+(
+    SELECT
+
+        l.LoteId,
+
+        Lote =
+            CONVERT(
+                nvarchar(200),
+                LTRIM(RTRIM(l.Nombre))
+            )
+            COLLATE Modern_Spanish_CI_AS
+
+    FROM [Meat_P1].Meat.dbo.Lote l
+),
+
+/* ============================================================
+   VIDA ÚTIL TIF
+   ============================================================ */
+
+ColTIF AS
+(
+    SELECT
+
+        ColectorId,
+
+        DiasVida =
+            TRY_CONVERT(int, Interface)
+
+    FROM [Meat_TIF].tif_CommerciaNet.dbo.colector
+
+    WHERE
+        SistemaId COLLATE Modern_Spanish_CI_AS
+        =
+        N'ETI' COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   VIDA ÚTIL P1
+   ============================================================ */
+
+ColP1 AS
+(
+    SELECT
+
+        ColectorId,
+
+        DiasVida =
+            TRY_CONVERT(int, Interface)
+
+    FROM [Meat_P1].CommerciaNet.dbo.colector
+
+    WHERE
+        SistemaId COLLATE Modern_Spanish_CI_AS
+        =
+        N'ETI' COLLATE Modern_Spanish_CI_AS
+),
+
+/* ============================================================
+   DETALLE
+   ============================================================ */
+
+Detalle AS
+(
+    SELECT
+
+        c.CodigoEtiqueta
+            COLLATE Modern_Spanish_CI_AS
+            AS CodigoEtiqueta,
+
+        c.Planta
+            COLLATE Modern_Spanish_CI_AS
+            AS Planta,
+
+        SKU =
+            COALESCE
+            (
+                NULLIF(
+                    c.Sku
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                NULLIF(
+                    c.ProductoCodigo
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                N'SIN SKU'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Producto =
+            COALESCE
+            (
+                NULLIF(
+                    c.ProductoNombre
+                        COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+
+                N'SIN PRODUCTO'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Lote =
+            COALESCE
+            (
+                lt.Lote
+                    COLLATE Modern_Spanish_CI_AS,
+
+                lp.Lote
+                    COLLATE Modern_Spanish_CI_AS,
+
+                N'SIN LOTE'
+                    COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion =
+            COALESCE(
+                pt.FechaProduccion,
+                pp.FechaProduccion
+            ),
+
+        PesoKg =
+            COALESCE
+            (
+                pt.PesoKg,
+                pp.PesoKg,
+                c.Kg,
+                CAST(0 AS decimal(18,4))
+            ),
+
+        DiasVida =
+            COALESCE(
+                ct.DiasVida,
+                cp.DiasVida,
+                0
+            ),
+
+        FechaCaducidad =
+            CASE
+
+                WHEN COALESCE(
+                    pt.FechaProduccion,
+                    pp.FechaProduccion
+                ) IS NULL
+
+                THEN NULL
+
+                ELSE DATEADD
+                (
+                    DAY,
+
+                    COALESCE(
+                        ct.DiasVida,
+                        cp.DiasVida,
+                        0
+                    ),
+
+                    COALESCE(
+                        pt.FechaProduccion,
+                        pp.FechaProduccion
+                    )
+                )
+
+            END
+
+    FROM ConLog c
+
+    /* ========================================================
+       PRODUCCIÓN
+       ======================================================== */
+
+    LEFT JOIN ProdTIF pt
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND pt.ProduccionId =
+           c.ProduccionId
+
+
+    LEFT JOIN ProdP1 pp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND pp.ProduccionId =
+           c.ProduccionId
+
+
+    /* ========================================================
+       LOTES
+       ======================================================== */
+
+    LEFT JOIN LoteTIF lt
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND lt.LoteId =
+           pt.LoteId
+
+
+    LEFT JOIN LoteP1 lp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND lp.LoteId =
+           pp.LoteId
+
+
+    /* ========================================================
+       DÍAS DE VIDA
+       ======================================================== */
+
+    LEFT JOIN ColTIF ct
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'TIF'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND ct.ColectorId =
+           c.EtiquetacionId
+
+
+    LEFT JOIN ColP1 cp
+
+        ON c.Planta
+                COLLATE Modern_Spanish_CI_AS
+            =
+           N'P1'
+                COLLATE Modern_Spanish_CI_AS
+
+       AND cp.ColectorId =
+           c.EtiquetacionId
+
+
+),
+
+/* ============================================================
+   NORMALIZADO
+   ============================================================ */
+
+Normalizado AS
+(
+    SELECT
+
+        Planta =
+            Planta
+            COLLATE Modern_Spanish_CI_AS,
+
+        SKU =
+            SKU
+            COLLATE Modern_Spanish_CI_AS,
+
+        Producto =
+            Producto
+            COLLATE Modern_Spanish_CI_AS,
+
+        Lote =
+            Lote
+            COLLATE Modern_Spanish_CI_AS,
+
+        FechaProduccion,
+
+        FechaCaducidad,
+
+        PesoKg
+
+    FROM Detalle
+)
+
+/* ============================================================
+   RESULTADO FINAL
+   ============================================================ */
+
+SELECT
+
+    planta =
+        n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    sku =
+        n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    producto =
+        n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    lote =
+        n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    fecha_sacrificio =
+        CAST(N'' AS varchar(10)),
+
+    fecha_produccion =
+        CONVERT(
+            varchar(10),
+            n.FechaProduccion,
+            103
+        ),
+
+    fecha_caducidad =
+        CONVERT(
+            varchar(10),
+            n.FechaCaducidad,
+            103
+        ),
+
+    Cuenta_de_etiqueta =
+        COUNT(1),
+
+    Suma_de_kg =
+        CAST(
+            SUM(n.PesoKg)
+            AS decimal(18,3)
+        )
+
+FROM Normalizado n
+
+GROUP BY
+
+    n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.FechaProduccion,
+
+    n.FechaCaducidad
+
+ORDER BY
+
+    n.Planta
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.SKU
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.Lote
+        COLLATE Modern_Spanish_CI_AS,
+
+    n.FechaProduccion,
+
+    n.FechaCaducidad
+
+OPTION (RECOMPILE);
+";
+
+        private async Task<List<AvisoMovilizacionDTO>> ObtenerAvisoMovilizacionTransferenciaAsync(
+            string pedido,
+            CancellationToken ct)
+        {
+            pedido = (pedido ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(pedido))
+                return new List<AvisoMovilizacionDTO>();
+
+            var conn = _context.Database.GetDbConnection();
+
+            if (conn.State != ConnectionState.Open)
+                await conn.OpenAsync(ct);
+
+            var cmd = new CommandDefinition(
+                SqlCaducidadTransferencias,
+                new { pPedido = pedido },
+                cancellationToken: ct,
+                commandTimeout: 600
+            );
+
+            return (await conn.QueryAsync<AvisoMovilizacionDTO>(cmd)).ToList();
+        }
+
+
+        // ============================================================
+        // AVISOS DE MOVILIZACIÓN - TRANSFERENCIAS
+        // Se consumen desde la misma pantalla de ProcesosCG/AvisosMovilizacion.
+        // Listado: dbo.RomaneoTransferencias
+        // Detalle sanitario: misma consulta usada por ExportCaducidadTransferencias.
+        // ============================================================
+
+        [HttpGet("Transferencias/AvisosMovilizacionData")]
+        public async Task<IActionResult> AvisosMovilizacionDataTransferencias(
+            DateTime? desde,
+            DateTime? hasta,
+            string? cliente = "",
+            string? venta = "",
+            string? lote = "",
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var hoy = DateTime.Today;
+                var d1 = (desde ?? hoy.AddDays(-7)).Date;
+                var d2 = (hasta ?? hoy).Date;
+
+                if (d2 < d1)
+                    (d1, d2) = (d2, d1);
+
+                var raw = await _context.Set<RomaneoTransferenciasRowVM>()
+                    .FromSqlRaw("SELECT * FROM dbo.RomaneoTransferencias")
+                    .AsNoTracking()
+                    .Where(x => x.Fecha >= d1 && x.Fecha < d2.AddDays(1))
+                    .OrderBy(x => x.Fecha)
+                    .ThenBy(x => x.Pedido)
+                    .ThenBy(x => x.Tarima)
+                    .ThenBy(x => x.ProductoCodigo)
+                    .ToListAsync(ct);
+
+                var filtroDestino = (cliente ?? "").Trim();
+                var filtroPedido = (venta ?? "").Trim();
+                var filtroLote = (lote ?? "").Trim();
+
+                if (!string.IsNullOrWhiteSpace(filtroDestino))
+                {
+                    raw = raw
+                        .Where(x => (x.Destino ?? "")
+                            .Contains(filtroDestino, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                if (!string.IsNullOrWhiteSpace(filtroPedido))
+                {
+                    raw = raw
+                        .Where(x => (x.Pedido ?? "")
+                            .Contains(filtroPedido, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                var grupos = raw
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Pedido))
+                    .GroupBy(x => new
+                    {
+                        Pedido = (x.Pedido ?? "").Trim(),
+                        Fecha = x.Fecha.Date,
+                        Destino = (x.Destino ?? "").Trim()
+                    })
+                    .OrderBy(g => g.Key.Fecha)
+                    .ThenBy(g => g.Key.Pedido)
+                    .ToList();
+
+                // El lote no existe directamente en RomaneoTransferencias.
+                // Sólo si el usuario captura lote consultamos el detalle sanitario
+                // de cada transferencia y conservamos las que sí tengan coincidencia.
+                if (!string.IsNullOrWhiteSpace(filtroLote))
+                {
+                    var pedidosConLote = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var pedido in grupos.Select(g => g.Key.Pedido).Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var detalle = await ObtenerAvisoMovilizacionTransferenciaAsync(pedido, ct);
+
+                        if (detalle.Any(x =>
+                            (x.lote ?? "").Contains(filtroLote, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            pedidosConLote.Add(pedido);
+                        }
+                    }
+
+                    grupos = grupos
+                        .Where(g => pedidosConLote.Contains(g.Key.Pedido))
+                        .ToList();
+                }
+
+                var rows = grupos.Select(g => new
+                {
+                    planta = "TRANSFER",
+                    origen = "Transferencias",
+                    solicitudSurtidoId = g.Key.Pedido,
+                    fechaVentaTxt = g.Key.Fecha.ToString("dd/MM/yyyy"),
+                    venta = g.Key.Pedido,
+                    cliente = g.Key.Destino,
+                    totalPartidas = g
+                        .Select(x => (x.ProductoCodigo ?? "").Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Count(),
+                    totalCajas = g.Sum(x => x.Cajas),
+                    totalKg = g.Sum(x => x.Peso)
+                }).ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    planta = "Transferencias",
+                    desde = d1.ToString("yyyy-MM-dd"),
+                    hasta = d2.ToString("yyyy-MM-dd"),
+                    totalSolicitudes = rows.Count,
+                    totalCajas = rows.Sum(x => x.totalCajas),
+                    totalKg = rows.Sum(x => x.totalKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(499, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "Consulta cancelada por cambio de filtro."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    source = "TRANSFER",
+                    msg = "No se pudieron cargar los avisos de movilización de transferencias.",
+                    error = ex.Message,
+                    inner = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpGet("Transferencias/AvisosMovilizacionDetalle")]
+        public async Task<IActionResult> AvisosMovilizacionDetalleTransferencias(
+            string id,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                id = (id ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        msg = "Transferencia requerida."
+                    });
+                }
+
+                /*
+                 * PRIMERA ETAPA: DETALLE BÁSICO RÁPIDO
+                 *
+                 * Aquí NO consultamos:
+                 * - ProduccionEtiquetacionLog
+                 * - Produccion
+                 * - Lote
+                 * - Colector
+                 * - SolicitudReferencia
+                 *
+                 * Sólo regresamos SKU, producto, cajas y kg para que
+                 * el modal muestre información inmediatamente.
+                 */
+                const string sql = @"
+SET NOCOUNT ON;
+
+DECLARE @Pedido nvarchar(30) = @pPedido;
+
+;WITH Base AS
+(
+    SELECT
+        Sku =
+            CONVERT(nvarchar(50), c.Sku)
+            COLLATE Modern_Spanish_CI_AS,
+
+        Producto =
+            COALESCE(
+                NULLIF(
+                    CONVERT(nvarchar(200), d.ProductoNombre)
+                    COLLATE Modern_Spanish_CI_AS,
+                    N''
+                ),
+                CONVERT(nvarchar(50), c.Sku)
+                COLLATE Modern_Spanish_CI_AS
+            )
+            COLLATE Modern_Spanish_CI_AS,
+
+        Kg =
+            CAST(
+                COALESCE(c.Kg, 0)
+                AS decimal(18,4)
+            )
+
+    FROM dbo.PedidosTransferencia a
+
+    INNER JOIN dbo.TransferenciaScanEtiqueta c
+        ON c.TransferenciaId = a.TransferenciaId
+
+    LEFT JOIN dbo.ArticuloSap d
+        ON CONVERT(nvarchar(50), d.ProductoCodigo)
+               COLLATE Modern_Spanish_CI_AS
+         =
+           CONVERT(nvarchar(50), c.Sku)
+               COLLATE Modern_Spanish_CI_AS
+
+    WHERE
+        LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo)))
+            COLLATE Modern_Spanish_CI_AS
+        =
+        LTRIM(RTRIM(@Pedido))
+            COLLATE Modern_Spanish_CI_AS
+)
+
+SELECT
+    planta =
+        N'TRANSFER'
+        COLLATE Modern_Spanish_CI_AS,
+
+    sku =
+        b.Sku
+        COLLATE Modern_Spanish_CI_AS,
+
+    producto =
+        b.Producto
+        COLLATE Modern_Spanish_CI_AS,
+
+    lote =
+        N''
+        COLLATE Modern_Spanish_CI_AS,
+
+    fecha_sacrificio =
+        N'',
+
+    fecha_produccion =
+        N'',
+
+    fecha_caducidad =
+        N'',
+
+    Cuenta_de_etiqueta =
+        COUNT(1),
+
+    Suma_de_kg =
+        CAST(
+            SUM(b.Kg)
+            AS decimal(18,3)
+        )
+
+FROM Base b
+
+GROUP BY
+    b.Sku
+        COLLATE Modern_Spanish_CI_AS,
+
+    b.Producto
+        COLLATE Modern_Spanish_CI_AS
+
+ORDER BY
+    b.Sku
+        COLLATE Modern_Spanish_CI_AS;
+";
+
+                var conn = _context.Database.GetDbConnection();
+
+                if (conn.State != ConnectionState.Open)
+                    await conn.OpenAsync(ct);
+
+                var cmd = new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        pPedido = id
+                    },
+                    cancellationToken: ct,
+                    commandTimeout: 30
+                );
+
+                var data = (
+                    await conn.QueryAsync<AvisoMovilizacionDTO>(cmd)
+                ).ToList();
+
+                var rows = data
+                    .Select((x, index) => new
+                    {
+                        detalleKey =
+                            $"{id}|BASICO|{x.sku}|{index}",
+
+                        solicitudSurtidoId =
+                            id,
+
+                        sku =
+                            x.sku ?? "",
+
+                        producto =
+                            x.producto ?? "",
+
+                        /*
+                         * El navegador sustituirá estos textos cuando
+                         * termine la segunda consulta sanitaria.
+                         */
+                        lote =
+                            "Consultando...",
+
+                        fechaSacrificioTxt =
+                            "Consultando...",
+
+                        fechaProduccionTxt =
+                            "Consultando...",
+
+                        fechaCaducidadTxt =
+                            "Consultando...",
+
+                        cuentaDeEtiqueta =
+                            x.Cuenta_de_etiqueta,
+
+                        sumaDeKg =
+                            x.Suma_de_kg,
+
+                        requiereTif =
+                            true,
+
+                        estadoTif =
+                            "PENDIENTE",
+
+                        mensajeTif =
+                            "Consultando lote y fechas..."
+                    })
+                    .ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    planta = "Transferencias",
+                    solicitud = id,
+                    etapa = "BASICO",
+                    sanitarioPendiente = true,
+                    totalPartidas = rows.Count,
+                    totalCajas = rows.Sum(x => x.cuentaDeEtiqueta),
+                    totalKg = rows.Sum(x => x.sumaDeKg),
+                    rows
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(
+                    499,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "BASICO_CANCELADO",
+                        msg = "Consulta básica cancelada."
+                    }
+                );
+            }
+            catch (SqlException ex)
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "BASICO_SQL",
+                        msg = "No se pudo cargar el detalle básico de la transferencia.",
+                        sqlErrorNumber = ex.Number,
+                        error = ex.Message,
+                        inner = ex.InnerException?.Message
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "BASICO_ERROR",
+                        msg = "No se pudo cargar el detalle básico de la transferencia.",
+                        error = ex.Message,
+                        inner = ex.InnerException?.Message
+                    }
+                );
+            }
+        }
+
+
+        /*
+         * SEGUNDA ETAPA:
+         * lote + fecha sacrificio + producción + caducidad.
+         *
+         * Conserva SqlCaducidadTransferencias y
+         * ObtenerAvisoMovilizacionTransferenciaAsync tal como están.
+         * Este endpoint se ejecuta DESPUÉS de que el navegador ya mostró
+         * SKU / producto / cajas / kg.
+         */
+        [HttpGet("Transferencias/AvisosMovilizacionDetalleSanitario")]
+        public async Task<IActionResult> AvisosMovilizacionDetalleSanitarioTransferencias(
+            string id,
+            CancellationToken ct = default)
+        {
+            var inicio = DateTime.UtcNow;
+
+            try
+            {
+                id = (id ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "VALIDACION",
+                        msg = "Transferencia requerida."
+                    });
+                }
+
+                /*
+                 * ==========================================================
+                 * OPTIMIZACIÓN REAL
+                 *
+                 * Antes:
+                 *   - OUTER APPLY por cada etiqueta.
+                 *   - CONVERT/LTRIM/RTRIM sobre pel.CodigoEtiqueta.
+                 *   - 964 etiquetas podían provocar cientos de búsquedas
+                 *     contra ProduccionEtiquetacionLog.
+                 *
+                 * Ahora:
+                 *   1) Sacamos las etiquetas de la transferencia.
+                 *   2) Buscamos TODAS las etiquetas de una sola vez en TIF.
+                 *   3) Sólo las faltantes se buscan en P1.
+                 *   4) Producción/lote se consultan por ProduccionId.
+                 *   5) Vida útil se consulta por EtiquetacionId.
+                 *
+                 * NO se usa linked-server para recorrer los logs.
+                 * NO se aplica LTRIM/RTRIM/CONVERT a CodigoEtiqueta del log,
+                 * por lo que SQL Server puede aprovechar un índice sobre
+                 * CodigoEtiqueta si existe.
+                 * ==========================================================
+                 */
+
+                // ----------------------------------------------------------
+                // 1. ETIQUETAS BASE DE LA TRANSFERENCIA
+                // ----------------------------------------------------------
+                const string sqlBase = @"
+SET NOCOUNT ON;
+
+SELECT
+    CodigoEtiqueta =
+        LTRIM(RTRIM(CONVERT(nvarchar(200), c.CodigoEtiqueta))),
+
+    Sku =
+        LTRIM(RTRIM(CONVERT(nvarchar(50), c.Sku))),
+
+    Producto =
+        COALESCE(
+            NULLIF(
+                LTRIM(RTRIM(CONVERT(nvarchar(200), aSap.ProductoNombre))),
+                N''
+            ),
+            LTRIM(RTRIM(CONVERT(nvarchar(50), c.Sku)))
+        ),
+
+    Kg =
+        CAST(
+            COALESCE(c.Kg, 0)
+            AS decimal(18,4)
+        )
+
+FROM dbo.PedidosTransferencia t
+
+INNER JOIN dbo.TransferenciaScanEtiqueta c
+    ON c.TransferenciaId = t.TransferenciaId
+
+OUTER APPLY
+(
+    SELECT TOP (1)
+        a.ProductoNombre
+    FROM dbo.ArticuloSap a
+    WHERE a.ProductoCodigo = c.Sku
+) aSap
+
+WHERE
+    t.Consecutivo = @Pedido
+
+    AND NULLIF(
+        LTRIM(RTRIM(CONVERT(nvarchar(200), c.CodigoEtiqueta))),
+        N''
+    ) IS NOT NULL;
+";
+
+                var connLocal = _context.Database.GetDbConnection();
+
+                if (connLocal.State != ConnectionState.Open)
+                    await connLocal.OpenAsync(ct);
+
+                var baseRows = (
+                    await connLocal.QueryAsync(
+                        new CommandDefinition(
+                            sqlBase,
+                            new
+                            {
+                                Pedido = id
+                            },
+                            cancellationToken: ct,
+                            commandTimeout: 30
+                        )
+                    )
+                ).ToList();
+
+                if (baseRows.Count == 0)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source = "TRANSFER",
+                        planta = "Transferencias",
+                        solicitud = id,
+                        etapa = "PRODUCCION",
+                        sacrificioPendiente = false,
+                        tiempoSegundos = Math.Round(
+                            (DateTime.UtcNow - inicio).TotalSeconds,
+                            2
+                        ),
+                        totalPartidas = 0,
+                        totalCajas = 0,
+                        totalKg = 0m,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                var codigos = baseRows
+                    .Select(x => Convert.ToString((object)x.CodigoEtiqueta) ?? string.Empty)
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                // ----------------------------------------------------------
+                // Helpers locales
+                // ----------------------------------------------------------
+                async Task<Dictionary<string, (int ProduccionId, int EtiquetacionId)>>
+                    BuscarLogsAsync(
+                        string connectionString,
+                        IEnumerable<string> etiquetas)
+                {
+                    var resultado =
+                        new Dictionary<
+                            string,
+                            (int ProduccionId, int EtiquetacionId)
+                        >(StringComparer.OrdinalIgnoreCase);
+
+                    var lista = etiquetas
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (lista.Count == 0)
+                        return resultado;
+
+                    await using var cn = new SqlConnection(connectionString);
+                    await cn.OpenAsync(ct);
+
+                    // 1500 mantiene margen respecto al límite de parámetros.
+                    const int tamanoLote = 1500;
+
+                    for (int i = 0; i < lista.Count; i += tamanoLote)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var bloque = lista
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
+
+                        const string sql = @"
+SET NOCOUNT ON;
+
+;WITH X AS
+(
+    SELECT
+        pel.CodigoEtiqueta,
+        pel.ProduccionId,
+        pel.EtiquetacionId,
+
+        rn =
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY pel.CodigoEtiqueta
+                ORDER BY pel.FechaHoraEvento DESC
+            )
+
+    FROM dbo.ProduccionEtiquetacionLog pel
+
+    WHERE
+        pel.CodigoEtiqueta IN @Codigos
+)
+
+SELECT
+    CodigoEtiqueta,
+    ProduccionId,
+    EtiquetacionId
+
+FROM X
+
+WHERE rn = 1;
+";
+
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Codigos = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 90
+                                )
+                            )
+                        ).ToList();
+
+                        foreach (var x in filas)
+                        {
+                            var codigo =
+                                (Convert.ToString(x.CodigoEtiqueta) ?? "").Trim();
+
+                            if (string.IsNullOrWhiteSpace(codigo))
+                                continue;
+
+                            int produccionId =
+                                x.ProduccionId == null
+                                    ? 0
+                                    : Convert.ToInt32(x.ProduccionId);
+
+                            int etiquetacionId =
+                                x.EtiquetacionId == null
+                                    ? 0
+                                    : Convert.ToInt32(x.EtiquetacionId);
+
+                            resultado[codigo] =
+                                (
+                                    produccionId,
+                                    etiquetacionId
+                                );
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                async Task<Dictionary<int, (
+                    DateTime? FechaProduccion,
+                    decimal? PesoKg,
+                    int? LoteId,
+                    string Lote)>>
+                    BuscarProduccionAsync(
+                        string connectionString,
+                        IEnumerable<int> producciones)
+                {
+                    var resultado =
+                        new Dictionary<
+                            int,
+                            (
+                                DateTime? FechaProduccion,
+                                decimal? PesoKg,
+                                int? LoteId,
+                                string Lote
+                            )
+                        >();
+
+                    var ids = producciones
+                        .Where(x => x > 0)
+                        .Distinct()
+                        .ToList();
+
+                    if (ids.Count == 0)
+                        return resultado;
+
+                    await using var cn = new SqlConnection(connectionString);
+                    await cn.OpenAsync(ct);
+
+                    const int tamanoLote = 1500;
+
+                    for (int i = 0; i < ids.Count; i += tamanoLote)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var bloque = ids
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
+
+                        const string sql = @"
+SET NOCOUNT ON;
+
+SELECT
+    p.ProduccionId,
+
+    FechaProduccion =
+        CONVERT(date, p.FechaProduccion),
+
+    PesoKg =
+        CAST(
+            p.PesoNeto
+            AS decimal(18,4)
+        ),
+
+    p.LoteId,
+
+    Lote =
+        LTRIM(RTRIM(CONVERT(nvarchar(200), l.Nombre)))
+
+FROM dbo.Produccion p
+
+LEFT JOIN dbo.Lote l
+    ON l.LoteId = p.LoteId
+
+WHERE
+    p.ProduccionId IN @Ids;
+";
+
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Ids = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 60
+                                )
+                            )
+                        ).ToList();
+
+                        foreach (var x in filas)
+                        {
+                            int produccionId =
+                                Convert.ToInt32(x.ProduccionId);
+
+                            DateTime? fechaProduccion = null;
+
+                            if (x.FechaProduccion != null)
+                                fechaProduccion =
+                                    Convert.ToDateTime(x.FechaProduccion);
+
+                            decimal? peso = null;
+
+                            if (x.PesoKg != null)
+                                peso =
+                                    Convert.ToDecimal(x.PesoKg);
+
+                            int? loteId = null;
+
+                            if (x.LoteId != null)
+                                loteId =
+                                    Convert.ToInt32(x.LoteId);
+
+                            string lote =
+                                (Convert.ToString(x.Lote) ?? "").Trim();
+
+                            resultado[produccionId] =
+                                (
+                                    fechaProduccion,
+                                    peso,
+                                    loteId,
+                                    lote
+                                );
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                async Task<Dictionary<int, int>>
+                    BuscarVidaUtilAsync(
+                        string connectionString,
+                        string baseCommerciaNet,
+                        IEnumerable<int> etiquetaciones)
+                {
+                    var resultado =
+                        new Dictionary<int, int>();
+
+                    var ids = etiquetaciones
+                        .Where(x => x > 0)
+                        .Distinct()
+                        .ToList();
+
+                    if (ids.Count == 0)
+                        return resultado;
+
+                    await using var cn = new SqlConnection(connectionString);
+                    await cn.OpenAsync(ct);
+
+                    const int tamanoLote = 1500;
+
+                    for (int i = 0; i < ids.Count; i += tamanoLote)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var bloque = ids
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
+
+                        var sql = $@"
+SET NOCOUNT ON;
+
+SELECT
+    ColectorId,
+
+    DiasVida =
+        TRY_CONVERT(
+            int,
+            Interface
+        )
+
+FROM [{baseCommerciaNet}].dbo.colector
+
+WHERE
+    ColectorId IN @Ids
+
+    AND SistemaId = 'ETI';
+";
+
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Ids = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 60
+                                )
+                            )
+                        ).ToList();
+
+                        foreach (var x in filas)
+                        {
+                            int colectorId =
+                                Convert.ToInt32(x.ColectorId);
+
+                            int dias =
+                                x.DiasVida == null
+                                    ? 0
+                                    : Convert.ToInt32(x.DiasVida);
+
+                            resultado[colectorId] = dias;
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                // ----------------------------------------------------------
+                // 2. BUSCAR LOGS EN BLOQUE
+                // ----------------------------------------------------------
+                var csTif =
+                    _cfg.GetConnectionString("CadenaMeatTIF");
+
+                var csP1 =
+                    _cfg.GetConnectionString("CadenaMeatP1");
+
+                if (string.IsNullOrWhiteSpace(csTif))
+                {
+                    throw new InvalidOperationException(
+                        "No está configurada la conexión CadenaMeatTIF."
+                    );
+                }
+
+                if (string.IsNullOrWhiteSpace(csP1))
+                {
+                    throw new InvalidOperationException(
+                        "No está configurada la conexión CadenaMeatP1."
+                    );
+                }
+
+                var logsTif =
+                    await BuscarLogsAsync(
+                        csTif,
+                        codigos
+                    );
+
+                var faltantesP1 = codigos
+                    .Where(x => !logsTif.ContainsKey(x))
+                    .ToList();
+
+                var logsP1 =
+                    await BuscarLogsAsync(
+                        csP1,
+                        faltantesP1
+                    );
+
+                // ----------------------------------------------------------
+                // 3. PRODUCCIÓN / LOTE POR IDs
+                // ----------------------------------------------------------
+                var prodTif =
+                    await BuscarProduccionAsync(
+                        csTif,
+                        logsTif.Values
+                            .Select(x => x.ProduccionId)
+                    );
+
+                var prodP1 =
+                    await BuscarProduccionAsync(
+                        csP1,
+                        logsP1.Values
+                            .Select(x => x.ProduccionId)
+                    );
+
+                // ----------------------------------------------------------
+                // 4. VIDA ÚTIL POR ETIQUETACIONID
+                // ----------------------------------------------------------
+                var vidaTif =
+                    await BuscarVidaUtilAsync(
+                        csTif,
+                        "tif_CommerciaNet",
+                        logsTif.Values
+                            .Select(x => x.EtiquetacionId)
+                    );
+
+                var vidaP1 =
+                    await BuscarVidaUtilAsync(
+                        csP1,
+                        "CommerciaNet",
+                        logsP1.Values
+                            .Select(x => x.EtiquetacionId)
+                    );
+
+                // ----------------------------------------------------------
+                // 5. ARMAR DETALLE POR ETIQUETA
+                // ----------------------------------------------------------
+                var detalle = new List<(
+                    string Planta,
+                    string Sku,
+                    string Producto,
+                    string Lote,
+                    DateTime? FechaProduccion,
+                    DateTime? FechaCaducidad,
+                    decimal PesoKg
+                )>();
+
+                foreach (var b in baseRows)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    string codigo =
+                        (Convert.ToString(b.CodigoEtiqueta) ?? "").Trim();
+
+                    string sku =
+                        (Convert.ToString(b.Sku) ?? "").Trim();
+
+                    string producto =
+                        (Convert.ToString(b.Producto) ?? "").Trim();
+
+                    decimal kgBase =
+                        b.Kg == null
+                            ? 0m
+                            : Convert.ToDecimal(b.Kg);
+
+                    string planta = "SIN LOG";
+                    string lote = "SIN LOTE";
+
+                    DateTime? fechaProduccion = null;
+                    DateTime? fechaCaducidad = null;
+
+                    decimal pesoKg = kgBase;
+
+                    if (logsTif.TryGetValue(
+                        codigo,
+                        out var logTif))
+                    {
+                        planta = "TIF";
+
+                        if (prodTif.TryGetValue(
+                            logTif.ProduccionId,
+                            out var prod))
+                        {
+                            lote =
+                                string.IsNullOrWhiteSpace(prod.Lote)
+                                    ? "SIN LOTE"
+                                    : prod.Lote;
+
+                            fechaProduccion =
+                                prod.FechaProduccion;
+
+                            pesoKg =
+                                prod.PesoKg
+                                ?? kgBase;
+                        }
+
+                        vidaTif.TryGetValue(
+                            logTif.EtiquetacionId,
+                            out var diasVida
+                        );
+
+                        if (fechaProduccion.HasValue)
+                        {
+                            fechaCaducidad =
+                                fechaProduccion.Value.AddDays(
+                                    diasVida
+                                );
+                        }
+                    }
+                    else if (logsP1.TryGetValue(
+                        codigo,
+                        out var logP1))
+                    {
+                        planta = "P1";
+
+                        if (prodP1.TryGetValue(
+                            logP1.ProduccionId,
+                            out var prod))
+                        {
+                            lote =
+                                string.IsNullOrWhiteSpace(prod.Lote)
+                                    ? "SIN LOTE"
+                                    : prod.Lote;
+
+                            fechaProduccion =
+                                prod.FechaProduccion;
+
+                            pesoKg =
+                                prod.PesoKg
+                                ?? kgBase;
+                        }
+
+                        vidaP1.TryGetValue(
+                            logP1.EtiquetacionId,
+                            out var diasVida
+                        );
+
+                        if (fechaProduccion.HasValue)
+                        {
+                            fechaCaducidad =
+                                fechaProduccion.Value.AddDays(
+                                    diasVida
+                                );
+                        }
+                    }
+
+                    detalle.Add(
+                        (
+                            planta,
+                            sku,
+                            producto,
+                            lote,
+                            fechaProduccion,
+                            fechaCaducidad,
+                            pesoKg
+                        )
+                    );
+                }
+
+                // ----------------------------------------------------------
+                // 6. AGRUPAR EXACTAMENTE PARA LA TABLA DEL MODAL
+                // ----------------------------------------------------------
+                var rows = detalle
+                    .GroupBy(
+                        x => new
+                        {
+                            x.Planta,
+                            x.Sku,
+                            x.Producto,
+                            x.Lote,
+                            x.FechaProduccion,
+                            x.FechaCaducidad
+                        }
+                    )
+                    .OrderBy(x => x.Key.Planta)
+                    .ThenBy(x => x.Key.Sku)
+                    .ThenBy(x => x.Key.Lote)
+                    .Select(
+                        (g, index) => new
+                        {
+                            detalleKey =
+                                $"{id}|{g.Key.Sku}|{g.Key.Lote}|{g.Key.FechaProduccion:yyyy-MM-dd}|{index}",
+
+                            solicitudSurtidoId =
+                                id,
+
+                            sku =
+                                g.Key.Sku,
+
+                            producto =
+                                g.Key.Producto,
+
+                            lote =
+                                g.Key.Lote,
+
+                            fechaSacrificioTxt =
+                                "Consultando...",
+
+                            fechaProduccionTxt =
+                                g.Key.FechaProduccion.HasValue
+                                    ? g.Key.FechaProduccion.Value.ToString("dd/MM/yyyy")
+                                    : "",
+
+                            fechaCaducidadTxt =
+                                g.Key.FechaCaducidad.HasValue
+                                    ? g.Key.FechaCaducidad.Value.ToString("dd/MM/yyyy")
+                                    : "",
+
+                            cuentaDeEtiqueta =
+                                g.Count(),
+
+                            sumaDeKg =
+                                Math.Round(
+                                    g.Sum(x => x.PesoKg),
+                                    3
+                                ),
+
+                            requiereTif =
+                                true,
+
+                            estadoTif =
+                                "PENDIENTE_SACRIFICIO",
+
+                            mensajeTif =
+                                "Consultando fecha de sacrificio..."
+                        }
+                    )
+                    .ToList();
+
+                var tiempoMs =
+                    (DateTime.UtcNow - inicio)
+                    .TotalMilliseconds;
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    planta = "Transferencias",
+                    solicitud = id,
+                    etapa = "PRODUCCION_BATCH",
+                    estrategia = "BUSQUEDA_POR_LOTES",
+                    sacrificioPendiente = true,
+
+                    etiquetasTransferencia =
+                        baseRows.Count,
+
+                    etiquetasConLogTif =
+                        logsTif.Count,
+
+                    etiquetasConLogP1 =
+                        logsP1.Count,
+
+                    etiquetasSinLog =
+                        codigos.Count
+                        - logsTif.Count
+                        - logsP1.Count,
+
+                    tiempoSegundos =
+                        Math.Round(
+                            tiempoMs / 1000d,
+                            2
+                        ),
+
+                    totalPartidas =
+                        rows.Count,
+
+                    totalCajas =
+                        rows.Sum(
+                            x => x.cuentaDeEtiqueta
+                        ),
+
+                    totalKg =
+                        rows.Sum(
+                            x => x.sumaDeKg
+                        ),
+
+                    rows
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                var tiempoMs =
+                    (DateTime.UtcNow - inicio)
+                    .TotalMilliseconds;
+
+                return StatusCode(
+                    504,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "PRODUCCION_BATCH_TIMEOUT",
+                        solicitud = id,
+                        msg =
+                            "La búsqueda por lotes de etiquetas excedió el tiempo permitido.",
+                        tiempoSegundos =
+                            Math.Round(
+                                tiempoMs / 1000d,
+                                2
+                            ),
+                        sqlErrorNumber = ex.Number,
+                        error = ex.Message,
+                        inner = ex.InnerException?.Message
+                    }
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(
+                    499,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "PRODUCCION_BATCH_CANCELADO",
+                        solicitud = id,
+                        msg = "La consulta fue cancelada."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "PRODUCCION_BATCH_ERROR",
+                        solicitud = id,
+                        msg =
+                            "No fue posible obtener lote, producción y caducidad.",
+                        tipoError =
+                            ex.GetType().FullName,
+                        error =
+                            ex.Message,
+                        inner =
+                            ex.InnerException?.Message,
+                        errorBase =
+                            ex.GetBaseException().Message
+                    }
+                );
+            }
+        }
+
+
+        [HttpGet("Transferencias/AvisosMovilizacionDetalleSacrificio")]
+        public async Task<IActionResult> AvisosMovilizacionDetalleSacrificioTransferencias(
+            string id,
+            [FromQuery] List<string>? lotes,
+            CancellationToken ct = default)
+        {
+            var inicio = DateTime.UtcNow;
+
+            try
+            {
+                id = (id ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "VALIDACION",
+                        msg = "Transferencia requerida."
+                    });
+                }
+
+                var lotesSolicitados =
+                    (lotes ?? new List<string>())
+                    .Select(x => (x ?? "").Trim())
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x)
+                        && !x.Equals(
+                            "SIN LOTE",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && !x.Equals(
+                            "Consultando...",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(200)
+                    .ToList();
+
+                if (lotesSolicitados.Count == 0)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source = "TRANSFER",
+                        solicitud = id,
+                        etapa = "SACRIFICIO",
+                        totalLotes = 0,
+                        encontrados = 0,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                var csTif =
+                    _cfg.GetConnectionString("CadenaMeatTIF");
+
+                if (string.IsNullOrWhiteSpace(csTif))
+                {
+                    throw new InvalidOperationException(
+                        "No está configurada la conexión CadenaMeatTIF."
+                    );
+                }
+
+                /*
+                 * Consulta DIRECTA a TIF_MEAT.
+                 * Ya no usamos linked-server ni aplicamos funciones
+                 * sobre sr.solicitudProduccionid.
+                 */
+                const string sql = @"
+SET NOCOUNT ON;
+
+;WITH Lotes AS
+(
+    SELECT
+        l.LoteId,
+        Lote =
+            LTRIM(RTRIM(CONVERT(nvarchar(200), l.Nombre)))
+
+    FROM dbo.Lote l
+
+    WHERE
+        l.Nombre IN @Lotes
+)
+
+SELECT
+    l.Lote,
+
+    FechaSacrificio =
+        MAX(
+            TRY_CONVERT(
+                date,
+                sr.Referencia,
+                103
+            )
+        )
+
+FROM Lotes l
+
+LEFT JOIN dbo.SolicitudReferencia sr
+    ON sr.solicitudProduccionid = l.LoteId
+   AND sr.tiporeferenciaId = 47
+
+GROUP BY
+    l.Lote;
+";
+
+                await using var cn =
+                    new SqlConnection(csTif);
+
+                await cn.OpenAsync(ct);
+
+                var datos = (
+                    await cn.QueryAsync(
+                        new CommandDefinition(
+                            sql,
+                            new
+                            {
+                                Lotes = lotesSolicitados
+                            },
+                            cancellationToken: ct,
+                            commandTimeout: 60
+                        )
+                    )
+                ).ToList();
+
+                var fechas =
+                    new Dictionary<string, DateTime?>(
+                        StringComparer.OrdinalIgnoreCase
+                    );
+
+                foreach (var x in datos)
+                {
+                    string lote =
+                        (Convert.ToString(x.Lote) ?? "").Trim();
+
+                    DateTime? fecha = null;
+
+                    if (x.FechaSacrificio != null)
+                    {
+                        fecha =
+                            Convert.ToDateTime(
+                                x.FechaSacrificio
+                            );
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lote))
+                        fechas[lote] = fecha;
+                }
+
+                var rows =
+                    lotesSolicitados
+                    .Select(lote =>
+                    {
+                        fechas.TryGetValue(
+                            lote,
+                            out var fecha
+                        );
+
+                        return new
+                        {
+                            lote,
+
+                            fechaSacrificioTxt =
+                                fecha.HasValue
+                                    ? fecha.Value.ToString("dd/MM/yyyy")
+                                    : "",
+
+                            encontrado =
+                                fecha.HasValue,
+
+                            mensaje =
+                                fecha.HasValue
+                                    ? ""
+                                    : "No se encontró fecha de sacrificio para este lote."
+                        };
+                    })
+                    .ToList();
+
+                var tiempoMs =
+                    (DateTime.UtcNow - inicio)
+                    .TotalMilliseconds;
+
+                return Ok(new
+                {
+                    ok = true,
+                    source = "TRANSFER",
+                    solicitud = id,
+                    etapa = "SACRIFICIO_DIRECTO",
+                    tiempoSegundos =
+                        Math.Round(
+                            tiempoMs / 1000d,
+                            2
+                        ),
+                    totalLotes =
+                        rows.Count,
+                    encontrados =
+                        rows.Count(x => x.encontrado),
+                    rows
+                });
+            }
+            catch (SqlException ex) when (ex.Number == -2)
+            {
+                return StatusCode(
+                    504,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "SACRIFICIO_TIMEOUT",
+                        solicitud = id,
+                        msg =
+                            "Lote, producción y caducidad ya están visibles, pero sacrificio excedió el tiempo permitido.",
+                        sqlErrorNumber = ex.Number,
+                        error = ex.Message,
+                        inner = ex.InnerException?.Message
+                    }
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                return StatusCode(
+                    499,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "SACRIFICIO_CANCELADO",
+                        solicitud = id,
+                        msg =
+                            "La consulta de sacrificio fue cancelada."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        source = "TRANSFER",
+                        etapa = "SACRIFICIO_ERROR",
+                        solicitud = id,
+                        msg =
+                            "No fue posible obtener la fecha de sacrificio.",
+                        error =
+                            ex.Message,
+                        inner =
+                            ex.InnerException?.Message,
+                        errorBase =
+                            ex.GetBaseException().Message
+                    }
+                );
+            }
+        }
+
+
         [HttpGet]
         public async Task<IActionResult> RomaneoTransferencia(
     DateTime? desde,
@@ -4334,382 +7640,1278 @@ WHEN NOT MATCHED THEN
             List<string> tarimasSel,
             CancellationToken ct)
         {
-            // Defaults (por si llegan vacíos)
-            var fDesde = (desde ?? DateTime.Today).Date;
-            var fHasta = (hasta ?? DateTime.Today).Date;
-
-            // 1) Primero: resolver lista de PEDIDOS según filtros
-            //    - si pedidosSel trae cosas, úsalo tal cual
-            //    - si NO trae, deriva pedidos desde RomaneoTransferencias con filtros
-            List<string> pedidosAExportar;
-
-            if (pedidosSel != null && pedidosSel.Count > 0)
+            try
             {
-                pedidosAExportar = pedidosSel
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => x.Trim())
-                    .Distinct()
-                    .ToList();
-            }
-            else
-            {
-                // Ajusta nombres de columnas a tu tabla real:
-                // a.Pedido, a.Destino, a.Tarima, a.Fecha (o FechaHora)
-                const string sqlPedidos = @"
+                var fDesde = (desde ?? DateTime.Today).Date;
+                var fHasta = (hasta ?? DateTime.Today).Date;
+
+                // =========================================================
+                // 1) RESOLVER PEDIDOS A EXPORTAR
+                // =========================================================
+                List<string> pedidosAExportar;
+
+                if (pedidosSel != null && pedidosSel.Count > 0)
+                {
+                    pedidosAExportar = pedidosSel
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Select(x => x.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+                else
+                {
+                    const string sqlPedidos = @"
+SET NOCOUNT ON;
+
 SELECT DISTINCT
     Pedido = CONVERT(varchar(30), a.Pedido)
+
 FROM dbo.RomaneoTransferencias a
-WHERE CONVERT(date, a.Fecha) >= @Desde
-  AND CONVERT(date, a.Fecha) <= @Hasta
-  AND (@DestCount = 0 OR a.Destino IN @Destinos)
-  AND (@TarCount  = 0 OR a.Tarima  IN @Tarimas)
-ORDER BY Pedido;";
 
-                var conn0 = _context.Database.GetDbConnection();
-                if (conn0.State != ConnectionState.Open)
-                    await conn0.OpenAsync(ct);
+WHERE
+    CONVERT(date, a.Fecha) >= @Desde
+    AND CONVERT(date, a.Fecha) <= @Hasta
 
-                var cmdPedidos = new CommandDefinition(
-                    sqlPedidos,
-                    new
+    AND (
+        @DestCount = 0
+        OR a.Destino IN @Destinos
+    )
+
+    AND (
+        @TarCount = 0
+        OR a.Tarima IN @Tarimas
+    )
+
+ORDER BY Pedido;
+";
+
+                    var conn0 = _context.Database.GetDbConnection();
+
+                    if (conn0.State != ConnectionState.Open)
+                        await conn0.OpenAsync(ct);
+
+                    pedidosAExportar = (
+                        await conn0.QueryAsync<string>(
+                            new CommandDefinition(
+                                sqlPedidos,
+                                new
+                                {
+                                    Desde = fDesde,
+                                    Hasta = fHasta,
+                                    DestCount = destinosSel?.Count ?? 0,
+                                    TarCount = tarimasSel?.Count ?? 0,
+                                    Destinos = destinosSel ?? new List<string>(),
+                                    Tarimas = tarimasSel ?? new List<string>()
+                                },
+                                cancellationToken: ct,
+                                commandTimeout: 60
+                            )
+                        )
+                    )
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                }
+
+                if (pedidosAExportar.Count == 0)
+                {
+                    return BadRequest(
+                        "No hay pedidos para exportar con esos filtros."
+                    );
+                }
+
+                // =========================================================
+                // CONEXIONES DIRECTAS
+                // =========================================================
+                var csTif =
+                    _cfg.GetConnectionString("CadenaMeatTIF");
+
+                var csP1 =
+                    _cfg.GetConnectionString("CadenaMeatP1");
+
+                if (string.IsNullOrWhiteSpace(csTif))
+                {
+                    return StatusCode(
+                        500,
+                        "No está configurada la conexión CadenaMeatTIF."
+                    );
+                }
+
+                if (string.IsNullOrWhiteSpace(csP1))
+                {
+                    return StatusCode(
+                        500,
+                        "No está configurada la conexión CadenaMeatP1."
+                    );
+                }
+
+                // =========================================================
+                // HELPERS LOCALES OPTIMIZADOS
+                // =========================================================
+
+                async Task<
+                    Dictionary<
+                        string,
+                        (int ProduccionId, int EtiquetacionId)
+                    >
+                > BuscarLogsAsync(
+                    string connectionString,
+                    IEnumerable<string> etiquetas)
+                {
+                    var resultado =
+                        new Dictionary<
+                            string,
+                            (int ProduccionId, int EtiquetacionId)
+                        >(StringComparer.OrdinalIgnoreCase);
+
+                    var lista = etiquetas
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Select(x => x.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (lista.Count == 0)
+                        return resultado;
+
+                    await using var cn =
+                        new SqlConnection(connectionString);
+
+                    await cn.OpenAsync(ct);
+
+                    const int tamanoLote = 1500;
+
+                    for (
+                        int i = 0;
+                        i < lista.Count;
+                        i += tamanoLote
+                    )
                     {
-                        Desde = fDesde,
-                        Hasta = fHasta,
-                        DestCount = (destinosSel?.Count ?? 0),
-                        TarCount = (tarimasSel?.Count ?? 0),
-                        Destinos = destinosSel ?? new List<string>(),
-                        Tarimas = tarimasSel ?? new List<string>()
-                    },
-                    cancellationToken: ct,
-                    commandTimeout: 120 // pedidos suele ser rápido
-                );
+                        ct.ThrowIfCancellationRequested();
 
-                pedidosAExportar = (await conn0.QueryAsync<string>(cmdPedidos)).ToList();
-            }
+                        var bloque = lista
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
 
-            if (pedidosAExportar.Count == 0)
-                return BadRequest("No hay pedidos para exportar con esos filtros.");
+                        const string sql = @"
+SET NOCOUNT ON;
 
-            // 2) SQL de caducidad (EL MISMO QUE YA TIENES)
-            const string sqlCaducidad = @"
-/* ============================================================
-   CADUCIDAD POR TRANSFERENCIA (TIF -> P1) - SIN ERRORES SINTAXIS
-   ============================================================ */
-
-DECLARE @Pedido nvarchar(30) = @pPedido;
-
-;WITH BaseEtiquetas AS (
+;WITH X AS
+(
     SELECT
-        a.TransferenciaId,
-        Pedido = LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS,
-        ProductoCodigo = CONVERT(nvarchar(50), d.ProductoCodigo) COLLATE Modern_Spanish_CI_AS,
-        ProductoNombre = CONVERT(nvarchar(200), d.ProductoNombre) COLLATE Modern_Spanish_CI_AS,
-        Sku = CONVERT(nvarchar(50), c.Sku) COLLATE Modern_Spanish_CI_AS,
-        CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(c.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-        Kg = CAST(COALESCE(c.Kg, 0) AS decimal(18,4))
-    FROM dbo.PedidosTransferencia a
-    INNER JOIN dbo.TransferenciaScanEtiqueta c
-        ON a.TransferenciaId = c.TransferenciaId
-    INNER JOIN dbo.ArticuloSap d
-        ON c.Sku = d.ProductoCodigo
-    WHERE LTRIM(RTRIM(CONVERT(nvarchar(30), a.Consecutivo))) COLLATE Modern_Spanish_CI_AS
-        = LTRIM(RTRIM(@Pedido)) COLLATE Modern_Spanish_CI_AS
-),
+        pel.CodigoEtiqueta,
+        pel.ProduccionId,
+        pel.EtiquetacionId,
 
-EtiquetasPedido AS (
-    SELECT DISTINCT CodigoEtiqueta
-    FROM BaseEtiquetas
-),
-
-LogTIF AS (
-    SELECT
-        CodigoEtiqueta,
-        ProduccionId,
-        EtiquetacionId,
-        FechaHoraEvento,
-        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
-    FROM (
-        SELECT
-            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-            pel.ProduccionId,
-            pel.EtiquetacionId,
-            pel.FechaHoraEvento
-        FROM [Meat_TIF].TIF_MEAT.dbo.ProduccionEtiquetacionLog pel
-        INNER JOIN EtiquetasPedido ep
-            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
-             = ep.CodigoEtiqueta
-    ) x
-),
-
-LogP1 AS (
-    SELECT
-        CodigoEtiqueta,
-        ProduccionId,
-        EtiquetacionId,
-        FechaHoraEvento,
-        rn = ROW_NUMBER() OVER (PARTITION BY CodigoEtiqueta ORDER BY FechaHoraEvento DESC)
-    FROM (
-        SELECT
-            CodigoEtiqueta = CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS,
-            pel.ProduccionId,
-            pel.EtiquetacionId,
-            pel.FechaHoraEvento
-        FROM [Meat_P1].Meat.dbo.ProduccionEtiquetacionLog pel
-        INNER JOIN EtiquetasPedido ep
-            ON CONVERT(nvarchar(200), LTRIM(RTRIM(pel.CodigoEtiqueta))) COLLATE Modern_Spanish_CI_AS
-             = ep.CodigoEtiqueta
-    ) x
-),
-
-ConLog AS (
-    SELECT
-        b.Pedido,
-        b.ProductoCodigo,
-        b.ProductoNombre,
-        b.Sku,
-        b.CodigoEtiqueta,
-        b.Kg,
-
-        Planta = CONVERT(
-            nvarchar(10),
-            CASE
-                WHEN lt.ProduccionId IS NOT NULL THEN 'TIF'
-                WHEN lp.ProduccionId IS NOT NULL THEN 'P1'
-                ELSE 'SIN LOG'
-            END
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        ProduccionId = COALESCE(lt.ProduccionId, lp.ProduccionId),
-        EtiquetacionId = COALESCE(lt.EtiquetacionId, lp.EtiquetacionId)
-    FROM BaseEtiquetas b
-    LEFT JOIN LogTIF lt
-        ON lt.CodigoEtiqueta = b.CodigoEtiqueta
-       AND lt.rn = 1
-    LEFT JOIN LogP1 lp
-        ON lp.CodigoEtiqueta = b.CodigoEtiqueta
-       AND lp.rn = 1
-),
-
-ProdTIF AS (
-    SELECT
-        pr.ProduccionId,
-        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
-        FechaProduccion = CONVERT(date, pr.FechaProduccion),
-        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
-        pr.LoteId
-    FROM [Meat_TIF].TIF_MEAT.dbo.Produccion pr
-),
-
-ProdP1 AS (
-    SELECT
-        pr.ProduccionId,
-        SKU = CONVERT(nvarchar(50), pr.Articulo) COLLATE Modern_Spanish_CI_AS,
-        FechaProduccion = CONVERT(date, pr.FechaProduccion),
-        PesoKg = CAST(pr.PesoNeto AS decimal(18,4)),
-        pr.LoteId
-    FROM [Meat_P1].Meat.dbo.Produccion pr
-),
-
-LoteTIF AS (
-    SELECT
-        l.LoteId,
-        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
-    FROM [Meat_TIF].TIF_MEAT.dbo.Lote l
-),
-
-LoteP1 AS (
-    SELECT
-        l.LoteId,
-        Lote = CONVERT(nvarchar(200), LTRIM(RTRIM(l.Nombre))) COLLATE Modern_Spanish_CI_AS
-    FROM [Meat_P1].Meat.dbo.Lote l
-),
-
-ColTIF AS (
-    SELECT
-        ColectorId,
-        DiasVida = TRY_CONVERT(int, Interface)
-    FROM [Meat_TIF].tif_CommerciaNet.dbo.colector
-    WHERE SistemaId = 'ETI'
-),
-
-ColP1 AS (
-    SELECT
-        ColectorId,
-        DiasVida = TRY_CONVERT(int, Interface)
-    FROM [Meat_P1].CommerciaNet.dbo.colector
-    WHERE SistemaId = 'ETI'
-),
-
-Detalle AS (
-    SELECT
-        c.CodigoEtiqueta,
-
-        Planta = c.Planta,
-
-        SKU = COALESCE(
-            NULLIF(c.Sku, N''),
-            NULLIF(c.ProductoCodigo, N''),
-            N'SIN SKU'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        Producto = COALESCE(
-            NULLIF(c.ProductoNombre, N''),
-            N'SIN PRODUCTO'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        Lote = COALESCE(
-            lt.Lote,
-            lp.Lote,
-            N'SIN LOTE'
-        ) COLLATE Modern_Spanish_CI_AS,
-
-        FechaProduccion = COALESCE(pt.FechaProduccion, pp.FechaProduccion),
-
-        PesoKg = COALESCE(
-            pt.PesoKg,
-            pp.PesoKg,
-            c.Kg,
-            CAST(0 AS decimal(18,4))
-        ),
-
-        DiasVida = COALESCE(ct.DiasVida, cp.DiasVida, 0),
-
-        FechaCaducidad = CASE
-            WHEN COALESCE(pt.FechaProduccion, pp.FechaProduccion) IS NULL THEN NULL
-            ELSE DATEADD(
-                day,
-                COALESCE(ct.DiasVida, cp.DiasVida, 0),
-                COALESCE(pt.FechaProduccion, pp.FechaProduccion)
+        rn =
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY pel.CodigoEtiqueta
+                ORDER BY pel.FechaHoraEvento DESC
             )
-        END,
 
-        FechaSacrificio = TRY_CONVERT(date, sr.Referencia, 103)
-    FROM ConLog c
-    LEFT JOIN ProdTIF pt
-        ON c.Planta = N'TIF'
-       AND pt.ProduccionId = c.ProduccionId
-    LEFT JOIN ProdP1 pp
-        ON c.Planta = N'P1'
-       AND pp.ProduccionId = c.ProduccionId
-    LEFT JOIN LoteTIF lt
-        ON c.Planta = N'TIF'
-       AND lt.LoteId = pt.LoteId
-    LEFT JOIN LoteP1 lp
-        ON c.Planta = N'P1'
-       AND lp.LoteId = pp.LoteId
-    LEFT JOIN ColTIF ct
-        ON c.Planta = N'TIF'
-       AND ct.ColectorId = c.EtiquetacionId
-    LEFT JOIN ColP1 cp
-        ON c.Planta = N'P1'
-       AND cp.ColectorId = c.EtiquetacionId
-    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.LOTE ltf
-        ON CONVERT(nvarchar(200), LTRIM(RTRIM(ltf.nombre))) COLLATE Modern_Spanish_CI_AS
-         = COALESCE(lt.Lote, lp.Lote, N'') COLLATE Modern_Spanish_CI_AS
-    LEFT JOIN [Meat_TIF].TIF_MEAT.dbo.SolicitudReferencia sr
-        ON sr.solicitudProduccionid = ltf.loteid
-       AND sr.tiporeferenciaId = 47
-),
+    FROM dbo.ProduccionEtiquetacionLog pel
 
-Normalizado AS (
-    SELECT
-        Planta,
-        SKU,
-        Producto,
-        Lote,
-        FechaSacrificio,
-        FechaProduccion,
-        FechaCaducidad,
-        PesoKg
-    FROM Detalle
+    WHERE
+        pel.CodigoEtiqueta IN @Codigos
 )
 
 SELECT
-    planta = n.Planta,
-    sku = n.SKU,
-    producto = n.Producto,
-    lote = n.Lote,
-    fecha_sacrificio = CONVERT(varchar(10), n.FechaSacrificio, 103),
-    fecha_produccion = CONVERT(varchar(10), n.FechaProduccion, 103),
-    fecha_caducidad = CONVERT(varchar(10), n.FechaCaducidad, 103),
-    Cuenta_de_etiqueta = COUNT(1),
-    Suma_de_kg = CAST(SUM(n.PesoKg) AS decimal(18,3))
-FROM Normalizado n
-GROUP BY
-    n.Planta,
-    n.SKU,
-    n.Producto,
-    n.Lote,
-    n.FechaSacrificio,
-    n.FechaProduccion,
-    n.FechaCaducidad
-ORDER BY
-    n.Planta,
-    n.SKU,
-    n.Producto,
-    n.Lote,
-    n.FechaProduccion,
-    n.FechaCaducidad;
+    CodigoEtiqueta,
+    ProduccionId,
+    EtiquetacionId
+
+FROM X
+
+WHERE rn = 1;
 ";
 
-            var conn = _context.Database.GetDbConnection();
-            if (conn.State != ConnectionState.Open)
-                await conn.OpenAsync(ct);
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Codigos = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 90
+                                )
+                            )
+                        ).ToList();
 
-            // 3) Excel
-            using var wb = new XLWorkbook();
-            var ws = wb.Worksheets.Add("AvisoMovilizacion");
+                        foreach (var x in filas)
+                        {
+                            var codigo =
+                                (
+                                    Convert.ToString(
+                                        (object)x.CodigoEtiqueta
+                                    )
+                                    ?? string.Empty
+                                ).Trim();
 
-            ws.Cell(1, 1).Value = "pedido";
-            ws.Cell(1, 2).Value = "sku";
-            ws.Cell(1, 3).Value = "producto";
-            ws.Cell(1, 4).Value = "lote";
-            ws.Cell(1, 5).Value = "fecha sacrificio";
-            ws.Cell(1, 6).Value = "fecha produccion";
-            ws.Cell(1, 7).Value = "fecha caducidad";
-            ws.Cell(1, 8).Value = "Cuenta de etiqueta";
-            ws.Cell(1, 9).Value = "Suma de kg";
-            ws.Range(1, 1, 1, 9).Style.Font.Bold = true;
+                            if (
+                                string.IsNullOrWhiteSpace(
+                                    codigo
+                                )
+                            )
+                            {
+                                continue;
+                            }
 
-            var row = 2;
+                            int produccionId =
+                                x.ProduccionId == null
+                                    ? 0
+                                    : Convert.ToInt32(
+                                        x.ProduccionId
+                                    );
 
-            foreach (var pedido in pedidosAExportar)
-            {
-                var cmd = new CommandDefinition(
-                    sqlCaducidad,
-                    new { pPedido = pedido },
-                    cancellationToken: ct,
-                    commandTimeout: 600
-                );
+                            int etiquetacionId =
+                                x.EtiquetacionId == null
+                                    ? 0
+                                    : Convert.ToInt32(
+                                        x.EtiquetacionId
+                                    );
 
-                var data = (await conn.QueryAsync<AvisoMovilizacionDTO>(cmd)).ToList();
+                            resultado[codigo] =
+                                (
+                                    produccionId,
+                                    etiquetacionId
+                                );
+                        }
+                    }
 
-                foreach (var r in data)
-                {
-                    ws.Cell(row, 1).Value = pedido;
-                    ws.Cell(row, 2).Value = r.sku;
-                    ws.Cell(row, 3).Value = r.producto;
-                    ws.Cell(row, 4).Value = r.lote;
-                    ws.Cell(row, 5).Value = r.fecha_sacrificio;
-                    ws.Cell(row, 6).Value = r.fecha_produccion;
-                    ws.Cell(row, 7).Value = r.fecha_caducidad;
-                    ws.Cell(row, 8).Value = r.Cuenta_de_etiqueta;
-                    ws.Cell(row, 9).Value = r.Suma_de_kg;
-                    row++;
+                    return resultado;
                 }
+
+
+                async Task<
+                    Dictionary<
+                        int,
+                        (
+                            DateTime? FechaProduccion,
+                            decimal? PesoKg,
+                            int? LoteId,
+                            string Lote
+                        )
+                    >
+                > BuscarProduccionAsync(
+                    string connectionString,
+                    IEnumerable<int> producciones)
+                {
+                    var resultado =
+                        new Dictionary<
+                            int,
+                            (
+                                DateTime? FechaProduccion,
+                                decimal? PesoKg,
+                                int? LoteId,
+                                string Lote
+                            )
+                        >();
+
+                    var ids = producciones
+                        .Where(x => x > 0)
+                        .Distinct()
+                        .ToList();
+
+                    if (ids.Count == 0)
+                        return resultado;
+
+                    await using var cn =
+                        new SqlConnection(connectionString);
+
+                    await cn.OpenAsync(ct);
+
+                    const int tamanoLote = 1500;
+
+                    for (
+                        int i = 0;
+                        i < ids.Count;
+                        i += tamanoLote
+                    )
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var bloque = ids
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
+
+                        const string sql = @"
+SET NOCOUNT ON;
+
+SELECT
+    p.ProduccionId,
+
+    FechaProduccion =
+        CONVERT(
+            date,
+            p.FechaProduccion
+        ),
+
+    PesoKg =
+        CAST(
+            p.PesoNeto
+            AS decimal(18,4)
+        ),
+
+    p.LoteId,
+
+    Lote =
+        LTRIM(
+            RTRIM(
+                CONVERT(
+                    nvarchar(200),
+                    l.Nombre
+                )
+            )
+        )
+
+FROM dbo.Produccion p
+
+LEFT JOIN dbo.Lote l
+    ON l.LoteId = p.LoteId
+
+WHERE
+    p.ProduccionId IN @Ids;
+";
+
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Ids = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 60
+                                )
+                            )
+                        ).ToList();
+
+                        foreach (var x in filas)
+                        {
+                            int produccionId =
+                                Convert.ToInt32(
+                                    x.ProduccionId
+                                );
+
+                            DateTime? fechaProduccion =
+                                null;
+
+                            if (x.FechaProduccion != null)
+                            {
+                                fechaProduccion =
+                                    Convert.ToDateTime(
+                                        x.FechaProduccion
+                                    );
+                            }
+
+                            decimal? pesoKg = null;
+
+                            if (x.PesoKg != null)
+                            {
+                                pesoKg =
+                                    Convert.ToDecimal(
+                                        x.PesoKg
+                                    );
+                            }
+
+                            int? loteId = null;
+
+                            if (x.LoteId != null)
+                            {
+                                loteId =
+                                    Convert.ToInt32(
+                                        x.LoteId
+                                    );
+                            }
+
+                            string lote =
+                                (
+                                    Convert.ToString(
+                                        x.Lote
+                                    )
+                                    ?? string.Empty
+                                ).Trim();
+
+                            resultado[produccionId] =
+                                (
+                                    fechaProduccion,
+                                    pesoKg,
+                                    loteId,
+                                    lote
+                                );
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                async Task<Dictionary<int, int>>
+                    BuscarVidaUtilAsync(
+                        string connectionString,
+                        string baseCommerciaNet,
+                        IEnumerable<int> etiquetaciones)
+                {
+                    var resultado =
+                        new Dictionary<int, int>();
+
+                    var ids = etiquetaciones
+                        .Where(x => x > 0)
+                        .Distinct()
+                        .ToList();
+
+                    if (ids.Count == 0)
+                        return resultado;
+
+                    await using var cn =
+                        new SqlConnection(connectionString);
+
+                    await cn.OpenAsync(ct);
+
+                    const int tamanoLote = 1500;
+
+                    for (
+                        int i = 0;
+                        i < ids.Count;
+                        i += tamanoLote
+                    )
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var bloque = ids
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToArray();
+
+                        var sql = $@"
+SET NOCOUNT ON;
+
+SELECT
+    ColectorId,
+
+    DiasVida =
+        TRY_CONVERT(
+            int,
+            Interface
+        )
+
+FROM [{baseCommerciaNet}].dbo.colector
+
+WHERE
+    ColectorId IN @Ids
+
+    AND SistemaId = 'ETI';
+";
+
+                        var filas = (
+                            await cn.QueryAsync(
+                                new CommandDefinition(
+                                    sql,
+                                    new
+                                    {
+                                        Ids = bloque
+                                    },
+                                    cancellationToken: ct,
+                                    commandTimeout: 60
+                                )
+                            )
+                        ).ToList();
+
+                        foreach (var x in filas)
+                        {
+                            int colectorId =
+                                Convert.ToInt32(
+                                    x.ColectorId
+                                );
+
+                            int diasVida =
+                                x.DiasVida == null
+                                    ? 0
+                                    : Convert.ToInt32(
+                                        x.DiasVida
+                                    );
+
+                            resultado[colectorId] =
+                                diasVida;
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                async Task<
+                    Dictionary<string, DateTime?>
+                > BuscarSacrificioAsync(
+                    IEnumerable<string> lotes)
+                {
+                    var resultado =
+                        new Dictionary<
+                            string,
+                            DateTime?
+                        >(
+                            StringComparer.OrdinalIgnoreCase
+                        );
+
+                    var lista = lotes
+                        .Where(x =>
+                            !string.IsNullOrWhiteSpace(x)
+                            && !x.Equals(
+                                "SIN LOTE",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                        .Select(x => x.Trim())
+                        .Distinct(
+                            StringComparer.OrdinalIgnoreCase
+                        )
+                        .ToList();
+
+                    if (lista.Count == 0)
+                        return resultado;
+
+                    await using var cn =
+                        new SqlConnection(csTif);
+
+                    await cn.OpenAsync(ct);
+
+                    const string sql = @"
+SET NOCOUNT ON;
+
+;WITH Lotes AS
+(
+    SELECT
+        l.LoteId,
+
+        Lote =
+            LTRIM(
+                RTRIM(
+                    CONVERT(
+                        nvarchar(200),
+                        l.Nombre
+                    )
+                )
+            )
+
+    FROM dbo.Lote l
+
+    WHERE
+        l.Nombre IN @Lotes
+)
+
+SELECT
+    l.Lote,
+
+    FechaSacrificio =
+        MAX(
+            TRY_CONVERT(
+                date,
+                sr.Referencia,
+                103
+            )
+        )
+
+FROM Lotes l
+
+LEFT JOIN dbo.SolicitudReferencia sr
+    ON sr.solicitudProduccionid =
+       l.LoteId
+
+   AND sr.tiporeferenciaId = 47
+
+GROUP BY
+    l.Lote;
+";
+
+                    var filas = (
+                        await cn.QueryAsync(
+                            new CommandDefinition(
+                                sql,
+                                new
+                                {
+                                    Lotes = lista
+                                },
+                                cancellationToken: ct,
+                                commandTimeout: 60
+                            )
+                        )
+                    ).ToList();
+
+                    foreach (var x in filas)
+                    {
+                        var lote =
+                            (
+                                Convert.ToString(
+                                    x.Lote
+                                )
+                                ?? string.Empty
+                            ).Trim();
+
+                        DateTime? fecha = null;
+
+                        if (
+                            x.FechaSacrificio != null
+                        )
+                        {
+                            fecha =
+                                Convert.ToDateTime(
+                                    x.FechaSacrificio
+                                );
+                        }
+
+                        if (
+                            !string.IsNullOrWhiteSpace(
+                                lote
+                            )
+                        )
+                        {
+                            resultado[lote] = fecha;
+                        }
+                    }
+
+                    return resultado;
+                }
+
+
+                async Task<
+                    List<
+                        (
+                            string Sku,
+                            string Producto,
+                            string Lote,
+                            DateTime? FechaSacrificio,
+                            DateTime? FechaProduccion,
+                            DateTime? FechaCaducidad,
+                            int Cajas,
+                            decimal Kg
+                        )
+                    >
+                > ObtenerPedidoOptimizadoAsync(
+                    string pedido)
+                {
+                    // -----------------------------------------------------
+                    // A) BASE DE ETIQUETAS DEL PEDIDO
+                    // -----------------------------------------------------
+                    const string sqlBase = @"
+SET NOCOUNT ON;
+
+SELECT
+    CodigoEtiqueta =
+        LTRIM(
+            RTRIM(
+                CONVERT(
+                    nvarchar(200),
+                    c.CodigoEtiqueta
+                )
+            )
+        ),
+
+    Sku =
+        LTRIM(
+            RTRIM(
+                CONVERT(
+                    nvarchar(50),
+                    c.Sku
+                )
+            )
+        ),
+
+    Producto =
+        COALESCE(
+            NULLIF(
+                LTRIM(
+                    RTRIM(
+                        CONVERT(
+                            nvarchar(200),
+                            aSap.ProductoNombre
+                        )
+                    )
+                ),
+                N''
+            ),
+
+            LTRIM(
+                RTRIM(
+                    CONVERT(
+                        nvarchar(50),
+                        c.Sku
+                    )
+                )
+            )
+        ),
+
+    Kg =
+        CAST(
+            COALESCE(
+                c.Kg,
+                0
+            )
+            AS decimal(18,4)
+        )
+
+FROM dbo.PedidosTransferencia t
+
+INNER JOIN dbo.TransferenciaScanEtiqueta c
+    ON c.TransferenciaId =
+       t.TransferenciaId
+
+OUTER APPLY
+(
+    SELECT TOP (1)
+        a.ProductoNombre
+
+    FROM dbo.ArticuloSap a
+
+    WHERE
+        a.ProductoCodigo =
+        c.Sku
+) aSap
+
+WHERE
+    t.Consecutivo = @Pedido
+
+    AND NULLIF(
+        LTRIM(
+            RTRIM(
+                CONVERT(
+                    nvarchar(200),
+                    c.CodigoEtiqueta
+                )
+            )
+        ),
+        N''
+    ) IS NOT NULL;
+";
+
+                    var connLocal =
+                        _context.Database.GetDbConnection();
+
+                    if (
+                        connLocal.State
+                        != ConnectionState.Open
+                    )
+                    {
+                        await connLocal.OpenAsync(ct);
+                    }
+
+                    var baseRows = (
+                        await connLocal.QueryAsync(
+                            new CommandDefinition(
+                                sqlBase,
+                                new
+                                {
+                                    Pedido = pedido
+                                },
+                                cancellationToken: ct,
+                                commandTimeout: 30
+                            )
+                        )
+                    ).ToList();
+
+                    if (baseRows.Count == 0)
+                    {
+                        return new List<
+                            (
+                                string Sku,
+                                string Producto,
+                                string Lote,
+                                DateTime? FechaSacrificio,
+                                DateTime? FechaProduccion,
+                                DateTime? FechaCaducidad,
+                                int Cajas,
+                                decimal Kg
+                            )
+                        >();
+                    }
+
+                    var codigos = baseRows
+                        .Select(
+                            x =>
+                                Convert.ToString(
+                                    (object)x.CodigoEtiqueta
+                                )
+                                ?? string.Empty
+                        )
+                        .Select(x => x.Trim())
+                        .Where(
+                            x =>
+                                !string.IsNullOrWhiteSpace(
+                                    x
+                                )
+                        )
+                        .Distinct(
+                            StringComparer.OrdinalIgnoreCase
+                        )
+                        .ToList();
+
+                    // -----------------------------------------------------
+                    // B) LOGS TIF / P1 EN BLOQUE
+                    // -----------------------------------------------------
+                    var logsTif =
+                        await BuscarLogsAsync(
+                            csTif,
+                            codigos
+                        );
+
+                    var faltantesP1 = codigos
+                        .Where(
+                            x =>
+                                !logsTif.ContainsKey(
+                                    x
+                                )
+                        )
+                        .ToList();
+
+                    var logsP1 =
+                        await BuscarLogsAsync(
+                            csP1,
+                            faltantesP1
+                        );
+
+                    // -----------------------------------------------------
+                    // C) PRODUCCION / LOTE
+                    // -----------------------------------------------------
+                    var prodTif =
+                        await BuscarProduccionAsync(
+                            csTif,
+                            logsTif.Values
+                                .Select(
+                                    x =>
+                                        x.ProduccionId
+                                )
+                        );
+
+                    var prodP1 =
+                        await BuscarProduccionAsync(
+                            csP1,
+                            logsP1.Values
+                                .Select(
+                                    x =>
+                                        x.ProduccionId
+                                )
+                        );
+
+                    // -----------------------------------------------------
+                    // D) VIDA ÚTIL
+                    // -----------------------------------------------------
+                    var vidaTif =
+                        await BuscarVidaUtilAsync(
+                            csTif,
+                            "tif_CommerciaNet",
+                            logsTif.Values
+                                .Select(
+                                    x =>
+                                        x.EtiquetacionId
+                                )
+                        );
+
+                    var vidaP1 =
+                        await BuscarVidaUtilAsync(
+                            csP1,
+                            "CommerciaNet",
+                            logsP1.Values
+                                .Select(
+                                    x =>
+                                        x.EtiquetacionId
+                                )
+                        );
+
+                    // -----------------------------------------------------
+                    // E) DETALLE POR ETIQUETA
+                    // -----------------------------------------------------
+                    var detalle = new List<
+                        (
+                            string Sku,
+                            string Producto,
+                            string Lote,
+                            DateTime? FechaProduccion,
+                            DateTime? FechaCaducidad,
+                            decimal Kg
+                        )
+                    >();
+
+                    foreach (var b in baseRows)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        string codigo =
+                            (
+                                Convert.ToString(
+                                    (object)b.CodigoEtiqueta
+                                )
+                                ?? string.Empty
+                            ).Trim();
+
+                        string sku =
+                            (
+                                Convert.ToString(
+                                    (object)b.Sku
+                                )
+                                ?? string.Empty
+                            ).Trim();
+
+                        string producto =
+                            (
+                                Convert.ToString(
+                                    (object)b.Producto
+                                )
+                                ?? string.Empty
+                            ).Trim();
+
+                        decimal kgBase =
+                            b.Kg == null
+                                ? 0m
+                                : Convert.ToDecimal(
+                                    b.Kg
+                                );
+
+                        string lote = "SIN LOTE";
+
+                        DateTime? fechaProduccion =
+                            null;
+
+                        DateTime? fechaCaducidad =
+                            null;
+
+                        decimal kg =
+                            kgBase;
+
+                        if (
+                            logsTif.TryGetValue(
+                                codigo,
+                                out var logTif
+                            )
+                        )
+                        {
+                            if (
+                                prodTif.TryGetValue(
+                                    logTif.ProduccionId,
+                                    out var prod
+                                )
+                            )
+                            {
+                                lote =
+                                    string.IsNullOrWhiteSpace(
+                                        prod.Lote
+                                    )
+                                        ? "SIN LOTE"
+                                        : prod.Lote;
+
+                                fechaProduccion =
+                                    prod.FechaProduccion;
+
+                                kg =
+                                    prod.PesoKg
+                                    ?? kgBase;
+                            }
+
+                            vidaTif.TryGetValue(
+                                logTif.EtiquetacionId,
+                                out var diasVida
+                            );
+
+                            if (
+                                fechaProduccion.HasValue
+                            )
+                            {
+                                fechaCaducidad =
+                                    fechaProduccion.Value
+                                        .AddDays(
+                                            diasVida
+                                        );
+                            }
+                        }
+                        else if (
+                            logsP1.TryGetValue(
+                                codigo,
+                                out var logP1
+                            )
+                        )
+                        {
+                            if (
+                                prodP1.TryGetValue(
+                                    logP1.ProduccionId,
+                                    out var prod
+                                )
+                            )
+                            {
+                                lote =
+                                    string.IsNullOrWhiteSpace(
+                                        prod.Lote
+                                    )
+                                        ? "SIN LOTE"
+                                        : prod.Lote;
+
+                                fechaProduccion =
+                                    prod.FechaProduccion;
+
+                                kg =
+                                    prod.PesoKg
+                                    ?? kgBase;
+                            }
+
+                            vidaP1.TryGetValue(
+                                logP1.EtiquetacionId,
+                                out var diasVida
+                            );
+
+                            if (
+                                fechaProduccion.HasValue
+                            )
+                            {
+                                fechaCaducidad =
+                                    fechaProduccion.Value
+                                        .AddDays(
+                                            diasVida
+                                        );
+                            }
+                        }
+
+                        detalle.Add(
+                            (
+                                sku,
+                                producto,
+                                lote,
+                                fechaProduccion,
+                                fechaCaducidad,
+                                kg
+                            )
+                        );
+                    }
+
+                    // -----------------------------------------------------
+                    // F) SACRIFICIO SÓLO POR LOTES ÚNICOS
+                    // -----------------------------------------------------
+                    var sacrificios =
+                        await BuscarSacrificioAsync(
+                            detalle
+                                .Select(
+                                    x =>
+                                        x.Lote
+                                )
+                        );
+
+                    // -----------------------------------------------------
+                    // G) AGRUPAR PARA EXCEL
+                    // -----------------------------------------------------
+                    return detalle
+                        .GroupBy(
+                            x => new
+                            {
+                                x.Sku,
+                                x.Producto,
+                                x.Lote,
+                                x.FechaProduccion,
+                                x.FechaCaducidad
+                            }
+                        )
+                        .OrderBy(
+                            g =>
+                                g.Key.Sku
+                        )
+                        .ThenBy(
+                            g =>
+                                g.Key.Lote
+                        )
+                        .Select(
+                            g =>
+                            {
+                                sacrificios.TryGetValue(
+                                    g.Key.Lote,
+                                    out var fechaSacrificio
+                                );
+
+                                return
+                                (
+                                    Sku:
+                                        g.Key.Sku,
+
+                                    Producto:
+                                        g.Key.Producto,
+
+                                    Lote:
+                                        g.Key.Lote,
+
+                                    FechaSacrificio:
+                                        fechaSacrificio,
+
+                                    FechaProduccion:
+                                        g.Key.FechaProduccion,
+
+                                    FechaCaducidad:
+                                        g.Key.FechaCaducidad,
+
+                                    Cajas:
+                                        g.Count(),
+
+                                    Kg:
+                                        Math.Round(
+                                            g.Sum(
+                                                x =>
+                                                    x.Kg
+                                            ),
+                                            3
+                                        )
+                                );
+                            }
+                        )
+                        .ToList();
+                }
+
+
+                // =========================================================
+                // 2) GENERAR EXCEL
+                // =========================================================
+                using var wb =
+                    new XLWorkbook();
+
+                var ws =
+                    wb.Worksheets.Add(
+                        "AvisoMovilizacion"
+                    );
+
+                ws.Cell(1, 1).Value = "pedido";
+                ws.Cell(1, 2).Value = "sku";
+                ws.Cell(1, 3).Value = "producto";
+                ws.Cell(1, 4).Value = "lote";
+                ws.Cell(1, 5).Value = "fecha sacrificio";
+                ws.Cell(1, 6).Value = "fecha produccion";
+                ws.Cell(1, 7).Value = "fecha caducidad";
+                ws.Cell(1, 8).Value = "Cuenta de etiqueta";
+                ws.Cell(1, 9).Value = "Suma de kg";
+
+                ws.Range(
+                    1,
+                    1,
+                    1,
+                    9
+                ).Style.Font.Bold = true;
+
+                var row = 2;
+
+                foreach (
+                    var pedido
+                    in pedidosAExportar
+                )
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var data =
+                        await ObtenerPedidoOptimizadoAsync(
+                            pedido
+                        );
+
+                    foreach (var r in data)
+                    {
+                        ws.Cell(row, 1).Value =
+                            pedido;
+
+                        ws.Cell(row, 2).Value =
+                            r.Sku;
+
+                        ws.Cell(row, 3).Value =
+                            r.Producto;
+
+                        ws.Cell(row, 4).Value =
+                            r.Lote;
+
+                        ws.Cell(row, 5).Value =
+                            r.FechaSacrificio.HasValue
+                                ? r.FechaSacrificio.Value
+                                : "";
+
+                        ws.Cell(row, 6).Value =
+                            r.FechaProduccion.HasValue
+                                ? r.FechaProduccion.Value
+                                : "";
+
+                        ws.Cell(row, 7).Value =
+                            r.FechaCaducidad.HasValue
+                                ? r.FechaCaducidad.Value
+                                : "";
+
+                        ws.Cell(row, 8).Value =
+                            r.Cajas;
+
+                        ws.Cell(row, 9).Value =
+                            r.Kg;
+
+                        row++;
+                    }
+                }
+
+                if (row == 2)
+                {
+                    return BadRequest(
+                        "No se encontraron partidas para generar el archivo."
+                    );
+                }
+
+                // Formato de fechas.
+                ws.Column(5).Style.DateFormat.Format =
+                    "dd/MM/yyyy";
+
+                ws.Column(6).Style.DateFormat.Format =
+                    "dd/MM/yyyy";
+
+                ws.Column(7).Style.DateFormat.Format =
+                    "dd/MM/yyyy";
+
+                ws.Column(9).Style.NumberFormat.Format =
+                    "#,##0.000";
+
+                ws.SheetView.FreezeRows(1);
+
+                ws.RangeUsed()
+                    .SetAutoFilter();
+
+                ws.Columns()
+                    .AdjustToContents();
+
+                using var ms =
+                    new MemoryStream();
+
+                wb.SaveAs(ms);
+
+                var fileName =
+                    $"AvisoMovilizacion_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                return File(
+                    ms.ToArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName
+                );
             }
-
-            ws.Columns().AdjustToContents();
-
-            using var ms = new MemoryStream();
-            wb.SaveAs(ms);
-            ms.Position = 0;
-
-            var fileName = $"AvisoMovilizacion_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
-            return File(ms.ToArray(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                fileName);
+            catch (OperationCanceledException)
+            {
+                return StatusCode(
+                    499,
+                    "La generación del Excel fue cancelada."
+                );
+            }
+            catch (SqlException ex)
+            {
+                return StatusCode(
+                    500,
+                    $"Error SQL al generar el Excel. Número {ex.Number}: {ex.Message}"
+                );
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    500,
+                    "No se pudo generar el Excel: "
+                    + ex.GetBaseException().Message
+                );
+            }
         }
+
 
         public record CancelarTransferenciaReq(int Id);
 

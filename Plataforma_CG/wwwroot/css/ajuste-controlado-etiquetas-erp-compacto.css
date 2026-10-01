@@ -1,0 +1,1196 @@
+/* ==========================================================================
+   AJUSTE CONTROLADO DE ETIQUETAS — ERP TINTO / POPPINS / COMPACTO
+   - conserva IDs, JavaScript, endpoints, auditoría y modos individual/masivo
+   - buscador principal en una sola línea
+   - títulos grises en negro / títulos tintos en blanco
+   - tablas compactas y legibles
+   - controles críticos de eliminar/activar claramente diferenciados
+   - sin desplazamiento horizontal de toda la página
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --aec-bg: #eef2f4;
+    --aec-panel: #ffffff;
+    --aec-panel2: #f7f9fa;
+    --aec-line: #bec9cf;
+    --aec-line-soft: #d7dfe3;
+    --aec-text: #30373b;
+    --aec-muted: #66747c;
+
+    --aec-tinto: #7a2029;
+    --aec-tinto-dark: #5e1820;
+    --aec-tinto-deep: #351014;
+    --aec-tinto-soft: #f4e8ea;
+
+    --aec-green: #25824d;
+    --aec-green-dark: #1c633a;
+    --aec-green-soft: #e8f3ed;
+
+    --aec-amber: #9c7318;
+    --aec-amber-soft: #f8f0dc;
+
+    --aec-red: #a22e3a;
+    --aec-red-dark: #7e202a;
+    --aec-red-soft: #f7e5e7;
+
+    --aec-blue: #45657d;
+    --aec-blue-soft: #eaf0f4;
+}
+
+@media screen {
+
+    /* ======================================================================
+       FUENTE / CONTENCIÓN GENERAL
+       ====================================================================== */
+
+    #aePage,
+    #aePage *,
+    #aeAuditModal,
+    #aeAuditModal * {
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        box-sizing: border-box !important;
+    }
+
+    #aePage .fa-solid,
+    #aeAuditModal .fa-solid {
+        font-family: "Font Awesome 6 Free" !important;
+        font-weight: 900 !important;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) {
+        background: var(--aec-bg) !important;
+    }
+
+    body:has(#aePage) .layout-main-content,
+    body:has(#aePage) .layout-container-fluid {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    body:has(#aePage) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
+    }
+
+    body:has(.layout-sidebar.layout-hidden):has(#aePage) .layout-main-content,
+    body:has(.layout-sidebar.layout-hidden):has(#aePage) .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage.ae-page {
+        width: calc(100% - 8px) !important;
+        max-width: calc(100% - 8px) !important;
+        min-width: 0 !important;
+
+        margin: 4px auto 8px !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+        overflow-x: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 4px !important;
+    }
+
+    /* ======================================================================
+       HEADER
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-header {
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 5px 8px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+        color: #fff !important;
+
+        border: 1px solid #351014 !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-title {
+        min-width: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-title h1 {
+        margin: 0 !important;
+
+        color: #fff !important;
+
+        font-size: 13px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-header-actions {
+        min-width: 0 !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 5px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-permissions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ======================================================================
+       BOTONES / CHIPS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-btn,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-btn {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 8px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+
+        border-radius: 2px !important;
+        box-shadow: none !important;
+
+        font-size: 9px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-btn.primary,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-btn.primary {
+        background: var(--aec-tinto) !important;
+        color: #fff !important;
+        border: 1px solid var(--aec-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-btn.secondary,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-btn.secondary {
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+        border: 1px solid #b9c5cb !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-btn.success,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-btn.success {
+        background: var(--aec-green) !important;
+        color: #fff !important;
+        border: 1px solid var(--aec-green-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-chip,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-chip {
+        min-height: 21px !important;
+        padding: 3px 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+
+        border-radius: 999px !important;
+
+        font-size: 8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-chip.ok,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-chip.ok {
+        background: var(--aec-green-soft) !important;
+        color: #17623d !important;
+        border: 1px solid #a7cfb8 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-chip.warn,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-chip.warn {
+        background: var(--aec-amber-soft) !important;
+        color: #6d510f !important;
+        border: 1px solid #d9bd73 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-chip.no,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-chip.no {
+        background: var(--aec-red-soft) !important;
+        color: #84242f !important;
+        border: 1px solid #d7a3aa !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-chip.info,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-chip.info {
+        background: var(--aec-blue-soft) !important;
+        color: #35566d !important;
+        border: 1px solid #b8c8d2 !important;
+    }
+
+    /* Mode switch */
+    body:not([data-theme="dark"]) #aePage .ae-mode-switch {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+
+        padding: 2px !important;
+
+        background: rgba(255,255,255,.08) !important;
+        border: 1px solid rgba(255,255,255,.20) !important;
+        border-radius: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-mode-btn {
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 7px !important;
+
+        background: transparent !important;
+        color: #eadbdd !important;
+
+        border: 1px solid transparent !important;
+        border-radius: 2px !important;
+
+        font-size: 8.7px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-mode-btn.active {
+        background: #fff !important;
+        color: var(--aec-tinto) !important;
+        border-color: #fff !important;
+    }
+
+    /* ======================================================================
+       CARDS / TÍTULOS
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+
+        background: #fff !important;
+        border: 1px solid var(--aec-line) !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-card-title {
+        min-height: 26px !important;
+        padding: 4px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+
+        background: linear-gradient(180deg,#edf1f3 0%,#e2e8eb 100%) !important;
+        color: #111 !important;
+
+        border-bottom: 1px solid var(--aec-line) !important;
+        border-left: 4px solid var(--aec-tinto) !important;
+
+        overflow: hidden !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-card-title strong {
+        min-width: 0 !important;
+
+        color: #111 !important;
+
+        font-size: 9.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-card-title small {
+        flex: 0 0 auto !important;
+
+        color: #5f6c73 !important;
+
+        font-size: 8.2px !important;
+        line-height: 1 !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+    }
+
+    /* ======================================================================
+       BÚSQUEDA INDIVIDUAL — UNA SOLA LÍNEA
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage #aeSingleSearchCard {
+        overflow: visible !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-search-grid {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns:
+            210px
+            minmax(330px,1fr)
+            165px !important;
+
+        gap: 6px !important;
+        align-items: end !important;
+
+        padding: 5px 6px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-field {
+        min-width: 0 !important;
+        margin: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-field label,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-field label {
+        display: block !important;
+        margin: 0 0 2px !important;
+
+        color: #4e595f !important;
+
+        font-size: 8.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-input,
+    body:not([data-theme="dark"]) #aePage .ae-textarea,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-input,
+    body:not([data-theme="dark"]) #aeAuditModal select {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        background: #fff !important;
+        color: var(--aec-text) !important;
+
+        border: 1px solid #b8c4ca !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        outline: none !important;
+
+        font-size: 9.8px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-input,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-input,
+    body:not([data-theme="dark"]) #aeAuditModal select {
+        min-height: 29px !important;
+        height: 29px !important;
+        padding: 3px 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-input:focus,
+    body:not([data-theme="dark"]) #aePage .ae-textarea:focus,
+    body:not([data-theme="dark"]) #aeAuditModal .ae-input:focus,
+    body:not([data-theme="dark"]) #aeAuditModal select:focus {
+        border-color: #9e7479 !important;
+        box-shadow: 0 0 0 2px rgba(122,32,41,.08) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-plant-toggle {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-plant-btn {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 7px !important;
+
+        background: #f5f7f8 !important;
+        color: #414c52 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-plant-btn.active {
+        background: var(--aec-tinto) !important;
+        color: #fff !important;
+        border-color: var(--aec-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-search-actions {
+        width: 165px !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-search-actions .ae-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* ======================================================================
+       MODO MASIVO
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-bulk-grid {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: minmax(0,1fr) 190px !important;
+        gap: 6px !important;
+        align-items: end !important;
+
+        padding: 5px 6px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-bulk-input {
+        min-height: 76px !important;
+        height: 76px !important;
+        padding: 5px 7px !important;
+        resize: vertical !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.25 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-bulk-actions {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-bulk-summary {
+        min-height: 29px !important;
+        padding: 4px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+
+        border-bottom: 1px solid var(--aec-line-soft) !important;
+    }
+
+    /* ======================================================================
+       GRID PRINCIPAL
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-main-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: minmax(0,1.10fr) minmax(360px,.90fr) !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-detail-body,
+    body:not([data-theme="dark"]) #aePage .ae-operation-body {
+        min-width: 0 !important;
+        padding: 6px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-status-row {
+        min-height: 34px !important;
+        margin: 0 0 5px !important;
+        padding: 4px 6px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+
+        background: #f7f9fa !important;
+        border: 1px solid var(--aec-line-soft) !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-label-code {
+        min-width: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-label-code span {
+        display: block !important;
+
+        color: var(--aec-muted) !important;
+
+        font-size: 8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-label-code strong {
+        display: block !important;
+        margin-top: 2px !important;
+
+        color: var(--aec-tinto-dark) !important;
+
+        font-size: 11px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-badge,
+    body:not([data-theme="dark"]) #aePage .ae-mini-status {
+        min-height: 20px !important;
+        padding: 3px 6px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        border-radius: 999px !important;
+
+        font-size: 8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-badge.active,
+    body:not([data-theme="dark"]) #aePage .ae-mini-status.ok {
+        background: var(--aec-green-soft) !important;
+        color: #17623d !important;
+        border: 1px solid #a7cfb8 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-badge.inactive,
+    body:not([data-theme="dark"]) #aePage .ae-mini-status.no {
+        background: var(--aec-red-soft) !important;
+        color: #84242f !important;
+        border: 1px solid #d7a3aa !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-mini-status.warn {
+        background: var(--aec-amber-soft) !important;
+        color: #6d510f !important;
+        border: 1px solid #d9bd73 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-mini-status.info {
+        background: var(--aec-blue-soft) !important;
+        color: #35566d !important;
+        border: 1px solid #b8c8d2 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-detail-grid {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-data {
+        min-width: 0 !important;
+        min-height: 42px !important;
+
+        padding: 5px 6px !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--aec-line-soft) !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-data.wide {
+        grid-column: span 2 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-data label {
+        display: block !important;
+        margin: 0 0 3px !important;
+
+        color: var(--aec-muted) !important;
+
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-data strong {
+        display: block !important;
+
+        color: #30373b !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.15 !important;
+        font-weight: 600 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-rule-banner {
+        min-height: 31px !important;
+        margin-top: 5px !important;
+        padding: 5px 7px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+
+        border-radius: 2px !important;
+
+        font-size: 8.8px !important;
+        line-height: 1.15 !important;
+        font-weight: 600 !important;
+    }
+
+    /* ======================================================================
+       OPERACIÓN AUTORIZADA — claridad primero
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-action-switch {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 4px !important;
+
+        margin-bottom: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-action-option {
+        min-height: 32px !important;
+        padding: 5px 7px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+
+        background: #f7f9fa !important;
+        color: #3f474b !important;
+
+        border: 1px solid var(--aec-line) !important;
+        border-radius: 2px !important;
+
+        font-size: 9px !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-action-option:has(input:checked) {
+        border-color: #9e7479 !important;
+        background: var(--aec-tinto-soft) !important;
+        color: var(--aec-tinto-dark) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-action-option input {
+        width: 14px !important;
+        height: 14px !important;
+        accent-color: var(--aec-tinto) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-form-stack {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage #aeReason {
+        min-height: 56px !important;
+        height: 56px !important;
+        padding: 5px 7px !important;
+        resize: vertical !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.2 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-danger-box,
+    body:not([data-theme="dark"]) #aePage .ae-activate-box {
+        margin: 0 !important;
+        padding: 6px !important;
+
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-danger-box {
+        background: #fff2f3 !important;
+        border: 1px solid #dda7ad !important;
+        border-left: 4px solid var(--aec-red) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-activate-box {
+        background: #edf7f1 !important;
+        border: 1px solid #a7cfb8 !important;
+        border-left: 4px solid var(--aec-green) !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-danger-box p,
+    body:not([data-theme="dark"]) #aePage .ae-activate-box p {
+        margin: 0 0 5px !important;
+
+        color: #3d464b !important;
+
+        font-size: 8.5px !important;
+        line-height: 1.25 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage #btnAeApply {
+        width: 100% !important;
+        min-height: 32px !important;
+        height: 32px !important;
+    }
+
+    /* ======================================================================
+       TABLAS DE HISTORIAL
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aePage .ae-audit-grid {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        max-height: 250px !important;
+
+        overflow: auto !important;
+        background: #fff !important;
+        scrollbar-gutter: stable !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table {
+        width: max-content !important;
+        min-width: 100% !important;
+        max-width: none !important;
+
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+
+        font-size: 9.5px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table thead th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 5 !important;
+
+        height: 29px !important;
+        padding: 4px 5px !important;
+
+        background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+        color: #30373b !important;
+
+        border: 0 !important;
+        border-right: 1px solid #aebbc3 !important;
+        border-bottom: 1px solid #aebbc3 !important;
+
+        font-size: 8.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table tbody td {
+        height: 29px !important;
+        padding: 4px 5px !important;
+
+        background: #fff !important;
+        color: #344047 !important;
+
+        border: 0 !important;
+        border-right: 1px solid #e0e6e9 !important;
+        border-bottom: 1px solid #d7dfe3 !important;
+
+        font-size: 9.3px !important;
+        line-height: 1 !important;
+        vertical-align: middle !important;
+
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table tbody tr:nth-child(even) td {
+        background: #f8fafb !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-table tbody tr:hover td {
+        background: #f4eaec !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage .ae-loading,
+    body:not([data-theme="dark"]) #aePage .ae-empty {
+        min-height: 80px !important;
+        padding: 14px !important;
+
+        color: var(--aec-muted) !important;
+
+        font-size: 9.5px !important;
+        text-align: center !important;
+    }
+
+    /* ======================================================================
+       AUDITORÍA GLOBAL — MODAL
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aeAuditModal.ae-audit-modal {
+        padding: 8px !important;
+        background: rgba(20,24,27,.72) !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-dialog {
+        width: min(1600px, 98vw) !important;
+        height: min(880px, 95vh) !important;
+
+        background: #fff !important;
+
+        border: 1px solid #8e9ba2 !important;
+        border-radius: 4px !important;
+        box-shadow: 0 18px 54px rgba(0,0,0,.30) !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-modal-head {
+        min-height: 42px !important;
+        height: 42px !important;
+        padding: 5px 8px !important;
+
+        background: linear-gradient(180deg,#5a171d 0%,#481318 52%,#351014 100%) !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-modal-title strong {
+        color: #fff !important;
+        font-size: 12px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-modal-title small {
+        margin-top: 1px !important;
+
+        color: #eadbdd !important;
+
+        font-size: 8.5px !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-close {
+        width: 28px !important;
+        height: 28px !important;
+
+        padding: 0 !important;
+
+        background: #fff !important;
+        color: var(--aec-tinto) !important;
+
+        border: 1px solid #d2aeb3 !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-modal-body {
+        gap: 5px !important;
+        padding: 6px !important;
+
+        background: var(--aec-bg) !important;
+    }
+
+    /* filtros de auditoría en una línea para escritorio */
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-filters {
+        width: 100% !important;
+        min-width: 0 !important;
+
+        grid-template-columns:
+            100px
+            100px
+            90px
+            150px
+            100px
+            100px
+            minmax(170px,1fr)
+            190px !important;
+
+        gap: 4px !important;
+        padding: 5px !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--aec-line) !important;
+        border-radius: 3px !important;
+
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-filter-actions {
+        display: grid !important;
+        grid-template-columns: repeat(3,1fr) !important;
+        gap: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-summary {
+        grid-template-columns: repeat(5,minmax(100px,1fr)) !important;
+        gap: 4px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-kpi {
+        min-height: 47px !important;
+        padding: 5px 7px !important;
+
+        background: #fff !important;
+
+        border: 1px solid var(--aec-line) !important;
+        border-top: 3px solid var(--aec-tinto) !important;
+        border-radius: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-kpi span {
+        color: #4f5b62 !important;
+        font-size: 7.8px !important;
+        line-height: 1 !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-kpi strong {
+        margin-top: 3px !important;
+
+        color: var(--aec-tinto-dark) !important;
+
+        font-size: 14px !important;
+        line-height: 1 !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-grid-wrap {
+        border: 1px solid var(--aec-line) !important;
+        border-radius: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-global-table {
+        min-width: 1450px !important;
+        font-size: 9px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-global-table th {
+        padding: 4px 5px !important;
+
+        color: #fff !important;
+        background: var(--aec-tinto) !important;
+
+        font-size: 8.5px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-global-table td {
+        height: 28px !important;
+        padding: 4px 5px !important;
+
+        font-size: 9px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-detail {
+        flex-basis: 180px !important;
+        gap: 5px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-json-card {
+        border: 1px solid var(--aec-line) !important;
+        border-radius: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-json-card header {
+        padding: 4px 6px !important;
+
+        color: #fff !important;
+        background: var(--aec-tinto-dark) !important;
+
+        font-size: 8.8px !important;
+    }
+
+    body:not([data-theme="dark"]) #aeAuditModal .ae-audit-json-card pre {
+        padding: 6px !important;
+        font: 9px/1.3 Consolas, "Courier New", monospace !important;
+    }
+
+    /* ======================================================================
+       TOAST
+       ====================================================================== */
+
+    body:not([data-theme="dark"]) #aeToast.ae-toast {
+        max-width: min(480px, calc(100vw - 30px)) !important;
+
+        padding: 8px 10px !important;
+
+        border-radius: 3px !important;
+
+        font-size: 9.5px !important;
+        line-height: 1.2 !important;
+    }
+
+    /* ======================================================================
+       RESPONSIVE
+       ====================================================================== */
+
+    @media (max-width: 1150px) {
+        body:not([data-theme="dark"]) #aePage .ae-header-actions {
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-search-grid {
+            grid-template-columns: 190px minmax(280px,1fr) 155px !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-main-grid {
+            grid-template-columns: minmax(0,1fr) minmax(330px,.90fr) !important;
+        }
+
+        body:not([data-theme="dark"]) #aeAuditModal .ae-audit-filters {
+            min-width: 1050px !important;
+        }
+    }
+
+    @media (max-width: 850px) {
+        body:not([data-theme="dark"]) #aePage .ae-main-grid,
+        body:not([data-theme="dark"]) #aePage .ae-audit-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-search-grid {
+            min-width: 720px !important;
+            overflow-x: auto !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-detail-grid {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+    }
+
+    @media (max-width: 560px) {
+        body:not([data-theme="dark"]) #aePage .ae-header {
+            align-items: flex-start !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-header-actions {
+            max-width: 58% !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-permissions {
+            display: none !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-detail-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        body:not([data-theme="dark"]) #aePage .ae-data.wide {
+            grid-column: auto !important;
+        }
+    }
+
+    /* Scrollbars */
+    body:not([data-theme="dark"]) #aePage *::-webkit-scrollbar,
+    body:not([data-theme="dark"]) #aeAuditModal *::-webkit-scrollbar {
+        width: 7px !important;
+        height: 7px !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage *::-webkit-scrollbar-track,
+    body:not([data-theme="dark"]) #aeAuditModal *::-webkit-scrollbar-track {
+        background: #edf1f3 !important;
+    }
+
+    body:not([data-theme="dark"]) #aePage *::-webkit-scrollbar-thumb,
+    body:not([data-theme="dark"]) #aeAuditModal *::-webkit-scrollbar-thumb {
+        background: #aeb9bf !important;
+        border-radius: 2px !important;
+    }
+}
+
+/* Dark: solo armonización básica */
+@media screen {
+    body[data-theme="dark"] #aePage .ae-header,
+    body[data-theme="dark"] #aeAuditModal .ae-audit-modal-head {
+        background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+    }
+}

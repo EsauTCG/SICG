@@ -44,7 +44,7 @@ namespace Plataforma_CG.Models
   
         public int? VendedorId { get; set; }
 
-
+        public string? UsuarioRegistro { get; set; }
 
         // 🔑 Relación uno a muchos
         public ICollection<OrdenVentaProducto> Productos { get; set; } = new List<OrdenVentaProducto>();
