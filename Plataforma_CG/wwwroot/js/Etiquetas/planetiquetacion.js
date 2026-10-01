@@ -136,18 +136,15 @@ async function cargarProductosEtiquetacion(busqueda) {
 
 
     tbody.innerHTML = `
-        <tr>
-            <td colspan="3"
-                class="text-center p-4">
-
-                <div class="spinner-border"
-                     role="status">
+        <tr class="etq-state-row">
+            <td colspan="3">
+                <div class="etq-empty-state">
+                    <span class="spinner-border spinner-border-sm"
+                          role="status"
+                          aria-hidden="true"></span>
+                    <strong>Buscando artículos...</strong>
+                    <span>Estamos actualizando el catálogo.</span>
                 </div>
-
-                <div class="mt-2">
-                    Buscando...
-                </div>
-
             </td>
         </tr>
     `;
@@ -226,19 +223,39 @@ async function cargarProductosEtiquetacion(busqueda) {
 
 
         tbody.innerHTML = `
-            <tr>
-                <td colspan="3"
-                    class="text-center text-danger p-4">
-
-                    Error al cargar los productos.
-
-                    <div class="small mt-2">
-                        ${escapeHtml(error.message)}
+            <tr class="etq-state-row">
+                <td colspan="3">
+                    <div class="etq-empty-state etq-empty-state-error">
+                        <i class="bi bi-exclamation-triangle"
+                           aria-hidden="true"></i>
+                        <strong>No pudimos cargar los artículos</strong>
+                        <span>Verifica la conexión e intenta nuevamente.</span>
+                        <button type="button" class="etq-retry-btn">
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            Reintentar
+                        </button>
                     </div>
-
                 </td>
             </tr>
         `;
+
+        tbody
+            .querySelector(".etq-retry-btn")
+            ?.addEventListener(
+                "click",
+                () => {
+
+                    const buscador =
+                        document.getElementById(
+                            "buscadorArticulos"
+                        );
+
+                    cargarProductosEtiquetacion(
+                        buscador?.value.trim() || ""
+                    );
+
+                }
+            );
 
     }
 
@@ -269,12 +286,13 @@ function renderizarProductosEtiquetacion(productos) {
     ) {
 
         tbody.innerHTML = `
-            <tr>
-                <td colspan="3"
-                    class="text-center text-muted p-4">
-
-                    No se encontraron productos.
-
+            <tr class="etq-state-row">
+                <td colspan="3">
+                    <div class="etq-empty-state">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <strong>Sin resultados</strong>
+                        <span>Prueba con otro artículo, producto o etiqueta.</span>
+                    </div>
                 </td>
             </tr>
         `;
@@ -334,6 +352,16 @@ function renderizarProductosEtiquetacion(productos) {
             "fila-producto-etiquetacion"
         );
 
+        tr.tabIndex = 0;
+        tr.setAttribute(
+            "role",
+            "button"
+        );
+        tr.setAttribute(
+            "aria-label",
+            `Editar etiqueta de ${productoNombre || sku}`
+        );
+
 
         /*
          * Datos visibles
@@ -361,6 +389,25 @@ function renderizarProductosEtiquetacion(productos) {
         tr.addEventListener(
             "click",
             function () {
+
+                abrirModalProducto(
+                    this
+                );
+
+            }
+        );
+
+        tr.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (
+                    event.key !== "Enter" &&
+                    event.key !== " "
+                )
+                    return;
+
+                event.preventDefault();
 
                 abrirModalProducto(
                     this
@@ -1388,19 +1435,16 @@ async function cargarLogEtiquetacion() {
      */
 
     tbody.innerHTML = `
-        <tr>
+        <tr class="etq-log-state-row">
 
-            <td colspan="5"
-                class="text-center p-4">
-
-                <div class="spinner-border"
-                     role="status">
+            <td colspan="6">
+                <div class="etq-empty-state">
+                    <span class="spinner-border spinner-border-sm"
+                          role="status"
+                          aria-hidden="true"></span>
+                    <strong>Consultando historial...</strong>
+                    <span>Estamos recuperando los cambios registrados.</span>
                 </div>
-
-                <div class="mt-2">
-                    Consultando historial...
-                </div>
-
             </td>
 
         </tr>
@@ -1522,21 +1566,29 @@ async function cargarLogEtiquetacion() {
 
 
         tbody.innerHTML = `
-            <tr>
+            <tr class="etq-log-state-row">
 
-                <td colspan="5"
-                    class="text-center text-danger p-4">
-
-                    Error al consultar el historial.
-
-                    <div class="small mt-2">
-                        ${escapeHtml(error.message)}
+                <td colspan="6">
+                    <div class="etq-empty-state etq-empty-state-error">
+                        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        <strong>No pudimos consultar el historial</strong>
+                        <span>Verifica la conexión e intenta nuevamente.</span>
+                        <button type="button" class="etq-retry-btn etq-log-retry-btn">
+                            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            Reintentar
+                        </button>
                     </div>
-
                 </td>
 
             </tr>
         `;
+
+        tbody
+            .querySelector(".etq-log-retry-btn")
+            ?.addEventListener(
+                "click",
+                cargarLogEtiquetacion
+            );
 
     }
 
@@ -1561,13 +1613,14 @@ function renderizarLogEtiquetacion(registros) {
     ) {
 
         tbody.innerHTML = `
-            <tr>
+            <tr class="etq-log-state-row">
 
-                <td colspan="5"
-                    class="text-center text-muted p-4">
-
-                    No se encontraron registros.
-
+                <td colspan="6">
+                    <div class="etq-empty-state">
+                        <i class="bi bi-clock-history" aria-hidden="true"></i>
+                        <strong>Sin registros en este periodo</strong>
+                        <span>Prueba con un rango de fechas diferente.</span>
+                    </div>
                 </td>
 
             </tr>
@@ -1597,6 +1650,16 @@ function renderizarLogEtiquetacion(registros) {
         const etiquetaNueva =
             registro.nomNuevo ??
             "";
+
+
+        const usuario =
+            String(
+                registro.nombre ??
+                registro.nombreUsuario ??
+                registro.usuario ??
+                ""
+            ).trim() ||
+            "Sin identificar";
 
 
         let fechaHora = "";
@@ -1640,25 +1703,39 @@ function renderizarLogEtiquetacion(registros) {
             document.createElement("tr");
 
 
+        tr.classList.add(
+            "etq-log-row"
+        );
+
+
         tr.innerHTML = `
 
-            <td>
-                ${escapeHtml(sku)}
+            <td class="etq-log-sku-cell" data-label="SKU">
+                <span class="etq-log-sku">
+                    ${escapeHtml(sku)}
+                </span>
             </td>
 
-            <td class="text-start">
+            <td class="text-start etq-log-product-cell" data-label="Producto">
                 ${escapeHtml(producto)}
             </td>
 
-            <td>
-                ${escapeHtml(etiquetaAnterior)}
+            <td class="etq-log-label-cell etq-log-label-old" data-label="Etiqueta anterior">
+                <span>${escapeHtml(etiquetaAnterior)}</span>
             </td>
 
-            <td>
-                ${escapeHtml(etiquetaNueva)}
+            <td class="etq-log-label-cell etq-log-label-new" data-label="Etiqueta nueva">
+                <span>${escapeHtml(etiquetaNueva)}</span>
             </td>
 
-            <td>
+            <td class="etq-log-user-cell" data-label="Usuario">
+                <span class="etq-log-user-badge">
+                    <i class="bi bi-person" aria-hidden="true"></i>
+                    ${escapeHtml(usuario)}
+                </span>
+            </td>
+
+            <td class="etq-log-date-cell" data-label="Fecha y hora">
                 ${escapeHtml(fechaHora)}
             </td>
 

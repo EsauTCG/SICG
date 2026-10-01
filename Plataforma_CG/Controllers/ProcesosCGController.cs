@@ -3502,21 +3502,19 @@ VALUES
 
 
         private async Task<(bool Disponible,
-                            ReimpresionAuditoriaResumenVM Resumen,
-                            List<ReimpresionAuditoriaRowVM> Rows)>
-            ConsultarAuditoriaReimpresionAsync(
-                DateTime? desde,
-                DateTime? hasta,
-                string planta,
-                string usuario,
-                string codigo,
-                string impresora,
-                string resultado,
-                int top)
+                      ReimpresionAuditoriaResumenVM Resumen,
+                      List<ReimpresionAuditoriaRowVM> Rows)>
+      ConsultarAuditoriaReimpresionAsync(
+          DateTime? desde,
+          DateTime? hasta,
+          string planta,
+          string usuario,
+          string codigo,
+          string impresora,
+          string resultado,
+          int top)
         {
-            var cs =
-                _configuration.GetConnectionString(
-                    "DefaultConnection");
+            var cs = _configuration.GetConnectionString("DefaultConnection");
 
             if (string.IsNullOrWhiteSpace(cs))
             {
@@ -3582,27 +3580,98 @@ END;",
             top = Math.Clamp(top, 1, 100000);
 
             const string sql = @"
-;WITH F AS
-(
-    SELECT *
-    FROM dbo.ReimpresionEtiquetaAuditoria a WITH (NOLOCK)
-    WHERE
-        (@Desde IS NULL OR a.FechaHora >= @Desde)
-        AND (@HastaExclusivo IS NULL OR a.FechaHora < @HastaExclusivo)
-        AND (NULLIF(@Planta, '') IS NULL OR a.Planta = @Planta)
-        AND (NULLIF(@Usuario, '') IS NULL OR ISNULL(a.Usuario, '') LIKE @Usuario)
-        AND (NULLIF(@Codigo, '') IS NULL OR ISNULL(a.CodigoEtiqueta, '') LIKE @Codigo)
-        AND (NULLIF(@Impresora, '') IS NULL OR ISNULL(a.PrinterName, '') LIKE @Impresora)
-        AND (@Exitoso IS NULL OR a.Exitoso = @Exitoso)
-)
+SET NOCOUNT ON;
+
+IF OBJECT_ID('tempdb..#F') IS NOT NULL
+    DROP TABLE #F;
+
+SELECT
+    a.AuditoriaId,
+    a.OperacionId,
+    a.FechaHora,
+    a.Usuario,
+    a.Planta,
+    a.PrinterName,
+    a.CodigoEtiqueta,
+    a.ProduccionId,
+    a.CantidadSolicitada,
+    a.CantidadImpresa,
+    a.ClaveReporte,
+    a.TipoImpresion,
+    a.EmpresaEysId,
+    a.Exitoso,
+    a.Mensaje,
+    a.Ip,
+    a.UserAgent,
+    a.DatosSolicitud
+INTO #F
+FROM dbo.ReimpresionEtiquetaAuditoria a WITH (NOLOCK)
+WHERE
+    (@Desde IS NULL OR a.FechaHora >= @Desde)
+    AND (@HastaExclusivo IS NULL OR a.FechaHora < @HastaExclusivo)
+    AND (NULLIF(@Planta, '') IS NULL OR a.Planta = @Planta)
+    AND (NULLIF(@Usuario, '') IS NULL OR ISNULL(a.Usuario, '') LIKE @Usuario)
+    AND (NULLIF(@Codigo, '') IS NULL OR ISNULL(a.CodigoEtiqueta, '') LIKE @Codigo)
+    AND (NULLIF(@Impresora, '') IS NULL OR ISNULL(a.PrinterName, '') LIKE @Impresora)
+    AND (@Exitoso IS NULL OR a.Exitoso = @Exitoso);
+
 SELECT
     Total = COUNT_BIG(1),
-    Exitosos = SUM(CASE WHEN Exitoso = 1 THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),
-    Fallidos = SUM(CASE WHEN Exitoso = 0 THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),
-    CantidadSolicitada = SUM(CONVERT(bigint, ISNULL(CantidadSolicitada,0))),
-    CantidadImpresa = SUM(CONVERT(bigint, ISNULL(CantidadImpresa,0))),
-    Usuarios = COUNT(DISTINCT NULLIF(Usuario, ''))
-FROM F;
+
+    Exitosos =
+        ISNULL(
+            SUM(
+                CASE
+                    WHEN Exitoso = 1
+                    THEN CONVERT(bigint, 1)
+                    ELSE CONVERT(bigint, 0)
+                END
+            ),
+            0
+        ),
+
+    Fallidos =
+        ISNULL(
+            SUM(
+                CASE
+                    WHEN Exitoso = 0
+                    THEN CONVERT(bigint, 1)
+                    ELSE CONVERT(bigint, 0)
+                END
+            ),
+            0
+        ),
+
+    CantidadSolicitada =
+        ISNULL(
+            SUM(
+                CONVERT(
+                    bigint,
+                    ISNULL(CantidadSolicitada, 0)
+                )
+            ),
+            0
+        ),
+
+    CantidadImpresa =
+        ISNULL(
+            SUM(
+                CONVERT(
+                    bigint,
+                    ISNULL(CantidadImpresa, 0)
+                )
+            ),
+            0
+        ),
+
+    Usuarios =
+        COUNT(
+            DISTINCT NULLIF(
+                LTRIM(RTRIM(ISNULL(Usuario, ''))),
+                ''
+            )
+        )
+FROM #F;
 
 SELECT TOP (@Top)
     AuditoriaId,
@@ -3623,11 +3692,13 @@ SELECT TOP (@Top)
     Ip,
     UserAgent,
     DatosSolicitud
-FROM F
+FROM #F
 ORDER BY
     FechaHora DESC,
-    AuditoriaId DESC
-OPTION (RECOMPILE);";
+    AuditoriaId DESC;
+
+DROP TABLE #F;
+";
 
             using var multi = await cn.QueryMultipleAsync(
                 sql,
@@ -3655,21 +3726,42 @@ OPTION (RECOMPILE);";
             return (true, resumen, rows);
         }
 
-
         [HttpGet("AuditoriaReimpresiones")]
         [Produces("application/json")]
         public async Task<IActionResult> AuditoriaReimpresiones(
-            DateTime? desde = null,
-            DateTime? hasta = null,
-            string planta = "",
-            string usuario = "",
-            string codigo = "",
-            string impresora = "",
-            string resultado = "",
-            int top = 5000)
+      DateTime? desde = null,
+      DateTime? hasta = null,
+      string planta = "",
+      string usuario = "",
+      string codigo = "",
+      string impresora = "",
+      string resultado = "",
+      int top = 5000)
         {
             try
             {
+                var cs = _configuration.GetConnectionString("DefaultConnection");
+
+                await using var cnDebug = new SqlConnection(cs);
+                await cnDebug.OpenAsync();
+
+                var debug = await cnDebug.QueryFirstAsync(@"
+SELECT
+    Servidor = @@SERVERNAME,
+    BaseDatos = DB_NAME(),
+    TotalTabla = (
+        SELECT COUNT(*)
+        FROM dbo.ReimpresionEtiquetaAuditoria
+    ),
+    FechaMinima = (
+        SELECT MIN(FechaHora)
+        FROM dbo.ReimpresionEtiquetaAuditoria
+    ),
+    FechaMaxima = (
+        SELECT MAX(FechaHora)
+        FROM dbo.ReimpresionEtiquetaAuditoria
+    );");
+
                 var consulta =
                     await ConsultarAuditoriaReimpresionAsync(
                         desde,
@@ -3684,6 +3776,27 @@ OPTION (RECOMPILE);";
                 return Ok(new
                 {
                     ok = true,
+
+                    debug = new
+                    {
+                        servidor = debug.Servidor,
+                        baseDatos = debug.BaseDatos,
+                        totalTabla = debug.TotalTabla,
+                        fechaMinima = debug.FechaMinima,
+                        fechaMaxima = debug.FechaMaxima
+                    },
+
+                    filtros = new
+                    {
+                        desde,
+                        hasta,
+                        planta,
+                        usuario,
+                        codigo,
+                        impresora,
+                        resultado
+                    },
+
                     auditoriaDisponible = consulta.Disponible,
                     resumen = consulta.Resumen,
                     mostrados = consulta.Rows.Count,
@@ -3699,14 +3812,12 @@ OPTION (RECOMPILE);";
                     ex,
                     "Error consultando auditoría de reimpresiones.");
 
-                return StatusCode(
-                    500,
-                    new
-                    {
-                        ok = false,
-                        msg = "No se pudo consultar la auditoría de reimpresiones.",
-                        error = ex.GetBaseException().Message
-                    });
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = "No se pudo consultar la auditoría de reimpresiones.",
+                    error = ex.GetBaseException().Message
+                });
             }
         }
 
@@ -8096,11 +8207,260 @@ ORDER BY Nombre;";
 
 
 
+
+        // ============================================================
+        // INVENTARIO / ETIQUETACION DE ORIGEN TIF
+        // ============================================================
+
+        private sealed class EtiquetacionOrigenTifRow
+        {
+            public string CodigoEtiqueta { get; set; } = "";
+            public int? EtiquetacionId { get; set; }
+            public string Etiquetacion { get; set; } = "";
+        }
+
+        private sealed class InventarioCamaraBaseRow
+        {
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Almacen { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string Nombre { get; set; } = "";
+            public decimal Kg { get; set; }
+            public string LineaId { get; set; } = "";
+            public string Estatus { get; set; } = "";
+        }
+
+        private sealed class DetalleCamaraInventarioRow
+        {
+            public DateTime? Fecha { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public string Producto { get; set; } = "";
+            public int? EtiquetacionId { get; set; }
+            public string? Etiquetacion { get; set; }
+            public decimal Kg { get; set; }
+            public string Nombre { get; set; } = "";
+            public string Lote { get; set; } = "";
+            public string Empaque { get; set; } = "";
+            public string Cantidad { get; set; } = "";
+            public string Tar { get; set; } = "";
+            public string ActTar { get; set; } = "";
+            public string Ubic { get; set; } = "";
+            public DateTime? FechaIngresoCamara { get; set; }
+            public string Reclasificacion { get; set; } = "";
+            public DateTime? Fechas_Caducidad { get; set; }
+        }
+
+        /// <summary>
+        /// Para PLANTA 1 la etiquetación se toma EXCLUSIVAMENTE del origen TIF.
+        /// La relación es por CodigoEtiqueta.
+        ///
+        /// No consulta caja por caja:
+        /// - recibe solamente los códigos necesarios de la cámara/SKU actual;
+        /// - los consulta por lotes de 1000;
+        /// - regresa un diccionario en memoria para cruzarlos rápidamente.
+        ///
+        /// Si el CodigoEtiqueta no existe en ProduccionEtiquetacionLog de TIF,
+        /// no se devuelve etiquetación y NO se usa la etiquetación de P1 como fallback.
+        /// </summary>
+        private async Task<Dictionary<string, EtiquetacionOrigenTifRow>>
+            ObtenerEtiquetacionesOrigenTifAsync(IEnumerable<string> codigos)
+        {
+            var resultado = new Dictionary<string, EtiquetacionOrigenTifRow>(
+                StringComparer.OrdinalIgnoreCase);
+
+            var lista = (codigos ?? Enumerable.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!lista.Any())
+                return resultado;
+
+            var csTif = GetMeatConnectionString("TIF");
+
+            if (string.IsNullOrWhiteSpace(csTif))
+                return resultado;
+
+            const string sql = @"
+;WITH UltimaEtiquetacion AS
+(
+    SELECT
+        CodigoEtiqueta = LTRIM(RTRIM(pel.CodigoEtiqueta)),
+        pel.EtiquetacionId,
+        pel.Etiquetacion,
+        pel.FechaHoraEvento,
+        pel.LogId,
+        rn = ROW_NUMBER() OVER
+        (
+            PARTITION BY pel.CodigoEtiqueta
+            ORDER BY
+                pel.FechaHoraEvento DESC,
+                pel.LogId DESC
+        )
+    FROM dbo.ProduccionEtiquetacionLog pel
+    WHERE pel.CodigoEtiqueta IN @Codigos
+)
+SELECT
+    u.CodigoEtiqueta,
+    u.EtiquetacionId,
+    Etiquetacion =
+        COALESCE
+        (
+            NULLIF(LTRIM(RTRIM(c.Nombre)), ''),
+            NULLIF(LTRIM(RTRIM(u.Etiquetacion)), '')
+        )
+FROM UltimaEtiquetacion u
+LEFT JOIN TIF_CommerciaNet.dbo.COLECTOR c
+    ON c.ColectorId = u.EtiquetacionId
+   AND c.SistemaId = 'eti'
+WHERE
+    u.rn = 1
+    AND u.EtiquetacionId IS NOT NULL;";
+
+            using var cnTif = new SqlConnection(csTif);
+            await cnTif.OpenAsync();
+
+            const int tamanoLote = 1000;
+
+            for (var i = 0; i < lista.Count; i += tamanoLote)
+            {
+                var lote = lista
+                    .Skip(i)
+                    .Take(tamanoLote)
+                    .ToList();
+
+                var rows = await cnTif.QueryAsync<EtiquetacionOrigenTifRow>(
+                    new CommandDefinition(
+                        sql,
+                        new { Codigos = lote },
+                        commandTimeout: 60
+                    )
+                );
+
+                foreach (var row in rows)
+                {
+                    var codigo = (row.CodigoEtiqueta ?? "").Trim();
+
+                    if (string.IsNullOrWhiteSpace(codigo))
+                        continue;
+
+                    // En caso de que por datos históricos hubiera duplicado,
+                    // la CTE ya eligió la última etiquetación.
+                    resultado[codigo] = row;
+                }
+            }
+
+            return resultado;
+        }
+
+
+        /// <summary>
+        /// Devuelve únicamente los CodigoEtiqueta cuya ULTIMA etiquetación en TIF
+        /// corresponde al EtiquetacionId solicitado.
+        ///
+        /// Se usa para poder buscar una etiquetación en TODAS las cámaras sin
+        /// recorrer primero todo el inventario de P1/TIF.
+        /// </summary>
+        private async Task<HashSet<string>>
+            ObtenerCodigosPorEtiquetacionTifAsync(int etiquetacionId)
+        {
+            var resultado = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+            var csTif = GetMeatConnectionString("TIF");
+
+            if (string.IsNullOrWhiteSpace(csTif))
+                return resultado;
+
+            const string sql = @"
+;WITH Candidatos AS
+(
+    SELECT
+        pel.CodigoEtiqueta
+    FROM dbo.ProduccionEtiquetacionLog pel
+    WHERE
+        pel.EtiquetacionId = @EtiquetacionId
+        AND pel.CodigoEtiqueta IS NOT NULL
+        AND pel.CodigoEtiqueta <> ''
+    GROUP BY
+        pel.CodigoEtiqueta
+)
+SELECT
+    CodigoEtiqueta = LTRIM(RTRIM(c.CodigoEtiqueta))
+FROM Candidatos c
+CROSS APPLY
+(
+    SELECT TOP (1)
+        p2.EtiquetacionId
+    FROM dbo.ProduccionEtiquetacionLog p2
+    WHERE p2.CodigoEtiqueta = c.CodigoEtiqueta
+    ORDER BY
+        p2.FechaHoraEvento DESC,
+        p2.LogId DESC
+) ultimo
+WHERE
+    ultimo.EtiquetacionId = @EtiquetacionId;";
+
+            using var cnTif = new SqlConnection(csTif);
+
+            var codigos = await cnTif.QueryAsync<string>(
+                sql,
+                new { EtiquetacionId = etiquetacionId },
+                commandTimeout: 120);
+
+            foreach (var codigo in codigos)
+            {
+                var valor = (codigo ?? "").Trim();
+
+                if (!string.IsNullOrWhiteSpace(valor))
+                    resultado.Add(valor);
+            }
+
+            return resultado;
+        }
+
+        private async Task AplicarEtiquetacionOrigenTifAsync(
+            IEnumerable<DetalleCamaraInventarioRow> rows)
+        {
+            var lista = (rows ?? Enumerable.Empty<DetalleCamaraInventarioRow>())
+                .ToList();
+
+            if (!lista.Any())
+                return;
+
+            var mapa = await ObtenerEtiquetacionesOrigenTifAsync(
+                lista.Select(x => x.CodigoEtiqueta));
+
+            foreach (var row in lista)
+            {
+                var codigo = (row.CodigoEtiqueta ?? "").Trim();
+
+                if (!string.IsNullOrWhiteSpace(codigo) &&
+                    mapa.TryGetValue(codigo, out var origen))
+                {
+                    row.EtiquetacionId = origen.EtiquetacionId;
+                    row.Etiquetacion = string.IsNullOrWhiteSpace(origen.Etiquetacion)
+                        ? null
+                        : origen.Etiquetacion.Trim();
+                }
+                else
+                {
+                    // IMPORTANTE:
+                    // No existe en TIF => no mostrar etiquetación.
+                    // No usar P1 como destino/fallback.
+                    row.EtiquetacionId = null;
+                    row.Etiquetacion = null;
+                }
+            }
+        }
+
         [HttpGet("InventarioCamaras")]
         public async Task<IActionResult> InventarioCamaras(
-      string planta = "P1",
-      string camara = "",
-      int? etiquetacionId = null)
+            string planta = "P1",
+            string camara = "",
+            int? etiquetacionId = null)
         {
             try
             {
@@ -8117,6 +8477,38 @@ ORDER BY Nombre;";
                     });
                 }
 
+                camara = (camara ?? "").Trim();
+
+                /*
+                 * REGLA:
+                 *
+                 * 1) Si hay cámara:
+                 *      consulta únicamente esa cámara.
+                 *
+                 * 2) Si NO hay cámara pero SÍ hay etiquetación:
+                 *      busca primero en TIF los CodigoEtiqueta cuya ÚLTIMA
+                 *      etiquetación corresponde al filtro y después cruza
+                 *      únicamente esos códigos contra el inventario de la planta.
+                 *
+                 * 3) Si no hay cámara ni etiquetación:
+                 *      no hace consulta global pesada.
+                 */
+                if (string.IsNullOrWhiteSpace(camara) &&
+                    !etiquetacionId.HasValue)
+                {
+                    return Json(new
+                    {
+                        ok = true,
+                        planta,
+                        camara = "",
+                        camaraLen = 0,
+                        etiquetacionId,
+                        busquedaGlobalEtiquetacion = false,
+                        total = 0,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
                 var dbCommercia = planta == "TIF"
                     ? "TIF_CommerciaNet"
                     : "CommerciaNet";
@@ -8125,179 +8517,278 @@ ORDER BY Nombre;";
                     ? "TIF_Meat"
                     : "Meat";
 
-                camara = (camara ?? "").Trim();
+                var prefijoCanal = planta == "TIF"
+                    ? "SACT"
+                    : "SACC";
 
-                var sql = $@"
-SELECT 
-    '-' AS Fecha,
-
+                var sqlBase = $@"
+SELECT
+    Prod.CodigoEtiqueta,
     alm.Nombre AS Almacen,
 
-    CASE 
-        WHEN MAX(SUBSTRING(prod.CodigoEtiqueta,1,4)) = 'SACT' 
-            THEN ISNULL(a2.ArticuloId,'-') 
-        ELSE prod.Articulo 
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(MAX(a2.ArticuloId), Prod.Articulo)
+        ELSE Prod.Articulo
     END AS Sku,
 
-    CASE 
-        WHEN MAX(SUBSTRING(prod.CodigoEtiqueta,1,4)) = 'SACT' 
-            THEN ISNULL(a2.Nombre,'Sin Clasificar') 
-        ELSE a.Nombre 
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(MAX(a2.Nombre), a.Nombre)
+        ELSE a.Nombre
     END AS Nombre,
 
-    etq.EtiquetacionId,
-
-    ISNULL(
-        NULLIF(
-            LTRIM(RTRIM(etq.Etiquetacion)),
-            ''
-        ),
-        'SIN ETIQUETACION'
-    ) AS Etiquetacion,
-
-    COUNT(1) AS Cajas,
-
-    SUM(ISNULL(Prod.PesoNeto,0)) AS Kg,
-
-    ROUND(
-        SUM(ISNULL(Prod.PesoNeto,0)) /
-        NULLIF(COUNT(1),0),
-        2
-    ) AS Prom,
-
+    ISNULL(Prod.PesoNeto,0) AS Kg,
     a.LineaId,
 
-    CASE 
-        WHEN Prod.Estatus = 1 
-            THEN 'Activo' 
-        ELSE 'No activo' 
-    END AS Estatus,
-
-    '-' AS Ubic
+    CASE
+        WHEN Prod.Estatus = 1 THEN 'Activo'
+        ELSE 'No activo'
+    END AS Estatus
 
 FROM Produccion Prod
 
-INNER JOIN {dbCommercia}.dbo.Articulo a 
+INNER JOIN {dbCommercia}.dbo.Articulo a
     ON Prod.Articulo = a.ArticuloId
 
-INNER JOIN {dbCommercia}.dbo.Almacen alm 
+INNER JOIN {dbCommercia}.dbo.Almacen alm
     ON Prod.Almacen = alm.AlmacenId
 
-LEFT JOIN {dbMeat}.dbo.CanalDetalle cd 
+LEFT JOIN {dbMeat}.dbo.CanalDetalle cd
     ON Prod.ProduccionId = cd.ProduccionId
 
-LEFT JOIN {dbCommercia}.dbo.Articulo a2 
+LEFT JOIN {dbCommercia}.dbo.Articulo a2
     ON cd.ClasificacionId = a2.Clasifica1
-
-
-/* =====================================================
-   ULTIMA ETIQUETACION REGISTRADA PARA LA CAJA
-   ===================================================== */
-OUTER APPLY
-(
-    SELECT TOP (1)
-
-        pel.EtiquetacionId,
-
-        ISNULL(
-            NULLIF(
-                LTRIM(RTRIM(col.Nombre)),
-                ''
-            ),
-            CONVERT(varchar(20),pel.EtiquetacionId)
-        ) AS Etiquetacion
-
-    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
-
-    LEFT JOIN {dbCommercia}.dbo.COLECTOR col
-        ON col.ColectorId = pel.EtiquetacionId
-       AND UPPER(LTRIM(RTRIM(col.SistemaId))) = 'ETI'
-
-    WHERE pel.ProduccionId = Prod.ProduccionId
-
-    ORDER BY
-        pel.FechaHoraEvento DESC,
-        pel.LogId DESC
-
-) etq
-
 
 WHERE
     Prod.Estatus = 1
 
-    AND
-    (
-        @Camara = ''
-        OR LTRIM(RTRIM(alm.Nombre)) =
-           LTRIM(RTRIM(@Camara))
-    )
+    {{FILTRO}}
 
-    AND
-    (
-        @EtiquetacionId IS NULL
-        OR etq.EtiquetacionId = @EtiquetacionId
-    )
-
-
-GROUP BY 
+GROUP BY
+    Prod.ProduccionId,
+    Prod.CodigoEtiqueta,
+    Prod.Articulo,
+    Prod.PesoNeto,
     alm.Nombre,
-
-    a2.ArticuloId,
-
-    prod.Articulo,
-
-    a2.Nombre,
-
     a.Nombre,
-
     a.LineaId,
-
-    prod.Estatus,
-
-    etq.EtiquetacionId,
-
-    etq.Etiquetacion
-
-
-ORDER BY
-    alm.Nombre,
-    Etiquetacion,
-    Nombre;";
+    Prod.Estatus;";
 
                 using var cn = new SqlConnection(cs);
+                await cn.OpenAsync();
 
-                var rows = (
-                    await cn.QueryAsync(
-                        sql,
-                        new
+                var cajas = new List<InventarioCamaraBaseRow>();
+
+                // ============================================================
+                // CASO A: una o varias llamadas por cámara concreta.
+                // No se toca ProduccionEtiquetacionLog aquí.
+                // ============================================================
+                if (!string.IsNullOrWhiteSpace(camara))
+                {
+                    var sqlCamara = sqlBase.Replace(
+                        "{FILTRO}",
+                        "AND alm.Nombre = @Camara");
+
+                    var rowsCamara =
+                        await cn.QueryAsync<InventarioCamaraBaseRow>(
+                            sqlCamara,
+                            new
+                            {
+                                Camara = camara,
+                                PrefijoCanal = prefijoCanal
+                            },
+                            commandTimeout: 120);
+
+                    cajas.AddRange(rowsCamara);
+                }
+                // ============================================================
+                // CASO B: sin cámara + etiquetación seleccionada.
+                // Primero obtenemos SOLO los códigos de esa etiquetación TIF.
+                // Después consultamos la planta en lotes para no superar el
+                // límite de parámetros de SQL Server.
+                // ============================================================
+                else if (etiquetacionId.HasValue)
+                {
+                    var codigosFiltro =
+                        await ObtenerCodigosPorEtiquetacionTifAsync(
+                            etiquetacionId.Value);
+
+                    if (!codigosFiltro.Any())
+                    {
+                        return Json(new
                         {
-                            Camara = camara,
-                            EtiquetacionId = etiquetacionId
-                        },
-                        commandTimeout: 120
-                    )
-                ).ToList();
+                            ok = true,
+                            servidor = cn.DataSource,
+                            bd = cn.Database,
+                            planta,
+                            camara = "",
+                            etiquetacionId,
+                            origenEtiquetacion = "TIF",
+                            busquedaGlobalEtiquetacion = true,
+                            total = 0,
+                            rows = Array.Empty<object>()
+                        });
+                    }
+
+                    var sqlCodigos = sqlBase.Replace(
+                        "{FILTRO}",
+                        "AND Prod.CodigoEtiqueta IN @Codigos");
+
+                    const int tamanoLote = 1000;
+                    var listaCodigos = codigosFiltro.ToList();
+
+                    for (var i = 0; i < listaCodigos.Count; i += tamanoLote)
+                    {
+                        var lote = listaCodigos
+                            .Skip(i)
+                            .Take(tamanoLote)
+                            .ToList();
+
+                        var rowsLote =
+                            await cn.QueryAsync<InventarioCamaraBaseRow>(
+                                sqlCodigos,
+                                new
+                                {
+                                    Codigos = lote,
+                                    PrefijoCanal = prefijoCanal
+                                },
+                                commandTimeout: 120);
+
+                        cajas.AddRange(rowsLote);
+                    }
+                }
+
+                if (!cajas.Any())
+                {
+                    return Json(new
+                    {
+                        ok = true,
+                        servidor = cn.DataSource,
+                        bd = cn.Database,
+                        planta,
+                        camara,
+                        etiquetacionId,
+                        origenEtiquetacion = "TIF",
+                        busquedaGlobalEtiquetacion =
+                            string.IsNullOrWhiteSpace(camara) &&
+                            etiquetacionId.HasValue,
+                        total = 0,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                // ============================================================
+                // Etiquetación SIEMPRE desde el ORIGEN TIF por CodigoEtiqueta.
+                // No usamos la etiquetación destino de P1.
+                // ============================================================
+                var mapaTif =
+                    await ObtenerEtiquetacionesOrigenTifAsync(
+                        cajas.Select(x => x.CodigoEtiqueta));
+
+                var cajasConOrigen = cajas
+                    .Select(x =>
+                    {
+                        mapaTif.TryGetValue(
+                            (x.CodigoEtiqueta ?? "").Trim(),
+                            out var etqTif);
+
+                        return new
+                        {
+                            Caja = x,
+                            Etiquetacion = etqTif
+                        };
+                    });
+
+                // Si el usuario seleccionó una etiquetación,
+                // dejamos únicamente cajas cuya ÚLTIMA etiquetación TIF
+                // coincide exactamente con ella.
+                if (etiquetacionId.HasValue)
+                {
+                    cajasConOrigen = cajasConOrigen
+                        .Where(x =>
+                            x.Etiquetacion?.EtiquetacionId ==
+                            etiquetacionId.Value);
+                }
+
+                var rows = cajasConOrigen
+                    .GroupBy(x => new
+                    {
+                        x.Caja.Almacen,
+                        x.Caja.Sku,
+                        x.Caja.Nombre,
+                        x.Caja.LineaId,
+                        x.Caja.Estatus
+                    })
+                    .Select(g =>
+                    {
+                        var etq = etiquetacionId.HasValue
+                            ? g.Select(x => x.Etiquetacion)
+                                .FirstOrDefault(x => x != null)
+                            : null;
+
+                        var kg = g.Sum(x => x.Caja.Kg);
+                        var cajasGrupo = g.Count();
+
+                        return new
+                        {
+                            Fecha = "-",
+                            g.Key.Almacen,
+                            g.Key.Sku,
+                            g.Key.Nombre,
+
+                            EtiquetacionId =
+                                etq?.EtiquetacionId,
+
+                            Etiquetacion =
+                                etq?.Etiquetacion,
+
+                            Cajas = cajasGrupo,
+                            Kg = kg,
+
+                            Prom = cajasGrupo > 0
+                                ? Math.Round(kg / cajasGrupo, 2)
+                                : 0,
+
+                            g.Key.LineaId,
+                            g.Key.Estatus,
+                            Ubic = "-"
+                        };
+                    })
+                    .OrderBy(x => x.Almacen)
+                    .ThenBy(x => x.Nombre)
+                    .ToList();
 
                 return Json(new
                 {
                     ok = true,
-
                     servidor = cn.DataSource,
                     bd = cn.Database,
-
                     planta,
                     camara,
                     camaraLen = camara.Length,
-
                     etiquetacionId,
+                    origenEtiquetacion = "TIF",
+
+                    // true cuando el usuario no seleccionó cámara y buscó
+                    // directamente por etiquetación en toda la planta.
+                    busquedaGlobalEtiquetacion =
+                        string.IsNullOrWhiteSpace(camara) &&
+                        etiquetacionId.HasValue,
 
                     total = rows.Count,
-
                     rows
                 });
             }
             catch (Exception ex)
             {
+                _logger.LogError(
+                    ex,
+                    "InventarioCamaras ERROR. Planta={Planta}, Camara={Camara}, EtiquetacionId={EtiquetacionId}",
+                    planta,
+                    camara,
+                    etiquetacionId);
+
                 return StatusCode(500, new
                 {
                     ok = false,
@@ -8307,229 +8798,135 @@ ORDER BY
             }
         }
 
+
         [HttpGet("TrazabilidadCamara")]
-        public async Task<IActionResult> TrazabilidadCamara(string planta = "P1", string sku = "", string camara = "")
+        public async Task<IActionResult> TrazabilidadCamara(
+            string planta = "P1",
+            string sku = "",
+            string camara = "")
         {
-            planta = NormalizeSource(planta);
-
-            var cs = GetMeatConnectionString(planta);
-
-            if (string.IsNullOrWhiteSpace(cs))
-                return StatusCode(500, new { ok = false, mensaje = $"No existe cadena para planta {planta}" });
-
-            sku = (sku ?? "").Trim();
-            camara = (camara ?? "").Trim();
-
-            if (string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(camara))
-                return Json(new { ok = false, mensaje = "Falta SKU o cámara." });
-
-            var dbCommercia = planta == "TIF" ? "TIF_CommerciaNet" : "CommerciaNet";
-            var dbMeat = planta == "TIF" ? "TIF_Meat" : "Meat";
-            var prefijoCanal = planta == "TIF" ? "SACT" : "SACC";
-
-            var usaReclasificacion = planta == "TIF";
-
-            var selectReclasificacion = usaReclasificacion
-                ? "ISNULL(logp.ClasificacionPesoCaliente,'-') AS Reclasificacion,"
-                : "'-' AS Reclasificacion,";
-
-            var joinReclasificacion = usaReclasificacion
-                ? @"
-LEFT JOIN LogPesoCalienteReclasificacion logp 
-    ON Prod.ProduccionId = logp.ProduccionId"
-                : "";
-
-            var groupByReclasificacion = usaReclasificacion
-                ? @",
-    logp.ClasificacionPesoCaliente"
-                : "";
-
-            var sql = $@"
-SELECT
-    CONVERT(date, Prod.FechaProduccion) AS Fecha,
-    Prod.CodigoEtiqueta,
-    CASE 
-        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
-            THEN artt.ArticuloId 
-        ELSE Prod.Articulo 
-    END AS Sku,
-    CASE 
-        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
-            THEN ISNULL(cn.Nombre,'-') 
-        ELSE a.Nombre 
-    END AS Producto,
-    Prod.PesoNeto AS Kg,
-    alm.Nombre,
-    lot.Nombre AS Lote,
-    ISNULL(STRING_AGG(emp.Nombre,' - '),'-') AS Empaque,
-    ISNULL(STRING_AGG(CONVERT(varchar(50), ct.Cantidad),' - '),'-') AS Cantidad,
-    ISNULL(STRING_AGG(tar.Nombre,'-'), '-') AS Tar,
-    ISNULL(STRING_AGG(CONVERT(varchar(50), tar.Estatus),'-'), '-') AS ActTar,
-    ISNULL(PR.Referencia, '-') AS Ubic,
-
-    MIN(logIngreso.FechaIngresoCamara) AS FechaIngresoCamara,
-
-    {selectReclasificacion}
-    CASE
-        WHEN alm.Nombre = 'TIF CAMARA FRESCO' THEN DATEADD(DAY,30,CONVERT(date,Prod.FechaProduccion)) 
-        WHEN alm.Nombre = 'TIF ALMACEN CEDIS' THEN DATEADD(DAY,365,CONVERT(date,Prod.FechaProduccion)) 
-        WHEN alm.Nombre = 'TIF ALMACEN RETENCION' THEN DATEADD(DAY,365,CONVERT(date,Prod.FechaProduccion)) 
-        ELSE DATEADD(DAY,365,CONVERT(date,Prod.FechaProduccion)) 
-    END AS Fechas_Caducidad
-FROM Produccion Prod
-INNER JOIN {dbCommercia}.dbo.Articulo a 
-    ON Prod.Articulo = a.ArticuloId
-INNER JOIN {dbCommercia}.dbo.Almacen alm 
-    ON Prod.Almacen = alm.AlmacenId  
-INNER JOIN Lote lot 
-    ON Prod.LoteId = lot.LoteId
-LEFT JOIN {dbMeat}.dbo.CanalDetalle cd 
-    ON Prod.ProduccionId = cd.ProduccionId
-LEFT JOIN {dbMeat}.dbo.Clasificacion cn 
-    ON cd.ClasificacionId = cn.ClasificacionId
-LEFT JOIN {dbCommercia}.dbo.Articulo artt 
-    ON cn.ClasificacionId = artt.Clasifica1 
-LEFT JOIN TarimaDetalle tarD 
-    ON tarD.ProduccionId = Prod.ProduccionId
-LEFT JOIN Tarima tar 
-    ON tar.TarimaId = tarD.TarimaId
-LEFT JOIN ProduccionReferencia PR 
-    ON PR.ProduccionId = Prod.ProduccionId
-LEFT JOIN {dbMeat}.dbo.CajaTara CT 
-    ON CT.ProduccionId = Prod.ProduccionId        
-LEFT JOIN {dbMeat}.dbo.Empaque emp 
-    ON emp.EmpaqueId = CT.EmpaqueId
-
-OUTER APPLY (
-    SELECT TOP 1
-        pl.FechaHora AS FechaIngresoCamara
-    FROM {dbMeat}.dbo.ProduccionLog pl
-    WHERE pl.ProduccionId = Prod.ProduccionId
-      AND pl.CodigoEtiqueta = Prod.CodigoEtiqueta
-      AND (
-            LTRIM(RTRIM(pl.Almacen)) = LTRIM(RTRIM(alm.AlmacenId))
-         OR LTRIM(RTRIM(pl.Almacen)) = LTRIM(RTRIM(alm.Nombre))
-      )
-    ORDER BY 
-        pl.FechaHora ASC,
-        pl.ProduccionLogId ASC
-) logIngreso
-
-{joinReclasificacion}
-WHERE 
-    Prod.Estatus = 1 and pr.TipoReferenciaId = 16
-    AND (
-        CASE 
-            WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
-                THEN artt.ArticuloId 
-            ELSE Prod.Articulo 
-        END
-    ) = @Sku
-    AND LTRIM(RTRIM(alm.Nombre)) = LTRIM(RTRIM(@Camara))
-GROUP BY
-    Prod.CodigoEtiqueta, 
-    Prod.FechaProduccion, 
-    Prod.Articulo, 
-    a.Nombre, 
-    Prod.PesoNeto, 
-    alm.Nombre, 
-    alm.AlmacenId,
-    lot.Nombre,
-    PR.Referencia,
-    cn.Nombre,
-    artt.ArticuloId
-    {groupByReclasificacion}
-ORDER BY Prod.FechaProduccion DESC, Prod.CodigoEtiqueta;";
-
-            using var cnSql = new SqlConnection(cs);
-
-            var rows = (await cnSql.QueryAsync(sql, new
+            try
             {
-                Sku = sku,
-                Camara = camara,
-                PrefijoCanal = prefijoCanal
-            })).ToList();
+                planta = NormalizeSource(planta);
 
-            return Json(new
-            {
-                ok = true,
-                planta,
-                sku,
-                camara,
-                prefijoCanal,
-                total = rows.Count,
-                rows
-            });
-        }
+                var cs = GetMeatConnectionString(planta);
 
-        [HttpGet("DetalleCamaraCompleta")]
-        public async Task<IActionResult> DetalleCamaraCompleta(
-    string planta = "P1",
-    string camara = "")
-        {
-            planta = NormalizeSource(planta);
+                if (string.IsNullOrWhiteSpace(cs))
+                    return StatusCode(500, new
+                    {
+                        ok = false,
+                        mensaje = $"No existe cadena para planta {planta}"
+                    });
 
-            var cs = GetMeatConnectionString(planta);
+                sku = (sku ?? "").Trim();
+                camara = (camara ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(cs))
-                return StatusCode(500, new
+                if (string.IsNullOrWhiteSpace(sku) ||
+                    string.IsNullOrWhiteSpace(camara))
                 {
-                    ok = false,
-                    mensaje = $"No existe cadena para planta {planta}"
-                });
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje = "Falta SKU o cámara."
+                    });
+                }
 
-            camara = (camara ?? "").Trim();
-
-            if (string.IsNullOrWhiteSpace(camara))
-                return Json(new
-                {
-                    ok = false,
-                    mensaje = "Falta cámara/almacén."
-                });
-
-            var dbCommercia =
-                planta == "TIF"
+                var dbCommercia = planta == "TIF"
                     ? "TIF_CommerciaNet"
                     : "CommerciaNet";
 
-            var dbMeat =
-                planta == "TIF"
+                var dbMeat = planta == "TIF"
                     ? "TIF_Meat"
                     : "Meat";
 
-            var prefijoCanal =
-                planta == "TIF"
+                var prefijoCanal = planta == "TIF"
                     ? "SACT"
                     : "SACC";
 
-            var sql = $@"
+                var usaReclasificacion = planta == "TIF";
+
+                var selectReclasificacion = usaReclasificacion
+                    ? "ISNULL(logp.ClasificacionPesoCaliente,'-') AS Reclasificacion,"
+                    : "'-' AS Reclasificacion,";
+
+                var joinReclasificacion = usaReclasificacion
+                    ? @"
+LEFT JOIN LogPesoCalienteReclasificacion logp
+    ON Prod.ProduccionId = logp.ProduccionId"
+                    : "";
+
+                var groupByReclasificacion = usaReclasificacion
+                    ? @",
+    logp.ClasificacionPesoCaliente"
+                    : "";
+
+                // En P1 NO se lee ProduccionEtiquetacionLog de P1.
+                // Se deja NULL y después se cruza en lote contra TIF por CodigoEtiqueta.
+                var selectEtiquetacion = planta == "TIF"
+                    ? @"
+    MAX(etq.EtiquetacionId) AS EtiquetacionId,
+
+    MAX(
+        NULLIF(
+            LTRIM(RTRIM(etq.Etiquetacion)),
+            ''
+        )
+    ) AS Etiquetacion,"
+                    : @"
+    CAST(NULL AS int) AS EtiquetacionId,
+    CAST(NULL AS varchar(250)) AS Etiquetacion,";
+
+                var applyEtiquetacion = planta == "TIF"
+                    ? $@"
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pel.EtiquetacionId,
+
+        COALESCE(
+            NULLIF(LTRIM(RTRIM(col.Nombre)),''),
+            NULLIF(LTRIM(RTRIM(pel.Etiquetacion)),''),
+            CONVERT(varchar(20),pel.EtiquetacionId)
+        ) AS Etiquetacion
+
+    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
+
+    LEFT JOIN {dbCommercia}.dbo.COLECTOR col
+        ON col.ColectorId = pel.EtiquetacionId
+       AND col.SistemaId = 'eti'
+
+    WHERE pel.ProduccionId = Prod.ProduccionId
+
+    ORDER BY
+        pel.FechaHoraEvento DESC,
+        pel.LogId DESC
+) etq"
+                    : "";
+
+                var sql = $@"
 SELECT
     CONVERT(date, Prod.FechaProduccion) AS Fecha,
-
     Prod.CodigoEtiqueta,
 
-    CASE 
-        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
-            THEN artt.ArticuloId 
-        ELSE Prod.Articulo 
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(artt.ArticuloId, Prod.Articulo)
+        ELSE Prod.Articulo
     END AS Sku,
 
-    CASE 
-        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal 
-            THEN ISNULL(cn.Nombre,'-') 
-        ELSE a.Nombre 
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(cn.Nombre, a.Nombre)
+        ELSE a.Nombre
     END AS Producto,
 
+    {selectEtiquetacion}
+
     Prod.PesoNeto AS Kg,
-
     alm.Nombre,
-
     lot.Nombre AS Lote,
 
-    ISNULL(
-        STRING_AGG(emp.Nombre,' - '),
-        '-'
-    ) AS Empaque,
+    ISNULL(STRING_AGG(emp.Nombre,' - '),'-') AS Empaque,
 
     ISNULL(
         STRING_AGG(
@@ -8539,37 +8936,320 @@ SELECT
         '-'
     ) AS Cantidad,
 
-    ISNULL(
-        STRING_AGG(tar.Nombre,'-'),
-        '-'
-    ) AS Tar,
+    ISNULL(STRING_AGG(tar.Nombre,' - '),'-') AS Tar,
 
     ISNULL(
         STRING_AGG(
             CONVERT(varchar(50),tar.Estatus),
-            '-'
+            ' - '
         ),
         '-'
     ) AS ActTar,
 
-    ISNULL(
-        PR.Referencia,
-        '-'
-    ) AS Ubic,
+    ISNULL(PR.Referencia,'-') AS Ubic,
 
-    MIN(
-        logIngreso.FechaIngresoCamara
-    ) AS FechaIngresoCamara,
+    MIN(logIngreso.FechaIngresoCamara) AS FechaIngresoCamara,
+
+    {selectReclasificacion}
+
+    CASE
+        WHEN alm.Nombre = 'TIF CAMARA FRESCO'
+            THEN DATEADD(
+                DAY,
+                30,
+                CONVERT(date,Prod.FechaProduccion)
+            )
+        ELSE DATEADD(
+            DAY,
+            365,
+            CONVERT(date,Prod.FechaProduccion)
+        )
+    END AS Fechas_Caducidad
+
+FROM Produccion Prod
+
+INNER JOIN {dbCommercia}.dbo.Articulo a
+    ON Prod.Articulo = a.ArticuloId
+
+INNER JOIN {dbCommercia}.dbo.Almacen alm
+    ON Prod.Almacen = alm.AlmacenId
+
+INNER JOIN Lote lot
+    ON Prod.LoteId = lot.LoteId
+
+LEFT JOIN {dbMeat}.dbo.CanalDetalle cd
+    ON Prod.ProduccionId = cd.ProduccionId
+
+LEFT JOIN {dbMeat}.dbo.Clasificacion cn
+    ON cd.ClasificacionId = cn.ClasificacionId
+
+LEFT JOIN {dbCommercia}.dbo.Articulo artt
+    ON cn.ClasificacionId = artt.Clasifica1
+
+LEFT JOIN TarimaDetalle tarD
+    ON tarD.ProduccionId = Prod.ProduccionId
+
+LEFT JOIN Tarima tar
+    ON tar.TarimaId = tarD.TarimaId
+
+-- LEFT JOIN:
+-- una caja sin referencia tipo 16 NO debe desaparecer del detalle.
+LEFT JOIN ProduccionReferencia PR
+    ON PR.ProduccionId = Prod.ProduccionId
+   AND PR.TipoReferenciaId = 16
+
+LEFT JOIN {dbMeat}.dbo.CajaTara CT
+    ON CT.ProduccionId = Prod.ProduccionId
+
+LEFT JOIN {dbMeat}.dbo.Empaque emp
+    ON emp.EmpaqueId = CT.EmpaqueId
+
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pl.FechaHora AS FechaIngresoCamara
+
+    FROM {dbMeat}.dbo.ProduccionLog pl
+
+    WHERE
+        pl.ProduccionId = Prod.ProduccionId
+        AND pl.CodigoEtiqueta = Prod.CodigoEtiqueta
+        AND
+        (
+            LTRIM(RTRIM(pl.Almacen)) =
+                LTRIM(RTRIM(alm.AlmacenId))
+            OR
+            LTRIM(RTRIM(pl.Almacen)) =
+                LTRIM(RTRIM(alm.Nombre))
+        )
+
+    ORDER BY
+        pl.FechaHora ASC,
+        pl.ProduccionLogId ASC
+) logIngreso
+
+{applyEtiquetacion}
+
+{joinReclasificacion}
+
+WHERE
+    Prod.Estatus = 1
+
+    AND
+    (
+        CASE
+            WHEN SUBSTRING(
+                Prod.CodigoEtiqueta,
+                1,
+                4
+            ) = @PrefijoCanal
+                THEN ISNULL(
+                    artt.ArticuloId,
+                    Prod.Articulo
+                )
+            ELSE Prod.Articulo
+        END
+    ) = @Sku
+
+    AND alm.Nombre = @Camara
+
+GROUP BY
+    Prod.CodigoEtiqueta,
+    Prod.FechaProduccion,
+    Prod.Articulo,
+    a.Nombre,
+    Prod.PesoNeto,
+    alm.Nombre,
+    alm.AlmacenId,
+    lot.Nombre,
+    PR.Referencia,
+    cn.Nombre,
+    artt.ArticuloId
+    {groupByReclasificacion}
+
+ORDER BY
+    Prod.FechaProduccion DESC,
+    Prod.CodigoEtiqueta;";
+
+                using var cnSql = new SqlConnection(cs);
+
+                var rows = (
+                    await cnSql.QueryAsync<DetalleCamaraInventarioRow>(
+                        sql,
+                        new
+                        {
+                            Sku = sku,
+                            Camara = camara,
+                            PrefijoCanal = prefijoCanal
+                        },
+                        commandTimeout: 120
+                    )
+                ).ToList();
+
+                // P1: sobrescribir EXCLUSIVAMENTE con la etiquetación origen TIF.
+                if (planta == "P1")
+                {
+                    await AplicarEtiquetacionOrigenTifAsync(rows);
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    planta,
+                    sku,
+                    camara,
+                    prefijoCanal,
+                    origenEtiquetacion = "TIF",
+                    total = rows.Count,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "TrazabilidadCamara ERROR. Planta={Planta}, SKU={Sku}, Camara={Camara}",
+                    planta,
+                    sku,
+                    camara);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "Error al consultar trazabilidad.",
+                    error = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpGet("DetalleCamaraCompleta")]
+        public async Task<IActionResult> DetalleCamaraCompleta(
+            string planta = "P1",
+            string camara = "")
+        {
+            try
+            {
+                planta = NormalizeSource(planta);
+
+                var cs = GetMeatConnectionString(planta);
+
+                if (string.IsNullOrWhiteSpace(cs))
+                    return StatusCode(500, new
+                    {
+                        ok = false,
+                        mensaje = $"No existe cadena para planta {planta}"
+                    });
+
+                camara = (camara ?? "").Trim();
+
+                if (string.IsNullOrWhiteSpace(camara))
+                    return Json(new
+                    {
+                        ok = false,
+                        mensaje = "Falta cámara/almacén."
+                    });
+
+                var dbCommercia = planta == "TIF"
+                    ? "TIF_CommerciaNet"
+                    : "CommerciaNet";
+
+                var dbMeat = planta == "TIF"
+                    ? "TIF_Meat"
+                    : "Meat";
+
+                var prefijoCanal = planta == "TIF"
+                    ? "SACT"
+                    : "SACC";
+
+                // En P1 no consultar etiquetación destino.
+                var selectEtiquetacion = planta == "TIF"
+                    ? @"
+    MAX(etq.EtiquetacionId) AS EtiquetacionId,
 
     MAX(
-        ISNULL(
-            NULLIF(
-                LTRIM(RTRIM(etq.NombreEtiquetacion)),
-                ''
-            ),
-            '-'
+        NULLIF(
+            LTRIM(RTRIM(etq.Etiquetacion)),
+            ''
         )
-    ) AS Etiquetacion,
+    ) AS Etiquetacion,"
+                    : @"
+    CAST(NULL AS int) AS EtiquetacionId,
+    CAST(NULL AS varchar(250)) AS Etiquetacion,";
+
+                var applyEtiquetacion = planta == "TIF"
+                    ? $@"
+OUTER APPLY
+(
+    SELECT TOP (1)
+        pel.EtiquetacionId,
+
+        COALESCE(
+            NULLIF(LTRIM(RTRIM(col.Nombre)),''),
+            NULLIF(LTRIM(RTRIM(pel.Etiquetacion)),''),
+            CONVERT(varchar(20),pel.EtiquetacionId)
+        ) AS Etiquetacion
+
+    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
+
+    LEFT JOIN {dbCommercia}.dbo.COLECTOR col
+        ON col.ColectorId = pel.EtiquetacionId
+       AND col.SistemaId = 'eti'
+
+    WHERE pel.ProduccionId = Prod.ProduccionId
+
+    ORDER BY
+        pel.FechaHoraEvento DESC,
+        pel.LogId DESC
+) etq"
+                    : "";
+
+                var sql = $@"
+SELECT
+    CONVERT(date, Prod.FechaProduccion) AS Fecha,
+    Prod.CodigoEtiqueta,
+
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(artt.ArticuloId, Prod.Articulo)
+        ELSE Prod.Articulo
+    END AS Sku,
+
+    CASE
+        WHEN SUBSTRING(Prod.CodigoEtiqueta,1,4) = @PrefijoCanal
+            THEN ISNULL(cn.Nombre, a.Nombre)
+        ELSE a.Nombre
+    END AS Producto,
+
+    {selectEtiquetacion}
+
+    Prod.PesoNeto AS Kg,
+    alm.Nombre,
+    lot.Nombre AS Lote,
+
+    ISNULL(STRING_AGG(emp.Nombre,' - '),'-') AS Empaque,
+
+    ISNULL(
+        STRING_AGG(
+            CONVERT(varchar(50),ct.Cantidad),
+            ' - '
+        ),
+        '-'
+    ) AS Cantidad,
+
+    ISNULL(STRING_AGG(tar.Nombre,' - '),'-') AS Tar,
+
+    ISNULL(
+        STRING_AGG(
+            CONVERT(varchar(50),tar.Estatus),
+            ' - '
+        ),
+        '-'
+    ) AS ActTar,
+
+    ISNULL(PR.Referencia,'-') AS Ubic,
+
+    MIN(logIngreso.FechaIngresoCamara) AS FechaIngresoCamara,
 
     '-' AS Reclasificacion,
 
@@ -8615,6 +9295,7 @@ LEFT JOIN Tarima tar
 
 LEFT JOIN ProduccionReferencia PR
     ON PR.ProduccionId = Prod.ProduccionId
+   AND PR.TipoReferenciaId = 16
 
 LEFT JOIN {dbMeat}.dbo.CajaTara CT
     ON CT.ProduccionId = Prod.ProduccionId
@@ -8622,31 +9303,21 @@ LEFT JOIN {dbMeat}.dbo.CajaTara CT
 LEFT JOIN {dbMeat}.dbo.Empaque emp
     ON emp.EmpaqueId = CT.EmpaqueId
 
-
-/* ==========================================
-   PRIMER INGRESO A CAMARA
-   ========================================== */
-
 OUTER APPLY
 (
-    SELECT TOP 1
+    SELECT TOP (1)
         pl.FechaHora AS FechaIngresoCamara
 
     FROM {dbMeat}.dbo.ProduccionLog pl
 
     WHERE
-        pl.ProduccionId = Prod.ProduccionId and pr.TipoReferenciaId = 16
-
-        AND LTRIM(RTRIM(pl.CodigoEtiqueta)) =
-            LTRIM(RTRIM(Prod.CodigoEtiqueta))
-
+        pl.ProduccionId = Prod.ProduccionId
+        AND pl.CodigoEtiqueta = Prod.CodigoEtiqueta
         AND
         (
             LTRIM(RTRIM(pl.Almacen)) =
                 LTRIM(RTRIM(alm.AlmacenId))
-
             OR
-
             LTRIM(RTRIM(pl.Almacen)) =
                 LTRIM(RTRIM(alm.Nombre))
         )
@@ -8654,42 +9325,13 @@ OUTER APPLY
     ORDER BY
         pl.FechaHora ASC,
         pl.ProduccionLogId ASC
-
 ) logIngreso
 
-
-/* ==========================================
-   ULTIMA ETIQUETACION REGISTRADA
-   ========================================== */
-
-OUTER APPLY
-(
-    SELECT TOP 1
-        pel.EtiquetacionId,
-
-        pel.Etiquetacion AS NombreEtiquetacion,
-
-        pel.FechaHoraEvento
-
-    FROM {dbMeat}.dbo.ProduccionEtiquetacionLog pel
-
-    WHERE
-        LTRIM(RTRIM(pel.CodigoEtiqueta)) =
-            LTRIM(RTRIM(Prod.CodigoEtiqueta))
-
-    ORDER BY
-        pel.FechaHoraEvento DESC,
-        pel.LogId DESC
-
-) etq
-
+{applyEtiquetacion}
 
 WHERE
     Prod.Estatus = 1
-
-    AND LTRIM(RTRIM(alm.Nombre)) =
-        LTRIM(RTRIM(@Camara))
-
+    AND alm.Nombre = @Camara
 
 GROUP BY
     Prod.CodigoEtiqueta,
@@ -8704,34 +9346,58 @@ GROUP BY
     cn.Nombre,
     artt.ArticuloId
 
-
 ORDER BY
     PR.Referencia,
     Producto,
     Prod.FechaProduccion DESC;";
 
-            using var cnSql = new SqlConnection(cs);
+                using var cnSql = new SqlConnection(cs);
 
-            var rows = (
-                await cnSql.QueryAsync(
-                    sql,
-                    new
-                    {
-                        Camara = camara,
-                        PrefijoCanal = prefijoCanal
-                    }
-                )
-            ).ToList();
+                var rows = (
+                    await cnSql.QueryAsync<DetalleCamaraInventarioRow>(
+                        sql,
+                        new
+                        {
+                            Camara = camara,
+                            PrefijoCanal = prefijoCanal
+                        },
+                        commandTimeout: 120
+                    )
+                ).ToList();
 
-            return Json(new
+                // P1: tomar exclusivamente la etiquetación original de TIF.
+                if (planta == "P1")
+                {
+                    await AplicarEtiquetacionOrigenTifAsync(rows);
+                }
+
+                return Json(new
+                {
+                    ok = true,
+                    planta,
+                    camara,
+                    origenEtiquetacion = "TIF",
+                    total = rows.Count,
+                    rows
+                });
+            }
+            catch (Exception ex)
             {
-                ok = true,
-                planta,
-                camara,
-                total = rows.Count,
-                rows
-            });
+                _logger.LogError(
+                    ex,
+                    "DetalleCamaraCompleta ERROR. Planta={Planta}, Camara={Camara}",
+                    planta,
+                    camara);
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    mensaje = "Error al consultar detalle completo de la cámara.",
+                    error = ex.GetBaseException().Message
+                });
+            }
         }
+
 
         // ========================= AVISOS MOVILIZACION SENASICA =========================
         // Fuente oficial: ConnectionStrings:CadenaMeatTIF
@@ -17166,6 +17832,44 @@ VALUES
             public bool PuedeEliminar { get; set; }
         }
 
+
+        // =======================================================
+        // APERTURA CONTROLADA DE LOTES CERRADOS
+        // EstatusId 3 (cerrado) -> EstatusId 1 (abierto)
+        // =======================================================
+
+        public sealed class CierreLoteAperturaSolicitudRequestVM
+        {
+            public string Source { get; set; } = "TIF";
+            public int LoteId { get; set; }
+            public string Motivo { get; set; } = "";
+        }
+
+        public sealed class CierreLoteAperturaDecisionRequestVM
+        {
+            public string Source { get; set; } = "TIF";
+            public long SolicitudId { get; set; }
+            public string Motivo { get; set; } = "";
+        }
+
+        private sealed class CierreLoteAperturaSolicitudDbRow
+        {
+            public long SolicitudId { get; set; }
+            public string Source { get; set; } = "";
+            public int LoteId { get; set; }
+            public string LoteNombre { get; set; } = "";
+            public int? TipoLoteId { get; set; }
+            public int EstatusAnterior { get; set; }
+            public int EstatusSolicitado { get; set; }
+            public string MotivoSolicitud { get; set; } = "";
+            public string UsuarioSolicita { get; set; } = "";
+            public DateTime FechaSolicitud { get; set; }
+            public string Estado { get; set; } = "";
+            public string UsuarioDecision { get; set; } = "";
+            public DateTime? FechaDecision { get; set; }
+            public string MotivoDecision { get; set; } = "";
+        }
+
         [HttpGet("CierreLotes")]
         [RevisarPermiso("CIERRE_LOTES", "LEER")]
         public IActionResult CierreLotes(string source = "TIF")
@@ -17185,7 +17889,7 @@ VALUES
                 puedeLeer = permiso.PuedeLeer,
                 puedeEscribir = permiso.PuedeEscribir,
                 puedeAutorizar = permiso.PuedeEliminar,
-                regla = "LEER consulta; ESCRIBIR solicita/cierra; ELIMINAR autoriza o rechaza excepciones. El solicitante no puede autoautorizarse."
+                regla = "LEER consulta; ESCRIBIR solicita/cierra y puede solicitar reapertura; ELIMINAR autoriza o rechaza cierres y reaperturas. El solicitante no puede autoautorizarse."
             });
         }
 
@@ -17798,6 +18502,1084 @@ VALUES
                 return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
             }
         }
+
+
+        // =======================================================
+        // SOLICITAR APERTURA DE LOTE CERRADO
+        //
+        // Flujo:
+        // 1) ESCRIBIR solicita y justifica.
+        // 2) ELIMINAR autoriza/rechaza.
+        // 3) Sólo al AUTORIZAR cambia Lote.EstatusId 3 -> 1.
+        // 4) Solicitud, decisión y apertura quedan auditadas.
+        // =======================================================
+
+        [HttpPost("CierreLoteSolicitarApertura")]
+        [RevisarPermiso("CIERRE_LOTES", "ESCRIBIR")]
+        public async Task<IActionResult> CierreLoteSolicitarApertura(
+            [FromBody] CierreLoteAperturaSolicitudRequestVM req)
+        {
+            try
+            {
+                if (req == null)
+                    return BadRequest(new { ok = false, msg = "Solicitud inválida." });
+
+                req.Source = NormalizeSource(req.Source);
+
+                if (req.LoteId <= 0)
+                    return BadRequest(new { ok = false, msg = "LoteId inválido." });
+
+                var motivo =
+                    (req.Motivo ?? "")
+                    .Trim();
+
+                if (motivo.Length < 10)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Captura un motivo de apertura de al menos 10 caracteres."
+                    });
+                }
+
+                if (motivo.Length > 1000)
+                    motivo = motivo[..1000];
+
+                var cs = GetMeatConnectionString(req.Source);
+
+                if (string.IsNullOrWhiteSpace(cs))
+                {
+                    return StatusCode(500, new
+                    {
+                        ok = false,
+                        msg = $"No existe cadena Meat para source={req.Source}."
+                    });
+                }
+
+                var usuario =
+                    (User?.Identity?.Name ?? "sistema")
+                    .Trim();
+
+                var ip =
+                    HttpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "";
+
+                var userAgent =
+                    Request.Headers.UserAgent.ToString();
+
+                if (userAgent.Length > 500)
+                    userAgent = userAgent[..500];
+
+                await using var cn =
+                    new SqlConnection(cs);
+
+                await cn.OpenAsync();
+
+                await using var tx =
+                    (SqlTransaction)await cn.BeginTransactionAsync(
+                        IsolationLevel.Serializable
+                    );
+
+                try
+                {
+                    var tablasOk =
+                        await cn.ExecuteScalarAsync<int>(
+                            @"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.meat_CierreLoteAperturaSolicitud', 'U') IS NOT NULL
+     AND OBJECT_ID('dbo.meat_CierreLoteAperturaLog', 'U') IS NOT NULL
+    THEN 1 ELSE 0
+END;",
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                    if (tablasOk != 1)
+                    {
+                        throw new InvalidOperationException(
+                            "Falta ejecutar el SQL de instalación de apertura de lotes " +
+                            "(dbo.meat_CierreLoteAperturaSolicitud y dbo.meat_CierreLoteAperturaLog)."
+                        );
+                    }
+
+                    var lote =
+                        await cn.QuerySingleOrDefaultAsync<dynamic>(
+                            @"
+SELECT TOP (1)
+    LoteId,
+    CONVERT(nvarchar(200), ISNULL(Nombre, '')) AS LoteNombre,
+    TRY_CONVERT(int, TipoLoteId) AS TipoLoteId,
+    TRY_CONVERT(int, EstatusId) AS EstatusId,
+    TRY_CONVERT(date, FechaProduccion) AS FechaProduccion,
+    CONVERT(date, GETDATE()) AS FechaServidor
+FROM dbo.Lote WITH (UPDLOCK, HOLDLOCK)
+WHERE LoteId = @LoteId;",
+                            new
+                            {
+                                req.LoteId
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                    if (lote == null)
+                        throw new InvalidOperationException("El lote no existe.");
+
+                    int estatusActual =
+                        Convert.ToInt32(lote.EstatusId ?? 0);
+
+                    if (estatusActual != 3)
+                    {
+                        throw new InvalidOperationException(
+                            $"El lote no está cerrado. EstatusId actual={estatusActual}. " +
+                            "Sólo se puede solicitar apertura para lotes con EstatusId=3."
+                        );
+                    }
+
+                    DateTime? fechaProduccion =
+                        lote.FechaProduccion == null
+                            ? (DateTime?)null
+                            : Convert.ToDateTime(lote.FechaProduccion);
+
+                    DateTime fechaServidor =
+                        Convert.ToDateTime(lote.FechaServidor).Date;
+
+                    bool esLoteDelDia =
+                        fechaProduccion.HasValue &&
+                        fechaProduccion.Value.Date == fechaServidor;
+
+                    var pendiente =
+                        await cn.QuerySingleOrDefaultAsync<long?>(
+                            @"
+SELECT TOP (1)
+    SolicitudId
+FROM dbo.meat_CierreLoteAperturaSolicitud WITH (UPDLOCK, HOLDLOCK)
+WHERE
+    Source = @Source
+    AND LoteId = @LoteId
+    AND Estado = 'PENDIENTE'
+ORDER BY SolicitudId DESC;",
+                            new
+                            {
+                                Source = req.Source,
+                                req.LoteId
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                    if (pendiente.HasValue)
+                    {
+                        throw new InvalidOperationException(
+                            $"El lote ya tiene la solicitud de apertura #{pendiente.Value} pendiente de autorización."
+                        );
+                    }
+
+                    // ===================================================
+                    // REGLA DE FECHA
+                    //
+                    // Lote del día:
+                    // - justificación obligatoria
+                    // - NO requiere autorización
+                    // - abre inmediatamente 3 -> 1
+                    // - queda solicitud APROBADA + log
+                    //
+                    // Lote de otra fecha:
+                    // - justificación obligatoria
+                    // - queda PENDIENTE
+                    // - requiere autorización ELIMINAR
+                    // ===================================================
+
+                    if (esLoteDelDia)
+                    {
+                        var solicitudId =
+                            await cn.ExecuteScalarAsync<long>(
+                                @"
+INSERT INTO dbo.meat_CierreLoteAperturaSolicitud
+(
+    Source,
+    LoteId,
+    LoteNombre,
+    TipoLoteId,
+    EstatusAnterior,
+    EstatusSolicitado,
+    MotivoSolicitud,
+    UsuarioSolicita,
+    FechaSolicitud,
+    IpSolicita,
+    UserAgentSolicita,
+    Estado,
+    UsuarioDecision,
+    FechaDecision,
+    MotivoDecision,
+    UsuarioApertura,
+    FechaApertura
+)
+VALUES
+(
+    @Source,
+    @LoteId,
+    @LoteNombre,
+    @TipoLoteId,
+    3,
+    1,
+    @Motivo,
+    @Usuario,
+    SYSDATETIME(),
+    @Ip,
+    @UserAgent,
+    'APROBADA',
+    @Usuario,
+    SYSDATETIME(),
+    @Motivo,
+    @Usuario,
+    SYSDATETIME()
+);
+
+SELECT CONVERT(bigint, SCOPE_IDENTITY());",
+                                new
+                                {
+                                    Source = req.Source,
+                                    req.LoteId,
+                                    LoteNombre =
+                                        Convert.ToString(lote.LoteNombre) ?? "",
+                                    TipoLoteId =
+                                        lote.TipoLoteId == null
+                                            ? (int?)null
+                                            : Convert.ToInt32(lote.TipoLoteId),
+                                    Motivo = motivo,
+                                    Usuario = usuario,
+                                    Ip = ip,
+                                    UserAgent = userAgent
+                                },
+                                transaction: tx,
+                                commandTimeout: 30
+                            );
+
+                        var filasApertura =
+                            await cn.ExecuteAsync(
+                                @"
+UPDATE dbo.Lote
+SET
+    EstatusId = 1
+WHERE
+    LoteId = @LoteId
+    AND EstatusId = 3;",
+                                new
+                                {
+                                    req.LoteId
+                                },
+                                transaction: tx,
+                                commandTimeout: 30
+                            );
+
+                        if (filasApertura != 1)
+                        {
+                            throw new InvalidOperationException(
+                                "No fue posible abrir el lote del día. " +
+                                "El lote cambió de estado durante la operación."
+                            );
+                        }
+
+                        await cn.ExecuteAsync(
+                            @"
+INSERT INTO dbo.meat_CierreLoteAperturaLog
+(
+    SolicitudId,
+    Source,
+    LoteId,
+    LoteNombre,
+    Accion,
+    EstatusAntes,
+    EstatusDespues,
+    Usuario,
+    Motivo,
+    FechaHora,
+    Ip,
+    UserAgent,
+    Detalle
+)
+VALUES
+(
+    @SolicitudId,
+    @Source,
+    @LoteId,
+    @LoteNombre,
+    'APERTURA_DIRECTA_DIA',
+    3,
+    1,
+    @Usuario,
+    @Motivo,
+    SYSDATETIME(),
+    @Ip,
+    @UserAgent,
+    @Detalle
+);",
+                            new
+                            {
+                                SolicitudId = solicitudId,
+                                Source = req.Source,
+                                req.LoteId,
+                                LoteNombre =
+                                    Convert.ToString(lote.LoteNombre) ?? "",
+                                Usuario = usuario,
+                                Motivo = motivo,
+                                Ip = ip,
+                                UserAgent = userAgent,
+                                Detalle =
+                                    $"Apertura directa de lote del día. " +
+                                    $"FechaProduccion={fechaProduccion:yyyy-MM-dd}; " +
+                                    $"FechaServidor={fechaServidor:yyyy-MM-dd}. " +
+                                    "No requirió autorización; justificación registrada."
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                        await tx.CommitAsync();
+
+                        return Ok(new
+                        {
+                            ok = true,
+                            solicitudId,
+                            loteId = req.LoteId,
+                            lote =
+                                Convert.ToString(lote.LoteNombre) ?? "",
+                            source = req.Source,
+                            fechaProduccion =
+                                fechaProduccion?.ToString("yyyy-MM-dd"),
+                            fechaServidor =
+                                fechaServidor.ToString("yyyy-MM-dd"),
+                            requiereAutorizacion = false,
+                            aperturaDirecta = true,
+                            estatusId = 1,
+                            msg =
+                                $"Lote del día abierto correctamente. " +
+                                $"Cambió de EstatusId=3 a EstatusId=1. " +
+                                $"La justificación quedó registrada en el log."
+                        });
+                    }
+                    else
+                    {
+                        var solicitudId =
+                            await cn.ExecuteScalarAsync<long>(
+                                @"
+INSERT INTO dbo.meat_CierreLoteAperturaSolicitud
+(
+    Source,
+    LoteId,
+    LoteNombre,
+    TipoLoteId,
+    EstatusAnterior,
+    EstatusSolicitado,
+    MotivoSolicitud,
+    UsuarioSolicita,
+    FechaSolicitud,
+    IpSolicita,
+    UserAgentSolicita,
+    Estado
+)
+VALUES
+(
+    @Source,
+    @LoteId,
+    @LoteNombre,
+    @TipoLoteId,
+    3,
+    1,
+    @Motivo,
+    @Usuario,
+    SYSDATETIME(),
+    @Ip,
+    @UserAgent,
+    'PENDIENTE'
+);
+
+SELECT CONVERT(bigint, SCOPE_IDENTITY());",
+                                new
+                                {
+                                    Source = req.Source,
+                                    req.LoteId,
+                                    LoteNombre =
+                                        Convert.ToString(lote.LoteNombre) ?? "",
+                                    TipoLoteId =
+                                        lote.TipoLoteId == null
+                                            ? (int?)null
+                                            : Convert.ToInt32(lote.TipoLoteId),
+                                    Motivo = motivo,
+                                    Usuario = usuario,
+                                    Ip = ip,
+                                    UserAgent = userAgent
+                                },
+                                transaction: tx,
+                                commandTimeout: 30
+                            );
+
+                        await cn.ExecuteAsync(
+                            @"
+INSERT INTO dbo.meat_CierreLoteAperturaLog
+(
+    SolicitudId,
+    Source,
+    LoteId,
+    LoteNombre,
+    Accion,
+    EstatusAntes,
+    EstatusDespues,
+    Usuario,
+    Motivo,
+    FechaHora,
+    Ip,
+    UserAgent,
+    Detalle
+)
+VALUES
+(
+    @SolicitudId,
+    @Source,
+    @LoteId,
+    @LoteNombre,
+    'SOLICITUD_APERTURA',
+    3,
+    3,
+    @Usuario,
+    @Motivo,
+    SYSDATETIME(),
+    @Ip,
+    @UserAgent,
+    @Detalle
+);",
+                            new
+                            {
+                                SolicitudId = solicitudId,
+                                Source = req.Source,
+                                req.LoteId,
+                                LoteNombre =
+                                    Convert.ToString(lote.LoteNombre) ?? "",
+                                Usuario = usuario,
+                                Motivo = motivo,
+                                Ip = ip,
+                                UserAgent = userAgent,
+                                Detalle =
+                                    fechaProduccion.HasValue
+                                        ? $"Solicitud de apertura para lote de otra fecha. " +
+                                          $"FechaProduccion={fechaProduccion:yyyy-MM-dd}; " +
+                                          $"FechaServidor={fechaServidor:yyyy-MM-dd}. " +
+                                          "El lote permanece cerrado hasta autorización."
+                                        : $"Solicitud de apertura con FechaProduccion no disponible. " +
+                                          $"FechaServidor={fechaServidor:yyyy-MM-dd}. " +
+                                          "Por seguridad requiere autorización y permanece cerrado."
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                        await tx.CommitAsync();
+
+                        return Ok(new
+                        {
+                            ok = true,
+                            solicitudId,
+                            loteId = req.LoteId,
+                            lote =
+                                Convert.ToString(lote.LoteNombre) ?? "",
+                            source = req.Source,
+                            fechaProduccion =
+                                fechaProduccion?.ToString("yyyy-MM-dd"),
+                            fechaServidor =
+                                fechaServidor.ToString("yyyy-MM-dd"),
+                            requiereAutorizacion = true,
+                            aperturaDirecta = false,
+                            estatusId = 3,
+                            msg =
+                                $"Solicitud de apertura #{solicitudId} registrada. " +
+                                "Como el lote no es del día, requiere autorización. " +
+                                "El lote seguirá cerrado con EstatusId=3 hasta que sea aprobado."
+                        });
+                    }
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    msg = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error solicitando apertura de lote. Source={Source} LoteId={LoteId}",
+                    req?.Source,
+                    req?.LoteId
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpGet("CierreLoteAperturasPendientes")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteAperturasPendientes(
+            string source = "TIF")
+        {
+            try
+            {
+                source =
+                    NormalizeSource(source);
+
+                var cs =
+                    GetMeatConnectionString(source);
+
+                if (string.IsNullOrWhiteSpace(cs))
+                    return StatusCode(500, new { ok = false, msg = "No existe cadena Meat." });
+
+                await using var cn =
+                    new SqlConnection(cs);
+
+                await cn.OpenAsync();
+
+                var existe =
+                    await cn.ExecuteScalarAsync<int>(
+                        @"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.meat_CierreLoteAperturaSolicitud', 'U') IS NOT NULL
+    THEN 1 ELSE 0
+END;"
+                    );
+
+                if (existe != 1)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                var rows =
+                    (await cn.QueryAsync(
+                        @"
+SELECT
+    solicitudId = SolicitudId,
+    source = Source,
+    loteId = LoteId,
+    loteNombre = LoteNombre,
+    tipoLoteId = TipoLoteId,
+    estatusAnterior = EstatusAnterior,
+    estatusSolicitado = EstatusSolicitado,
+    motivoSolicitud = MotivoSolicitud,
+    usuarioSolicita = UsuarioSolicita,
+    fechaSolicitud = FechaSolicitud,
+    estado = Estado
+FROM dbo.meat_CierreLoteAperturaSolicitud
+WHERE
+    Source = @Source
+    AND Estado = 'PENDIENTE'
+ORDER BY
+    FechaSolicitud,
+    SolicitudId;"
+                        ,
+                        new
+                        {
+                            Source = source
+                        }
+                    ))
+                    .ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpPost("CierreLoteAperturaAutorizar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteAperturaAutorizar(
+            [FromBody] CierreLoteAperturaDecisionRequestVM req)
+            => await RegistrarDecisionAperturaLoteAsync(
+                req,
+                aprobar: true
+            );
+
+
+        [HttpPost("CierreLoteAperturaRechazar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteAperturaRechazar(
+            [FromBody] CierreLoteAperturaDecisionRequestVM req)
+            => await RegistrarDecisionAperturaLoteAsync(
+                req,
+                aprobar: false
+            );
+
+
+        private async Task<IActionResult> RegistrarDecisionAperturaLoteAsync(
+            CierreLoteAperturaDecisionRequestVM req,
+            bool aprobar)
+        {
+            try
+            {
+                if (req == null)
+                    return BadRequest(new { ok = false, msg = "Solicitud inválida." });
+
+                req.Source =
+                    NormalizeSource(req.Source);
+
+                if (req.SolicitudId <= 0)
+                    return BadRequest(new { ok = false, msg = "SolicitudId inválido." });
+
+                var motivo =
+                    (req.Motivo ?? "")
+                    .Trim();
+
+                if (motivo.Length < 5)
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        msg = "Captura una justificación de decisión de al menos 5 caracteres."
+                    });
+                }
+
+                if (motivo.Length > 1000)
+                    motivo = motivo[..1000];
+
+                var usuario =
+                    (User?.Identity?.Name ?? "sistema")
+                    .Trim();
+
+                var ip =
+                    HttpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "";
+
+                var userAgent =
+                    Request.Headers.UserAgent.ToString();
+
+                if (userAgent.Length > 500)
+                    userAgent = userAgent[..500];
+
+                var cs =
+                    GetMeatConnectionString(req.Source);
+
+                if (string.IsNullOrWhiteSpace(cs))
+                    return StatusCode(500, new { ok = false, msg = "No existe cadena Meat." });
+
+                await using var cn =
+                    new SqlConnection(cs);
+
+                await cn.OpenAsync();
+
+                await using var tx =
+                    (SqlTransaction)await cn.BeginTransactionAsync(
+                        IsolationLevel.Serializable
+                    );
+
+                try
+                {
+                    var solicitud =
+                        await cn.QuerySingleOrDefaultAsync<CierreLoteAperturaSolicitudDbRow>(
+                            @"
+SELECT TOP (1)
+    SolicitudId,
+    Source,
+    LoteId,
+    LoteNombre,
+    TipoLoteId,
+    EstatusAnterior,
+    EstatusSolicitado,
+    MotivoSolicitud,
+    UsuarioSolicita,
+    FechaSolicitud,
+    Estado,
+    ISNULL(UsuarioDecision, '') AS UsuarioDecision,
+    FechaDecision,
+    ISNULL(MotivoDecision, '') AS MotivoDecision
+FROM dbo.meat_CierreLoteAperturaSolicitud WITH (UPDLOCK, HOLDLOCK)
+WHERE
+    SolicitudId = @SolicitudId
+    AND Source = @Source;",
+                            new
+                            {
+                                req.SolicitudId,
+                                Source = req.Source
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                    if (solicitud == null)
+                        throw new InvalidOperationException("La solicitud de apertura no existe.");
+
+                    if (!string.Equals(
+                        solicitud.Estado,
+                        "PENDIENTE",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(
+                            $"La solicitud ya fue procesada. Estado={solicitud.Estado}."
+                        );
+                    }
+
+                    if (string.Equals(
+                        (solicitud.UsuarioSolicita ?? "").Trim(),
+                        usuario,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(
+                            "El solicitante no puede autorizar ni rechazar su propia solicitud de apertura."
+                        );
+                    }
+
+                    var estatusActual =
+                        await cn.ExecuteScalarAsync<int?>(
+                            @"
+SELECT TOP (1)
+    TRY_CONVERT(int, EstatusId)
+FROM dbo.Lote WITH (UPDLOCK, HOLDLOCK)
+WHERE LoteId = @LoteId;",
+                            new
+                            {
+                                solicitud.LoteId
+                            },
+                            transaction: tx,
+                            commandTimeout: 30
+                        );
+
+                    if (!estatusActual.HasValue)
+                        throw new InvalidOperationException("El lote ya no existe.");
+
+                    var accion =
+                        aprobar
+                            ? "APERTURA_AUTORIZADA"
+                            : "APERTURA_RECHAZADA";
+
+                    int estatusDespues =
+                        estatusActual.Value;
+
+                    if (aprobar)
+                    {
+                        if (estatusActual.Value != 3)
+                        {
+                            throw new InvalidOperationException(
+                                $"No se puede autorizar la apertura porque el lote ya no está cerrado. " +
+                                $"EstatusId actual={estatusActual.Value}."
+                            );
+                        }
+
+                        var filas =
+                            await cn.ExecuteAsync(
+                                @"
+UPDATE dbo.Lote
+SET
+    EstatusId = 1
+WHERE
+    LoteId = @LoteId
+    AND EstatusId = 3;",
+                                new
+                                {
+                                    solicitud.LoteId
+                                },
+                                transaction: tx,
+                                commandTimeout: 30
+                            );
+
+                        if (filas != 1)
+                        {
+                            throw new InvalidOperationException(
+                                "No fue posible cambiar el lote de EstatusId=3 a EstatusId=1."
+                            );
+                        }
+
+                        estatusDespues = 1;
+                    }
+
+                    var estadoSolicitud =
+                        aprobar
+                            ? "APROBADA"
+                            : "RECHAZADA";
+
+                    await cn.ExecuteAsync(
+                        @"
+UPDATE dbo.meat_CierreLoteAperturaSolicitud
+SET
+    Estado = @Estado,
+    UsuarioDecision = @Usuario,
+    FechaDecision = SYSDATETIME(),
+    MotivoDecision = @Motivo,
+    UsuarioApertura =
+        CASE WHEN @Aprobar = 1
+             THEN @Usuario
+             ELSE NULL
+        END,
+    FechaApertura =
+        CASE WHEN @Aprobar = 1
+             THEN SYSDATETIME()
+             ELSE NULL
+        END
+WHERE
+    SolicitudId = @SolicitudId
+    AND Estado = 'PENDIENTE';",
+                        new
+                        {
+                            Estado = estadoSolicitud,
+                            Usuario = usuario,
+                            Motivo = motivo,
+                            Aprobar = aprobar,
+                            req.SolicitudId
+                        },
+                        transaction: tx,
+                        commandTimeout: 30
+                    );
+
+                    await cn.ExecuteAsync(
+                        @"
+INSERT INTO dbo.meat_CierreLoteAperturaLog
+(
+    SolicitudId,
+    Source,
+    LoteId,
+    LoteNombre,
+    Accion,
+    EstatusAntes,
+    EstatusDespues,
+    Usuario,
+    Motivo,
+    FechaHora,
+    Ip,
+    UserAgent,
+    Detalle
+)
+VALUES
+(
+    @SolicitudId,
+    @Source,
+    @LoteId,
+    @LoteNombre,
+    @Accion,
+    @EstatusAntes,
+    @EstatusDespues,
+    @Usuario,
+    @Motivo,
+    SYSDATETIME(),
+    @Ip,
+    @UserAgent,
+    @Detalle
+);",
+                        new
+                        {
+                            req.SolicitudId,
+                            Source = req.Source,
+                            solicitud.LoteId,
+                            solicitud.LoteNombre,
+                            Accion = accion,
+                            EstatusAntes = estatusActual.Value,
+                            EstatusDespues = estatusDespues,
+                            Usuario = usuario,
+                            Motivo = motivo,
+                            Ip = ip,
+                            UserAgent = userAgent,
+                            Detalle =
+                                aprobar
+                                    ? "Apertura autorizada: dbo.Lote.EstatusId cambió de 3 a 1."
+                                    : "Apertura rechazada: el lote conserva su estatus."
+                        },
+                        transaction: tx,
+                        commandTimeout: 30
+                    );
+
+                    await tx.CommitAsync();
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        decision =
+                            aprobar
+                                ? "APROBAR"
+                                : "RECHAZAR",
+                        solicitudId =
+                            req.SolicitudId,
+                        loteId =
+                            solicitud.LoteId,
+                        lote =
+                            solicitud.LoteNombre,
+                        estatusId =
+                            estatusDespues,
+                        msg =
+                            aprobar
+                                ? $"Apertura autorizada por {usuario}. " +
+                                  $"El lote {solicitud.LoteNombre} cambió de EstatusId=3 a EstatusId=1."
+                                : $"Solicitud de apertura rechazada por {usuario}. " +
+                                  "El lote permanece cerrado."
+                    });
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    ok = false,
+                    msg = ex.Message
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error procesando decisión de apertura. Source={Source} SolicitudId={SolicitudId}",
+                    req?.Source,
+                    req?.SolicitudId
+                );
+
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = ex.GetBaseException().Message
+                });
+            }
+        }
+
+
+        [HttpGet("CierreLoteAperturaHistorial")]
+        [RevisarPermiso("CIERRE_LOTES", "LEER")]
+        public async Task<IActionResult> CierreLoteAperturaHistorial(
+            string source = "TIF",
+            int? loteId = null,
+            int top = 200)
+        {
+            try
+            {
+                source =
+                    NormalizeSource(source);
+
+                top =
+                    Math.Clamp(
+                        top,
+                        1,
+                        1000
+                    );
+
+                var cs =
+                    GetMeatConnectionString(source);
+
+                if (string.IsNullOrWhiteSpace(cs))
+                    return StatusCode(500, new { ok = false, msg = "No existe cadena Meat." });
+
+                await using var cn =
+                    new SqlConnection(cs);
+
+                await cn.OpenAsync();
+
+                var existe =
+                    await cn.ExecuteScalarAsync<int>(
+                        @"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.meat_CierreLoteAperturaLog', 'U') IS NOT NULL
+    THEN 1 ELSE 0
+END;"
+                    );
+
+                if (existe != 1)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                var rows =
+                    (await cn.QueryAsync(
+                        @"
+SELECT TOP (@Top)
+    aperturaLogId = AperturaLogId,
+    solicitudId = SolicitudId,
+    source = Source,
+    loteId = LoteId,
+    loteNombre = LoteNombre,
+    accion = Accion,
+    estatusAntes = EstatusAntes,
+    estatusDespues = EstatusDespues,
+    usuario = Usuario,
+    motivo = Motivo,
+    fechaHora = FechaHora,
+    ip = Ip,
+    detalle = Detalle
+FROM dbo.meat_CierreLoteAperturaLog
+WHERE
+    Source = @Source
+    AND
+    (
+        @LoteId IS NULL
+        OR LoteId = @LoteId
+    )
+ORDER BY
+    FechaHora DESC,
+    AperturaLogId DESC;",
+                        new
+                        {
+                            Top = top,
+                            Source = source,
+                            LoteId = loteId
+                        }
+                    ))
+                    .ToList();
+
+                return Ok(new
+                {
+                    ok = true,
+                    source,
+                    rows
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    ok = false,
+                    msg = ex.GetBaseException().Message
+                });
+            }
+        }
+
 
         [HttpGet("CierreLoteCompatibilidad")]
         [RevisarPermiso("CIERRE_LOTES", "LEER")]

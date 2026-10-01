@@ -22,9 +22,17 @@
             <h4>Factor Crítico TIF</h4>
             <span style="font-size: 0.92rem; color: #6c757d;">Gestión de calidad y captura de rendimientos</span>
         </div>
-        <button type="button" class="tbtn primary" onclick="abrirModalNuevaPrueba()">
-            <i class="bi bi-plus-lg"></i> Nueva Prueba
-        </button>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            @if (User.IsInRole("Administrador") || User.IsInRole("Sistemas"))
+            {
+                <a class="tbtn" style="text-decoration:none;" href="@Url.Action("Index", "AutorizacionesManuales")">
+                    <i class="bi bi-people"></i> Administrar autorizaciones
+                </a>
+            }
+            <button type="button" class="tbtn primary" onclick="abrirModalNuevaPrueba()">
+                <i class="bi bi-plus-lg"></i> Nueva Prueba
+            </button>
+        </div>
     </div>
 
     <nav class="sap-tabs" aria-label="Secciones de Factor Crítico">
@@ -37,7 +45,7 @@
         <button id="btn-tab-graficas" class="tab-btn" onclick="cambiarPestana('graficas')">
             <i class=""></i> Gráficas
         </button>
-        <button id="btn-tab-log" class="tab-btn" onclick="cambiarPestana('log'); cargarLogSimulado();">
+        <button id="btn-tab-log" class="tab-btn" onclick="cambiarPestana('log'); cargarLogHistorico();">
             Log de Pruebas
         </button>
     </nav>
@@ -273,7 +281,7 @@
                 <div class="fc-log-filters">
                     <label for="fechaDesdeLog">Desde<input type="date" id="fechaDesdeLog" class="sap-input" onchange="filtrarLog()"></label>
                     <label for="fechaHastaLog">Hasta<input type="date" id="fechaHastaLog" class="sap-input" onchange="filtrarLog()"></label>
-                    <label for="buscadorLog">Buscar<input type="search" id="buscadorLog" class="sap-input" placeholder="Lote o usuario…" oninput="filtrarLog()"></label>
+                    <label for="buscadorLog">Buscar<input type="search" id="buscadorLog" class="sap-input" placeholder="Lote o usuario…" maxlength="100" oninput="filtrarLog()"></label>
                 </div>
             </div>
             <div class="fc-table-scroll" tabindex="0" role="region" aria-label="Tabla de resultados">
@@ -370,6 +378,8 @@
     let huesoDrafts = {};
     let abortHuesoController = null;
     let guardandoHueso = false;
+    let lecturaHistoricaGrasa = 0;
+    let lecturaHistoricaRecorte = 0;
 
     function guardarDraftHuesoFila(tr) {
         if (!tr) return;
@@ -445,6 +455,68 @@
         }
 
         return await res.text();
+    }
+
+    function escaparHtml(valor) {
+        return String(valor ?? "").replace(/[&<>"']/g, caracter => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+        })[caracter]);
+    }
+
+    function porcentajeHistorico(valor) {
+        return valor == null ? "—" : `${valor}%`;
+    }
+
+    function mostrarErrorHistorico(tbody, columnas, error) {
+        tbody.innerHTML = `<tr><td colspan="${columnas}" style="text-align:center; color:red;"></td></tr>`;
+        tbody.querySelector("td").textContent = obtenerMensajeUsuario(error);
+    }
+
+    function renderizarHuesosHistoricos(tbody, registros) {
+        if (!Array.isArray(registros) || registros.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Esta prueba no tiene registros de hueso.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = registros.map(h => {
+            const color = h.difPorc == null ? "inherit" : obtenerColorSemaforo(h.difPorc);
+            return `<tr data-id="${h.id}" data-fkhueso="${h.fk_Hueso ?? 0}" data-porcobjetivo="${h.porcObjetivo ?? ''}">
+                <td>${escaparHtml(h.nombreHueso)}</td>
+                <td><span class="badge-sap">${porcentajeHistorico(h.porcObjetivo)}</span></td>
+                <td class="td-partic">${porcentajeHistorico(h.porcPartic)}</td>
+                <td class="td-dif" style="color:${color}; font-weight:bold;">${porcentajeHistorico(h.difPorc)}</td>
+                <td><input type="number" class="sap-input kg-entrada" value="${h.kgEntrada ?? ''}" disabled></td>
+                <td><input type="number" class="sap-input kg-salida" value="${h.kgSalida ?? ''}" disabled></td>
+                <td style="text-align:center;"><span class="badge-sap">Lectura</span></td>
+            </tr>`;
+        }).join("");
+    }
+
+    function renderizarPesosHistoricos(tbody, registros, factor) {
+        const esRecorte = factor === "recorte";
+        const columnas = esRecorte ? 6 : 5;
+        if (!Array.isArray(registros) || registros.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${columnas}" style="text-align:center;">Esta prueba no tiene registros de ${factor}.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = registros.map((r, indice) => {
+            const color = r.difPorc == null ? "inherit" : obtenerColorSemaforo(r.difPorc);
+            const entradaId = indice === 0 ? `id="txt${esRecorte ? 'Recorte' : 'Grasa'}Ent"` : "";
+            const salidaId = indice === 0 ? `id="txt${esRecorte ? 'Recorte' : 'Grasa'}Sal"` : "";
+            const selector = esRecorte
+                ? `<td><select class="sap-input receta-select" disabled><option value="${r.id}" selected>Registro #${r.id} (${porcentajeHistorico(r.porcObjetivo)})</option></select></td>`
+                : "";
+            const objetivo = esRecorte
+                ? `<td><span class="badge-sap">${porcentajeHistorico(r.porcObjetivo)}</span></td>`
+                : `<td><span class="badge-sap">${porcentajeHistorico(r.porcObjetivo)}</span> <small>#${r.id}</small></td>`;
+            return `<tr data-id="${r.id}">${selector}${objetivo}
+                <td>${porcentajeHistorico(r.porcPartic)}</td>
+                <td style="color:${color}; font-weight:bold;">${porcentajeHistorico(r.difPorc)}</td>
+                <td><input type="number" class="sap-input kg-entrada" ${entradaId} value="${r.kgEntrada ?? ''}" disabled></td>
+                <td><input type="number" class="sap-input kg-salida" ${salidaId} value="${r.kgSalida ?? ''}" disabled></td>
+            </tr>`;
+        }).join("");
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -586,6 +658,7 @@
     }
 
     function abrirPruebaGrasa(idPrueba, lote, isReadOnly = false) {
+        const consultaActual = ++lecturaHistoricaGrasa;
         idPruebaActual = idPrueba;
         document.getElementById("modalGrasa").style.display = "flex";
         document.getElementById("lote-Grasa").innerText = lote;
@@ -597,6 +670,23 @@
 
         const tbody = document.getElementById("tabla-Grasa");
         tbody.innerHTML = "<tr><td colspan='5'>Cargando...</td></tr>";
+
+        if (isReadOnly) {
+            fetchTifJson(`/tif/historial/${idPrueba}/grasa`)
+                .then(registros => {
+                    if (consultaActual === lecturaHistoricaGrasa) {
+                        renderizarPesosHistoricos(tbody, registros, "grasa");
+                        mostrarResultadosHistoricosFactor("grasa", registros);
+                    }
+                })
+                .catch(error => {
+                    if (consultaActual === lecturaHistoricaGrasa) {
+                        mostrarErrorHistorico(tbody, 5, error);
+                        mostrarResultadosHistoricosFactor("grasa", null, obtenerMensajeUsuario(error));
+                    }
+                });
+            return;
+        }
 
         fetch(`/tif/grasa?pruebaid=${idPrueba}`)
             .then(res => res.json())
@@ -648,6 +738,7 @@
     }
 
      function abrirPruebaRecorte(idPrueba, lote, isReadOnly = false) {
+        const consultaActual = ++lecturaHistoricaRecorte;
         idPruebaActual = idPrueba;
         document.getElementById("modalRecorte").style.display = "flex";
         document.getElementById("lote-Recorte").innerText = lote;
@@ -659,6 +750,23 @@
 
         const tbody = document.getElementById("tabla-Recorte");
         tbody.innerHTML = "<tr><td colspan='6'>Cargando...</td></tr>";
+
+        if (isReadOnly) {
+            fetchTifJson(`/tif/historial/${idPrueba}/recorte`)
+                .then(registros => {
+                    if (consultaActual === lecturaHistoricaRecorte) {
+                        renderizarPesosHistoricos(tbody, registros, "recorte");
+                        mostrarResultadosHistoricosFactor("recorte", registros);
+                    }
+                })
+                .catch(error => {
+                    if (consultaActual === lecturaHistoricaRecorte) {
+                        mostrarErrorHistorico(tbody, 6, error);
+                        mostrarResultadosHistoricosFactor("recorte", null, obtenerMensajeUsuario(error));
+                    }
+                });
+            return;
+        }
 
         fetch(`/tif/recorte?pruebaid=${idPrueba}`)
             .then(res => res.json())
@@ -989,10 +1097,20 @@
 
         abortHuesoController = new AbortController();
 
-        fetchTifJson(`/tif/hueso?pruebaid=${idPrueba}`, {
+        const urlHueso = isReadOnly
+            ? `/tif/historial/${idPrueba}/hueso`
+            : `/tif/hueso?pruebaid=${idPrueba}`;
+        fetchTifJson(urlHueso, {
             signal: abortHuesoController.signal
         })
             .then(data => {
+                if (isReadOnly) {
+                    renderizarHuesosHistoricos(tbody, data);
+                    mostrarResultadosHistoricosFactor("hueso", data);
+                    requestAnimationFrame(() => { scrollBody.scrollTop = scrollGuardado; });
+                    return;
+                }
+
                 if (!Array.isArray(data) || data.length === 0) {
                     data = [{
                         id: 0, fk_Hueso: 1, nombreHueso: "Nuevo Hueso", porcObjetivo: 0,
@@ -1039,7 +1157,8 @@
             .catch(error => {
                 if (error.name === "AbortError") return;
                 console.error("Error al cargar hueso:", error);
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; font-weight:600;">${obtenerMensajeUsuario(error)}</td></tr>`;
+                mostrarErrorHistorico(tbody, 7, error);
+                if (isReadOnly) mostrarResultadosHistoricosFactor("hueso", null, obtenerMensajeUsuario(error));
             });
     }
 
@@ -2321,76 +2440,126 @@
         }
     }
     
-    function cargarLogSimulado() {
+    let temporizadorLog = null;
+    let consultaLogActiva = null;
+
+    function fechaAyerLocal() {
+        const fecha = new Date();
+        fecha.setHours(12, 0, 0, 0);
+        fecha.setDate(fecha.getDate() - 1);
+        const anio = fecha.getFullYear();
+        const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+        const dia = String(fecha.getDate()).padStart(2, "0");
+        return `${anio}-${mes}-${dia}`;
+    }
+
+    async function cargarLogHistorico() {
+        clearTimeout(temporizadorLog);
         const tbody = document.getElementById("lista-log-body");
-        tbody.innerHTML = "";
+        const fechaDesde = document.getElementById("fechaDesdeLog");
+        const fechaHasta = document.getElementById("fechaHastaLog");
+        if (!fechaDesde.value && !fechaHasta.value) {
+            const ayer = fechaAyerLocal();
+            fechaDesde.value = ayer;
+            fechaHasta.value = ayer;
+        }
+        const desde = fechaDesde.value;
+        const hasta = fechaHasta.value;
+        const buscar = document.getElementById("buscadorLog").value.trim();
 
-        // Datos simulados
-        const logsMock = [
-            { id: 1045, lote: "DEST000011", fecha: "2026-07-09", hora: "08:30", usuario: "Cristo Vazquez" },
-            { id: 1044, lote: "DEST000012", fecha: "2026-07-08", hora: "14:15", usuario: "Maria Lopez" },
-            { id: 1043, lote: "DEST000013", fecha: "2026-07-08", hora: "09:00", usuario: "Cristo Vazquez" },
-            { id: 1042, lote: "DEST000014", fecha: "2026-07-07", hora: "16:45", usuario: "Juan Perez" },
-            { id: 1041, lote: "DEST000019", fecha: "2026-07-06", hora: "11:20", usuario: "Cristo Vazquez" }
-        ];
+        if (consultaLogActiva) consultaLogActiva.abort();
+        if (desde && hasta && desde > hasta) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">La fecha inicial debe ser anterior a la final.</td></tr>';
+            return;
+        }
 
-        logsMock.forEach(log => {
-            tbody.innerHTML += `
-                <tr data-fecha="${log.fecha}">
-                    <td data-label="ID"><strong>#${log.id}</strong></td>
-                    <td data-label="Lote" style="color: var(--primary); font-weight: bold;">${log.lote}</td>
-                    <td data-label="Fecha y hora">${log.fecha} ${log.hora}</td>
-                    <td data-label="Usuario">${log.usuario}</td>
-                    <td class="fc-lot-actions" data-label="Consultar factor">
-                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaHueso(${log.id}, '${log.lote}', 0, true)">Hueso</button>
-                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaRecorte(${log.id}, '${log.lote}', true)">Recorte</button>
-                        <button class="tbtn" style="height: 28px; font-size: 0.8rem;" onclick="abrirPruebaGrasa(${log.id}, '${log.lote}', true)">Grasa</button>
-                    </td>
-                </tr>
-            `;
-        });
+        const params = new URLSearchParams();
+        if (desde) params.set("desde", desde);
+        if (hasta) params.set("hasta", hasta);
+        if (buscar) params.set("buscar", buscar);
+
+        const controller = new AbortController();
+        consultaLogActiva = controller;
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Cargando historial...</td></tr>';
+
+        try {
+            const registros = await fetchTifJson(`/tif/historial?${params}`, { signal: controller.signal });
+            if (consultaLogActiva !== controller) return;
+            tbody.replaceChildren();
+
+            if (!Array.isArray(registros) || registros.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">No hay pruebas para los filtros seleccionados.</td></tr>';
+                return;
+            }
+
+            const fragmento = document.createDocumentFragment();
+            registros.forEach(log => {
+                const fila = document.createElement("tr");
+                fila.dataset.fecha = log.fecha || "";
+
+                const id = fila.insertCell();
+                id.dataset.label = "ID";
+                const fuerte = document.createElement("strong");
+                fuerte.textContent = `#${log.id}`;
+                id.appendChild(fuerte);
+
+                const lote = fila.insertCell();
+                lote.dataset.label = "Lote";
+                lote.style.color = "var(--primary)";
+                lote.style.fontWeight = "bold";
+                lote.textContent = log.lote || "";
+
+                const fecha = fila.insertCell();
+                fecha.dataset.label = "Fecha y hora";
+                fecha.textContent = [log.fecha, log.hora].filter(Boolean).join(" ");
+
+                const usuario = fila.insertCell();
+                usuario.dataset.label = "Usuario";
+                usuario.textContent = log.realiza || "";
+
+                const acciones = fila.insertCell();
+                acciones.className = "fc-lot-actions";
+                acciones.dataset.label = "Consultar factor";
+                [
+                    ["Hueso", () => abrirPruebaHueso(log.id, log.lote, 0, true)],
+                    ["Recorte", () => abrirPruebaRecorte(log.id, log.lote, true)],
+                    ["Grasa", () => abrirPruebaGrasa(log.id, log.lote, true)]
+                ].forEach(([titulo, abrir]) => {
+                    const boton = document.createElement("button");
+                    boton.type = "button";
+                    boton.className = "tbtn";
+                    boton.style.height = "28px";
+                    boton.style.fontSize = "0.8rem";
+                    boton.textContent = titulo;
+                    boton.addEventListener("click", abrir);
+                    acciones.appendChild(boton);
+                });
+
+                fragmento.appendChild(fila);
+            });
+            tbody.appendChild(fragmento);
+        } catch (error) {
+            if (error.name !== "AbortError" && consultaLogActiva === controller) {
+                mostrarErrorHistorico(tbody, 5, error);
+            }
+        } finally {
+            if (consultaLogActiva === controller) consultaLogActiva = null;
+        }
     }
 
      function abrirDetalleLog(idPrueba, lote) {
         document.getElementById("lblDetalleLote").innerText = `${lote} (Prueba #${idPrueba})`;
 
-         document.getElementById("btnLogHueso").onclick = function() { abrirPruebaHueso(idPrueba, lote); };
-        document.getElementById("btnLogRecorte").onclick = function() { abrirPruebaRecorte(idPrueba, lote); };
-        document.getElementById("btnLogGrasa").onclick = function() { abrirPruebaGrasa(idPrueba, lote); };
+        document.getElementById("btnLogHueso").onclick = function() { abrirPruebaHueso(idPrueba, lote, 0, true); };
+        document.getElementById("btnLogRecorte").onclick = function() { abrirPruebaRecorte(idPrueba, lote, true); };
+        document.getElementById("btnLogGrasa").onclick = function() { abrirPruebaGrasa(idPrueba, lote, true); };
 
         document.getElementById("modalDetalleLog").style.display = "flex";
     }
 
     function filtrarLog() {
-        let inputTxt = document.getElementById("buscadorLog").value.toLowerCase();
-        let fechaDesde = document.getElementById("fechaDesdeLog").value;
-        let fechaHasta = document.getElementById("fechaHastaLog").value;
-
-        let tbody = document.getElementById("lista-log-body");
-        let tr = tbody.getElementsByTagName("tr");
-
-        for (let i = 0; i < tr.length; i++) {
-            let tdLote = tr[i].getElementsByTagName("td")[1];
-            let tdUsuario = tr[i].getElementsByTagName("td")[3];
-            let fechaFila = tr[i].getAttribute("data-fecha");
-
-            if (tdLote && tdUsuario && fechaFila) {
-                let txtLote = tdLote.textContent || tdLote.innerText;
-                let txtUsu = tdUsuario.textContent || tdUsuario.innerText;
-
-                 let cumpleTexto = txtLote.toLowerCase().includes(inputTxt) || txtUsu.toLowerCase().includes(inputTxt);
-
-                 let cumpleFecha = true;
-                if (fechaDesde && fechaFila < fechaDesde) cumpleFecha = false;
-                if (fechaHasta && fechaFila > fechaHasta) cumpleFecha = false;
-
-                if (cumpleTexto && cumpleFecha) {
-                    tr[i].style.display = "";
-                } else {
-                    tr[i].style.display = "none";
-                }
-            }
-        }
+        clearTimeout(temporizadorLog);
+        temporizadorLog = setTimeout(cargarLogHistorico, 300);
     }
 </script>
 <script src="~/js/factor-critico-captura.js" asp-append-version="true"></script>

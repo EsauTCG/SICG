@@ -1273,7 +1273,8 @@ function crearSnapshotCaptura() {
         TipoPeso: modoManualActivo ? "Man" : "Aut",
         Autoriza: usuarioAutorizaId,
         Bascula: String(ipBasculaGlobal ?? ""),
-        UsSIGO: String(correo ?? "")
+        UsSIGO: String(correo ?? ""),
+        PreparadaUtc: new Date().toISOString()
     });
 }
 
@@ -1419,8 +1420,19 @@ async function capturarEntrada(snapshot, loadingId = null) {
             UsSIGO: snapshot.UsSIGO
         };
 
+        const capturaGuid = crearGuidOperacion();
+        const solicitudCaptura = Object.freeze({
+            CapturaGuid: capturaGuid,
+            CapturadaUtc: snapshot.PreparadaUtc || snapshot.FechaHora,
+            Entrada: entrada,
+            ProductoSKU: snapshot.ProductoSKU,
+            Producto: snapshot.Producto,
+            Lote: snapshot.LoteImpresion
+        });
+
         console.log("➡ Objeto capturado (snapshot):", {
-            entrada,
+            capturaGuid,
+            entrada: solicitudCaptura.Entrada,
             producto: snapshot.Producto,
             lote: snapshot.LoteImpresion
         });
@@ -1428,7 +1440,8 @@ async function capturarEntrada(snapshot, loadingId = null) {
         const resp = await fetch("/api/Inyeccion/CapturarEntrada", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(entrada)
+            body: JSON.stringify(solicitudCaptura),
+            cache: "no-store"
         });
 
         const resultado = await resp.json().catch(() => null);
@@ -1436,33 +1449,33 @@ async function capturarEntrada(snapshot, loadingId = null) {
         if (!resp.ok) {
             throw new Error(resultado?.message || "Error al guardar la entrada directamente en SQL Server.");
         }
-        const idGenerado =
-            typeof resultado === "object" && resultado !== null
-                ? (resultado.id ?? resultado.Id ?? 0)
-                : resultado;
+        const entradaPersistida = normalizarEntradaServidor(resultado?.entrada ?? resultado?.Entrada);
+        validarEntradaPersistidaContraSnapshot(entradaPersistida, snapshot);
 
-        const idEntrada = Number(idGenerado);
-        if (!Number.isInteger(idEntrada) || idEntrada <= 0) {
-            throw new Error("La captura se guardó, pero el servidor no devolvió un Id válido para imprimir.");
+        const productoServidor = String(resultado?.producto ?? resultado?.Producto ?? "").trim();
+        const productoSkuServidor = String(resultado?.productoSKU ?? resultado?.ProductoSKU ?? "").trim();
+        const loteServidor = String(resultado?.lote ?? resultado?.Lote ?? "").trim();
+        const capturaGuidServidor = String(resultado?.capturaGuid ?? resultado?.CapturaGuid ?? "").trim();
+
+        if (normalizarSku(productoSkuServidor) !== normalizarSku(entradaPersistida.SKU)) {
+            throw new Error("El servidor devolvió un producto que no corresponde al SKU guardado. Se bloqueó la impresión.");
+        }
+        if (!productoServidor || !loteServidor || capturaGuidServidor !== capturaGuid) {
+            throw new Error("El servidor no confirmó íntegramente el contexto de la captura. Se bloqueó la impresión.");
         }
 
-        entrada.Id = idEntrada;
-        entrada.Folio = resultado?.folio ?? resultado?.Folio ?? "";
-        if (!entrada.Folio) {
-            entrada.Folio = (await obtenerFolioEntrada(entrada.Id)) || "";
-        }
-
-        // La etiqueta se construye exclusivamente con la fotografía de esta captura.
-        // Ya no consulta NombreSeleccionado, nombreLoteGlobal ni otra captura global.
+        // La etiqueta nace de la fila que el servidor acaba de releer de SQL Server.
+        // Producto y lote son los valores canónicos que el servidor revalidó en catálogo.
         const etiquetaCapturada = Object.freeze({
-            ...entrada,
-            ProductoSKU: snapshot.ProductoSKU,
-            Producto: snapshot.Producto,
-            LoteImpresion: snapshot.LoteImpresion
+            ...entradaPersistida,
+            ProductoSKU: productoSkuServidor,
+            Producto: productoServidor,
+            LoteImpresion: loteServidor,
+            CapturaGuid: capturaGuidServidor
         });
 
         ultimaCapturaPayload = { ...etiquetaCapturada };
-        mostrarToastEntrada(entrada.Id);
+        mostrarToastEntrada(entradaPersistida.Id);
 
         try {
             // Imprimir antes de refrescar reportes reduce todavía más la ventana de concurrencia.
@@ -1479,6 +1492,82 @@ async function capturarEntrada(snapshot, loadingId = null) {
         alert(err.message || "Ocurrió un error al registrar la entrada");
     } finally {
         capturaEnProceso = false;
+    }
+}
+
+function crearGuidOperacion() {
+    if (window.crypto?.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, caracter => {
+        const aleatorio = Math.random() * 16 | 0;
+        const valor = caracter === "x" ? aleatorio : (aleatorio & 0x3 | 0x8);
+        return valor.toString(16);
+    });
+}
+
+function normalizarEntradaServidor(origen) {
+    if (!origen || typeof origen !== "object") {
+        throw new Error("La captura se guardó, pero el servidor no devolvió la fila verificada.");
+    }
+
+    const valor = (camel, pascal, predeterminado = "") =>
+        origen[camel] ?? origen[pascal] ?? predeterminado;
+
+    const entrada = {
+        Id: Number(valor("id", "Id", 0)),
+        Folio: String(valor("folio", "Folio", "")),
+        SKU: String(valor("sku", "SKU", "")),
+        fk_Inyectora: Number(valor("fk_Inyectora", "Fk_Inyectora", 0)),
+        Porcentaje: Number(valor("porcentaje", "Porcentaje", 0)),
+        ModoInyeccion: Number(valor("modoInyeccion", "ModoInyeccion", 0)),
+        Presion: Number(valor("presion", "Presion", 0)),
+        Velocidad: Number(valor("velocidad", "Velocidad", 0)),
+        Altura: Number(valor("altura", "Altura", 0)),
+        Avance: String(valor("avance", "Avance", "")),
+        Bascula: String(valor("bascula", "Bascula", "")),
+        FechaHora: String(valor("fechaHora", "FechaHora", "")),
+        TipoPeso: String(valor("tipoPeso", "TipoPeso", "")),
+        Autoriza: Number(valor("autoriza", "Autoriza", 0)),
+        Peso: Number(valor("peso", "Peso", 0)),
+        Tara: Number(valor("tara", "Tara", 0)),
+        fk_Lote: Number(valor("fk_Lote", "Fk_Lote", 0)),
+        Plantilla: String(valor("plantilla", "Plantilla", "")),
+        UsSIGO: String(valor("usSIGO", "UsSIGO", ""))
+    };
+
+    if (!Number.isInteger(entrada.Id) || entrada.Id <= 0 || !entrada.Folio || !entrada.SKU) {
+        throw new Error("La fila verificada por el servidor está incompleta. Se bloqueó la impresión.");
+    }
+
+    return entrada;
+}
+
+function validarEntradaPersistidaContraSnapshot(entrada, snapshot) {
+    const redondear = (valor, decimales) => Number(Number(valor).toFixed(decimales));
+    const texto = valor => String(valor ?? "").trim().toUpperCase();
+    const validaciones = [
+        ["SKU", normalizarSku(entrada.SKU) === normalizarSku(snapshot.SKU)],
+        ["lote", Number(entrada.fk_Lote) === Number(snapshot.LoteId)],
+        ["plantilla", texto(entrada.Plantilla) === texto(snapshot.Plantilla)],
+        ["porcentaje", entrada.Porcentaje === Number(snapshot.Porcentaje)],
+        ["modo", entrada.ModoInyeccion === Number(snapshot.ModoInyeccion)],
+        ["presión", redondear(entrada.Presion, 4) === redondear(snapshot.Presion, 4)],
+        ["velocidad", entrada.Velocidad === Number(snapshot.Velocidad)],
+        ["altura", entrada.Altura === Number(snapshot.Altura)],
+        ["avance", texto(entrada.Avance) === texto(snapshot.Avance)],
+        ["báscula", texto(entrada.Bascula) === texto(snapshot.Bascula)],
+        ["tipo de peso", texto(entrada.TipoPeso) === texto(snapshot.TipoPeso)],
+        ["autorización", entrada.Autoriza === Number(snapshot.Autoriza)],
+        ["peso", redondear(entrada.Peso, 2) === redondear(snapshot.Peso, 2)],
+        ["tara", redondear(entrada.Tara, 2) === redondear(snapshot.Tara, 2)],
+        ["usuario", texto(entrada.UsSIGO) === texto(snapshot.UsSIGO)]
+    ];
+
+    const diferencia = validaciones.find(([, coincide]) => !coincide);
+    if (diferencia) {
+        throw new Error(`La fila guardada difiere de la captura en ${diferencia[0]}. Se bloqueó la impresión.`);
     }
 }
 function guardarImpresora() {
@@ -1516,7 +1605,7 @@ function cargarConfiguracionImpresora() {
 
     console.log("⚙ Impresora restaurada:", ipImpresoraGlobal);
 }
-async function imprimirEtiquetaSalida(entradaObj) {
+async function imprimirEtiquetaSalida(entradaObj, esReimpresion = false) {
     const etiqueta = entradaObj ? Object.freeze({ ...entradaObj }) : null;
     // La impresora sí se toma de la configuración vigente para permitir corregirla
     // antes de un reintento; los datos de negocio permanecen congelados.
@@ -1565,29 +1654,35 @@ async function imprimirEtiquetaSalida(entradaObj) {
         impresora: impresoraParaImprimir
     });
 
-    // Todos los valores de la etiqueta viajan juntos en esta petición.
-    // El backend imprime este snapshot sin reconsultar la entrada ni el catálogo.
-    const url = `/api/Inyeccion/Imprimir` +
-        `?ip=${encodeURIComponent(impresoraParaImprimir)}` +
-        `&lote=${encodeURIComponent(loteParaImprimir)}` +
-        `&prod=${encodeURIComponent(productoParaImprimir)}`;
+    // Todos los valores viajan juntos. El backend relee la fila de SQL Server,
+    // compara campo por campo, revalida SKU/producto/lote y sólo entonces imprime.
+    const solicitudImpresion = Object.freeze({
+        SolicitudGuid: crearGuidOperacion(),
+        CapturaGuid: etiqueta.CapturaGuid || "00000000-0000-0000-0000-000000000000",
+        EsReimpresion: Boolean(esReimpresion),
+        IpImpresora: impresoraParaImprimir,
+        Entrada: etiqueta,
+        ProductoSKU: skuProducto,
+        Producto: productoParaImprimir,
+        Lote: loteParaImprimir
+    });
 
     const controller = new AbortController();
     // El backend puede realizar dos intentos de conexión de hasta 8 segundos.
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
-        const resp = await fetch(url, {
+        const resp = await fetch("/api/Inyeccion/Imprimir", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(etiqueta),
+            body: JSON.stringify(solicitudImpresion),
             signal: controller.signal,
             cache: "no-store"
         });
 
         if (!resp.ok) {
-            const detalle = await resp.text().catch(() => "");
-            throw new Error(`Error HTTP ${resp.status}${detalle ? `: ${detalle}` : ""}`);
+            const detalle = await resp.json().catch(() => null);
+            throw new Error(detalle?.message || `Error HTTP ${resp.status}`);
         }
 
         const resultado = await resp.json();
@@ -1854,11 +1949,11 @@ async function cargarRendimiento() {
     if (!tbody) return;
 
     if (!ini || !fin) {
-        tbody.innerHTML = `<tr><td colspan="8">Seleccione fecha inicio y fecha fin.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9">Seleccione fecha inicio y fecha fin.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="8">Cargando...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9">Cargando...</td></tr>`;
 
     try {
         const resp = await fetch(
@@ -1879,8 +1974,34 @@ async function cargarRendimiento() {
         tbody.innerHTML = "";
 
         if (!data.length) {
-            tbody.innerHTML = `<tr><td colspan="8">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9">Sin registros</td></tr>`;
             return;
+        }
+
+        const nombreProducto = item => String(item.Producto ?? "").trim()
+            || String(item.producto ?? "").trim();
+        const productosPorLoteSku = new Map();
+        if (data.some(item => !nombreProducto(item))) {
+            try {
+                const respDetallado = await fetch(
+                    `/api/Reportes/Detallado?fechain=${encodeURIComponent(ini)}&fechafin=${encodeURIComponent(fin)}`,
+                    { cache: "no-store" }
+                );
+                if (respDetallado.ok) {
+                    const detallado = await respDetallado.json();
+                    const registros = Array.isArray(detallado) ? detallado : (detallado ? [detallado] : []);
+                    registros.forEach(registro => {
+                        const lote = String(registro.Lote ?? registro.lote ?? "").trim();
+                        const sku = String(registro.SKU ?? registro.sku ?? "").trim();
+                        const producto = nombreProducto(registro);
+                        if (lote && sku && producto) {
+                            productosPorLoteSku.set(`${lote}\u0000${sku}`, producto);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.warn("No se pudieron consultar los nombres de producto del reporte detallado:", error);
+            }
         }
 
         data.forEach(item => {
@@ -1971,11 +2092,21 @@ async function cargarRendimiento() {
                     : fecha.toLocaleDateString("es-MX");
             }
 
+            const lote = String(item.Lote ?? item.lote ?? "").trim();
+            const sku = String(item.SKU ?? item.sku ?? "").trim();
+            const producto = nombreProducto(item)
+                || productosPorLoteSku.get(`${lote}\u0000${sku}`)
+                || "";
+            const productoSeguro = producto.replace(/[&<>"']/g, caracter => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            })[caracter]);
+
             tbody.insertAdjacentHTML("beforeend", `
                 <tr>
                     <td data-label="Fecha Produccion">${fechaTexto}</td>
                     <td data-label="Lote">${item.Lote ?? item.lote ?? ""}</td>
                     <td data-label="SKU">${item.SKU ?? item.sku ?? ""}</td>
+                    <td data-label="Producto">${productoSeguro}</td>
                     <td data-label="Peso Entrada">${pesoEntrada.toFixed(2)}</td>
                     <td data-label="Peso Salida">${pesoSalida.toFixed(2)}</td>
                     <td data-label="Esperado %">${esperado.toFixed(2)}%</td>
@@ -1992,7 +2123,7 @@ async function cargarRendimiento() {
     } catch (err) {
         console.error("❌ Error cargando rendimiento:", err);
         tbody.innerHTML =
-            `<tr><td colspan="8">Error consultando rendimiento</td></tr>`;
+            `<tr><td colspan="9">Error consultando rendimiento</td></tr>`;
     }
 }
 
@@ -2527,7 +2658,7 @@ async function reintentarImpresion() {
     ocultarToastImpresion();
 
     try {
-        await imprimirEtiquetaSalida(ultimaEntradaParaImprimir);
+        await imprimirEtiquetaSalida(ultimaEntradaParaImprimir, true);
 
         // Si llegó aquí sin error, fue exitoso
         console.log("✅ Reimpresión exitosa");
@@ -2574,7 +2705,7 @@ async function reimprimirUltimaCaptura() {
     ⚖️  Peso: ${ultimaCapturaPayload.Peso} kg
     🏷️  SKU: ${ultimaCapturaPayload.SKU}`)) {
         try {
-            await imprimirEtiquetaSalida(ultimaCapturaPayload);
+            await imprimirEtiquetaSalida(ultimaCapturaPayload, true);
             alert('✅ Reimpresión exitosa');
         } catch (error) {
             console.error('❌ Error:', error);

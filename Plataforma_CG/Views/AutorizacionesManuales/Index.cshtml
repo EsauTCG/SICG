@@ -1,0 +1,185 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Autorizaciones manuales";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/autorizaciones-manuales.css" asp-append-version="true" />
+}
+
+<form id="manual-auth-csrf" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
+
+<main id="manualAuthAdmin"
+      class="manual-auth-admin"
+      data-list-url="@Url.Action("Listar", "AutorizacionesManuales")"
+      data-create-url="@Url.Action("Crear", "AutorizacionesManuales")"
+      data-base-url="@Url.Action("Index", "AutorizacionesManuales")">
+
+    <header class="manual-auth-hero">
+        <div class="manual-auth-hero-copy">
+            <a class="manual-auth-back" href="@Url.Action("Inicio", "Home")">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+            <div class="manual-auth-eyebrow">CONFIGURACIÓN DE SEGURIDAD</div>
+            <h1>Usuarios autorizadores</h1>
+            <p>Administra quién puede aprobar operaciones manuales protegidas del sistema. Las contraseñas se protegen mediante un hash irreversible.</p>
+        </div>
+        <button id="manualAuthNew" class="manual-auth-btn manual-auth-btn-primary" type="button">
+            <i class="bi bi-person-plus-fill"></i>
+            Nuevo usuario
+        </button>
+    </header>
+
+    <section class="manual-auth-stats" aria-label="Resumen de usuarios autorizadores">
+        <article class="manual-auth-stat">
+            <span class="manual-auth-stat-icon blue"><i class="bi bi-people-fill"></i></span>
+            <div><strong id="manualAuthTotal">0</strong><span>Total</span></div>
+        </article>
+        <article class="manual-auth-stat">
+            <span class="manual-auth-stat-icon green"><i class="bi bi-person-check-fill"></i></span>
+            <div><strong id="manualAuthActive">0</strong><span>Activos</span></div>
+        </article>
+        <article class="manual-auth-stat">
+            <span class="manual-auth-stat-icon amber"><i class="bi bi-lock-fill"></i></span>
+            <div><strong id="manualAuthBlocked">0</strong><span>Bloqueados</span></div>
+        </article>
+        <article class="manual-auth-stat">
+            <span class="manual-auth-stat-icon gray"><i class="bi bi-person-dash-fill"></i></span>
+            <div><strong id="manualAuthInactive">0</strong><span>Inactivos</span></div>
+        </article>
+    </section>
+
+    <section class="manual-auth-panel">
+        <div class="manual-auth-toolbar">
+            <div>
+                <h2>Credenciales registradas</h2>
+                <p>La contraseña nunca se muestra. Puedes reemplazarla al editar un usuario.</p>
+            </div>
+            <div class="manual-auth-filters">
+                <label class="manual-auth-search">
+                    <i class="bi bi-search"></i>
+                    <input id="manualAuthSearch" type="search" placeholder="Buscar por nombre o usuario" autocomplete="off" />
+                </label>
+                <select id="manualAuthStatus" aria-label="Filtrar por estatus">
+                    <option value="all">Todos los estatus</option>
+                    <option value="active">Activos</option>
+                    <option value="inactive">Inactivos</option>
+                    <option value="blocked">Bloqueados</option>
+                </select>
+                <button id="manualAuthRefresh" class="manual-auth-icon-btn" type="button" title="Actualizar lista" aria-label="Actualizar lista">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="manualAuthAlert" class="manual-auth-alert" role="status" hidden></div>
+
+        <div class="manual-auth-table-wrap">
+            <table class="manual-auth-table">
+                <thead>
+                    <tr>
+                        <th>Persona</th>
+                        <th>Usuario</th>
+                        <th>Estatus</th>
+                        <th>Último acceso</th>
+                        <th>Creado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="manualAuthRows">
+                    <tr><td colspan="6" class="manual-auth-loading"><span class="spinner-border spinner-border-sm"></span> Consultando usuarios...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="manualAuthEmpty" class="manual-auth-empty" hidden>
+            <span><i class="bi bi-people"></i></span>
+            <h3>No hay usuarios que mostrar</h3>
+            <p>Ajusta los filtros o registra un nuevo autorizador.</p>
+        </div>
+    </section>
+</main>
+
+<div class="modal fade" id="manualAuthEditor" tabindex="-1" aria-labelledby="manualAuthEditorTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content manual-auth-modal">
+            <form id="manualAuthForm" novalidate>
+                <div class="modal-header">
+                    <div>
+                        <span class="manual-auth-modal-kicker">AUTORIZACIONES MANUALES</span>
+                        <h2 id="manualAuthEditorTitle" class="modal-title">Nuevo usuario autorizador</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <input id="manualAuthId" type="hidden" />
+
+                    <label class="manual-auth-field" for="manualAuthName">
+                        <span>Nombre de la persona</span>
+                        <input id="manualAuthName" type="text" minlength="2" maxlength="80" placeholder="Ej. María López" autocomplete="off" required />
+                        <small>Este nombre aparecerá en la bitácora de autorizaciones.</small>
+                    </label>
+
+                    <label class="manual-auth-field" for="manualAuthUser">
+                        <span>Usuario</span>
+                        <input id="manualAuthUser" type="text" minlength="2" maxlength="50" placeholder="Ej. calidad.turno1" autocapitalize="none" autocomplete="off" required />
+                        <small>Sin espacios; puede incluir letras, números, punto, guion o guion bajo.</small>
+                    </label>
+
+                    <label class="manual-auth-field" for="manualAuthPassword">
+                        <span id="manualAuthPasswordLabel">Contraseña</span>
+                        <span class="manual-auth-password-wrap">
+                            <input id="manualAuthPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+                            <button class="manual-auth-password-toggle" type="button" data-password-target="manualAuthPassword" aria-label="Mostrar contraseña"><i class="bi bi-eye"></i></button>
+                        </span>
+                        <small id="manualAuthPasswordHelp">Mínimo 8 caracteres.</small>
+                    </label>
+
+                    <label class="manual-auth-field" for="manualAuthConfirm">
+                        <span>Confirmar contraseña</span>
+                        <span class="manual-auth-password-wrap">
+                            <input id="manualAuthConfirm" type="password" minlength="8" maxlength="128" autocomplete="new-password" required />
+                            <button class="manual-auth-password-toggle" type="button" data-password-target="manualAuthConfirm" aria-label="Mostrar contraseña"><i class="bi bi-eye"></i></button>
+                        </span>
+                    </label>
+
+                    <label id="manualAuthActiveField" class="manual-auth-switch" hidden>
+                        <input id="manualAuthEnabled" type="checkbox" checked />
+                        <span></span>
+                        <div><strong>Usuario activo</strong><small>Si lo desactivas ya no podrá autorizar.</small></div>
+                    </label>
+
+                    <div id="manualAuthFormError" class="manual-auth-form-error" role="alert" hidden></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="manual-auth-btn manual-auth-btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button id="manualAuthSave" type="submit" class="manual-auth-btn manual-auth-btn-primary">
+                        <i class="bi bi-check2-circle"></i> Guardar usuario
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="manualAuthDelete" tabindex="-1" aria-labelledby="manualAuthDeleteTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content manual-auth-modal manual-auth-delete-modal">
+            <div class="modal-body text-center">
+                <span class="manual-auth-danger-icon"><i class="bi bi-trash3-fill"></i></span>
+                <h2 id="manualAuthDeleteTitle">Eliminar usuario</h2>
+                <p>Se eliminará a <strong id="manualAuthDeleteName"></strong>. La bitácora histórica se conservará.</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="manual-auth-btn manual-auth-btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button id="manualAuthDeleteConfirm" type="button" class="manual-auth-btn manual-auth-btn-danger">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/autorizaciones-manuales.js" asp-append-version="true"></script>
+}

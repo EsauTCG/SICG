@@ -2956,6 +2956,192 @@
            FIN TEMA TINTO
            ===================================================================== */
 
+
+    /* =========================================================
+       BUSCADOR / SELECTOR DE ETIQUETACIÓN
+       ========================================================= */
+    .etq-combo {
+        position: relative;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .etq-combo-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 30px;
+        width: 100%;
+    }
+
+    #txt-etiquetacion-buscar {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 30px !important;
+        padding: 3px 30px 3px 8px !important;
+        border: 1px solid var(--sap-line-dark, #8f4c4c) !important;
+        border-right: 0 !important;
+        background: #fff !important;
+        color: #2f1515 !important;
+        font-size: 11px !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    #txt-etiquetacion-buscar:focus {
+        border-color: #78343c !important;
+        box-shadow: inset 0 0 0 1px rgba(120,52,60,.12) !important;
+    }
+
+    #btn-etiquetacion-abrir {
+        width: 30px !important;
+        height: 30px !important;
+        padding: 0 !important;
+        border: 1px solid var(--sap-line-dark, #8f4c4c) !important;
+        background: linear-gradient(180deg,#ffffff 0%,#f2e5e7 100%) !important;
+        color: #663d45 !important;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+    }
+
+    #btn-etiquetacion-abrir:hover {
+        background: #ead8db !important;
+    }
+
+    .etq-combo-list {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 2px);
+        z-index: 10050;
+        max-height: 300px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 1px solid #9a6a70;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(0,0,0,.20);
+    }
+
+    .etq-combo.open .etq-combo-list {
+        display: block;
+    }
+
+    .etq-combo-item {
+        width: 100%;
+        min-height: 30px;
+        padding: 6px 9px;
+        border: 0;
+        border-bottom: 1px solid #eee1e3;
+        background: #fff;
+        color: #2f1515;
+        text-align: left;
+        font-size: 11px;
+        line-height: 1.25;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .etq-combo-item:hover,
+    .etq-combo-item.activo-busqueda {
+        background: #f5e8ea;
+    }
+
+    .etq-combo-item.seleccionado {
+        background: #fff3cd;
+        color: #4b3500;
+        font-weight: 800;
+    }
+
+    .etq-combo-item .etq-check {
+        flex: 0 0 auto;
+        color: #198754;
+        font-size: 11px;
+    }
+
+    .etq-combo-empty {
+        padding: 10px;
+        color: #777;
+        font-size: 11px;
+        text-align: center;
+        background: #fff;
+    }
+
+    .etq-combo-help {
+        margin-top: 2px;
+        color: #806067;
+        font-size: 9px;
+        line-height: 1.1;
+    }
+
+    /* El select real se conserva para no romper la lógica existente. */
+    #ddl-etiquetacion {
+        display: none !important;
+    }
+
+
+    /* =========================================================
+       SPINNER GLOBAL DE CARGA
+       ========================================================= */
+    #inventarioPlantaApp {
+        position: relative !important;
+    }
+
+    .inventario-loading-overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 60000;
+        align-items: center;
+        justify-content: center;
+        background: rgba(245, 247, 249, .68);
+        backdrop-filter: blur(1px);
+        -webkit-backdrop-filter: blur(1px);
+        cursor: wait;
+    }
+
+    .inventario-loading-overlay.show {
+        display: flex;
+    }
+
+    .inventario-loading-box {
+        min-width: 210px;
+        max-width: min(360px, 82vw);
+        padding: 18px 22px;
+        border: 1px solid #9d7278;
+        background: rgba(255,255,255,.98);
+        box-shadow: 0 12px 34px rgba(0,0,0,.20);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: #5c1a1a;
+        font-size: 12px;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .inventario-spinner {
+        width: 34px;
+        height: 34px;
+        border: 4px solid #ead7da;
+        border-top-color: #8d3e46;
+        border-radius: 50%;
+        animation: inventarioSpin .72s linear infinite;
+    }
+
+    #inventario-loading-text {
+        line-height: 1.25;
+    }
+
+    @@keyframes inventarioSpin {
+        to { transform: rotate(360deg); }
+    }
+
 </style>
 
 <link rel="stylesheet" href="~/css/inventario-planta-erp-compacto-v6.css" asp-append-version="true" />
@@ -3130,6 +3316,12 @@
 </style>
 
 <div class="camaras-page" id="inventarioPlantaApp">
+    <div id="inventario-loading" class="inventario-loading-overlay" aria-hidden="true">
+        <div class="inventario-loading-box">
+            <div class="inventario-spinner"></div>
+            <div id="inventario-loading-text">Cargando información...</div>
+        </div>
+    </div>
     <div class="window">
         <div class="titlebar">
             <div class="inventory-title">
@@ -3172,6 +3364,34 @@
 
                         <div>
                             <label class="form-label">Etiquetación</label>
+
+                            <div id="cmb-etiquetacion" class="etq-combo">
+                                <div class="etq-combo-row">
+                                    <input type="text"
+                                           id="txt-etiquetacion-buscar"
+                                           autocomplete="off"
+                                           placeholder="Buscar etiquetación..."
+                                           value="Todas las etiquetaciones" />
+
+                                    <button type="button"
+                                            id="btn-etiquetacion-abrir"
+                                            title="Mostrar etiquetaciones"
+                                            aria-label="Mostrar etiquetaciones">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                </div>
+
+                                <div id="lst-etiquetacion"
+                                     class="etq-combo-list"
+                                     role="listbox">
+                                </div>
+
+                                <div class="etq-combo-help">
+                                    Escribe para buscar y haz clic para seleccionar.
+                                </div>
+                            </div>
+
+                            <!-- Se conserva oculto porque el resto de la vista usa este ID/valor. -->
                             <select id="ddl-etiquetacion" class="form-select">
                                 <option value="">Todas las etiquetaciones</option>
                             </select>
@@ -3903,6 +4123,41 @@
         TIF: { label: 'TIF', camaras: [] }
         };
 
+        let inventarioLoadingCount = 0;
+
+        function mostrarCargaInventario(texto = "Cargando información...") {
+            inventarioLoadingCount++;
+
+            const overlay = document.getElementById("inventario-loading");
+            const label = document.getElementById("inventario-loading-text");
+
+            if (label) {
+                label.textContent = texto;
+            }
+
+            if (overlay) {
+                overlay.classList.add("show");
+                overlay.setAttribute("aria-hidden", "false");
+            }
+        }
+
+        function ocultarCargaInventario() {
+            inventarioLoadingCount = Math.max(
+                0,
+                inventarioLoadingCount - 1
+            );
+
+            if (inventarioLoadingCount > 0) return;
+
+            const overlay = document.getElementById("inventario-loading");
+
+            if (overlay) {
+                overlay.classList.remove("show");
+                overlay.setAttribute("aria-hidden", "true");
+            }
+        }
+
+
         function esc(v) {
         return String(v ?? "")
         .replaceAll("&", "&amp;")
@@ -3947,6 +4202,8 @@
         const list = document.getElementById('sidebar-list');
         list.innerHTML = '<div class="cam-item">Cargando...</div>';
 
+        mostrarCargaInventario("Cargando cámaras...");
+
         try {
         const resp = await fetch(`/ProcesosCG/ObtenerCamaras?planta=${encodeURIComponent(plantaActual)}`);
         const data = await resp.json();
@@ -3966,6 +4223,8 @@
         alert('Error conectando con ObtenerCamaras');
         PLANTAS[plantaActual].camaras = [];
         renderSidebar();
+        } finally {
+        ocultarCargaInventario();
         }
         }
 
@@ -3985,40 +4244,253 @@
         ).join("");
         }
 
-        async function cargarEtiquetacionesFiltro() {
-        const ddl = document.getElementById("ddl-etiquetacion");
-        if (!ddl) return;
+        let etiquetacionesFiltroCache = [];
+        let etqIndiceActivo = -1;
 
-        const valorAnterior = String(ddl.value || "").trim();
-        ddl.innerHTML = '<option value="">Todas las etiquetaciones</option>';
+        function normalizarTextoBusquedaEtiquetacion(valor) {
+            return String(valor || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase()
+                .trim();
+        }
 
-        try {
-            const resp = await fetch(`/ProcesosCG/Etiquetaciones?source=${encodeURIComponent(plantaActual)}`);
-            const data = await resp.json();
+        function obtenerNombreEtiquetacionSeleccionada() {
+            const ddl = document.getElementById("ddl-etiquetacion");
+            if (!ddl) return "Todas las etiquetaciones";
 
-            if (!resp.ok || !data || data.ok === false) {
-                console.warn(data?.msg || data?.mensaje || "No se pudieron cargar las etiquetaciones.");
+            const opt = ddl.options[ddl.selectedIndex];
+            return opt?.textContent?.trim() || "Todas las etiquetaciones";
+        }
+
+        function cerrarComboEtiquetacion() {
+            document.getElementById("cmb-etiquetacion")?.classList.remove("open");
+            etqIndiceActivo = -1;
+        }
+
+        function abrirComboEtiquetacion(seleccionarTexto = false) {
+            const combo = document.getElementById("cmb-etiquetacion");
+            const input = document.getElementById("txt-etiquetacion-buscar");
+
+            if (!combo || !input) return;
+
+            combo.classList.add("open");
+
+            if (seleccionarTexto) {
+                input.focus();
+                input.select();
+            }
+
+            renderListaEtiquetaciones(input.value);
+        }
+
+        function renderListaEtiquetaciones(texto = "") {
+            const lista = document.getElementById("lst-etiquetacion");
+            const ddl = document.getElementById("ddl-etiquetacion");
+            if (!lista || !ddl) return;
+
+            let q = normalizarTextoBusquedaEtiquetacion(texto);
+
+            // Si el input conserva exactamente el nombre seleccionado,
+            // al abrir mostramos todo para que el usuario pueda cambiar rápido.
+            const nombreSeleccionado = obtenerNombreEtiquetacionSeleccionada();
+            if (normalizarTextoBusquedaEtiquetacion(texto) ===
+                normalizarTextoBusquedaEtiquetacion(nombreSeleccionado)) {
+                q = "";
+            }
+
+            const opciones = [
+                { id: "", nombre: "Todas las etiquetaciones" },
+                ...etiquetacionesFiltroCache
+            ].filter(x => {
+                if (!q) return true;
+
+                return normalizarTextoBusquedaEtiquetacion(x.nombre).includes(q) ||
+                       normalizarTextoBusquedaEtiquetacion(x.id).includes(q);
+            });
+
+            etqIndiceActivo = -1;
+
+            if (!opciones.length) {
+                lista.innerHTML =
+                    '<div class="etq-combo-empty">No se encontraron etiquetaciones.</div>';
                 return;
             }
 
-            (data.rows || []).forEach(r => {
-                const id = String(getVal(r, "ColectorId", "colectorId") || "").trim();
-                const nombre = String(getVal(r, "Etiquetacion", "etiquetacion", "Nombre", "nombre") || "").trim();
+            lista.innerHTML = opciones.map((x, i) => {
+                const seleccionado = String(ddl.value || "") === String(x.id || "");
 
-                if (!id || !nombre) return;
-
-                const opt = document.createElement("option");
-                opt.value = id;
-                opt.textContent = nombre;
-                ddl.appendChild(opt);
-            });
-
-            if (valorAnterior && [...ddl.options].some(o => o.value === valorAnterior)) {
-                ddl.value = valorAnterior;
-            }
-        } catch (err) {
-            console.error("Error cargando catálogo de etiquetaciones:", err);
+                return `
+                    <button type="button"
+                            class="etq-combo-item${seleccionado ? " seleccionado" : ""}"
+                            data-etq-id="${esc(x.id)}"
+                            data-etq-index="${i}"
+                            role="option"
+                            aria-selected="${seleccionado ? "true" : "false"}">
+                        <span>${esc(x.nombre)}</span>
+                        ${seleccionado
+                            ? '<i class="fa-solid fa-check etq-check"></i>'
+                            : ''}
+                    </button>
+                `;
+            }).join("");
         }
+
+        function seleccionarEtiquetacion(id, nombre, ejecutarBusqueda = true) {
+            const ddl = document.getElementById("ddl-etiquetacion");
+            const input = document.getElementById("txt-etiquetacion-buscar");
+
+            if (!ddl || !input) return;
+
+            const valor = String(id || "").trim();
+
+            if ([...ddl.options].some(o => String(o.value) === valor)) {
+                ddl.value = valor;
+            } else {
+                ddl.value = "";
+            }
+
+            input.value = nombre || obtenerNombreEtiquetacionSeleccionada();
+            cerrarComboEtiquetacion();
+
+            if (ejecutarBusqueda) {
+                ddl.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        }
+
+        function moverActivoEtiquetacion(direccion) {
+            const items = [
+                ...document.querySelectorAll(
+                    "#lst-etiquetacion .etq-combo-item"
+                )
+            ];
+
+            if (!items.length) return;
+
+            items.forEach(x => x.classList.remove("activo-busqueda"));
+
+            etqIndiceActivo += direccion;
+
+            if (etqIndiceActivo < 0) {
+                etqIndiceActivo = items.length - 1;
+            }
+
+            if (etqIndiceActivo >= items.length) {
+                etqIndiceActivo = 0;
+            }
+
+            const actual = items[etqIndiceActivo];
+            actual.classList.add("activo-busqueda");
+            actual.scrollIntoView({ block: "nearest" });
+        }
+
+        async function cargarEtiquetacionesFiltro() {
+            const ddl = document.getElementById("ddl-etiquetacion");
+            const input = document.getElementById("txt-etiquetacion-buscar");
+
+            if (!ddl) return;
+
+            mostrarCargaInventario("Cargando etiquetaciones...");
+
+            const valorAnterior = String(ddl.value || "").trim();
+
+            ddl.innerHTML =
+                '<option value="">Todas las etiquetaciones</option>';
+
+            etiquetacionesFiltroCache = [];
+
+            try {
+                // P1 consulta el catálogo del ORIGEN TIF.
+                // TIF usa su mismo catálogo.
+                const sourceEtiquetacion =
+                    plantaActual === "P1" ? "TIF" : plantaActual;
+
+                const resp = await fetch(
+                    `/ProcesosCG/Etiquetaciones?source=${encodeURIComponent(sourceEtiquetacion)}`
+                );
+
+                const data = await resp.json();
+
+                if (!resp.ok || !data || data.ok === false) {
+                    console.warn(
+                        data?.msg ||
+                        data?.mensaje ||
+                        "No se pudieron cargar las etiquetaciones."
+                    );
+
+                    if (input) {
+                        input.value = "Todas las etiquetaciones";
+                    }
+
+                    renderListaEtiquetaciones("");
+                    return;
+                }
+
+                (data.rows || []).forEach(r => {
+                    const id = String(
+                        getVal(r, "ColectorId", "colectorId") || ""
+                    ).trim();
+
+                    const nombre = String(
+                        getVal(
+                            r,
+                            "Etiquetacion",
+                            "etiquetacion",
+                            "Nombre",
+                            "nombre"
+                        ) || ""
+                    ).trim();
+
+                    if (!id || !nombre) return;
+
+                    etiquetacionesFiltroCache.push({
+                        id,
+                        nombre
+                    });
+
+                    const opt = document.createElement("option");
+                    opt.value = id;
+                    opt.textContent = nombre;
+                    ddl.appendChild(opt);
+                });
+
+                // Orden visual alfabético.
+                etiquetacionesFiltroCache.sort((a, b) =>
+                    a.nombre.localeCompare(
+                        b.nombre,
+                        "es",
+                        { sensitivity: "base" }
+                    )
+                );
+
+                if (
+                    valorAnterior &&
+                    [...ddl.options].some(o => o.value === valorAnterior)
+                ) {
+                    ddl.value = valorAnterior;
+                } else {
+                    ddl.value = "";
+                }
+
+                if (input) {
+                    input.value = obtenerNombreEtiquetacionSeleccionada();
+                }
+
+                renderListaEtiquetaciones("");
+            }
+            catch (err) {
+                console.error(
+                    "Error cargando catálogo de etiquetaciones:",
+                    err
+                );
+
+                if (input) {
+                    input.value = "Todas las etiquetaciones";
+                }
+            }
+            finally {
+                ocultarCargaInventario();
+            }
         }
 
         function filtrarDetallePorEtiquetacion(rows, etiquetacionId) {
@@ -4088,22 +4560,57 @@
         async function cargarInventario() {
         const skuFiltro = document.getElementById("txt-sku").value.trim().toLowerCase();
         const productoFiltro = document.getElementById("txt-producto").value.trim().toLowerCase();
-        const etiquetacionIdFiltro = String(document.getElementById("ddl-etiquetacion")?.value || "").trim();
+        const etiquetacionIdFiltro = String(
+            document.getElementById("ddl-etiquetacion")?.value || ""
+        ).trim();
+
+        const camaras = [...camarasSeleccionadas];
+
+        /*
+         * Sin cámara:
+         * - si NO hay etiquetación, no hacemos una consulta global pesada;
+         * - si SÍ hay etiquetación, el backend hace una búsqueda optimizada
+         *   en TODAS las cámaras usando primero los CodigoEtiqueta de TIF.
+         */
+        if (!camaras.length && !etiquetacionIdFiltro) {
+            datosInv = [];
+            datosTraz = [];
+            datosTrazOriginal = [];
+            renderInventario([]);
+            renderTrazabilidad([]);
+            return;
+        }
+
+        mostrarCargaInventario(
+            !camaras.length && etiquetacionIdFiltro
+                ? "Buscando etiquetación en todas las cámaras..."
+                : "Cargando inventario..."
+        );
 
         try {
-        const camaras = [...camarasSeleccionadas];
-        const camarasParaConsultar = camaras.length ? camaras : [""];
+        const camarasParaConsultar =
+            camaras.length
+                ? camaras
+                : [""];
 
         let todasLasFilas = [];
 
         for (const cam of camarasParaConsultar) {
-        const url = `/ProcesosCG/InventarioCamaras?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(cam)}&etiquetacionId=${encodeURIComponent(etiquetacionIdFiltro)}`;
+        const url =
+            `/ProcesosCG/InventarioCamaras` +
+            `?planta=${encodeURIComponent(plantaActual)}` +
+            `&camara=${encodeURIComponent(cam)}` +
+            `&etiquetacionId=${encodeURIComponent(etiquetacionIdFiltro)}`;
 
         const resp = await fetch(url);
         const data = await resp.json();
 
-        if (!data.ok) {
-        console.warn(data.mensaje || "Error cargando inventario");
+        if (!resp.ok || !data.ok) {
+        console.warn(
+            data?.mensaje ||
+            data?.error ||
+            "Error cargando inventario"
+        );
         continue;
         }
 
@@ -4112,8 +4619,17 @@
         almacen: getVal(r, "Almacen", "almacen") || cam || "",
         sku: getVal(r, "Sku", "sku") || "",
         nombre: getVal(r, "Nombre", "nombre", "Producto", "producto") || "",
-        etiquetacionId: String(getVal(r, "EtiquetacionId", "etiquetacionId", "ColectorId", "colectorId") || "").trim(),
-        etiquetacion: getVal(r, "Etiquetacion", "etiquetacion") || "SIN ETIQUETACIÓN",
+        etiquetacionId: String(
+            getVal(
+                r,
+                "EtiquetacionId",
+                "etiquetacionId",
+                "ColectorId",
+                "colectorId"
+            ) || ""
+        ).trim(),
+        etiquetacion:
+            getVal(r, "Etiquetacion", "etiquetacion") || "",
         cajas: Number(getVal(r, "Cajas", "cajas") || 0),
         kg: Number(getVal(r, "Kg", "kg") || 0),
         prom: Number(getVal(r, "Prom", "prom") || 0),
@@ -4137,19 +4653,23 @@
         );
         }
 
+        /*
+         * El backend ya filtró la etiquetación.
+         * Esta validación queda como protección adicional.
+         */
         if (etiquetacionIdFiltro) {
         todasLasFilas = todasLasFilas.filter(r =>
-        String(r.etiquetacionId || "").trim() === etiquetacionIdFiltro
+        String(r.etiquetacionId || "").trim() ===
+        etiquetacionIdFiltro
         );
         }
 
-        // El filtro de etiquetación sí aplica al inventario,
-        // pero la tabla principal NO se separa ni muestra por etiquetación.
-        // Se vuelve a consolidar por Almacén + SKU + Producto.
-        todasLasFilas = consolidarInventarioPrincipal(todasLasFilas);
+        todasLasFilas =
+            consolidarInventarioPrincipal(todasLasFilas);
 
         datosInv = todasLasFilas;
         datosTraz = [];
+        datosTrazOriginal = [];
 
         renderInventario(todasLasFilas);
         renderTrazabilidad([]);
@@ -4159,11 +4679,13 @@
         alert("Error conectando con InventarioCamaras");
         datosInv = [];
         datosTraz = [];
+        datosTrazOriginal = [];
         renderInventario([]);
         renderTrazabilidad([]);
+        } finally {
+        ocultarCargaInventario();
         }
         }
-
 
         function actualizarKpisInventario(rows) {
         rows = Array.isArray(rows) ? rows : [];
@@ -4177,7 +4699,16 @@
 
         const totalCamaras = Number(PLANTAS[plantaActual]?.camaras?.length || 0);
         const seleccionadas = camarasSeleccionadas.size;
-        const camarasMostradas = seleccionadas || almacenes.size || totalCamaras;
+        const etiquetaSeleccionada = String(
+            document.getElementById("ddl-etiquetacion")?.value || ""
+        ).trim();
+
+        const camarasMostradas =
+            seleccionadas > 0
+                ? seleccionadas
+                : etiquetaSeleccionada
+                    ? almacenes.size
+                    : totalCamaras;
 
         const setText = (id, value) => {
             const el = document.getElementById(id);
@@ -4185,7 +4716,14 @@
         };
 
         setText("kpi-main-camaras", nf.format(camarasMostradas));
-        setText("kpi-main-camaras-sub", seleccionadas ? "Seleccionadas" : "Todas / visibles");
+        setText(
+            "kpi-main-camaras-sub",
+            seleccionadas
+                ? "Seleccionadas"
+                : etiquetaSeleccionada
+                    ? "Con coincidencias"
+                    : "Todas / visibles"
+        );
         setText("kpi-main-skus", nf.format(skus.size));
         setText("kpi-main-cajas", nf.format(totalCajas));
         setText("kpi-main-kg", nfK.format(totalKg));
@@ -4217,7 +4755,17 @@
 
     let textoCamara = "";
 
-    if (!cams.length || cams.length === totalCamaras) {
+    const etiquetaIdActiva = String(
+        document.getElementById("ddl-etiquetacion")?.value || ""
+    ).trim();
+
+    if (!cams.length && etiquetaIdActiva) {
+        textoCamara =
+            "Cámaras: todas · Etiquetación: " +
+            obtenerNombreEtiquetacionSeleccionada();
+    } else if (!cams.length) {
+        textoCamara = "Cámara: selecciona una cámara";
+    } else if (cams.length === totalCamaras) {
         textoCamara = "Cámara: Todas (" + PLANTAS[plantaActual].label + ")";
     } else if (cams.length === 1) {
         textoCamara = "Cámara: " + cams[0];
@@ -4251,106 +4799,53 @@
         `).join("");
         }
 
-        async function completarEtiquetaciones(rows) {
-        rows = Array.isArray(rows) ? rows : [];
-        if (!rows.length) return rows;
-
-        const codigos = [...new Set(
-            rows
-                .map(r => String(getVal(r, "CodigoEtiqueta", "codigoEtiqueta") || "").trim().toUpperCase())
-                .filter(Boolean)
-        )];
-
-        if (!codigos.length) return rows;
-
-        const mapaEtiquetacion = new Map();
-        const tamanoLote = 500;
-
-        try {
-            for (let i = 0; i < codigos.length; i += tamanoLote) {
-                const lote = codigos.slice(i, i + tamanoLote);
-
-                const resp = await fetch('/ProcesosCG/EtiquetacionActualEtiquetas', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        source: plantaActual,
-                        codigos: lote
-                    })
-                });
-
-                if (!resp.ok) {
-                    console.warn('EtiquetacionActualEtiquetas HTTP', resp.status);
-                    continue;
-                }
-
-                const data = await resp.json();
-
-                if (!data || data.ok === false) {
-                    console.warn('EtiquetacionActualEtiquetas:', data?.msg || data?.mensaje || 'Respuesta no válida');
-                    continue;
-                }
-
-                (data.rows || []).forEach(x => {
-                    const codigo = String(getVal(x, "CodigoEtiqueta", "codigoEtiqueta") || "").trim().toUpperCase();
-                    const nombre = String(getVal(x, "Etiquetacion", "etiquetacion") || "").trim();
-                    const id = String(getVal(x, "ColectorId", "colectorId", "EtiquetacionId", "etiquetacionId") || "").trim();
-
-                    if (codigo && nombre) {
-                        mapaEtiquetacion.set(codigo, { nombre, id });
-                    }
-                });
-            }
-
-            rows.forEach(r => {
-                const codigo = String(getVal(r, "CodigoEtiqueta", "codigoEtiqueta") || "").trim().toUpperCase();
-                const encontrada = mapaEtiquetacion.get(codigo);
-                const actual = String(getVal(r, "Etiquetacion", "etiquetacion") || "").trim();
-                const actualId = String(getVal(r, "EtiquetacionId", "etiquetacionId", "ColectorId", "colectorId") || "").trim();
-                const valor = encontrada?.nombre || (actual && actual !== '-' ? actual : '-');
-                const valorId = encontrada?.id || actualId;
-
-                r.Etiquetacion = valor;
-                r.etiquetacion = valor;
-                r.EtiquetacionId = valorId;
-                r.etiquetacionId = valorId;
-            });
-        } catch (err) {
-            console.error('Error cargando etiquetación actual:', err);
-        }
-
-        return rows;
-        }
-
         async function cargarTrazabilidad(row) {
         if (!row || !row.sku) return;
 
-        const camaraDetalle = row.almacen || camaraActual || [...camarasSeleccionadas][0] || "";
+        const camaraDetalle =
+            row.almacen ||
+            camaraActual ||
+            [...camarasSeleccionadas][0] ||
+            "";
 
         if (!camaraDetalle) {
-        alert("Selecciona una cámara para consultar el detalle.");
+        alert("No se pudo determinar la cámara de la fila.");
         return;
         }
 
+        mostrarCargaInventario("Cargando detalle de cajas...");
+
         try {
-        const url = `/ProcesosCG/TrazabilidadCamara?planta=${encodeURIComponent(plantaActual)}&sku=${encodeURIComponent(row.sku)}&camara=${encodeURIComponent(camaraDetalle)}`;
+        const url =
+            `/ProcesosCG/TrazabilidadCamara` +
+            `?planta=${encodeURIComponent(plantaActual)}` +
+            `&sku=${encodeURIComponent(row.sku)}` +
+            `&camara=${encodeURIComponent(camaraDetalle)}`;
+
         const resp = await fetch(url);
         const data = await resp.json();
 
-        if (!data.ok) {
-        alert(data.mensaje || "Error cargando trazabilidad");
+        if (!resp.ok || !data.ok) {
+        alert(
+            data?.mensaje ||
+            data?.error ||
+            "Error cargando trazabilidad"
+        );
+
         datosTraz = [];
         renderTrazabilidad([]);
         return;
         }
 
-        datosTraz = await completarEtiquetaciones(data.rows || []);
+        datosTraz = data.rows || [];
+
         datosTraz = filtrarDetallePorEtiquetacion(
             datosTraz,
-            row.etiquetacionId || document.getElementById("ddl-etiquetacion")?.value || ""
+            row.etiquetacionId ||
+            document.getElementById("ddl-etiquetacion")?.value ||
+            ""
         );
+
         renderTrazabilidad(datosTraz);
 
         } catch (err) {
@@ -4358,6 +4853,8 @@
         alert("Error conectando con TrazabilidadCamara");
         datosTraz = [];
         renderTrazabilidad([]);
+        } finally {
+        ocultarCargaInventario();
         }
         }
 
@@ -4426,7 +4923,11 @@
         }
 
         async function abrirRack3D() {
-        const camara = camaraActual || [...camarasSeleccionadas][0] || "";
+        const camara =
+            camaraActual ||
+            [...camarasSeleccionadas][0] ||
+            "";
+
         rackCamaraActualVista = camara;
 
         if (!camara) {
@@ -4434,41 +4935,63 @@
         return;
         }
 
+        mostrarCargaInventario("Cargando cámara y Rack 3D...");
+
         try {
-        const url = `/ProcesosCG/DetalleCamaraCompleta?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(camara)}`;
+        const url =
+            `/ProcesosCG/DetalleCamaraCompleta` +
+            `?planta=${encodeURIComponent(plantaActual)}` +
+            `&camara=${encodeURIComponent(camara)}`;
 
         const resp = await fetch(url);
         const data = await resp.json();
 
-        if (!data.ok) {
-        alert(data.mensaje || "Error cargando cámara completa");
+        if (!resp.ok || !data.ok) {
+        alert(
+            data?.mensaje ||
+            data?.error ||
+            "Error cargando cámara completa"
+        );
         return;
         }
 
-        datosTrazOriginal = await completarEtiquetaciones(data.rows || []);
+        datosTrazOriginal = data.rows || [];
+
         datosTrazOriginal = filtrarDetallePorEtiquetacion(
             datosTrazOriginal,
             document.getElementById("ddl-etiquetacion")?.value || ""
         );
+
         datosTraz = datosTrazOriginal;
         calcularKpisCamara(datosTraz);
 
         if (!datosTraz.length) {
-        alert("La cámara seleccionada no tiene productos con ubicación.");
+        alert(
+            "La cámara seleccionada no tiene productos " +
+            "para la etiquetación/filtro actual."
+        );
         return;
         }
 
-        } catch (err) {
-        console.error(err);
-        alert("Error conectando con DetalleCamaraCompleta");
-        return;
-        }
+        document
+            .getElementById("modal-rack3d")
+            .classList.add("show");
 
-        document.getElementById("modal-rack3d").classList.add("show");
-        document.getElementById("rack-title-camara").textContent = "Vista Cámara - " + camara;
-        document.getElementById("rack-almacen-actual").textContent = camara;
-        document.getElementById("txt-buscar-rack").value = "";
-        document.getElementById("rack-search-result").textContent = "Sin búsqueda";
+        document.getElementById(
+            "rack-title-camara"
+        ).textContent = "Vista Cámara - " + camara;
+
+        document.getElementById(
+            "rack-almacen-actual"
+        ).textContent = camara;
+
+        document.getElementById(
+            "txt-buscar-rack"
+        ).value = "";
+
+        document.getElementById(
+            "rack-search-result"
+        ).textContent = "Sin búsqueda";
 
         setTimeout(() => {
         try {
@@ -4484,11 +5007,19 @@
 
         iniciarRackThree();
         renderRackThree();
+
         } catch (err) {
         console.error(err);
         alert("Error iniciando vista 3D: " + err.message);
         }
         }, 80);
+
+        } catch (err) {
+        console.error(err);
+        alert("Error conectando con DetalleCamaraCompleta");
+        } finally {
+        ocultarCargaInventario();
+        }
         }
 
         function cerrarRack3D() {
@@ -5339,38 +5870,54 @@
 
 
         async function cargarTotalCamara() {
-        const camara = camaraActual || [...camarasSeleccionadas][0] || "";
+        const camara =
+            camaraActual ||
+            [...camarasSeleccionadas][0] ||
+            "";
 
         if (!camara) {
         alert("Selecciona una cámara primero.");
         return;
         }
 
+        mostrarCargaInventario("Cargando total de la cámara...");
+
         try {
-        const url = `/ProcesosCG/DetalleCamaraCompleta?planta=${encodeURIComponent(plantaActual)}&camara=${encodeURIComponent(camara)}`;
+        const url =
+            `/ProcesosCG/DetalleCamaraCompleta` +
+            `?planta=${encodeURIComponent(plantaActual)}` +
+            `&camara=${encodeURIComponent(camara)}`;
 
         const resp = await fetch(url);
         const data = await resp.json();
 
-        if (!data.ok) {
-        alert(data.mensaje || "Error cargando total cámara");
+        if (!resp.ok || !data.ok) {
+        alert(
+            data?.mensaje ||
+            data?.error ||
+            "Error cargando total cámara"
+        );
+
         datosTraz = [];
         renderTrazabilidad([]);
         return;
         }
 
-        datosTrazOriginal = await completarEtiquetaciones(data.rows || []);
+        datosTrazOriginal = data.rows || [];
+
         datosTrazOriginal = filtrarDetallePorEtiquetacion(
             datosTrazOriginal,
             document.getElementById("ddl-etiquetacion")?.value || ""
         );
-        datosTraz = datosTrazOriginal;
 
+        datosTraz = datosTrazOriginal;
         renderTrazabilidad(datosTraz);
 
         } catch (err) {
         console.error(err);
         alert("Error conectando con DetalleCamaraCompleta");
+        } finally {
+        ocultarCargaInventario();
         }
         }
 
@@ -5435,15 +5982,123 @@
             cargarCamarasPorPlanta(),
             cargarEtiquetacionesFiltro()
         ]);
+        // Al cambiar de planta solo cargar catálogos.
+        // El inventario se consulta cuando el usuario selecciona una cámara.
         renderInventario([]);
         renderTrazabilidad([]);
-        cargarInventario();
         });
         });
 
         document.getElementById("btn-buscar").addEventListener("click", cargarInventario);
 
         document.getElementById("ddl-etiquetacion")?.addEventListener("change", cargarInventario);
+
+        // =========================
+        // BUSCADOR DE ETIQUETACIÓN
+        // =========================
+        document.getElementById("txt-etiquetacion-buscar")?.addEventListener("focus", function () {
+            abrirComboEtiquetacion(true);
+        });
+
+        document.getElementById("txt-etiquetacion-buscar")?.addEventListener("click", function () {
+            abrirComboEtiquetacion(false);
+        });
+
+        document.getElementById("txt-etiquetacion-buscar")?.addEventListener("input", function () {
+            document.getElementById("cmb-etiquetacion")?.classList.add("open");
+            renderListaEtiquetaciones(this.value);
+        });
+
+        document.getElementById("txt-etiquetacion-buscar")?.addEventListener("keydown", function (e) {
+            const combo = document.getElementById("cmb-etiquetacion");
+
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                combo?.classList.add("open");
+                moverActivoEtiquetacion(1);
+                return;
+            }
+
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                combo?.classList.add("open");
+                moverActivoEtiquetacion(-1);
+                return;
+            }
+
+            if (e.key === "Enter") {
+                e.preventDefault();
+
+                const activo = document.querySelector(
+                    "#lst-etiquetacion .etq-combo-item.activo-busqueda"
+                );
+
+                const primero = document.querySelector(
+                    "#lst-etiquetacion .etq-combo-item"
+                );
+
+                const item = activo || primero;
+
+                if (item) {
+                    item.click();
+                }
+
+                return;
+            }
+
+            if (e.key === "Escape") {
+                cerrarComboEtiquetacion();
+                this.value = obtenerNombreEtiquetacionSeleccionada();
+            }
+        });
+
+        document.getElementById("btn-etiquetacion-abrir")?.addEventListener("click", function (e) {
+            e.preventDefault();
+
+            const combo = document.getElementById("cmb-etiquetacion");
+            const abierto = combo?.classList.contains("open");
+
+            if (abierto) {
+                cerrarComboEtiquetacion();
+            } else {
+                abrirComboEtiquetacion(true);
+            }
+        });
+
+        document.getElementById("lst-etiquetacion")?.addEventListener("click", function (e) {
+            const item = e.target.closest(".etq-combo-item");
+            if (!item) return;
+
+            const id = String(item.dataset.etqId || "").trim();
+
+            let nombre = "Todas las etiquetaciones";
+
+            if (id) {
+                nombre =
+                    etiquetacionesFiltroCache.find(
+                        x => String(x.id) === id
+                    )?.nombre || item.innerText.trim();
+            }
+
+            seleccionarEtiquetacion(id, nombre, true);
+        });
+
+        document.addEventListener("click", function (e) {
+            const combo = document.getElementById("cmb-etiquetacion");
+
+            if (combo && !combo.contains(e.target)) {
+                cerrarComboEtiquetacion();
+
+                const input =
+                    document.getElementById("txt-etiquetacion-buscar");
+
+                if (input) {
+                    input.value =
+                        obtenerNombreEtiquetacionSeleccionada();
+                }
+            }
+        });
+
 
         ["txt-sku", "txt-producto"].forEach(id => {
             document.getElementById(id)?.addEventListener("keydown", e => {
@@ -5533,7 +6188,15 @@
         Promise.all([
             cargarCamarasPorPlanta(),
             cargarEtiquetacionesFiltro()
-        ]).then(() => cargarInventario());
+        ]).then(() => {
+            // No cargar inventario global al abrir la pantalla.
+            // Esperar a que el usuario seleccione una cámara.
+            datosInv = [];
+            datosTraz = [];
+            datosTrazOriginal = [];
+            renderInventario([]);
+            renderTrazabilidad([]);
+        });
 </script>
 
 

@@ -100,8 +100,72 @@ namespace Plataforma_CG.Controllers
                 eti = aet.ConsultarEtiquetasP1();
             }
             var res = aet.ReporteEtiquetas(ubica,fechain,fechafin,eti);
+
+            var identificadores = res
+                .Select(x => x.Usuario?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Cast<string>()
+                .ToList();
+
+            if (identificadores.Count > 0)
+            {
+                var usuariosSql = await _db.UsuarioSQL
+                    .AsNoTracking()
+                    .Where(x => identificadores.Contains(x.Usuario) ||
+                                identificadores.Contains(x.Nombre))
+                    .Select(x => new { x.Usuario, x.Nombre })
+                    .ToListAsync();
+
+                var usuariosAd = await _db.UsuarioAD
+                    .AsNoTracking()
+                    .Where(x => (x.UsuarioAd != null && identificadores.Contains(x.UsuarioAd)) ||
+                                (x.Nombre != null && identificadores.Contains(x.Nombre)))
+                    .Select(x => new { x.UsuarioAd, x.Nombre })
+                    .ToListAsync();
+
+                var nombres = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var usuario in usuariosSql)
+                {
+                    RegistrarNombre(nombres, usuario.Usuario, usuario.Nombre);
+                    RegistrarNombre(nombres, usuario.Nombre, usuario.Nombre);
+                }
+
+                foreach (var usuario in usuariosAd)
+                {
+                    RegistrarNombre(nombres, usuario.UsuarioAd, usuario.Nombre);
+                    RegistrarNombre(nombres, usuario.Nombre, usuario.Nombre);
+                }
+
+                foreach (var registro in res)
+                {
+                    var usuario = registro.Usuario?.Trim();
+
+                    registro.Nombre = !string.IsNullOrWhiteSpace(usuario) &&
+                                      nombres.TryGetValue(usuario, out var nombre)
+                        ? nombre
+                        : usuario ?? string.Empty;
+                }
+            }
+
             return Ok(res);
         
+        }
+
+        private static void RegistrarNombre(
+            IDictionary<string, string> nombres,
+            string? identificador,
+            string? nombre)
+        {
+            identificador = identificador?.Trim();
+            nombre = nombre?.Trim();
+
+            if (string.IsNullOrWhiteSpace(identificador) ||
+                string.IsNullOrWhiteSpace(nombre))
+                return;
+
+            nombres.TryAdd(identificador, nombre);
         }
 
         [HttpGet]
