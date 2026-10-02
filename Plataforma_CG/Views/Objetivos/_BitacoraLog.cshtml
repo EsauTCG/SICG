@@ -1,0 +1,162 @@
+@model List<Plataforma_CG.Models.ObjetivoLogViewModel>
+
+@{
+    int _pagina = Convert.ToInt32(ViewBag.Pagina ?? 1);
+    int _totalPaginas = Convert.ToInt32(ViewBag.TotalPaginas ?? 1);
+    int _total = Convert.ToInt32(ViewBag.TotalRegistros ?? 0);
+    int _pageSize = Convert.ToInt32(ViewBag.PageSize ?? 25);
+    int _desde = _total == 0 ? 0 : ((_pagina - 1) * _pageSize) + 1;
+    int _hasta = Math.Min(_pagina * _pageSize, _total);
+    bool _sinAnterior = _pagina <= 1;
+    bool _sinSiguiente = _pagina >= _totalPaginas;
+
+    var _items = new List<int>();
+    if (_totalPaginas <= 7)
+    {
+        for (int i = 1; i <= _totalPaginas; i++) { _items.Add(i); }
+    }
+    else
+    {
+        _items.Add(1);
+        int _ini = Math.Max(2, _pagina - 1);
+        int _fin = Math.Min(_totalPaginas - 1, _pagina + 1);
+        if (_ini > 2) { _items.Add(0); }
+        for (int i = _ini; i <= _fin; i++) { _items.Add(i); }
+        if (_fin < _totalPaginas - 1) { _items.Add(0); }
+        _items.Add(_totalPaginas);
+    }
+}
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger py-2 small">
+        @foreach (var err in ViewData.ModelState.Values.SelectMany(m => m.Errors))
+        {
+            <div><i class="bi bi-exclamation-triangle-fill me-1"></i>@err.ErrorMessage</div>
+        }
+    </div>
+}
+else if (Model != null && Model.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm table-bordered mb-0 align-middle">
+            <thead class="table-secondary">
+                <tr>
+                    <th class="text-center" style="width:70px;">Folio</th>
+                    <th>Área / Perfil</th>
+                    <th>Tipo de Objetivo</th>
+                    <th style="width:120px;">Estado</th>
+                    <th>Creado por</th>
+                    <th>Modificado por</th>
+                    <th>Autorizado por</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in Model)
+                {
+                    <tr>
+                        <td class="text-center fw-bold text-muted">@it.ID</td>
+                        <td><span class="badge bg-secondary">@it.NombrePerfil</span></td>
+                        <td class="fw-bold">@it.NombreTipoObjetivo</td>
+                        <td>
+                            @if (it.Estado == "Activo")
+                            {
+                                <span class="badge bg-success">Activo</span>
+                            }
+                            else if (it.Estado == "Pendiente")
+                            {
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@it.Estado</span>
+                            }
+                        </td>
+                        <td>
+                            <small class="d-block"><strong>@(it.NombreCreador ?? it.UsuarioCreacion ?? "—")</strong></small>
+                            <small class="d-block text-muted">@it.Fecha_Creacion.ToString("dd/MM/yyyy HH:mm")</small>
+                        </td>
+                        <td>
+                            @if (it.Fecha_Modificacion.HasValue)
+                            {
+                                <small class="d-block"><strong>@(it.NombreModificador ?? it.UsuarioModificacion ?? "—")</strong></small>
+                                <small class="d-block text-muted">@it.Fecha_Modificacion.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                            }
+                            else
+                            {
+                                <small class="text-muted fst-italic">Sin modificar</small>
+                            }
+                        </td>
+                        <td>
+                            @if (it.Fecha_Aprueba.HasValue)
+                            {
+                                <small class="d-block"><strong>@(it.NombreAutorizador ?? it.UsuarioAprueba ?? "—")</strong></small>
+                                <small class="d-block text-muted">@it.Fecha_Aprueba.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                            }
+                            else
+                            {
+                                <small class="text-muted fst-italic">Sin autorizar</small>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pag-obj">
+        <div class="pag-obj__info">
+            Mostrando <strong>@_desde</strong>&ndash;<strong>@_hasta</strong>
+            de <strong>@_total.ToString("N0")</strong> registro(s)
+        </div>
+
+        <div class="pag-obj__controls">
+            <ul class="pag-obj__pages" id="paginadorBitacora">
+                <li>
+                    <button type="button" class="pag-obj__btn" data-pag="1" title="Primera página" aria-label="Primera página" disabled="@_sinAnterior">
+                        <i class="bi bi-chevron-bar-left"></i>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="pag-obj__btn" data-pag="@(_pagina - 1)" title="Anterior" aria-label="Anterior" disabled="@_sinAnterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                </li>
+
+                @foreach (var it in _items)
+                {
+                    if (it == 0)
+                    {
+                        <li><span class="pag-obj__gap">&hellip;</span></li>
+                    }
+                    else
+                    {
+                        <li>
+                            <button type="button" class="pag-obj__btn @(it == _pagina ? "is-active" : "")"
+                                    data-pag="@it" title="Página @it"
+                                    aria-current="@(it == _pagina ? "page" : "false")">@it</button>
+                        </li>
+                    }
+                }
+
+                <li>
+                    <button type="button" class="pag-obj__btn" data-pag="@(_pagina + 1)" title="Siguiente" aria-label="Siguiente" disabled="@_sinSiguiente">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="pag-obj__btn" data-pag="@_totalPaginas" title="Última página" aria-label="Última página" disabled="@_sinSiguiente">
+                        <i class="bi bi-chevron-bar-right"></i>
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+}
+else
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        No hay registros que coincidan con los filtros indicados.
+    </div>
+}
