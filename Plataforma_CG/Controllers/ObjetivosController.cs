@@ -31,7 +31,7 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Tablero()
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -163,7 +163,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -221,7 +221,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -428,7 +428,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -476,7 +476,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -498,7 +498,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -521,7 +521,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -553,12 +553,19 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
 
                     int usuarioModId = await ObtenerIdUsuarioAsync(conn) ?? 1;
+
+                    if (modelo.ValoresConfigurados == null || !modelo.ValoresConfigurados.Any())
+                    {
+                        TempData["ErrorObjetivos"] = "El objetivo debe tener al menos un valor configurado.";
+                        return RedirectToAction("Tablero");
+                    }
+
 
                     using (var transaccion = conn.BeginTransaction())
                     {
@@ -697,7 +704,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "LEER")]
         public async Task<IActionResult> DescargarPlantillaObjetivos()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var perfiles = new List<dynamic>();
             var tipos = new List<dynamic>();
             var vendedores = new List<dynamic>();
@@ -781,7 +788,7 @@ namespace Plataforma_CG.Controllers
             if (archivo == null || archivo.Length == 0)
                 return Json(new { ok = false, mensaje = "Selecciona un archivo Excel (.xlsx)." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var errores = new List<string>();
             int insertados = 0, actualizados = 0, omitidos = 0;
 
@@ -1138,7 +1145,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -1171,7 +1178,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 string connectionString =
-                    _configuration.GetConnectionString("DefaultConnection");
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString)) 
                 {
