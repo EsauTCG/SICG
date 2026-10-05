@@ -336,33 +336,15 @@ ORDER BY
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "ENTREGAS_SAP"
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-            {
-                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
-            }
+            // Delegado en el resolver unico: el permiso del usuario sobrescribe al perfil.
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "ENTREGAS_SAP");
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
         // ========================= ENTREGAS SAP =========================
@@ -4491,38 +4473,14 @@ SELECT
                 });
             }
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "AUTOCOMPLETAR_SAP"
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-            {
-                return Json(new
-                {
-                    puedeLeer = false,
-                    puedeEscribir = false,
-                    puedeEliminar = false
-                });
-            }
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AUTOCOMPLETAR_SAP");
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
 
@@ -11086,33 +11044,15 @@ OPTION (RECOMPILE);";
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "AUTO_ARTICULOS"
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
-
-            if (permiso == null)
-            {
-                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
-            }
+            // Delegado en el resolver unico: el permiso del usuario sobrescribe al perfil.
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AUTO_ARTICULOS");
 
             return Json(new
             {
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeEliminar = permiso.PuedeEliminar
+                puedeLeer = puedeLeer,
+                puedeEscribir = puedeEscribir,
+                puedeEliminar = puedeEliminar
             });
         }
         //========================================================================================================================
@@ -17575,24 +17515,16 @@ VALUES
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "AJUSTE_ETIQUETAS"
-                      && ppm.Activo
-                      && m.Activo
-                select new AjusteEtiquetaPermisoVM
-                {
-                    PuedeLeer = ppm.PuedeLeer,
-                    PuedeEscribir = ppm.PuedeEscribir,
-                    PuedeEliminar = ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
+            // Delegado en el resolver unico: el permiso del usuario sobrescribe al perfil.
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AJUSTE_ETIQUETAS");
 
-            return permiso ?? new AjusteEtiquetaPermisoVM();
+            return new AjusteEtiquetaPermisoVM
+            {
+                PuedeLeer = puedeLeer,
+                PuedeEscribir = puedeEscribir,
+                PuedeEliminar = puedeEliminar
+            };
         }
 
         private static string AjusteEtiquetaSqlIdentifier(string name)
@@ -20397,24 +20329,16 @@ WHERE
             if (string.IsNullOrWhiteSpace(login))
                 return new CierreLotePermisoVM();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == "CIERRE_LOTES"
-                      && ppm.Activo
-                      && m.Activo
-                select new CierreLotePermisoVM
-                {
-                    PuedeLeer = ppm.PuedeLeer,
-                    PuedeEscribir = ppm.PuedeEscribir,
-                    PuedeEliminar = ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
+            // Delegado en el resolver unico: el permiso del usuario sobrescribe al perfil.
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "CIERRE_LOTES");
 
-            return permiso ?? new CierreLotePermisoVM();
+            return new CierreLotePermisoVM
+            {
+                PuedeLeer = puedeLeer,
+                PuedeEscribir = puedeEscribir,
+                PuedeEliminar = puedeEliminar
+            };
         }
 
         // =======================================================

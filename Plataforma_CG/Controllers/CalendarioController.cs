@@ -910,52 +910,21 @@ SELECT @@ROWCOUNT;";
                     ? username
                     : $"{username}@carnesg.net";
 
-            var permiso =
-                await (
-                    from u in _db.UsuarioSQL
+            // Delegado en el resolver unico: el permiso del usuario sobrescribe al perfil.
+            // Se pasan todas las formas del login porque aqui el dominio y el correo
+            // pueden venir dentro o fuera de la cadena de conexion.
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                    _db,
+                    new[] { login, username, usernameEmail },
+                    "LOGISTICA_TRANSPORTES");
 
-                    join p in _db.Perfiles
-                        on u.PerfilId equals p.Id
-
-                    join ppm in _db.PerfilPermisoModulo
-                        on p.Id equals ppm.PerfilId
-
-                    join m in _db.ModulosSistema
-                        on ppm.ModuloId equals m.Id
-
-                    where
-                        u.Activo
-                        &&
-                        (
-                            u.Usuario == login ||
-                            u.Usuario == username ||
-                            u.Usuario == usernameEmail ||
-                            u.Nombre == login ||
-                            u.Nombre == username
-                        )
-                        &&
-                        m.Clave == "LOGISTICA_TRANSPORTES"
-                        &&
-                        ppm.Activo
-                        &&
-                        m.Activo
-
-                    select new LogisticaTransportesPermisoVM
-                    {
-                        PuedeLeer =
-                            ppm.PuedeLeer,
-
-                        PuedeEscribir =
-                            ppm.PuedeEscribir,
-
-                        PuedeEliminar =
-                            ppm.PuedeEliminar
-                    }
-                )
-                .FirstOrDefaultAsync(ct);
-
-            return permiso
-                ?? new LogisticaTransportesPermisoVM();
+            return new LogisticaTransportesPermisoVM
+            {
+                PuedeLeer = puedeLeer,
+                PuedeEscribir = puedeEscribir,
+                PuedeEliminar = puedeEliminar
+            };
         }
 
 
