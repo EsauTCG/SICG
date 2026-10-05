@@ -28,10 +28,13 @@ namespace Plataforma_CG.Controllers
 
         [HttpGet]
         [RevisarPermiso("OBJETIVOS", "LEER")]
-        public async Task<IActionResult> Tablero()
+        public async Task<IActionResult> Tablero(int pagina = 1, int pageSize = 50,
+            string qTexto = "", string qArea = "", string qEstado = "",
+            string qTipo = "", string qPeriodo = "", string qVendedor = "",
+            string qDesde = "", string qHasta = "", string qVigencia = "")
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -47,8 +50,6 @@ namespace Plataforma_CG.Controllers
                 {
                     await conn.OpenAsync();
 
-                    // Consulta de cabeceras
-                    string whereClause = esAdmin ? "" : "WHERE o.ID_Perfil = @PerfilId ";
                     string sqlObjetivos = @"
                         SELECT 
                             o.ID,
@@ -82,20 +83,181 @@ namespace Plataforma_CG.Controllers
                         LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo
                         LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id";
 
-                    var parametros = esAdmin ? null : new { PerfilId = perfilIdUsuario };
-                    var objetivosRaw = await conn.QueryAsync<ObjetivoViewModel>(sqlObjetivos, parametros);
+                    // Filtros del tablero resueltos en servidor: asi se buscan en TODOS los
+                    // registros y no solo en la pagina visible, y se conservan al paginar.
+                    var p = new DynamicParameters();
+                    var filtros = new List<string>();
+
+                    if (!esAdmin)
+                    {
+                        filtros.Add("o.ID_Perfil = @PerfilId");
+                        p.Add("PerfilId", perfilIdUsuario);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(qArea))
+                    {
+                        filtros.Add("p.Nombre = @Area");
+                        p.Add("Area", qArea.Trim());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(qEstado))
+                    {
+                        filtros.Add("o.Estado = @Estado");
+                        p.Add("Estado", qEstado.Trim());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(qTipo))
+                    {
+                        filtros.Add("t.Nombre = @Tipo");
+                        p.Add("Tipo", qTipo.Trim());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(qPeriodo))
+                    {
+                        filtros.Add("o.Tipo_Periodo_Cumplimiento = @Periodo");
+                        p.Add("Periodo", qPeriodo.Trim());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(qVendedor))
+                    {
+                        if (int.TryParse(qVendedor, out int vendedorSel))
+                        {
+                            filtros.Add("o.UsuarioID_Vendedor = @Vendedor");
+                            p.Add("Vendedor", vendedorSel);
+                        }
+                        else
+                        {
+                            filtros.Add("ISNULL(uv.Nombre, '') LIKE @Vendedor");
+                            p.Add("Vendedor", "%" + qVendedor.Trim() + "%");
+                        }
+                    }
+
+                    // Rango de fechas sobre el periodo del objetivo (ambos extremos incluidos)
+                    if (DateTime.TryParse(qDesde, out var dtDesde))
+                    {
+                        filtros.Add("o.Fecha_Hasta >= @Desde");
+                        p.Add("Desde", dtDesde.Date);
+                    }
+                    if (DateTime.TryParse(qHasta, out var dtHasta))
+                    {
+                        filtros.Add("o.Fecha_Desde <= @Hasta");
+                        p.Add("Hasta", dtHasta.Date);
+                    }
+
+                    // Vigencia relativa a la fecha de hoy
+                    switch ((qVigencia ?? "").Trim().ToLowerInvariant())
+                    {
+                        case "vencido":
+                            filtros.Add("o.Fecha_Hasta < CAST(GETDATE() AS date)");
+                            break;
+                        case "porvencer":
+                            filtros.Add("o.Fecha_Hasta >= CAST(GETDATE() AS date) AND o.Fecha_Hasta <= DATEADD(DAY, 30, CAST(GETDATE() AS date))");
+                            break;
+                        case "vigente":
+                            filtros.Add("o.Fecha_Hasta >= CAST(GETDATE() AS date)");
+                            break;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(qTexto))
+                    {
+                        filtros.Add(@"(
+                            ISNULL(t.Nombre, '') LIKE @Texto
+                            OR ISNULL(p.Nombre, '') LIKE @Texto
+                            OR ISNULL(o.Descripcion_Objetivo, '') LIKE @Texto
+                            OR ISNULL(o.Proveedor, '') LIKE @Texto
+                            OR ISNULL(o.SKU, '') LIKE @Texto
+                            OR ISNULL(o.CC, '') LIKE @Texto
+                            OR ISNULL(o.LINEA, '') LIKE @Texto
+                            OR ISNULL(o.Estado, '') LIKE @Texto
+                            OR ISNULL(a.ProductoNombre, '') LIKE @Texto
+                            OR ISNULL(uv.Nombre, '') LIKE @Texto
+                            OR ISNULL(uv.Usuario, '') LIKE @Texto)");
+                        p.Add("Texto", "%" + qTexto.Trim() + "%");
+                    }
+
+                    // Nota: el espacio inicial es obligatorio: sqlObjetivos termina en "uv.Id" sin espacio
+                    string whereClause = filtros.Count > 0 ? " WHERE " + string.Join(" AND ", filtros) + " " : "";
+
+                    ViewBag.FiltroTexto = qTexto ?? "";
+                    ViewBag.FiltroArea = qArea ?? "";
+                    ViewBag.FiltroEstado = qEstado ?? "";
+                    ViewBag.FiltroTipo = qTipo ?? "";
+                    ViewBag.FiltroPeriodo = qPeriodo ?? "";
+                    ViewBag.FiltroVendedor = qVendedor ?? "";
+                    ViewBag.FiltroDesde = qDesde ?? "";
+                    ViewBag.FiltroHasta = qHasta ?? "";
+                    ViewBag.FiltroVigencia = qVigencia ?? "";
+
+                    // Catalogos para los nuevos desplegables
+                    ViewBag.TiposFiltro = await conn.QueryAsync(
+                        "SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1 ORDER BY Nombre");
+                    ViewBag.PeriodosFiltro = await conn.QueryAsync<string>(
+                        "SELECT DISTINCT Tipo_Periodo_Cumplimiento FROM dbo.Objetivos "
+                        + "WHERE Tipo_Periodo_Cumplimiento IS NOT NULL AND Tipo_Periodo_Cumplimiento <> '' "
+                        + "ORDER BY Tipo_Periodo_Cumplimiento");
+                    ViewBag.VendedoresFiltro = await conn.QueryAsync(
+                        "SELECT Id, Nombre FROM dbo.UsuarioSQL WHERE EsVendedor = 1 ORDER BY Nombre");
+
+                    // Paginacion en servidor: evita traer miles de filas al navegador
+                    if (pageSize < 10) pageSize = 10;
+                    if (pageSize > 500) pageSize = 500;
+
+                    int totalRegistros = await conn.ExecuteScalarAsync<int>(
+                        "SELECT COUNT(*) FROM dbo.Objetivos o " +
+                        "INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id " +
+                        "INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID " +
+                        "LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo " +
+                        "LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id " + whereClause,
+                        p);
+
+                    int totalPaginas = totalRegistros == 0 ? 1 : (int)Math.Ceiling(totalRegistros / (double)pageSize);
+                    if (pagina < 1) pagina = 1;
+                    if (pagina > totalPaginas) pagina = totalPaginas;
+
+                    // Orden ascendente por folio: el listado va del ID mas bajo al mas alto
+                    string sqlPaginado = sqlObjetivos + whereClause +
+                        " ORDER BY o.ID ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+                    p.Add("Offset", (pagina - 1) * pageSize);
+                    p.Add("PageSize", pageSize);
+
+                    var objetivosRaw = await conn.QueryAsync<ObjetivoViewModel>(sqlPaginado, p);
                     listaObjetivos = objetivosRaw.ToList();
 
-                    // Consulta de metas
+                    ViewBag.TotalRegistros = totalRegistros;
+                    ViewBag.Pagina = pagina;
+                    ViewBag.TotalPaginas = totalPaginas;
+                    ViewBag.PageSize = pageSize;
+
+                    // Consulta de metas: se une por JOIN en lugar de "IN @Ids" para no
+                    // exceder el limite de 2100 parametros de SQL Server
                     if (listaObjetivos.Any())
                     {
-                        var idsObjetivos = listaObjetivos.Select(x => x.ID).ToList();
-                        string sqlValores = "SELECT * FROM dbo.Objetivo_Valor WHERE ID_Objetivo IN @Ids";
-                        var valoresRaw = await conn.QueryAsync<ObjetivoValorViewModel>(sqlValores, new { Ids = idsObjetivos });
+                        string sqlValores = @"
+                            SELECT v.*
+                            FROM dbo.Objetivo_Valor v
+                            INNER JOIN dbo.Objetivos o2 ON o2.ID = v.ID_Objetivo";
+
+                        if (!esAdmin) sqlValores += " WHERE o2.ID_Perfil = @PerfilId";
+
+                        var valoresRaw = (await conn.QueryAsync<ObjetivoValorViewModel>(
+                            sqlValores, esAdmin ? null : new { PerfilId = perfilIdUsuario })).ToList();
+
+                        // Agrupar en diccionario: evita el Where() dentro del foreach (O(n*m))
+                        var metasPorObjetivo = new Dictionary<int, List<ObjetivoValorViewModel>>();
+                        foreach (var v in valoresRaw)
+                        {
+                            if (!metasPorObjetivo.TryGetValue(v.ID_Objetivo, out var lst))
+                            {
+                                lst = new List<ObjetivoValorViewModel>();
+                                metasPorObjetivo[v.ID_Objetivo] = lst;
+                            }
+                            lst.Add(v);
+                        }
 
                         foreach (var obj in listaObjetivos)
                         {
-                            obj.ValoresConfigurados = valoresRaw.Where(v => v.ID_Objetivo == obj.ID).ToList();
+                            obj.ValoresConfigurados = metasPorObjetivo.TryGetValue(obj.ID, out var metas)
+                                ? metas
+                                : new List<ObjetivoValorViewModel>();
                         }
                     }
 
@@ -105,32 +267,27 @@ namespace Plataforma_CG.Controllers
                     else
                         ViewBag.Perfiles = await conn.QueryAsync("SELECT Id, Nombre FROM dbo.Perfiles WHERE Id = @PerfilId", new { PerfilId = perfilIdUsuario });
 
-                    // Bitácora (log) para el modal: admin ve todo, los demas solo su perfil
-                    string sqlLog = @"
-                        SELECT 
-                            o.ID,
-                            o.Estado,
-                            p.Nombre AS NombrePerfil,
-                            t.Nombre AS NombreTipoObjetivo,
-                            o.Fecha_Creacion,
-                            uc.Usuario AS UsuarioCreacion,
-                            uc.Nombre AS NombreCreador,
-                            o.Fecha_Modificacion,
-                            um.Usuario AS UsuarioModificacion,
-                            um.Nombre AS NombreModificador,
-                            o.Fecha_Aprueba,
-                            ua.Usuario AS UsuarioAprueba,
-                            ua.Nombre AS NombreAutorizador
-                        FROM dbo.Objetivos o
-                        INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
-                        INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
-                        LEFT JOIN dbo.UsuarioSQL uc ON o.UsuarioID_Creacion = uc.Id
-                        LEFT JOIN dbo.UsuarioSQL um ON o.UsuarioID_Modificacion = um.Id
-                        LEFT JOIN dbo.UsuarioSQL ua ON o.UsuarioID_Aprueba = ua.Id
-                        " + whereClause + @"
-                        ORDER BY o.Fecha_Creacion DESC";
-                    var logRaw = await conn.QueryAsync<ObjetivoLogViewModel>(sqlLog, parametros);
-                    ViewBag.LogObjetivos = logRaw.ToList();
+                    // La bitácora ya no se carga aquí: el modal la pide filtrada y paginada
+                    // a VistaParcialBitacora para no traer 300 filas en cada visita al tablero.
+                    ViewBag.TiposObjetivoLog = await conn.QueryAsync(
+                        "SELECT ID, Nombre FROM dbo.Tipo_Objetivo ORDER BY Nombre");
+
+                    // Contador del aviso de vencimientos (independiente de los filtros del tablero)
+                    var pVenc = new DynamicParameters();
+                    string whereVenc = "";
+                    if (!esAdmin)
+                    {
+                        whereVenc = " AND o.ID_Perfil = @PerfilId";
+                        pVenc.Add("PerfilId", perfilIdUsuario);
+                    }
+                    pVenc.Add("Dias", DIAS_AVISO_VENCIMIENTO);
+
+                    ViewBag.ObjetivosPorVencer = await conn.ExecuteScalarAsync<int>(
+                        @"SELECT COUNT(*) FROM dbo.Objetivos o
+                          WHERE o.Estado = 'Activo'
+                            AND o.Fecha_Hasta IS NOT NULL
+                            AND o.Fecha_Hasta <= DATEADD(DAY, @Dias, CAST(GETDATE() AS date))"
+                        + whereVenc, pVenc);
 
                     // Catalogos para los combos del modal Editar (cliente, vendedor y SKU)
                     await CargarVendedoresYClientesAsync(conn);
@@ -160,10 +317,242 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "LEER")]
+        public async Task<IActionResult> VistaParcialBitacora(
+            string texto = "", string estado = "", int? idPerfil = null, int? idTipo = null,
+            string campoFecha = "creacion", DateTime? desde = null, DateTime? hasta = null,
+            string actividad = "", int pagina = 1, int pageSize = 25)
+        {
+            string connection = _configuration.GetConnectionString("CadenaSQLSIGO");
+
+            bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+            int perfilIdUsuario = 0;
+            if (!esAdmin) int.TryParse(User.FindFirst("PerfilId")?.Value, out perfilIdUsuario);
+
+            if (pageSize < 10) pageSize = 10;
+            if (pageSize > 200) pageSize = 200;
+            if (pagina < 1) pagina = 1;
+
+            // Solo se acepta una columna de la lista blanca
+            string columnaFecha;
+            switch ((campoFecha ?? "").Trim().ToLowerInvariant())
+            {
+                case "modificacion": columnaFecha = "o.Fecha_Modificacion"; break;
+                case "aprobacion": columnaFecha = "o.Fecha_Aprueba"; break;
+                default: columnaFecha = "o.Fecha_Creacion"; break;
+            }
+
+            var p = new DynamicParameters();
+            var filtros = new List<string>();
+
+            if (!esAdmin)
+            {
+                filtros.Add("o.ID_Perfil = @PerfilId");
+                p.Add("PerfilId", perfilIdUsuario);
+            }
+            else if (idPerfil.HasValue && idPerfil.Value > 0)
+            {
+                filtros.Add("o.ID_Perfil = @IdPerfil");
+                p.Add("IdPerfil", idPerfil.Value);
+            }
+
+            if (idTipo.HasValue && idTipo.Value > 0)
+            {
+                filtros.Add("o.ID_Tipo_Objetivo = @IdTipo");
+                p.Add("IdTipo", idTipo.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(estado))
+            {
+                filtros.Add("o.Estado = @Estado");
+                p.Add("Estado", estado.Trim());
+            }
+
+            if (desde.HasValue)
+            {
+                filtros.Add(columnaFecha + " >= @Desde");
+                p.Add("Desde", desde.Value.Date);
+            }
+
+            if (hasta.HasValue)
+            {
+                // Se incluye todo el dia seleccionado
+                filtros.Add(columnaFecha + " < @Hasta");
+                p.Add("Hasta", hasta.Value.Date.AddDays(1));
+            }
+
+            if (!string.IsNullOrWhiteSpace(texto))
+            {
+                filtros.Add(@"(
+                        CONVERT(varchar(20), o.ID) LIKE @Texto
+                        OR p.Nombre LIKE @Texto
+                        OR t.Nombre LIKE @Texto
+                        OR o.Estado LIKE @Texto
+                        OR ISNULL(uc.Usuario, '') LIKE @Texto OR ISNULL(uc.Nombre, '') LIKE @Texto
+                        OR ISNULL(um.Usuario, '') LIKE @Texto OR ISNULL(um.Nombre, '') LIKE @Texto
+                        OR ISNULL(ua.Usuario, '') LIKE @Texto OR ISNULL(ua.Nombre, '') LIKE @Texto)");
+                p.Add("Texto", "%" + texto.Trim() + "%");
+            }
+
+            switch ((actividad ?? "").Trim().ToLowerInvariant())
+            {
+                case "modificados": filtros.Add("o.Fecha_Modificacion IS NOT NULL"); break;
+                case "sinmodificar": filtros.Add("o.Fecha_Modificacion IS NULL"); break;
+                case "autorizados": filtros.Add("o.Fecha_Aprueba IS NOT NULL"); break;
+                case "sinautorizar": filtros.Add("o.Fecha_Aprueba IS NULL"); break;
+            }
+
+            string whereLog = filtros.Count > 0 ? " WHERE " + string.Join(" AND ", filtros) : "";
+
+            string fromLog = @"
+                FROM dbo.Objetivos o
+                INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
+                INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
+                LEFT JOIN dbo.UsuarioSQL uc ON o.UsuarioID_Creacion = uc.Id
+                LEFT JOIN dbo.UsuarioSQL um ON o.UsuarioID_Modificacion = um.Id
+                LEFT JOIN dbo.UsuarioSQL ua ON o.UsuarioID_Aprueba = ua.Id"
+                + whereLog;
+
+            var registros = new List<ObjetivoLogViewModel>();
+            int totalRegistros = 0;
+            int totalPaginas = 1;
+
+            try
+            {
+                using (var conn = new SqlConnection(connection))
+                {
+                    await conn.OpenAsync();
+
+                    totalRegistros = await conn.ExecuteScalarAsync<int>(
+                        "SELECT COUNT(*)" + fromLog, p);
+
+                    int totalPaginasLog = Math.Max(1, (int)Math.Ceiling(totalRegistros / (double)pageSize));
+                    if (pagina > totalPaginasLog) pagina = totalPaginasLog;
+                    totalPaginas = totalPaginasLog;
+
+                    p.Add("Offset", (pagina - 1) * pageSize);
+                    p.Add("PageSize", pageSize);
+
+                    var sqlPaginado = @"
+                        SELECT o.ID, o.Estado, o.ID_Perfil, o.ID_Tipo_Objetivo,
+                               p.Nombre AS NombrePerfil,
+                               t.Nombre AS NombreTipoObjetivo,
+                               o.Fecha_Creacion,
+                               uc.Usuario AS UsuarioCreacion, uc.Nombre AS NombreCreador,
+                               o.Fecha_Modificacion,
+                               um.Usuario AS UsuarioModificacion, um.Nombre AS NombreModificador,
+                               o.Fecha_Aprueba,
+                               ua.Usuario AS UsuarioAprueba, ua.Nombre AS NombreAutorizador"
+                        + fromLog + @"
+                        ORDER BY o.Fecha_Creacion DESC, o.ID DESC
+                        OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+                    var filas = await conn.QueryAsync<ObjetivoLogViewModel>(sqlPaginado, p);
+                    registros = filas.ToList();
+                }
+
+                ViewBag.TotalRegistros = totalRegistros;
+                ViewBag.Pagina = pagina;
+                ViewBag.TotalPaginas = totalPaginas;
+                ViewBag.PageSize = pageSize;
+
+                return PartialView("_BitacoraLog", registros);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "Error al cargar la bitácora: " + ex.Message);
+                return PartialView("_BitacoraLog", registros);
+            }
+        }
+
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "LEER")]
+        public async Task<IActionResult> VistaParcialDetalle(int id)
+        {
+            var objetivo = await ObtenerObjetivoConValoresAsync(id);
+            if (objetivo == null)
+            {
+                return NotFound("Objetivo no encontrado.");
+            }
+
+            // Reutilizamos el permiso para saber si mostramos los botones de Editar/Eliminar
+            var (_, _, puedeEliminar) = await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, User.Identity.Name, "OBJETIVOS");
+            ViewBag.PuedeEliminarObjetivos = puedeEliminar;
+
+            return PartialView("_ModalDetalleObjetivo", objetivo);
+        }
+
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
+        public async Task<IActionResult> VistaParcialEditar(int id)
+        {
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+            var objetivo = await ObtenerObjetivoConValoresAsync(id);
+
+            if (objetivo == null)
+            {
+                return NotFound("Objetivo no encontrado.");
+            }
+
+            using (var conn = new SqlConnection(connectionString))
+            {
+                await conn.OpenAsync();
+                await CargarVendedoresYClientesAsync(conn);
+                ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+                ViewBag.CatalogoValores = await conn.QueryAsync("SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo WHERE Activo = 1 ORDER BY Nombre");
+            }
+
+            return PartialView("_ModalEditarObjetivo", objetivo);
+        }
+
+        // Método auxiliar para consultar un solo objetivo
+        private async Task<ObjetivoViewModel> ObtenerObjetivoConValoresAsync(int id)
+        {
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+            using (var conn = new SqlConnection(connectionString))
+            {
+                string sqlObjetivo = @"
+                    SELECT 
+                        o.ID, o.ID_Perfil, o.ID_Tipo_Objetivo, o.Tipo_Periodo_Cumplimiento,
+                        o.Fecha_Desde, o.Fecha_Hasta, o.Proveedor, o.ID_Cliente,
+                        o.UsuarioID_Vendedor, o.SKU, o.CC, o.LINEA AS Linea,
+                        o.Descripcion_Objetivo, o.Estado, o.Fecha_Creacion,
+                        o.UsuarioID_Creacion, o.UsuarioID_Modificacion, o.Fecha_Modificacion,
+                        o.UsuarioID_Aprueba, o.Fecha_Aprueba,
+                        p.Nombre AS NombrePerfil, t.Nombre AS NombreTipoObjetivo,
+                        a.ProductoNombre AS NombreArticulo,
+                        uv.Usuario AS UsuarioVendedor, uv.Nombre AS NombreVendedor,
+                        uc.Usuario AS UsuarioCreacion, uc.Nombre AS NombreCreador,
+                        um.Usuario AS UsuarioModificacion, um.Nombre AS NombreModificador,
+                        ua.Usuario AS UsuarioAprueba, ua.Nombre AS NombreAutorizador
+                    FROM dbo.Objetivos o
+                    INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
+                    INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
+                    LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo
+                    LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id
+                    LEFT JOIN dbo.UsuarioSQL uc ON o.UsuarioID_Creacion = uc.Id
+                    LEFT JOIN dbo.UsuarioSQL um ON o.UsuarioID_Modificacion = um.Id
+                    LEFT JOIN dbo.UsuarioSQL ua ON o.UsuarioID_Aprueba = ua.Id
+                    WHERE o.ID = @Id";
+
+                var obj = await conn.QueryFirstOrDefaultAsync<ObjetivoViewModel>(sqlObjetivo, new { Id = id });
+
+                if (obj != null)
+                {
+                    string sqlValores = "SELECT * FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @Id";
+                    obj.ValoresConfigurados = (await conn.QueryAsync<ObjetivoValorViewModel>(sqlValores, new { Id = id })).ToList();
+                }
+
+                return obj;
+            }
+        }
+
+
+        [HttpGet]
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -221,7 +610,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -428,7 +817,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -476,7 +865,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -498,7 +887,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -516,12 +905,268 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        // =====================================================================
+        // AVISO DE VENCIMIENTOS: objetivos Activos que llegan a su Fecha_Hasta
+        // =====================================================================
+
+        /// <summary>Dias de anticipacion con los que se anticipa el aviso de vencimiento.</summary>
+        private const int DIAS_AVISO_VENCIMIENTO = 30;
+
+        /// <summary>
+        /// Lista de objetivos Activos que ya vencieron o que vencen dentro del plazo,
+        /// para ofrecer renovarlos o pasarlos a Inactivo.
+        /// </summary>
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "LEER")]
+        public async Task<IActionResult> VistaParcialVencimientos(int dias = DIAS_AVISO_VENCIMIENTO)
+        {
+            if (dias < 1) dias = DIAS_AVISO_VENCIMIENTO;
+            if (dias > 365) dias = 365;
+
+            var lista = new List<VencimientoViewModel>();
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+
+            bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+            int perfilIdUsuario = 0;
+            if (!esAdmin) int.TryParse(User.FindFirst("PerfilId")?.Value, out perfilIdUsuario);
+
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    var p = new DynamicParameters();
+                    string wherePerfil = "";
+                    if (!esAdmin)
+                    {
+                        wherePerfil = " AND o.ID_Perfil = @PerfilId";
+                        p.Add("PerfilId", perfilIdUsuario);
+                    }
+                    p.Add("Dias", dias);
+
+                    // DiasRestantes: negativo = ya vencido
+                    lista = (await conn.QueryAsync<VencimientoViewModel>(@"
+                        SELECT o.ID,
+                               p.Nombre AS NombrePerfil,
+                               t.Nombre AS NombreTipoObjetivo,
+                               o.Descripcion_Objetivo,
+                               o.Fecha_Desde,
+                               o.Fecha_Hasta,
+                               o.Estado,
+                               DATEDIFF(DAY, CAST(GETDATE() AS date), o.Fecha_Hasta) AS DiasRestantes,
+                               DATEDIFF(DAY, o.Fecha_Desde, ISNULL(o.Fecha_Hasta, o.Fecha_Desde)) AS DuracionDias,
+                               ISNULL(uv.Nombre, '') AS NombreVendedor,
+                               ISNULL(a.ProductoNombre, '') AS NombreArticulo,
+                               (SELECT COUNT(*) FROM dbo.Objetivo_Valor v WHERE v.ID_Objetivo = o.ID) AS TotalMetas
+                        FROM dbo.Objetivos o
+                        INNER JOIN dbo.Perfiles p ON o.ID_Perfil = p.Id
+                        INNER JOIN dbo.Tipo_Objetivo t ON o.ID_Tipo_Objetivo = t.ID
+                        LEFT JOIN dbo.ArticuloSap a ON o.SKU = a.ProductoCodigo
+                        LEFT JOIN dbo.UsuarioSQL uv ON o.UsuarioID_Vendedor = uv.Id
+                        WHERE o.Estado = 'Activo'
+                          AND o.Fecha_Hasta IS NOT NULL
+                          AND o.Fecha_Hasta <= DATEADD(DAY, @Dias, CAST(GETDATE() AS date))
+                          " + wherePerfil + @"
+                        ORDER BY o.Fecha_Hasta ASC", p)).ToList();
+                }
+
+                ViewBag.DiasAviso = dias;
+                return PartialView("_Vencimientos", lista);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "Error al cargar los vencimientos: " + ex.Message);
+                return PartialView("_Vencimientos", lista);
+            }
+        }
+
+        /// <summary>
+        /// Crea un nuevo objetivo copiando el vigente pero con otras fechas y estado Pendiente.
+        /// </summary>
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> RenovarObjetivo(int id, DateTime? nuevaDesde, DateTime? nuevaHasta)
+        {
+            if (!nuevaDesde.HasValue || !nuevaHasta.HasValue)
+                return Json(new { success = false, message = "Indica las fechas del nuevo periodo." });
+
+            DateTime dDesde = nuevaDesde.Value.Date;
+            DateTime dHasta = nuevaHasta.Value.Date;
+
+            if (dHasta < dDesde)
+                return Json(new { success = false, message = "La fecha final no puede ser anterior a la inicial." });
+
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    var origen = await conn.QueryFirstOrDefaultAsync(@"
+                        SELECT ID, ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento,
+                               Proveedor, ID_Cliente, UsuarioID_Vendedor, SKU, CC, LINEA,
+                               Descripcion_Objetivo, Estado
+                        FROM dbo.Objetivos WHERE ID = @Id", new { Id = id });
+
+                    if (origen == null)
+                        return Json(new { success = false, message = "El objetivo ya no existe." });
+
+                    if (!string.Equals(origen.Estado?.ToString(), "Activo", StringComparison.OrdinalIgnoreCase))
+                        return Json(new { success = false, message = "Solo se pueden renovar objetivos en estado Activo." });
+
+                    int usuarioId = await ObtenerIdUsuarioAsync(conn) ?? 1;
+
+                    using (var trx = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            // Clave natural: se evalua con las fechas nuevas para no duplicar
+                            string clave = string.Join("|",
+                                origen.ID_Perfil.ToString(),
+                                origen.ID_Tipo_Objetivo.ToString(),
+                                (origen.Tipo_Periodo_Cumplimiento?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                dDesde.ToString("yyyy-MM-dd"),
+                                dHasta.ToString("yyyy-MM-dd"),
+                                (origen.Proveedor?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                (origen.ID_Cliente?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                (origen.UsuarioID_Vendedor?.ToString() ?? "0"),
+                                (origen.SKU?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                (origen.CC?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                (origen.LINEA?.ToString() ?? "").Trim().ToUpperInvariant());
+
+                            var posibles = await conn.QueryAsync(@"
+                                SELECT ID, ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento,
+                                       Fecha_Desde, Fecha_Hasta, Proveedor, ID_Cliente, UsuarioID_Vendedor,
+                                       SKU, CC, LINEA
+                                FROM dbo.Objetivos", transaction: trx);
+
+                            foreach (var e in posibles)
+                            {
+                                string k = string.Join("|",
+                                    e.ID_Perfil.ToString(),
+                                    e.ID_Tipo_Objetivo.ToString(),
+                                    (e.Tipo_Periodo_Cumplimiento?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                    (e.Fecha_Desde is DateTime fd ? fd.ToString("yyyy-MM-dd") : ""),
+                                    (e.Fecha_Hasta is DateTime fh ? fh.ToString("yyyy-MM-dd") : "19000101"),
+                                    (e.Proveedor?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                    (e.ID_Cliente?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                    (e.UsuarioID_Vendedor?.ToString() ?? "0"),
+                                    (e.SKU?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                    (e.CC?.ToString() ?? "").Trim().ToUpperInvariant(),
+                                    (e.LINEA?.ToString() ?? "").Trim().ToUpperInvariant());
+
+                                if (string.Equals(k, clave, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    trx.Rollback();
+                                    return Json(new { success = false, message = $"Ya existe un objetivo con esas fechas (folio #{e.ID})." });
+                                }
+                            }
+
+                            int nuevoId = await conn.ExecuteScalarAsync<int>(@"
+                                INSERT INTO dbo.Objetivos (
+                                    ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento,
+                                    Fecha_Desde, Fecha_Hasta, Proveedor, ID_Cliente, UsuarioID_Vendedor,
+                                    SKU, CC, LINEA, Descripcion_Objetivo, Estado,
+                                    UsuarioID_Creacion, Fecha_Creacion)
+                                VALUES (
+                                    @Perfil, @Tipo, @Periodo,
+                                    @Desde, @Hasta, @Proveedor, @Cliente, @Vendedor,
+                                    @SKU, @CC, @Linea, @Descripcion, 'Pendiente',
+                                    @Usuario, GETDATE());
+                                SELECT CAST(SCOPE_IDENTITY() AS int);",
+                                new
+                                {
+                                    Perfil = origen.ID_Perfil,
+                                    Tipo = origen.ID_Tipo_Objetivo,
+                                    Periodo = origen.Tipo_Periodo_Cumplimiento,
+                                    Desde = dDesde,
+                                    Hasta = dHasta,
+                                    Proveedor = origen.Proveedor,
+                                    Cliente = origen.ID_Cliente,
+                                    Vendedor = origen.UsuarioID_Vendedor,
+                                    SKU = origen.SKU,
+                                    CC = origen.CC,
+                                    Linea = origen.LINEA,
+                                    Descripcion = origen.Descripcion_Objetivo,
+                                    Usuario = usuarioId
+                                }, trx);
+
+                            // Se copian las metas tal cual; el usuario las ajusta si lo necesita
+                            await conn.ExecuteAsync(@"
+                                INSERT INTO dbo.Objetivo_Valor
+                                    (ID_Objetivo, Tipo_Valor, Unidad_Medida, Valor_Minimo,
+                                     Valor_Maximo, Valor_Objetivo, ID_Catalogo_ValorObjetivo)
+                                SELECT @NuevoId, Tipo_Valor, Unidad_Medida, Valor_Minimo,
+                                       Valor_Maximo, Valor_Objetivo, ID_Catalogo_ValorObjetivo
+                                FROM dbo.Objetivo_Valor
+                                WHERE ID_Objetivo = @IdOrigen",
+                                new { NuevoId = nuevoId, IdOrigen = id }, trx);
+
+                            trx.Commit();
+
+                            return Json(new { success = true, nuevoId, message = $"Nuevo objetivo #{nuevoId} creado en estado Pendiente." });
+                        }
+                        catch (Exception ex)
+                        {
+                            trx.Rollback();
+                            return Json(new { success = false, message = "No se pudo crear el nuevo objetivo: " + ex.Message });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = "Error al renovar: " + ex.Message });
+            }
+        }
+
+        /// <summary>Marca un objetivo como Inactivo cuando su periodo ya concluyo.</summary>
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> MarcarInactivo(int id)
+        {
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+                    int usuarioId = await ObtenerIdUsuarioAsync(conn) ?? 1;
+
+                    int filas = await conn.ExecuteAsync(@"
+                        UPDATE dbo.Objetivos
+                        SET Estado = 'Inactivo',
+                            UsuarioID_Aprueba = NULL,
+                            Fecha_Aprueba = NULL,
+                            UsuarioID_Modificacion = @Usuario,
+                            Fecha_Modificacion = GETDATE()
+                        WHERE ID = @Id AND Estado = 'Activo'",
+                        new { Id = id, Usuario = usuarioId });
+
+                    if (filas == 0)
+                        return Json(new { success = false, message = "El objetivo no existe o no está Activo." });
+
+                    return Json(new { success = true, message = "Objetivo marcado como Inactivo." });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = "Error al marcar Inactivo: " + ex.Message });
+            }
+        }
+
         [HttpGet]
         public async Task<JsonResult> ObtenerKpisPorArea(int idPerfil)
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -547,24 +1192,84 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+
+
+
         [HttpPost]
         [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
-        public async Task<IActionResult> Editar(ObjetivoViewModel modelo)
+       
+ public async Task<IActionResult> Editar(ObjetivoViewModel modelo)
         {
+            // Marca el paso actual para saber que operacion fallo si hay error
+            string paso = "inicio";
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+                // Si algo no se enlazo bien (por ejemplo un numero de meta mal capturado)
+                // se avisa claro en vez de dejar que reviente una sentencia SQL.
+                if (!ModelState.IsValid)
+                {
+                    string primerError = ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage)
+                        .FirstOrDefault() ?? "datos no validos";
+
+                    TempData["ErrorObjetivos"] = "Error al validar el formulario: " + primerError;
+                    return RedirigirALista(modelo);
+                }
+
+                if (modelo == null || modelo.ID <= 0)
+                {
+                    TempData["ErrorObjetivos"] = "No se identifico el objetivo a editar.";
+                    return RedirigirALista(modelo);
+                }
+
+                paso = "abriendo conexion";
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
 
+                    paso = "resolviendo usuario";
                     int usuarioModId = await ObtenerIdUsuarioAsync(conn) ?? 1;
+
+            
+
+
+                    if (modelo.ValoresConfigurados == null || !modelo.ValoresConfigurados.Any())
+                    {
+                        TempData["ErrorObjetivos"] = "El objetivo debe tener al menos un valor configurado.";
+                        return RedirectToAction("Tablero");
+                    }
+
+                    var estadosValidos = new[] { "Pendiente", "Activo", "Inactivo", "Cancelado" };
+
+                    string estadoActual = await conn.ExecuteScalarAsync<string>(
+                        "SELECT Estado FROM dbo.Objetivos WHERE ID = @ID", new { ID = modelo.ID }) ?? "Pendiente";
+
+                    string nuevoEstado = estadosValidos.Contains(modelo.Estado?.Trim() ?? "")
+                        ? modelo.Estado.Trim()
+                        : estadoActual;
+
+
+                    // Tipo_Periodo_Cumplimiento es NOT NULL: si el select llega vacio se conserva el actual
+                    string periodo = (modelo.Tipo_Periodo_Cumplimiento ?? "").Trim();
+
+                    if (string.IsNullOrEmpty(periodo))
+                    {
+                        periodo = (await conn.ExecuteScalarAsync<string>(
+                            "SELECT Tipo_Periodo_Cumplimiento FROM dbo.Objetivos WHERE ID = @ID",
+                            new { ID = modelo.ID }))?.Trim() ?? "Mensual";
+                    }
+
 
                     using (var transaccion = conn.BeginTransaction())
                     {
                         try
                         {
                             // Actualizar cabecera (todo excepto Perfil y Tipo de Objetivo)
+                            paso = "actualizando cabecera";
                             string sqlObjetivo = @"
                                 UPDATE dbo.Objetivos 
                                 SET Fecha_Desde = @FechaDesde,
@@ -578,6 +1283,16 @@ namespace Plataforma_CG.Controllers
                                     CC = @CC,
                                     LINEA = @Linea,
                                     Descripcion_Objetivo = @Descripcion,
+                                    -- Al pasar a Activo se registra la aprobacion; al salir de Activo se limpia.
+                                    -- Si ya estaba Activo se conservan usuario y fecha originales.
+                                    UsuarioID_Aprueba = CASE
+                                        WHEN @Estado <> 'Activo' THEN NULL
+                                        WHEN Estado = 'Activo' AND UsuarioID_Aprueba IS NOT NULL THEN UsuarioID_Aprueba
+                                        ELSE @UsuarioMod END,
+                                    Fecha_Aprueba = CASE
+                                        WHEN @Estado <> 'Activo' THEN NULL
+                                        WHEN Estado = 'Activo' AND Fecha_Aprueba IS NOT NULL THEN Fecha_Aprueba
+                                        ELSE GETDATE() END,
                                     UsuarioID_Modificacion = @UsuarioMod, 
                                     Fecha_Modificacion = GETDATE()
                                 WHERE ID = @ID";
@@ -586,8 +1301,8 @@ namespace Plataforma_CG.Controllers
                             {
                                 FechaDesde = modelo.Fecha_Desde,
                                 FechaHasta = modelo.Fecha_Hasta,
-                                Periodo = modelo.Tipo_Periodo_Cumplimiento,
-                                Estado = modelo.Estado ?? "Pendiente",
+                                Periodo = periodo,
+                                Estado = nuevoEstado,
                                 ID_Cliente = modelo.ID_Cliente,
                                 UsuarioID_Vendedor = modelo.UsuarioID_Vendedor,
                                 Proveedor = modelo.Proveedor,
@@ -604,6 +1319,7 @@ namespace Plataforma_CG.Controllers
                             if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
                             {
                                 // IDs que ya existen en BD para este objetivo
+                                paso = "leyendo metas existentes";
                                 var idsExistentes = (await conn.QueryAsync<int>(
                                     "SELECT ID FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
                                     new { IDObjetivo = modelo.ID }, transaccion)).ToList();
@@ -628,6 +1344,7 @@ namespace Plataforma_CG.Controllers
                                 {
                                     if (val.ID > 0)
                                     {
+                                        paso = "actualizando meta " + val.ID;
                                         idsEnviados.Add(val.ID);
                                         await conn.ExecuteAsync(sqlValor, new
                                         {
@@ -642,6 +1359,7 @@ namespace Plataforma_CG.Controllers
                                     }
                                     else
                                     {
+                                        paso = "insertando meta nueva";
                                         await conn.ExecuteAsync(sqlNuevo, new
                                         {
                                             IDObjetivo = modelo.ID,
@@ -658,16 +1376,21 @@ namespace Plataforma_CG.Controllers
                                 // Eliminar solo las metas que existian antes y ya no vienen en el formulario
                                 var idsAEliminar = idsExistentes.Except(idsEnviados).ToList();
                                 if (idsAEliminar.Any())
+                                {
+                                    paso = "eliminando metas sobrantes";
                                     await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID IN @Ids",
                                         new { Ids = idsAEliminar }, transaccion);
+                                }
                             }
                             else
                             {
                                 // No viene ninguna meta de la forma -> eliminar todas las existentes
+                                paso = "eliminando todas las metas";
                                 await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
                                     new { IDObjetivo = modelo.ID }, transaccion);
                             }
 
+                            paso = "confirmando transaccion";
                             transaccion.Commit();
                         }
                         catch
@@ -679,14 +1402,33 @@ namespace Plataforma_CG.Controllers
                 }
 
                 TempData["OkObjetivos"] = "Objetivo actualizado correctamente.";
-                return RedirectToAction("Tablero");
+                return RedirigirALista(modelo);
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Error al editar: " + ex.Message);
-                TempData["ErrorObjetivos"] = "Error al editar: " + ex.Message;
-                return RedirectToAction("Tablero");
+                string detalle = ex.Message;
+                // Si es error de SQL se agrega el numero para localizarlo
+                if (ex is SqlException sqlEx)
+                    detalle = $"SQL {sqlEx.Number}: {sqlEx.Message}";
+
+                TempData["ErrorObjetivos"] = $"Error al editar ({paso}): {detalle}";
+                return RedirigirALista(modelo);
             }
+        }
+
+        /// <summary>
+        /// Vuelve al listado conservando los filtros y la pagina desde la que se edito.
+        /// Sin esto el guardado se perdia de vista y parecia que no se habia guardado.
+        /// </summary>
+        private IActionResult RedirigirALista(ObjetivoViewModel modelo)
+        {
+            string returnUrl = (modelo?.URLRetorno ?? "").Trim();
+
+            // Solo se admite una URL local para evitar redirecciones abiertas
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                return Redirect(returnUrl);
+
+            return RedirectToAction("Tablero");
         }
 
         // ================================================================
@@ -697,7 +1439,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "LEER")]
         public async Task<IActionResult> DescargarPlantillaObjetivos()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var perfiles = new List<dynamic>();
             var tipos = new List<dynamic>();
             var vendedores = new List<dynamic>();
@@ -781,7 +1523,7 @@ namespace Plataforma_CG.Controllers
             if (archivo == null || archivo.Length == 0)
                 return Json(new { ok = false, mensaje = "Selecciona un archivo Excel (.xlsx)." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var errores = new List<string>();
             int insertados = 0, actualizados = 0, omitidos = 0;
 
@@ -796,6 +1538,19 @@ namespace Plataforma_CG.Controllers
                     var tipos = (await conn.QueryAsync("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1")).ToList();
                     var vendedores = (await conn.QueryAsync("SELECT Id, Usuario, Nombre FROM dbo.UsuarioSQL")).ToList();
                     var valores = (await conn.QueryAsync("SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo WHERE Activo = 1")).ToList();
+
+                    // Catalogos para validar las FKs (ClienteSap / ArticuloSap): si el valor
+                    // del Excel no existe, se guarda NULL en vez de romper el INSERT.
+                    var dictClientesValidos = new HashSet<string>(
+                        (await conn.QueryAsync<string>("SELECT Cliente FROM dbo.ClienteSap"))
+                            .Where(c => !string.IsNullOrWhiteSpace(c))
+                            .Select(c => c.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
+                    var dictSkusValidos = new HashSet<string>(
+                        (await conn.QueryAsync<string>("SELECT ProductoCodigo FROM dbo.ArticuloSap"))
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .Select(s => s.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
 
                     var dictPerfil = perfiles
                         .GroupBy(x => ((string)x.Nombre).Trim().ToUpperInvariant())
@@ -935,11 +1690,39 @@ namespace Plataforma_CG.Controllers
                         lista.Add(row);
                     }
 
+                    // Cache en memoria de los objetivos existentes: evita una consulta a la BD
+                    // por cada grupo (con miles de filas son miles de round-trips).
+                    var cacheExistentes = new Dictionary<string, (int ID, string Estado)>(StringComparer.OrdinalIgnoreCase);
+                    var existentesRaw = (await conn.QueryAsync(@"
+                        SELECT ID, Estado, ID_Perfil, ID_Tipo_Objetivo, Tipo_Periodo_Cumplimiento,
+                               Fecha_Desde, Fecha_Hasta, Proveedor, ID_Cliente, UsuarioID_Vendedor,
+                               SKU, CC, LINEA
+                        FROM dbo.Objetivos")).ToList();
+                    foreach (var e in existentesRaw)
+                    {
+                        string k = string.Join("|",
+                            e.ID_Perfil.ToString(),
+                            e.ID_Tipo_Objetivo.ToString(),
+                            (e.Tipo_Periodo_Cumplimiento?.ToString() ?? "").Trim().ToUpperInvariant(),
+                            (e.Fecha_Desde is DateTime fd ? fd.ToString("yyyy-MM-dd") : ""),
+                            (e.Fecha_Hasta is DateTime fh ? fh.ToString("yyyy-MM-dd") : "19000101"),
+                            (e.Proveedor?.ToString() ?? "").Trim().ToUpperInvariant(),
+                            (e.ID_Cliente?.ToString() ?? "").Trim().ToUpperInvariant(),
+                            (e.UsuarioID_Vendedor?.ToString() ?? "0"),
+                            (e.SKU?.ToString() ?? "").Trim().ToUpperInvariant(),
+                            (e.CC?.ToString() ?? "").Trim().ToUpperInvariant(),
+                            (e.LINEA?.ToString() ?? "").Trim().ToUpperInvariant());
+                        if (!cacheExistentes.ContainsKey(k))
+                            cacheExistentes[k] = ((int)e.ID, e.Estado?.ToString() ?? "");
+                    }
+
                     using (var transaccion = conn.BeginTransaction())
                     {
                         try
                         {
-                            foreach (var grupo in grupos.Values)
+                            // Se recorre en orden de fila del Excel para que los ID asignados
+                            // por IDENTITY sigan la secuencia natural del archivo.
+                            foreach (var grupo in grupos.Values.OrderBy(g => g.Min(x => x.Fila)))
                             {
                                 var primera = grupo[0];
 
@@ -950,6 +1733,23 @@ namespace Plataforma_CG.Controllers
                                 if (perfilId <= 0) { errores.Add($"Fila {primera.Fila}: Perfil '{primera.PerfilNombre}' no encontrado."); continue; }
                                 if (tipoId <= 0) { errores.Add($"Fila {primera.Fila}: Tipo de Objetivo '{primera.TipoNombre}' no encontrado."); continue; }
                                 if (!primera.FechaDesde.HasValue) { errores.Add($"Fila {primera.Fila}: Fecha Desde inválida."); continue; }
+
+                                // Validar Cliente y SKU contra sus tablas (FK): si no existen, NULL
+                                string clienteFinal = null;
+                                if (!string.IsNullOrWhiteSpace(primera.Cliente))
+                                {
+                                    string cli = primera.Cliente.Trim();
+                                    if (dictClientesValidos.Contains(cli)) clienteFinal = cli;
+                                    else errores.Add($"Fila {primera.Fila}: Cliente '{cli}' no existe en ClienteSap; se guardará vacío.");
+                                }
+
+                                string skuFinal = null;
+                                if (!string.IsNullOrWhiteSpace(primera.Sku))
+                                {
+                                    string sku = primera.Sku.Trim();
+                                    if (dictSkusValidos.Contains(sku)) skuFinal = sku;
+                                    else errores.Add($"Fila {primera.Fila}: SKU '{sku}' no existe en ArticuloSap; se guardará vacío.");
+                                }
 
                                 int? vendedorId = null;
                                 if (!string.IsNullOrEmpty(primera.VendedorTexto))
@@ -962,37 +1762,25 @@ namespace Plataforma_CG.Controllers
                                     else { errores.Add($"Fila {primera.Fila}: Vendedor '{primera.VendedorTexto}' no encontrado."); continue; }
                                 }
 
-                                // Buscar objetivo existente por clave natural
-                                var existente = await conn.QueryFirstOrDefaultAsync<dynamic>(@"
-                                    SELECT TOP 1 ID, Estado FROM dbo.Objetivos
-                                    WHERE ID_Perfil = @Perfil
-                                      AND ID_Tipo_Objetivo = @Tipo
-                                      AND UPPER(LTRIM(RTRIM(Tipo_Periodo_Cumplimiento))) = @Periodo
-                                      AND Fecha_Desde = @Desde
-                                      AND ISNULL(Fecha_Hasta, '19000101') = @Hasta
-                                      AND ISNULL(UPPER(LTRIM(RTRIM(Proveedor))), '') = @Prov
-                                      AND ISNULL(UPPER(LTRIM(RTRIM(ID_Cliente))), '') = @Cliente
-                                      AND ISNULL(UsuarioID_Vendedor, 0) = @Vendedor
-                                      AND ISNULL(UPPER(LTRIM(RTRIM(SKU))), '') = @Sku
-                                      AND ISNULL(UPPER(LTRIM(RTRIM(CC))), '') = @Cc
-                                      AND ISNULL(UPPER(LTRIM(RTRIM(LINEA))), '') = @Linea",
-                                    new
-                                    {
-                                        Perfil = perfilId,
-                                        Tipo = tipoId,
-                                        Periodo = (primera.Periodo ?? "").Trim().ToUpperInvariant(),
-                                        Desde = primera.FechaDesde.Value,
-                                        Hasta = primera.FechaHasta?.ToString("yyyy-MM-dd") ?? "19000101",
-                                        Prov = (primera.Proveedor ?? "").Trim().ToUpperInvariant(),
-                                        Cliente = (primera.Cliente ?? "").Trim().ToUpperInvariant(),
-                                        Vendedor = vendedorId ?? 0,
-                                        Sku = (primera.Sku ?? "").Trim().ToUpperInvariant(),
-                                        Cc = (primera.Cc ?? "").Trim().ToUpperInvariant(),
-                                        Linea = (primera.Linea ?? "").Trim().ToUpperInvariant()
-                                    }, transaccion);
+                                // Buscar objetivo existente por clave natural (cache en memoria)
+                                string claveBusqueda = string.Join("|",
+                                    perfilId.ToString(),
+                                    tipoId.ToString(),
+                                    (primera.Periodo ?? "").Trim().ToUpperInvariant(),
+                                    primera.FechaDesde.Value.ToString("yyyy-MM-dd"),
+                                    primera.FechaHasta?.ToString("yyyy-MM-dd") ?? "19000101",
+                                    (primera.Proveedor ?? "").Trim().ToUpperInvariant(),
+                                    clienteFinal?.Trim().ToUpperInvariant() ?? "",
+                                    (vendedorId ?? 0).ToString(),
+                                    skuFinal?.Trim().ToUpperInvariant() ?? "",
+                                    (primera.Cc ?? "").Trim().ToUpperInvariant(),
+                                    (primera.Linea ?? "").Trim().ToUpperInvariant());
+
+                                bool yaExiste = cacheExistentes.TryGetValue(claveBusqueda, out var existenteInfo);
+                                string estadoExistente = yaExiste ? existenteInfo.Estado : null;
 
                                 int objId;
-                                if (existente == null)
+                                if (!yaExiste)
                                 {
                                     // INSERT
                                     string sqlInsert = @"
@@ -1017,19 +1805,19 @@ namespace Plataforma_CG.Controllers
                                         Fecha_Desde = primera.FechaDesde.Value,
                                         Fecha_Hasta = primera.FechaHasta,
                                         Descripcion_Objetivo = primera.Descripcion ?? "",
-                                        ID_Cliente = string.IsNullOrWhiteSpace(primera.Cliente) ? null : primera.Cliente,
-                                        UsuarioID_Vendedor = vendedorId,
-                                        Proveedor = string.IsNullOrWhiteSpace(primera.Proveedor) ? null : primera.Proveedor,
-                                        SKU = string.IsNullOrWhiteSpace(primera.Sku) ? null : primera.Sku,
-                                        CC = string.IsNullOrWhiteSpace(primera.Cc) ? null : primera.Cc,
-                                        LINEA = string.IsNullOrWhiteSpace(primera.Linea) ? null : primera.Linea,
+                                        ID_Cliente = clienteFinal == null ? (object)DBNull.Value : clienteFinal,
+                                        UsuarioID_Vendedor = (vendedorId.HasValue && vendedorId.Value > 0) ? (object)vendedorId.Value : (object)DBNull.Value,
+                                        Proveedor = string.IsNullOrWhiteSpace(primera.Proveedor) ? (object)DBNull.Value : primera.Proveedor.Trim(),
+                                        SKU = skuFinal == null ? (object)DBNull.Value : skuFinal,
+                                        CC = string.IsNullOrWhiteSpace(primera.Cc) ? (object)DBNull.Value : primera.Cc.Trim(),
+                                        LINEA = string.IsNullOrWhiteSpace(primera.Linea) ? (object)DBNull.Value : primera.Linea.Trim(),
                                         UsuarioCreacion = idUsuario ?? 1
                                     }, transaccion);
                                     insertados++;
                                 }
-                                else if ((string)existente.Estado == "Pendiente")
+                                else if (estadoExistente == "Pendiente")
                                 {
-                                    objId = (int)existente.ID;
+                                    objId = existenteInfo.ID;
                                     string sqlUpdate = @"
                                         UPDATE dbo.Objetivos
                                         SET Descripcion_Objetivo = @Descripcion,
@@ -1138,7 +1926,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -1171,7 +1959,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 string connectionString =
-                    _configuration.GetConnectionString("DefaultConnection");
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString)) 
                 {
