@@ -118,6 +118,8 @@ namespace Plataforma_CG.Data
         public DbSet<MarcaInventario> MarcasInventario { get; set; }
         public DbSet<AreaInventario> AreasInventario { get; set; }
         public DbSet<AuditoriaInventario> AuditoriasInventario { get; set; }
+        public DbSet<ProveedorInventario> ProveedoresInventario { get; set; }
+
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
 
@@ -165,8 +167,8 @@ namespace Plataforma_CG.Data
 
         public DbSet<CompraTiOrdenCompraSap> CompraTiOrdenesCompraSap { get; set; }
 
+        public DbSet<UsuarioPermisoModulo> UsuarioPermisoModulo { get; set; }
 
-        
         public DbSet<CobranzaCompromiso> CobranzaCompromisos { get; set; }
         public DbSet<CobranzaCompromisoFactura> CobranzaCompromisoFacturas { get; set; }
         public DbSet<CobranzaCompromisoArchivo> CobranzaCompromisoArchivos { get; set; }
