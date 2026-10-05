@@ -1,0 +1,119 @@
+@model List<Plataforma_CG.Models.VencimientoViewModel>
+
+@{
+    int _diasAviso = Convert.ToInt32(ViewBag.DiasAviso ?? 30);
+}
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger py-2 small">
+        @foreach (var err in ViewData.ModelState.Values.SelectMany(m => m.Errors))
+        {
+            <div><i class="bi bi-exclamation-triangle-fill me-1"></i>@err.ErrorMessage</div>
+        }
+    </div>
+}
+else if (Model != null && Model.Any())
+{
+    <div class="alert alert-warning py-2 small mb-3">
+        <i class="bi bi-hourglass-split me-1"></i>
+        Estos objetivos están <strong>Activos</strong> y su periodo termina pronto o ya terminó.
+        Decide por cada uno si lo <strong>renuevas</strong> o lo pasas a <strong>Inactivo</strong>.
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-sm table-bordered mb-0 align-middle">
+            <thead class="table-secondary">
+                <tr>
+                    <th style="width:70px;">Folio</th>
+                    <th>Área / Tipo</th>
+                    <th style="width:150px;">Periodo actual</th>
+                    <th style="width:120px;">Vence en</th>
+                    <th style="width:230px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var v in Model.OrderBy(x => x.DiasRestantes))
+                {
+                    // Propuesta de siguiente periodo: continua la duracion actual
+                    var _sugDesde = v.Fecha_Hasta.AddDays(1);
+                    int _duracion = v.DuracionDias > 0 ? v.DuracionDias : 30;
+                    var _sugHasta = _sugDesde.AddDays(_duracion - 1);
+                    bool _vencido = v.DiasRestantes < 0;
+
+                    <tr id="filaVenc_@v.ID">
+                        <td class="text-center fw-bold text-muted">@v.ID</td>
+                        <td>
+                            <span class="badge bg-secondary">@v.NombrePerfil</span>
+                            <div class="fw-bold">@v.NombreTipoObjetivo</div>
+                            <small class="text-muted">
+                                @if (!string.IsNullOrWhiteSpace(v.NombreVendedor)) { <span>Vendedor: @v.NombreVendedor</span> }
+                                @if (!string.IsNullOrWhiteSpace(v.NombreArticulo)) { <span> • @v.NombreArticulo</span> }
+                                • @v.TotalMetas meta(s)
+                            </small>
+                        </td>
+                        <td class="small">
+                            @v.Fecha_Desde.ToString("dd/MM/yyyy")<br />
+                            <span class="text-muted">al @v.Fecha_Hasta.ToString("dd/MM/yyyy")</span>
+                        </td>
+                        <td>
+                            @if (_vencido)
+                            {
+                                <span class="badge bg-danger">
+                                    Vencido hace @Math.Abs(v.DiasRestantes) día(s)
+                                </span>
+                            }
+                            else if (v.DiasRestantes == 0)
+                            {
+                                <span class="badge bg-danger">Vence hoy</span>
+                            }
+                            else if (v.DiasRestantes <= 7)
+                            {
+                                <span class="badge bg-danger">Vence en @v.DiasRestantes día(s)</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Vence en @v.DiasRestantes día(s)</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                <button type="button" class="btn btn-sm btn-primary"
+                                        data-accion="renovar"
+                                        data-id="@v.ID"
+                                        data-desde="@_sugDesde.ToString("yyyy-MM-dd")"
+                                        data-hasta="@_sugHasta.ToString("yyyy-MM-dd")">
+                                    <i class="bi bi-arrow-repeat"></i> Renovar
+                                </button>
+                                @* Un objetivo aun vigente se cierra antes de tiempo: se marca el riesgo *@
+                                <button type="button"
+                                        class="btn btn-sm @(_vencido ? "btn-outline-secondary" : "btn-outline-danger")"
+                                        data-accion="inactivo"
+                                        data-id="@v.ID"
+                                        data-dias="@v.DiasRestantes"
+                                        title="@(_vencido
+                                            ? "Cerrar el periodo de un objetivo ya vencido"
+                                            : "Cierra el periodo de inmediato aunque aún queden " + v.DiasRestantes + " día(s)")">
+                                    <i class="bi bi-slash-circle"></i>
+                                    @(_vencido ? "Inactivo" : "Inactivo antes de tiempo")
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="small text-muted mt-2">
+        Al renovar se crea un objetivo <strong>nuevo</strong> en estado <strong>Pendiente</strong> con las
+        metas copiadas; este queda intacto hasta que lo pases a Inactivo.
+    </div>
+}
+else
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-check2-circle fs-1 d-block mb-2 text-success"></i>
+        No hay objetivos <strong>Activos</strong> por vencer en los próximos @_diasAviso días.
+    </div>
+}
