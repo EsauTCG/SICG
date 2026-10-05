@@ -110,7 +110,6 @@ namespace Plataforma_CG.Data
 
         public DbSet<Perfil> Perfiles { get; set; }
         public DbSet<PerfilPermisoModulo> PerfilPermisoModulo { get; set; }
-        public DbSet<UsuarioPermisoModulo> UsuarioPermisoModulo { get; set; }
 
         public DbSet<InventarioSistemas> InventarioSistemas { get; set; }
         public DbSet<MovimientoInventario> MovimientoInventario { get; set; }
@@ -118,7 +117,6 @@ namespace Plataforma_CG.Data
         public DbSet<TransferenciaInventario> TransferenciasInventario { get; set; }
         public DbSet<MarcaInventario> MarcasInventario { get; set; }
         public DbSet<AreaInventario> AreasInventario { get; set; }
-        public DbSet<ProveedorInventario> ProveedoresInventario { get; set; }
         public DbSet<AuditoriaInventario> AuditoriasInventario { get; set; }
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }

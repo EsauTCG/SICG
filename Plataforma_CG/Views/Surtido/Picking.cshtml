@@ -1074,6 +1074,22 @@
     }
 </style>
 
+
+<style id="pk-simple-operator-final">
+    /* Vista simplificada para operación */
+    .pk-help { min-width:20px !important; }
+    .pk-hero p { max-width:420px !important; }
+    .pk-kpi span { opacity:.72; }
+    .pk-order-meta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pk-priority-row { margin-bottom:5px !important; }
+    .pk-priority-badge,
+    .pk-priority-state { letter-spacing:0 !important; }
+    @@media(max-width:760px) {
+        .pk-hero p { display:block !important; }
+        .pk-order-meta { display:block !important; }
+    }
+</style>
+
 <div class="pk-wrap">
     <main class="pk-shell">
 
@@ -1081,25 +1097,23 @@
             <a class="pk-back" href="@Url.Action("Surtido_cedis", "Surtido")">
                 ← Regresar al inicio
             </a>
-            <div class="pk-help">
+            <div class="pk-help" title="Sincronización activa">
                 <span id="pk-priority-sync-dot" class="pk-sync-dot"></span>
-                Prioridades sincronizadas automáticamente
             </div>
         </div>
 
         <section class="pk-hero">
             <div>
                 <div class="pk-kicker">
-                    🚜 MONTACARGUISTA · @(todos ? "TODOS MIS ALMACENES" : Model.FiltroAlmacen)
+                    🚜 PICKING · @(todos ? "TODOS LOS ALMACENES" : Model.FiltroAlmacen)
                 </div>
 
                 <h1>
-                    Hola, @(string.IsNullOrWhiteSpace(Model.NombreUsuario) ? "Operador" : Model.NombreUsuario)
+                    Pedidos por surtir
                 </h1>
 
                 <p>
-                    Los pedidos están ordenados por prioridad operativa. Debes terminar primero la Prioridad 1;
-                    al completarla, el siguiente pedido pasa automáticamente a ser la nueva Prioridad 1.
+                    Trabaja primero el pedido marcado en verde.
                 </p>
             </div>
 
@@ -1115,7 +1129,7 @@
                 <div>
                     <small>Almacenes</small>
                     <strong>@Model.TotalAlmacenesConsultados</strong>
-                    <span>@(todos ? "Todos los autorizados" : "Filtro activo")</span>
+                    <span>@(todos ? "Disponibles" : "Seleccionado")</span>
                 </div>
             </article>
 
@@ -1124,7 +1138,7 @@
                 <div>
                     <small>Pedidos pendientes</small>
                     <strong>@Model.TotalPedidos</strong>
-                    <span>Pedidos listos para trabajar</span>
+                    <span>Por surtir</span>
                 </div>
             </article>
 
@@ -1133,7 +1147,7 @@
                 <div>
                     <small>Cajas pendientes</small>
                     <strong>@Model.TotalCajasPendientes</strong>
-                    <span>Prioridad operativa</span>
+                    <span>Por procesar</span>
                 </div>
             </article>
         </section>
@@ -1141,8 +1155,7 @@
         <section class="pk-panel">
             <div class="pk-panel-head">
                 <div>
-                    <h2>Filtrar por almacén</h2>
-                    <p>La cola siempre incluye todos los pedidos pendientes; la fecha no puede cambiar la prioridad.</p>
+                    <h2>Almacén</h2>
                 </div>
                 <span class="pk-pill">@Model.Almacenes.Count almacén@(Model.Almacenes.Count == 1 ? "" : "es")</span>
             </div>
@@ -1207,7 +1220,7 @@
                     </select>
                 </div>
 
-                <button type="submit">VER COLA</button>
+                <button type="submit">VER PEDIDOS</button>
             </form>
         </section>
 
@@ -1218,25 +1231,13 @@
 
         <div class="pk-orders-head">
             <div>
-                <h2>Cola de pedidos para surtir</h2>
-                <p>Cada almacén tiene su propia cola. Solo la Prioridad 1 de cada almacén está habilitada.</p>
+                <h2>Pedidos pendientes</h2>
             </div>
             <span class="pk-pill">@Model.NombreConexion</span>
         </div>
 
         @if (pedidosOrdenados.Any())
         {
-            <section class="pk-priority-notice">
-                <div class="pk-priority-notice-icon">!</div>
-                <div>
-                    <strong>Orden obligatorio de surtido</strong>
-                    <span>
-                        En cada almacén trabaja primero el pedido marcado como <b>PRIORIDAD 1</b>.
-                        Al terminarlo, la Prioridad 2 pasa automáticamente a Prioridad 1.
-                    </span>
-                </div>
-            </section>
-
             <section class="pk-orders">
                 @for (var indicePedido = 0; indicePedido < pedidosOrdenados.Count; indicePedido++)
                 {
@@ -1283,19 +1284,19 @@
 
                         <div class="pk-priority-row">
                             <span class="pk-priority-badge @(esPrioridadActiva ? "active" : "waiting")">
-                                PRIORIDAD @prioridadPedido · @o.AlmacenCodigo
+                                #@prioridadPedido · @o.AlmacenCodigo
                             </span>
 
                             @if (esPrioridadActiva)
                             {
                                 <span class="pk-priority-state active">
-                                    ● SURTIR AHORA
+                                    SURTIR AHORA
                                 </span>
                             }
                             else
                             {
                                 <span class="pk-priority-state waiting">
-                                    🔒 EN ESPERA
+                                    EN ESPERA
                                 </span>
                             }
                         </div>
@@ -1307,16 +1308,14 @@
                             </div>
 
                             <div class="pk-warehouse-badge">
-                                🏭 @o.AlmacenCodigo · @o.Planta<br />
-                                @o.AlmacenNombre
+                                @o.AlmacenCodigo · @o.AlmacenNombre
                             </div>
                         </div>
 
                         <div class="pk-client">@o.Cliente</div>
 
                         <div class="pk-order-meta">
-                            Solicitud @o.SolicitudSurtidoId · @o.FechaHora.ToString("dd/MM/yyyy HH:mm")<br />
-                            @o.AlmacenSucursal · @o.AlmacenClasificacion
+                            Solicitud @o.SolicitudSurtidoId · @o.FechaHora.ToString("dd/MM/yyyy HH:mm")
                         </div>
 
                         <div class="pk-pending-box">
@@ -1351,12 +1350,12 @@
                         <div class="pk-open">
                             @if (esPrioridadActiva)
                             {
-                                <span>SURTIR PRIORIDAD 1 →</span>
+                                <span>ABRIR PEDIDO →</span>
                             }
                             else
                             {
                                 <span class="locked">
-                                    🔒 TERMINA PRIORIDAD @(prioridadPedido - 1) DE @o.AlmacenCodigo
+                                    EN ESPERA
                                 </span>
                             }
                         </div>
@@ -1372,13 +1371,13 @@
                     @if (todos)
                     {
                         <text>
-                            No hay pedidos pendientes en tus almacenes autorizados.
+                            No hay pedidos pendientes.
                         </text>
                     }
                     else
                     {
                         <text>
-                            No hay pedidos pendientes en el almacén @Model.FiltroAlmacen.
+                            No hay pedidos pendientes.
                         </text>
                     }
                 </div>

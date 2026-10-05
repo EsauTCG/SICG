@@ -12362,7 +12362,7 @@
             const $capacidad = $("#logisticaCapacidadResumen");
 
             // Mantener el mismo valor en GuardarPedido del ComercialController.
-            const TOLERANCIA_CARGA_KG = 1000;
+            const TOLERANCIA_CARGA_KG = 0;
 
             if (!$folio.length || !$tipoEntrega.length) return;
 
@@ -12556,9 +12556,38 @@
             }
 
             function folioOptionText(x) {
-                const kg = Number(x.cargaKg || 0);
-                return `${x.folio} | ${fmtKg(kg)} kg`;
-            }
+
+    const disponible =
+        Number(
+            x.kgDisponible ??
+            x.cargaKg ??
+            0
+        );
+
+    const cargado =
+        Number(
+            x.kgCargados ??
+            0
+        );
+
+    const maximo =
+        Number(
+            x.capacidadMaximaKg ??
+            0
+        );
+
+    const transporte =
+        (x.tipoTransporte || "TRANSPORTE")
+            .toString();
+
+    return (
+        `${x.folio} | ` +
+        `${transporte} | ` +
+        `Cargado: ${fmtKg(cargado)} kg | ` +
+        `Disponible: ${fmtKg(disponible)} kg | ` +
+        `Máx: ${fmtKg(maximo)} kg`
+    );
+}
 
             window.cargarFoliosLogisticaDisponibles = async function () {
                 const requerido = actualizarVisibilidadFolioLogistica();

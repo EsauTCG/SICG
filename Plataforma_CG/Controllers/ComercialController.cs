@@ -96,7 +96,27 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            return await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, claveModulo);
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == claveModulo
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+                return (false, false, false);
+
+            return (permiso.PuedeLeer, permiso.PuedeEscribir, permiso.PuedeEliminar);
         }
 
 
@@ -2417,7 +2437,7 @@ ORDER BY
         //   }
 
 
-        // =========================================================
+      // =========================================================
         // GUARDAR PEDIDO
         // INCLUYE:
         //
@@ -2438,12 +2458,35 @@ ORDER BY
             CancellationToken ct = default)
         {
             // =========================================================
+            // REHIDRATAR COMBOS AL REGRESAR LA VISTA POR ERROR
+            // =========================================================
+            async Task RecargarListasOrdenVentaAsync()
+            {
+                model.Series =
+                    await ObtenerSeriesPermitidasActualAsync(ct);
+
+                model.Presentaciones =
+                    _config.Presentaciones?
+                        .Distinct()
+                        .Select(p => new SelectListItem
+                        {
+                            Value = p,
+                            Text = p
+                        })
+                        .ToList()
+                    ?? new List<SelectListItem>();
+            }
+
+
+            // =========================================================
             // FECHA DE ENTREGA
             // =========================================================
             if (!model.FechaEntrega.HasValue)
             {
                 TempData["Error"] =
                     "Debes seleccionar una fecha de entrega válida.";
+
+                await RecargarListasOrdenVentaAsync();
 
                 return View(
                     "~/Views/Comercial/OrdenVenta.cshtml",
@@ -2478,6 +2521,33 @@ ORDER BY
                 logisticaFolioId =
                     folioParsed;
             }
+
+
+            // =========================================================
+            // TIPO DE ENTREGA
+            // TRANSPORTE      => requiere folio para MATRIZ
+            // CLIENTE_RECOGE  => no requiere folio
+            // RECOGE_SITIO    => no requiere folio
+            // =========================================================
+            string tipoEntregaLogistica =
+                formGeneral["TipoEntregaLogistica"]
+                    .ToString()
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (
+                tipoEntregaLogistica != "TRANSPORTE" &&
+                tipoEntregaLogistica != "CLIENTE_RECOGE" &&
+                tipoEntregaLogistica != "RECOGE_SITIO"
+            )
+            {
+                // Valor seguro para formularios/versiones antiguas.
+                tipoEntregaLogistica =
+                    "TRANSPORTE";
+            }
+
+            bool esEntregaConTransporte =
+                tipoEntregaLogistica == "TRANSPORTE";
 
 
             static string Norm(string? s) =>
@@ -2525,6 +2595,8 @@ ORDER BY
                     "Hay una línea con cantidad capturada pero sin un SKU válido. " +
                     "Selecciona el producto desde la lista.";
 
+                await RecargarListasOrdenVentaAsync();
+
                 return View(
                     "~/Views/Comercial/OrdenVenta.cshtml",
                     model
@@ -2537,6 +2609,8 @@ ORDER BY
                 TempData["Error"] =
                     "Hay productos con cantidad incompleta. " +
                     "Cada producto solicitado debe tener Cajas y Peso mayores a cero.";
+
+                await RecargarListasOrdenVentaAsync();
 
                 return View(
                     "~/Views/Comercial/OrdenVenta.cshtml",
@@ -2559,6 +2633,8 @@ ORDER BY
             {
                 TempData["Error"] =
                     "La orden debe contener al menos un producto con Cajas y Peso mayores a cero.";
+
+                await RecargarListasOrdenVentaAsync();
 
                 return View(
                     "~/Views/Comercial/OrdenVenta.cshtml",
@@ -3293,7 +3369,8 @@ ORDER BY
             // =========================================================
             if (
                 esSerieMatriz &&
-                !esMuestra
+                !esMuestra &&
+                esEntregaConTransporte
             )
             {
                 if (
@@ -3303,6 +3380,8 @@ ORDER BY
                 {
                     TempData["Error"] =
                         "No se pudo identificar el vendedor de la orden para ligarla con logística.";
+
+                    await RecargarListasOrdenVentaAsync();
 
                     return View(
                         "~/Views/Comercial/OrdenVenta.cshtml",
@@ -3314,6 +3393,8 @@ ORDER BY
                 {
                     TempData["Error"] =
                         "Debes seleccionar un folio de transporte disponible para la fecha de embarque.";
+
+                    await RecargarListasOrdenVentaAsync();
 
                     return View(
                         "~/Views/Comercial/OrdenVenta.cshtml",
@@ -3718,8 +3799,7 @@ ORDER BY
 
                         FechaEmbarque =
                             esSerieMatriz &&
-                            !esMuestra &&
-                            logisticaFolioId.HasValue
+                            !esMuestra
                                 ? model.FechaEntrega.Value.Date
                                 : model.FechaEmbarque,
 
@@ -4187,11 +4267,19 @@ ORDER BY
 
 
                 // =====================================================
-                // 5) AMARRAR FOLIO DE LOGÍSTICA A LA ORDEN DE VENTA
+                // 5) LIGAR OV AL FOLIO DE TRANSPORTE
+                //
+                // MULTI-OV:
+                // Un folio puede contener varias órdenes.
+                //
+                // La suma de todas las órdenes nunca puede superar
+                // CapacidadMaximaKg.
                 // =====================================================
+
                 if (
                     esSerieMatriz &&
                     !esMuestra &&
+                    esEntregaConTransporte &&
                     logisticaFolioId.HasValue
                 )
                 {
@@ -4228,115 +4316,405 @@ ORDER BY
                         "";
 
 
-                    const string estatusLogisticaInicial =
-                        "PENDIENTE FLETERA";
-
-                    // =====================================================
-                    // CAPACIDAD DEL TRANSPORTE
-                    // =====================================================
-                    // La OV puede exceder la carga solicitada únicamente
-                    // hasta 500 kg. Para permitir 1,000 kg cambia este valor
-                    // a 1000m y también TOLERANCIA_CARGA_KG en la vista.
-                    const decimal toleranciaCargaKg =
-                        500m;
-
-
                     _ =
                         await _context.Database
                             .ExecuteSqlInterpolatedAsync(
                                 $@"
+SET NOCOUNT ON;
+
 DECLARE @Existe BIT = 0;
-DECLARE @CargaSolicitadaKg DECIMAL(18,2) = 0;
+
+DECLARE @CapacidadMaximaKg
+    DECIMAL(18,2) = 0;
+
+DECLARE @KgCargados
+    DECIMAL(18,2) = 0;
+
+
+/* =========================================================
+   BLOQUEAR FOLIO PARA EVITAR QUE DOS VENDEDORES
+   LO LLENEN AL MISMO TIEMPO
+   ========================================================= */
 
 SELECT
-    @Existe = 1,
-    @CargaSolicitadaKg = ISNULL(CargaSolicitadaKg, 0)
-FROM dbo.LogisticaFolio WITH (UPDLOCK, HOLDLOCK)
+    @Existe =
+        1,
+
+    @CapacidadMaximaKg =
+        ISNULL(
+            CapacidadMaximaKg,
+            ISNULL(
+                CargaSolicitadaKg,
+                0
+            )
+        )
+
+FROM dbo.LogisticaFolio
+WITH
+(
+    UPDLOCK,
+    HOLDLOCK
+)
+
 WHERE
-    Id = {logisticaFolioId.Value}
-    AND OrdenVentaId IS NULL
-    AND ISNULL(Cancelado, 0) = 0
-    AND FechaEmbarque = {model.FechaEntrega.Value.Date}
-    AND VendedorId = {vendedorId.Value};
+    Id =
+        {logisticaFolioId.Value}
+
+    AND ISNULL(
+        Cancelado,
+        0
+    ) = 0
+
+    AND ISNULL(
+        CanceladoFletera,
+        0
+    ) = 0
+
+    AND FechaEmbarque =
+        {model.FechaEntrega.Value.Date}
+
+    AND VendedorId =
+        {vendedorId.Value};
+
 
 IF @Existe = 0
 BEGIN
+
     THROW 50001,
-          'El folio de transporte ya fue utilizado, fue cancelado, pertenece a otro vendedor o no corresponde a la fecha seleccionada.',
-          1;
+        'El folio fue cancelado, pertenece a otro vendedor o no corresponde a la fecha seleccionada.',
+        1;
+
 END;
 
-IF {totalKgOrden} > (@CargaSolicitadaKg + {toleranciaCargaKg})
+
+IF @CapacidadMaximaKg <= 0
 BEGIN
-    DECLARE @Mensaje NVARCHAR(2048);
+
+    THROW 50002,
+        'El folio no tiene una capacidad máxima válida.',
+        1;
+
+END;
+
+
+/* =========================================================
+   EVITAR DUPLICAR LA MISMA OV
+   ========================================================= */
+
+IF EXISTS
+(
+    SELECT 1
+
+    FROM dbo.LogisticaFolioDocumento
+
+    WHERE
+        TipoDocumento =
+            'OV'
+
+        AND DocumentoId =
+            {pedido.Id}
+
+        AND Activo =
+            1
+)
+BEGIN
+
+    THROW 50003,
+        'La Orden de Venta ya está ligada a un folio de transporte.',
+        1;
+
+END;
+
+
+/* =========================================================
+   KG QUE YA ESTÁN DENTRO DEL CAMIÓN
+   ========================================================= */
+
+SELECT
+    @KgCargados =
+        ISNULL(
+            SUM(Kg),
+            0
+        )
+
+FROM dbo.LogisticaFolioDocumento
+
+WHERE
+    LogisticaFolioId =
+        {logisticaFolioId.Value}
+
+    AND Activo =
+        1;
+
+
+/* =========================================================
+   VALIDACIÓN REAL DEL LÍMITE
+   ========================================================= */
+
+IF
+(
+    @KgCargados +
+    {totalKgOrden}
+)
+>
+@CapacidadMaximaKg
+
+BEGIN
+
+    DECLARE @Mensaje
+        NVARCHAR(2048);
+
 
     SET @Mensaje =
         CONCAT(
-            'No puedes guardar la orden porque excede la capacidad del transporte. ',
-            'Carga solicitada: ',
-            CONVERT(VARCHAR(30), CAST(@CargaSolicitadaKg AS DECIMAL(18,2))),
-            ' kg. Tolerancia permitida: +',
-            CONVERT(VARCHAR(30), CAST({toleranciaCargaKg} AS DECIMAL(18,2))),
-            ' kg. Máximo permitido: ',
+
+            'No puedes guardar la orden porque excede la capacidad disponible del transporte. ',
+
+            'Capacidad máxima: ',
+
             CONVERT(
                 VARCHAR(30),
                 CAST(
-                    @CargaSolicitadaKg + {toleranciaCargaKg}
+                    @CapacidadMaximaKg
                     AS DECIMAL(18,2)
                 )
             ),
-            ' kg. Peso de la OV: ',
-            CONVERT(VARCHAR(30), CAST({totalKgOrden} AS DECIMAL(18,2))),
+
+            ' kg. ',
+
+            'Ya cargados: ',
+
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @KgCargados
+                    AS DECIMAL(18,2)
+                )
+            ),
+
+            ' kg. ',
+
+            'Disponible: ',
+
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @CapacidadMaximaKg
+                    -
+                    @KgCargados
+                    AS DECIMAL(18,2)
+                )
+            ),
+
+            ' kg. ',
+
+            'Peso de esta OV: ',
+
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    {totalKgOrden}
+                    AS DECIMAL(18,2)
+                )
+            ),
+
             ' kg.'
         );
 
-    THROW 50002, @Mensaje, 1;
+
+    THROW 50004,
+        @Mensaje,
+        1;
+
 END;
 
-UPDATE dbo.LogisticaFolio
-SET
-    OrdenVentaId = {pedido.Id},
-    OrdenVentaConsecutivo = {pedido.Consecutivo},
-    ClienteCodigo = {model.Cliente ?? ""},
-    ClienteNombre = {nombreClienteFinal},
-    Ruta = {rutaFinal},
-    Presentacion = {model.Presentacion ?? ""},
-    KgOrdenVenta = {totalKgOrden},
 
-    /* Si Logística ya trabajó el folio ANTES de la OV,
-       conservamos el avance. */
+/* =========================================================
+   AGREGAR ESTA OV AL CAMIÓN
+   ========================================================= */
+
+INSERT INTO dbo.LogisticaFolioDocumento
+(
+    LogisticaFolioId,
+
+    TipoDocumento,
+
+    DocumentoId,
+
+    DocumentoConsecutivo,
+
+    Kg,
+
+    ClienteCodigo,
+
+    ClienteNombre,
+
+    Ruta,
+
+    Presentacion,
+
+    Activo,
+
+    UsuarioRegistro,
+
+    FechaRegistro
+)
+VALUES
+(
+    {logisticaFolioId.Value},
+
+    'OV',
+
+    {pedido.Id},
+
+    {pedido.Consecutivo ??
+                      $"OV-{pedido.Id:D8}"},
+
+    {totalKgOrden},
+
+    {model.Cliente ?? ""},
+
+    {nombreClienteFinal},
+
+    {rutaFinal},
+
+    {model.Presentacion ?? ""},
+
+    1,
+
+    {usuarioRegistro},
+
+    SYSDATETIME()
+);
+
+
+/* =========================================================
+   COMPATIBILIDAD CON LO QUE YA TIENES
+
+   OrdenVentaId conserva la PRIMERA OV.
+   KgOrdenVenta ahora guarda el TOTAL DEL CAMIÓN.
+
+   NO borramos tus columnas anteriores.
+   ========================================================= */
+
+UPDATE dbo.LogisticaFolio
+
+SET
+
+    OrdenVentaId =
+        ISNULL(
+            OrdenVentaId,
+            {pedido.Id}
+        ),
+
+
+    OrdenVentaConsecutivo =
+        CASE
+
+            WHEN OrdenVentaId IS NULL
+                THEN
+                    {pedido.Consecutivo ??
+                                     $"OV-{pedido.Id:D8}"}
+
+            ELSE
+                OrdenVentaConsecutivo
+
+        END,
+
+
+    ClienteCodigo =
+        CASE
+
+            WHEN OrdenVentaId IS NULL
+                THEN
+                    {model.Cliente ?? ""}
+
+            ELSE
+                ClienteCodigo
+
+        END,
+
+
+    ClienteNombre =
+        CASE
+
+            WHEN OrdenVentaId IS NULL
+                THEN
+                    {nombreClienteFinal}
+
+            ELSE
+                ClienteNombre
+
+        END,
+
+
+    Ruta =
+        CASE
+
+            WHEN OrdenVentaId IS NULL
+                THEN
+                    {rutaFinal}
+
+            ELSE
+                Ruta
+
+        END,
+
+
+    Presentacion =
+        CASE
+
+            WHEN OrdenVentaId IS NULL
+                THEN
+                    {model.Presentacion ?? ""}
+
+            ELSE
+                Presentacion
+
+        END,
+
+
+    KgOrdenVenta =
+        @KgCargados +
+        {totalKgOrden},
+
+
     EstatusLogistico =
         CASE
-            WHEN
-                NULLIF(
-                    LTRIM(
-                        RTRIM(
-                            ISNULL(Fletera, '')
+
+            WHEN NULLIF(
+                LTRIM(
+                    RTRIM(
+                        ISNULL(
+                            Fletera,
+                            ''
                         )
-                    ),
-                    ''
-                ) IS NOT NULL
-                THEN 'ASIGNADO'
+                    )
+                ),
+                ''
+            ) IS NOT NULL
+
+                THEN
+                    'ASIGNADO'
 
             ELSE
                 'PENDIENTE FLETERA'
+
         END,
 
-    UsuarioModificacion = {usuarioRegistro},
-    FechaModificacion = SYSDATETIME()
-WHERE
-    Id = {logisticaFolioId.Value}
-    AND OrdenVentaId IS NULL
-    AND ISNULL(Cancelado, 0) = 0
-    AND FechaEmbarque = {model.FechaEntrega.Value.Date}
-    AND VendedorId = {vendedorId.Value};
 
-IF @@ROWCOUNT <> 1
-BEGIN
-    THROW 50003,
-          'No fue posible ligar el folio de transporte a la Orden de Venta. Actualiza los folios disponibles e intenta nuevamente.',
-          1;
-END;",
+    UsuarioModificacion =
+        {usuarioRegistro},
+
+
+    FechaModificacion =
+        SYSDATETIME()
+
+
+WHERE
+    Id =
+        {logisticaFolioId.Value};
+",
                                 ct
                             );
                 }
@@ -4461,13 +4839,14 @@ END;",
                     ex.GetBaseException().Message;
 
 
+                await RecargarListasOrdenVentaAsync();
+
                 return View(
                     "~/Views/Comercial/OrdenVenta.cshtml",
                     model
                 );
             }
         }
-
 
 
 
@@ -7707,99 +8086,160 @@ OPTION (RECOMPILE);
         {
             var datos = await (
                 from ov in _context.OrdenVenta.AsNoTracking()
+
                 join ovp in _context.OrdenVentaProducto.AsNoTracking()
                     on ov.Id equals ovp.PedidoId
+
                 join c in _context.ClienteSap.AsNoTracking()
                     on ov.Cliente equals c.Cliente into jcli
+
                 from c in jcli.DefaultIfEmpty()
-                where ov.Estatus == 2
-                      && (ov.AutorizacionCredito == false || ov.AutorizacionCredito == null)
-                      && (ovp.Eliminado == false || ovp.Eliminado == null)   // opcional, por si manejas eliminados lógicos
+
+                where
+                    ov.Estatus == 2
+                    &&
+                    (
+                        ov.AutorizacionCredito == false
+                        ||
+                        ov.AutorizacionCredito == null
+                    )
+                    &&
+                    (
+                        ovp.Eliminado == false
+                        ||
+                        ovp.Eliminado == null
+                    )
+
                 select new
                 {
                     ov.Id,
-                    Consecutivo = ov.Consecutivo ?? "-",
-                    Cliente = ov.Cliente ?? "-",
-                    ClienteNombre = c != null ? c.Nombrecliente : "-",
-                    FechaEntrega = ov.FechaEntrega,
 
-                    ProductoCodigo = ovp.ProductoCodigo,
-                    ProductoNombre = ovp.ProductoNombre ?? "-",
+                    Consecutivo =
+                        ov.Consecutivo ?? "-",
 
-                    PrecioOV = (decimal?)ovp.Precio,
-                    Kg = (decimal?)ovp.Peso,
-                    ImporteLinea = (decimal?)ovp.Importe
+                    Cliente =
+                        ov.Cliente ?? "-",
+
+                    ClienteNombre =
+                        c != null
+                            ? c.Nombrecliente
+                            : "-",
+
+                    FechaEntrega =
+                        ov.FechaEntrega,
+
+                    ProductoCodigo =
+                        ovp.ProductoCodigo,
+
+                    ProductoNombre =
+                        ovp.ProductoNombre ?? "-",
+
+                    PrecioOV =
+                        (decimal?)ovp.Precio,
+
+                    Kg =
+                        (decimal?)ovp.Peso,
+
+                    ImporteLinea =
+                        (decimal?)ovp.Importe
                 }
-            ).ToListAsync();
+            )
+            .ToListAsync();
+
 
             if (datos.Count == 0)
-                return Json(Array.Empty<object>());
-
-            var ordenesAgrupadas = datos
-                .GroupBy(d => new
-                {
-                    d.Id,
-                    d.Consecutivo,
-                    d.Cliente,
-                    d.ClienteNombre,
-                    d.FechaEntrega
-                });
-
-            var resultado = new List<object>();
-
-            foreach (var grupo in ordenesAgrupadas)
             {
-                decimal kgOv = grupo.Sum(x => x.Kg ?? 0m);
-
-                decimal importePedido = grupo.Sum(x =>
-                    x.ImporteLinea ?? ((x.PrecioOV ?? 0m) * (x.Kg ?? 0m))
+                return Json(
+                    Array.Empty<object>()
                 );
-
-                decimal limiteCredito = 0m;
-                decimal saldoActual = 0m;
-                decimal otrosPedidos = 0m;
-
-                try
-                {
-                    var cli = (grupo.Key.Cliente ?? "-").Trim();
-                    var clienteSAP = await _sap.ObtenerClientePorCodigoAsync(cli);
-
-                    if (clienteSAP != null)
-                    {
-                        limiteCredito = clienteSAP.CreditLimit;
-                        otrosPedidos = clienteSAP.TotalPendiente;
-                        saldoActual = clienteSAP.CurrentAccountBalance;
-                    }
-                }
-                catch
-                {
-                    // Si SAP falla, se quedan valores en 0
-                }
-
-                decimal disponible = limiteCredito - (saldoActual + otrosPedidos);
-                decimal excede = importePedido - disponible;
-                decimal montoExcedido = excede > 0 ? excede : 0m;
-
-                resultado.Add(new
-                {
-                    OrdenVenta = grupo.Key.Consecutivo,
-                    Cliente = grupo.Key.Cliente,
-                    ClienteNombre = grupo.Key.ClienteNombre,
-                    FechaEntrega = grupo.Key.FechaEntrega.ToString("yyyy-MM-dd"),
-
-                    KgOv = kgOv,                      // <-- AQUÍ VAN LOS KG TOTALES DE LA OV
-                    ImportePedido = importePedido,
-                    LimiteCredito = limiteCredito,
-                    SaldoActual = saldoActual,
-                    OtrosPedidos = otrosPedidos,
-                    Disponible = disponible,
-                    Excede = excede,
-                    MontoExcedido = montoExcedido
-                });
             }
 
-            return Json(resultado.OrderBy(x => ((dynamic)x).OrdenVenta));
+
+            var resultado =
+                datos
+                    .GroupBy(d => new
+                    {
+                        d.Id,
+                        d.Consecutivo,
+                        d.Cliente,
+                        d.ClienteNombre,
+                        d.FechaEntrega
+                    })
+                    .Select(grupo =>
+                    {
+                        decimal kgOv =
+                            grupo.Sum(x =>
+                                x.Kg ?? 0m
+                            );
+
+
+                        decimal importePedido =
+                            grupo.Sum(x =>
+                                x.ImporteLinea
+                                ??
+                                (
+                                    (x.PrecioOV ?? 0m)
+                                    *
+                                    (x.Kg ?? 0m)
+                                )
+                            );
+
+
+                        return new
+                        {
+                            OrdenVenta =
+                                grupo.Key.Consecutivo,
+
+                            Cliente =
+                                grupo.Key.Cliente,
+
+                            ClienteNombre =
+                                grupo.Key.ClienteNombre,
+
+                            FechaEntrega =
+                                grupo.Key.FechaEntrega
+                                    .ToString("yyyy-MM-dd"),
+
+                            KgOv =
+                                kgOv,
+
+                            ImportePedido =
+                                importePedido,
+
+                            // Estos datos llegarán después desde SAP.
+                            LimiteCredito =
+                                (decimal?)null,
+
+                            SaldoActual =
+                                (decimal?)null,
+
+                            OtrosPedidos =
+                                (decimal?)null,
+
+                            Disponible =
+                                (decimal?)null,
+
+                            Excede =
+                                (decimal?)null,
+
+                            MontoExcedido =
+                                (decimal?)null,
+
+                            SapPendiente =
+                                true
+                        };
+                    })
+                    .OrderBy(x =>
+                        x.OrdenVenta
+                    )
+                    .ToList();
+
+
+            return Json(
+                resultado
+            );
         }
+
 
 
 
@@ -13421,16 +13861,39 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
         [Authorize]
         [HttpGet("Comercial/ObtenerComplementoCliente")]
         [Produces("application/json")]
-        public async Task<IActionResult> ObtenerComplementoCliente([FromQuery] string cardCode)
+        public async Task<IActionResult> ObtenerComplementoCliente(
+      [FromQuery] string cardCode)
         {
-            if (string.IsNullOrWhiteSpace(cardCode))
-                return BadRequest(new { mensaje = "cardCode es requerido" });
+            // ============================================================
+            // NORMALIZAR CÓDIGO
+            //
+            // IMPORTANTE:
+            // En tu método anterior de crédito sí hacías .Trim() antes
+            // de consultar SAP. Aquí no se estaba haciendo.
+            // ============================================================
+            cardCode =
+                (cardCode ?? "")
+                .Trim();
 
-            decimal ToDec(object? v)
-                => v != null && decimal.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m;
+
+            if (string.IsNullOrWhiteSpace(cardCode))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    motivo = "CARD_CODE_VACIO",
+                    mensaje = "cardCode es requerido"
+                });
+            }
+
 
             if (_sap == null)
             {
+                _logger.LogError(
+                    "SapServiceLayerClient no está disponible al consultar cliente {CardCode}",
+                    cardCode
+                );
+
                 return Json(new
                 {
                     cardCode,
@@ -13438,15 +13901,32 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                     saldo = 0m,
                     sumpedidos = 0m,
                     saldoVencido = 0m,
-                    success = false
+                    success = false,
+                    motivo = "SAP_NO_DISPONIBLE",
+                    mensaje = "El servicio SAP no está disponible."
                 });
             }
 
+
             try
             {
-                var s = await _sap.ObtenerClientePorCodigoAsync(cardCode);
+                // ========================================================
+                // CONSULTA SAP CON EL CÓDIGO YA LIMPIO
+                // ========================================================
+                var s =
+                    await _sap
+                        .ObtenerClientePorCodigoAsync(
+                            cardCode
+                        );
+
+
                 if (s == null)
                 {
+                    _logger.LogWarning(
+                        "SAP no devolvió información para el cliente {CardCode}",
+                        cardCode
+                    );
+
                     return Json(new
                     {
                         cardCode,
@@ -13454,31 +13934,30 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                         saldo = 0m,
                         sumpedidos = 0m,
                         saldoVencido = 0m,
-                        success = false
+                        success = false,
+                        motivo = "CLIENTE_NO_ENCONTRADO_EN_SAP",
+                        mensaje =
+                            $"SAP no devolvió información para el cliente {cardCode}."
                     });
                 }
 
-                var t = s.GetType();
 
-                var credito = ToDec(
-                    t.GetProperty("CreditLimit")?.GetValue(s) ??
-                    t.GetProperty("CreditLine")?.GetValue(s)
-                );
+                // ========================================================
+                // USAR DIRECTAMENTE LAS PROPIEDADES DEL MODELO SAP
+                // Evita reflection + TryParse innecesarios.
+                // ========================================================
+                decimal credito =
+                    s.CreditLimit;
 
-                var saldo = ToDec(
-                    t.GetProperty("CurrentAccountBalance")?.GetValue(s) ??
-                    t.GetProperty("Balance")?.GetValue(s)
-                );
+                decimal saldo =
+                    s.CurrentAccountBalance;
 
-                var sumpedidos = ToDec(
-                    t.GetProperty("TotalPendiente")?.GetValue(s) ??
-                    t.GetProperty("OpenOrders")?.GetValue(s)
-                );
+                decimal sumpedidos =
+                    s.TotalPendiente;
 
-                var saldoVencido = ToDec(
-                    t.GetProperty("SaldoVencido")?.GetValue(s) ??
-                    t.GetProperty("OverdueBalance")?.GetValue(s)
-                );
+                decimal saldoVencido =
+                    s.SaldoVencido;
+
 
                 return Json(new
                 {
@@ -13487,11 +13966,20 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                     saldo,
                     sumpedidos,
                     saldoVencido,
-                    success = true
+                    success = true,
+                    motivo = "OK",
+                    mensaje = "Información SAP obtenida correctamente."
                 });
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(
+                    ex,
+                    "Error consultando SAP para cliente {CardCode}",
+                    cardCode
+                );
+
+
                 return Json(new
                 {
                     cardCode,
@@ -13499,7 +13987,12 @@ WHERE SolicitudSurtidoId = @SolicitudSurtidoId;
                     saldo = 0m,
                     sumpedidos = 0m,
                     saldoVencido = 0m,
-                    success = false
+                    success = false,
+                    motivo = "ERROR_CONSULTA_SAP",
+                    mensaje =
+                        $"No fue posible consultar SAP para el cliente {cardCode}.",
+                    detalle =
+                        ex.GetBaseException().Message
                 });
             }
         }
@@ -19760,16 +20253,25 @@ ORDER BY
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "MODO_PRESUPUESTO");
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "MODO_PRESUPUESTO"
+                      && ppm.Activo
+                      && m.Activo
+                select new { ppm.PuedeLeer, ppm.PuedeEscribir, ppm.PuedeEliminar }
+            ).FirstOrDefaultAsync();
 
             return Json(new
             {
                 login = login,
                 modo = GetModoPresupuestoActual(),
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso?.PuedeLeer ?? false,
+                puedeEscribir = permiso?.PuedeEscribir ?? false,
+                puedeEliminar = permiso?.PuedeEliminar ?? false
             });
         }
 
@@ -22130,8 +22632,12 @@ ORDER BY
                 query = query.Where(c =>
                     (c.Cliente != null && c.Cliente.Contains(search)) ||
                     (c.Nombrecliente != null && c.Nombrecliente.Contains(search)) ||
+                    (c.U_MT_Clasificacion != null && c.U_MT_Clasificacion.Contains(search)) ||
+                    (c.U_CANAL != null && c.U_CANAL.Contains(search)) ||
+                    (c.PriceListName != null && c.PriceListName.Contains(search)) ||
                     (c.VendedorNombre != null && c.VendedorNombre.Contains(search)) ||
-                    (c.VendedorId.HasValue && c.VendedorId.Value.ToString().Contains(search))
+                    (c.VendedorId.HasValue && c.VendedorId.Value.ToString().Contains(search)) ||
+                    (c.PriceListNum.HasValue && c.PriceListNum.Value.ToString().Contains(search))
                 );
             }
 
@@ -22142,14 +22648,17 @@ ORDER BY
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("ClientesSAP");
 
-            // Encabezados
+            // ENCABEZADOS
             ws.Cell(1, 1).Value = "ClienteId";
             ws.Cell(1, 2).Value = "Cliente";
             ws.Cell(1, 3).Value = "Clasificación";
             ws.Cell(1, 4).Value = "Canal";
-            ws.Cell(1, 5).Value = "Id";
-            ws.Cell(1, 6).Value = "Vendedor";
-            ws.Cell(1, 7).Value = "Última Modificación";
+            ws.Cell(1, 5).Value = "Id Lista Precio";
+            ws.Cell(1, 6).Value = "Lista Precio";
+            ws.Cell(1, 7).Value = "Id Vendedor";
+            ws.Cell(1, 8).Value = "Vendedor";
+            ws.Cell(1, 9).Value = "Presupuesto";
+            ws.Cell(1, 10).Value = "Última Modificación";
 
             int row = 2;
 
@@ -22159,30 +22668,59 @@ ORDER BY
                 ws.Cell(row, 2).Value = cliente.Nombrecliente ?? "";
                 ws.Cell(row, 3).Value = cliente.U_MT_Clasificacion ?? "";
                 ws.Cell(row, 4).Value = cliente.U_CANAL ?? "";
-                ws.Cell(row, 5).Value = cliente.VendedorId.HasValue ? cliente.VendedorId.Value.ToString() : "";
-                ws.Cell(row, 6).Value = cliente.VendedorNombre ?? "";
-                ws.Cell(row, 7).Value = cliente.FechaModificacion;
+
+                // LISTA DE PRECIO
+                ws.Cell(row, 5).Value = cliente.PriceListNum.HasValue
+                    ? cliente.PriceListNum.Value
+                    : 0;
+
+                ws.Cell(row, 6).Value = cliente.PriceListName ?? "";
+
+                // VENDEDOR
+                ws.Cell(row, 7).Value = cliente.VendedorId.HasValue
+                    ? cliente.VendedorId.Value
+                    : 0;
+
+                ws.Cell(row, 8).Value = cliente.VendedorNombre ?? "";
+
+                // PRESUPUESTO
+                ws.Cell(row, 9).Value = cliente.AplicaPresupuesto ? "SI" : "NO";
+
+                // FECHA
+                ws.Cell(row, 10).Value = cliente.FechaModificacion;
 
                 row++;
             }
 
-            // Estilo encabezado
-            var headerRange = ws.Range(1, 1, 1, 7);
+            // ESTILO ENCABEZADO
+            var headerRange = ws.Range(1, 1, 1, 10);
+
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Fill.BackgroundColor = XLColor.DarkRed;
             headerRange.Style.Font.FontColor = XLColor.White;
 
-            // Formatos
-            ws.Column(7).Style.NumberFormat.Format = "dd/MM/yyyy HH:mm";
+            // FORMATO FECHA
+            ws.Column(10).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
 
-            // Ajuste de columnas
+            // AUTOAJUSTE
             ws.Columns().AdjustToContents();
 
+            // FILTROS
+            if (clientes.Any())
+            {
+                ws.Range(1, 1, row - 1, 10).SetAutoFilter();
+            }
+
+            // INMOVILIZAR ENCABEZADO
+            ws.SheetView.FreezeRows(1);
+
             using var stream = new MemoryStream();
+
             workbook.SaveAs(stream);
             stream.Position = 0;
 
-            var fileName = $"Catalogo_Clientes_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx";
+            var fileName =
+                $"Catalogo_Clientes_SAP_{DateTime.Now:yyyy-MM-dd}.xlsx";
 
             return File(
                 stream.ToArray(),
@@ -33101,6 +33639,8 @@ ORDER BY
             // TENTATIVO
             // CONFIRMADO
             public string? TipoViaje { get; set; }
+
+            public int? TipoTransporteId { get; set; }
         }
 
 
@@ -33239,8 +33779,8 @@ ORDER BY
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CrearFolioLogistica(
-            [FromBody] CrearFolioLogisticaRequest model,
-            CancellationToken ct = default)
+     [FromBody] CrearFolioLogisticaRequest model,
+     CancellationToken ct = default)
         {
             if (model == null)
             {
@@ -33263,16 +33803,13 @@ ORDER BY
             }
 
 
-            // =====================================================
-            // CARGA EN KG
-            // =====================================================
-
             if (model.Toneladas <= 0m)
             {
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje = "Captura los kilogramos solicitados."
+                    mensaje =
+                        "Captura los kilogramos solicitados."
                 });
             }
 
@@ -33285,10 +33822,6 @@ ORDER BY
                 );
 
 
-            // =====================================================
-            // DESTINO
-            // =====================================================
-
             var destino =
                 (model.Destino ?? "")
                 .Trim()
@@ -33300,7 +33833,8 @@ ORDER BY
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje = "Captura el destino del viaje."
+                    mensaje =
+                        "Captura el destino del viaje."
                 });
             }
 
@@ -33315,13 +33849,6 @@ ORDER BY
                 });
             }
 
-
-            // =====================================================
-            // TIPO DE VIAJE
-            //
-            // Para compatibilidad, si llega vacío lo dejamos
-            // inicialmente como TENTATIVO.
-            // =====================================================
 
             var tipoViaje =
                 (model.TipoViaje ?? "")
@@ -33351,7 +33878,7 @@ ORDER BY
 
 
             // =====================================================
-            // VENDEDOR AUTOMÁTICO DESDE UsuarioSQL
+            // VENDEDOR DEL USUARIO ACTUAL
             // =====================================================
 
             var login =
@@ -33393,12 +33920,12 @@ ORDER BY
                             u.Usuario == usernameEmail ||
                             u.Nombre == login ||
                             u.Nombre == username
-                        )
-                    )
+                        ))
                     .Select(u => new
                     {
                         u.Usuario,
                         u.Nombre,
+
                         VendedorId =
                             (int?)u.VendedorId
                     })
@@ -33414,9 +33941,10 @@ ORDER BY
                 return BadRequest(new
                 {
                     ok = false,
+
                     mensaje =
-                        "Tu usuario no tiene un VendedorId configurado en UsuarioSQL. " +
-                        "No se puede generar el folio de transporte."
+                        "Tu usuario no tiene un VendedorId configurado " +
+                        "en UsuarioSQL."
                 });
             }
 
@@ -33430,7 +33958,8 @@ ORDER BY
                     .AsNoTracking()
                     .Where(x =>
                         x.VendedorId.HasValue &&
-                        x.VendedorId.Value == vendedorId
+                        x.VendedorId.Value ==
+                        vendedorId
                     )
                     .Select(x =>
                         x.VendedorNombre
@@ -33439,16 +33968,20 @@ ORDER BY
 
 
             vendedorNombre =
-                string.IsNullOrWhiteSpace(vendedorNombre)
+                string.IsNullOrWhiteSpace(
+                    vendedorNombre
+                )
                     ? (
-                        string.IsNullOrWhiteSpace(usuarioSql.Nombre)
+                        string.IsNullOrWhiteSpace(
+                            usuarioSql.Nombre
+                        )
                             ? $"VENDEDOR {vendedorId}"
                             : usuarioSql.Nombre.Trim()
                     )
                     : vendedorNombre.Trim();
 
 
-            var usuario =
+            var usuarioRegistro =
                 User.Identity?.Name ??
                 "SIN_USUARIO";
 
@@ -33467,6 +34000,7 @@ ORDER BY
                     new
                     {
                         ok = false,
+
                         mensaje =
                             "No existe DefaultConnection."
                     }
@@ -33475,116 +34009,259 @@ ORDER BY
 
 
             // =====================================================
-            // INSERT
+            // CREAR FOLIO
+            //
+            // Si la vista todavía NO manda TipoTransporteId,
+            // buscamos automáticamente el transporte activo
+            // más pequeño que soporte la carga solicitada.
+            //
+            // Ejemplo:
+            // 24,000 kg =>
+            // CAJA 24 TON
+            // nominal 24,000
+            // máximo  27,000
             // =====================================================
 
             const string sql = @"
-        SET NOCOUNT ON;
-        SET XACT_ABORT ON;
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
 
-        BEGIN TRY
+BEGIN TRY
 
-            BEGIN TRAN;
-
-
-            INSERT INTO dbo.LogisticaFolio
-            (
-                Folio,
-                FechaEmbarque,
-                CargaSolicitadaKg,
-                Destino,
-                TipoViaje,
-                VendedorId,
-                Vendedor,
-                EstatusLogistico,
-                Cancelado,
-                CanceladoFletera,
-                UsuarioRegistro,
-                FechaRegistro
-            )
-            VALUES
-            (
-                CONCAT(
-                    'TMP-',
-                    REPLACE(
-                        CONVERT(
-                            VARCHAR(36),
-                            NEWID()
-                        ),
-                        '-',
-                        ''
-                    )
-                ),
-
-                @FechaEmbarque,
-                @CargaKg,
-                @Destino,
-                @TipoViaje,
-                @VendedorId,
-                @Vendedor,
-                'RESERVADO VENTA',
-                0,
-                0,
-                @Usuario,
-                SYSDATETIME()
-            );
+    BEGIN TRAN;
 
 
-            DECLARE @Id INT =
+    DECLARE @TipoId INT = NULL;
+    DECLARE @TipoNombre NVARCHAR(100) = '';
+    DECLARE @CapacidadNominalKg DECIMAL(18,2) = 0;
+    DECLARE @CapacidadMaximaKg DECIMAL(18,2) = 0;
+
+
+    /* ================================================
+       SI VIENE TIPO DE TRANSPORTE, USAR ESE
+       ================================================ */
+
+    IF @TipoTransporteId IS NOT NULL
+    BEGIN
+
+        SELECT
+            @TipoId =
+                Id,
+
+            @TipoNombre =
+                Nombre,
+
+            @CapacidadNominalKg =
+                CapacidadNominalKg,
+
+            @CapacidadMaximaKg =
+                CapacidadMaximaKg
+
+        FROM dbo.LogisticaTipoTransporte
+
+        WHERE
+            Id = @TipoTransporteId
+            AND Activo = 1;
+
+    END;
+
+
+    /* ================================================
+       COMPATIBILIDAD CON TU VISTA ACTUAL
+
+       Si todavía no manda TipoTransporteId,
+       elegir automáticamente el transporte adecuado.
+       ================================================ */
+
+    IF @TipoId IS NULL
+    BEGIN
+
+        SELECT TOP (1)
+
+            @TipoId =
+                Id,
+
+            @TipoNombre =
+                Nombre,
+
+            @CapacidadNominalKg =
+                CapacidadNominalKg,
+
+            @CapacidadMaximaKg =
+                CapacidadMaximaKg
+
+        FROM dbo.LogisticaTipoTransporte
+
+        WHERE
+            Activo = 1
+
+            AND CapacidadMaximaKg >=
+                @CargaKg
+
+        ORDER BY
+            CapacidadMaximaKg,
+            CapacidadNominalKg;
+
+    END;
+
+
+    IF @TipoId IS NULL
+    BEGIN
+
+        THROW 50001,
+            'No existe un transporte activo con capacidad suficiente para la carga solicitada.',
+            1;
+
+    END;
+
+
+    IF @CargaKg > @CapacidadMaximaKg
+    BEGIN
+
+        THROW 50002,
+            'La carga solicitada excede la capacidad máxima del transporte.',
+            1;
+
+    END;
+
+
+    INSERT INTO dbo.LogisticaFolio
+    (
+        Folio,
+        FechaEmbarque,
+        CargaSolicitadaKg,
+
+        TipoTransporteId,
+        CapacidadNominalKg,
+        CapacidadMaximaKg,
+
+        Destino,
+        TipoViaje,
+
+        VendedorId,
+        Vendedor,
+
+        EstatusLogistico,
+
+        Cancelado,
+        CanceladoFletera,
+
+        UsuarioRegistro,
+        FechaRegistro
+    )
+    VALUES
+    (
+        CONCAT(
+            'TMP-',
+            REPLACE(
                 CONVERT(
-                    INT,
-                    SCOPE_IDENTITY()
-                );
+                    VARCHAR(36),
+                    NEWID()
+                ),
+                '-',
+                ''
+            )
+        ),
+
+        @FechaEmbarque,
+
+        @CargaKg,
+
+        @TipoId,
+
+        @CapacidadNominalKg,
+
+        @CapacidadMaximaKg,
+
+        @Destino,
+
+        @TipoViaje,
+
+        @VendedorId,
+
+        @Vendedor,
+
+        'RESERVADO VENTA',
+
+        0,
+
+        0,
+
+        @Usuario,
+
+        SYSDATETIME()
+    );
 
 
-            DECLARE @Folio VARCHAR(40) =
-                CONCAT(
-                    'LOG-',
-                    CONVERT(
-                        CHAR(8),
-                        @FechaEmbarque,
-                        112
-                    ),
-                    '-',
-                    RIGHT(
-                        '000000'
-                        +
-                        CONVERT(
-                            VARCHAR(20),
-                            @Id
-                        ),
-                        6
-                    )
-                );
+    DECLARE @Id INT =
+        CONVERT(
+            INT,
+            SCOPE_IDENTITY()
+        );
 
 
-            UPDATE dbo.LogisticaFolio
-            SET
-                Folio =
-                    @Folio
-            WHERE
-                Id =
-                    @Id;
+    DECLARE @Folio VARCHAR(40) =
+        CONCAT(
+            'LOG-',
+
+            CONVERT(
+                CHAR(8),
+                @FechaEmbarque,
+                112
+            ),
+
+            '-',
+
+            RIGHT(
+                '000000'
+                +
+                CONVERT(
+                    VARCHAR(20),
+                    @Id
+                ),
+                6
+            )
+        );
 
 
-            COMMIT;
+    UPDATE dbo.LogisticaFolio
+
+    SET
+        Folio =
+            @Folio
+
+    WHERE
+        Id =
+            @Id;
 
 
-            SELECT
-                @Id AS Id,
-                @Folio AS Folio;
+    COMMIT;
 
-        END TRY
 
-        BEGIN CATCH
+    SELECT
+        @Id AS Id,
+        @Folio AS Folio,
 
-            IF @@TRANCOUNT > 0
-                ROLLBACK;
+        @TipoId AS TipoTransporteId,
 
-            THROW;
+        @TipoNombre AS TipoTransporte,
 
-        END CATCH;
-        ";
+        @CapacidadNominalKg AS CapacidadNominalKg,
+
+        @CapacidadMaximaKg AS CapacidadMaximaKg;
+
+
+END TRY
+
+BEGIN CATCH
+
+    IF @@TRANCOUNT > 0
+        ROLLBACK;
+
+    THROW;
+
+END CATCH;
+";
 
 
             await using var cn =
@@ -33611,15 +34288,26 @@ ORDER BY
 
 
             var pCarga =
-                cmd.Parameters
-                    .Add(
-                        "@CargaKg",
-                        SqlDbType.Decimal
-                    );
+                cmd.Parameters.Add(
+                    "@CargaKg",
+                    SqlDbType.Decimal
+                );
 
             pCarga.Precision = 18;
             pCarga.Scale = 2;
             pCarga.Value = cargaKg;
+
+
+            cmd.Parameters
+                .Add(
+                    "@TipoTransporteId",
+                    SqlDbType.Int
+                )
+                .Value =
+                    model.TipoTransporteId.HasValue &&
+                    model.TipoTransporteId.Value > 0
+                        ? model.TipoTransporteId.Value
+                        : DBNull.Value;
 
 
             cmd.Parameters
@@ -33668,7 +34356,7 @@ ORDER BY
                     150
                 )
                 .Value =
-                    usuario;
+                    usuarioRegistro;
 
 
             await using var rd =
@@ -33682,6 +34370,7 @@ ORDER BY
                     new
                     {
                         ok = false,
+
                         mensaje =
                             "No se pudo generar el folio."
                     }
@@ -33697,36 +34386,64 @@ ORDER BY
                 rd.GetString(1);
 
 
-            return Json(
-                new
-                {
-                    ok = true,
+            int tipoTransporteId =
+                rd.GetInt32(2);
 
-                    id,
 
-                    folio,
+            string tipoTransporte =
+                rd.IsDBNull(3)
+                    ? ""
+                    : rd.GetString(3);
 
-                    fechaEmbarque =
-                        model.FechaEmbarque
-                            .ToString(
-                                "yyyy-MM-dd"
-                            ),
 
-                    cargaKg,
+            decimal capacidadNominalKg =
+                rd.IsDBNull(4)
+                    ? 0m
+                    : rd.GetDecimal(4);
 
-                    destino,
 
-                    tipoViaje,
+            decimal capacidadMaximaKg =
+                rd.IsDBNull(5)
+                    ? 0m
+                    : rd.GetDecimal(5);
 
-                    vendedorId,
 
-                    vendedor =
-                        vendedorNombre,
+            return Json(new
+            {
+                ok = true,
 
-                    estatus =
-                        "RESERVADO VENTA"
-                }
-            );
+                id,
+
+                folio,
+
+                fechaEmbarque =
+                    model.FechaEmbarque
+                        .ToString(
+                            "yyyy-MM-dd"
+                        ),
+
+                cargaKg,
+
+                destino,
+
+                tipoViaje,
+
+                vendedorId,
+
+                vendedor =
+                    vendedorNombre,
+
+                tipoTransporteId,
+
+                tipoTransporte,
+
+                capacidadNominalKg,
+
+                capacidadMaximaKg,
+
+                estatus =
+                    "RESERVADO VENTA"
+            });
         }
 
 
@@ -33750,9 +34467,9 @@ ORDER BY
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> FoliosLogisticaDisponibles(
-            DateTime fechaEmbarque,
-            int? vendedorId = null,
-            CancellationToken ct = default)
+     DateTime fechaEmbarque,
+     int? vendedorId = null,
+     CancellationToken ct = default)
         {
             if (fechaEmbarque == default)
             {
@@ -33763,7 +34480,7 @@ ORDER BY
 
 
             // =========================================================
-            // 1) IDENTIFICAR USUARIO ACTUAL
+            // USUARIO ACTUAL
             // =========================================================
 
             var login =
@@ -33783,16 +34500,6 @@ ORDER BY
                     : $"{username}@carnesg.net";
 
 
-            // =========================================================
-            // 2) OBTENER VendedorId DIRECTAMENTE DE UsuarioSQL
-            //
-            // Tiene VendedorId > 0:
-            //      ve solamente los suyos.
-            //
-            // NULL / 0:
-            //      ve todos.
-            // =========================================================
-
             var usuarioSql =
                 await _context.UsuarioSQL
                     .AsNoTracking()
@@ -33804,8 +34511,7 @@ ORDER BY
                             u.Usuario == usernameEmail ||
                             u.Nombre == login ||
                             u.Nombre == username
-                        )
-                    )
+                        ))
                     .Select(u => new
                     {
                         VendedorId =
@@ -33822,7 +34528,7 @@ ORDER BY
 
 
             // =========================================================
-            // 3) CONEXIÓN
+            // CONEXIÓN
             // =========================================================
 
             var cs =
@@ -33847,66 +34553,214 @@ ORDER BY
 
 
             // =========================================================
-            // 4) CONSULTA
+            // FOLIOS CON CAPACIDAD DISPONIBLE
+            //
+            // YA NO IMPORTA QUE OrdenVentaId TENGA VALOR.
+            //
+            // El folio permanece disponible mientras:
+            //
+            // Kg cargados + nueva OV <= capacidad máxima
             // =========================================================
 
             const string sql = @"
-        SELECT
-            f.Id,
-            f.Folio,
-            f.FechaEmbarque,
-            f.CargaSolicitadaKg,
+SELECT
+    f.Id,
 
+    f.Folio,
+
+    f.FechaEmbarque,
+
+    ISNULL(
+        f.CargaSolicitadaKg,
+        0
+    ) AS CargaSolicitadaKg,
+
+
+    ISNULL(
+        t.Nombre,
+        'TRANSPORTE'
+    ) AS TipoTransporte,
+
+
+    ISNULL(
+        f.CapacidadNominalKg,
+        ISNULL(
+            t.CapacidadNominalKg,
             ISNULL(
-                f.Destino,
-                ''
-            ) AS Destino,
-
-            ISNULL(
-                NULLIF(
-                    LTRIM(
-                        RTRIM(
-                            f.TipoViaje
-                        )
-                    ),
-                    ''
-                ),
-                'SIN DEFINIR'
-            ) AS TipoViaje,
-
-            f.VendedorId,
-            f.Vendedor,
-            f.EstatusLogistico
-
-        FROM dbo.LogisticaFolio f
-
-        WHERE
-            f.FechaEmbarque =
-                @FechaEmbarque
-
-            AND f.OrdenVentaId IS NULL
-
-            AND ISNULL(
-                f.Cancelado,
+                f.CargaSolicitadaKg,
                 0
-            ) = 0
-
-            AND ISNULL(
-                f.EstatusLogistico,
-                ''
-            ) = 'RESERVADO VENTA'
-
-            AND
-            (
-                @VendedorId IS NULL
-                OR
-                f.VendedorId =
-                    @VendedorId
             )
+        )
+    ) AS CapacidadNominalKg,
 
-        ORDER BY
-            f.Folio;
-        ";
+
+    ISNULL(
+        f.CapacidadMaximaKg,
+        ISNULL(
+            t.CapacidadMaximaKg,
+            ISNULL(
+                f.CargaSolicitadaKg,
+                0
+            )
+        )
+    ) AS CapacidadMaximaKg,
+
+
+    ISNULL(
+        doc.KgCargados,
+        0
+    ) AS KgCargados,
+
+
+    (
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+        -
+        ISNULL(
+            doc.KgCargados,
+            0
+        )
+    ) AS KgDisponible,
+
+
+    ISNULL(
+        doc.CantidadDocumentos,
+        0
+    ) AS CantidadDocumentos,
+
+
+    ISNULL(
+        f.Destino,
+        ''
+    ) AS Destino,
+
+
+    ISNULL(
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.TipoViaje
+                )
+            ),
+            ''
+        ),
+        'SIN DEFINIR'
+    ) AS TipoViaje,
+
+
+    f.VendedorId,
+
+    ISNULL(
+        f.Vendedor,
+        ''
+    ) AS Vendedor,
+
+    ISNULL(
+        f.EstatusLogistico,
+        'RESERVADO VENTA'
+    ) AS EstatusLogistico
+
+
+FROM dbo.LogisticaFolio f
+
+
+LEFT JOIN dbo.LogisticaTipoTransporte t
+
+    ON t.Id =
+       f.TipoTransporteId
+
+
+OUTER APPLY
+(
+    SELECT
+        SUM(
+            d.Kg
+        ) AS KgCargados,
+
+        COUNT(*) AS CantidadDocumentos
+
+    FROM dbo.LogisticaFolioDocumento d
+
+    WHERE
+        d.LogisticaFolioId =
+            f.Id
+
+        AND d.Activo = 1
+
+) doc
+
+
+WHERE
+    f.FechaEmbarque =
+        @FechaEmbarque
+
+
+    AND ISNULL(
+        f.Cancelado,
+        0
+    ) = 0
+
+
+    AND ISNULL(
+        f.CanceladoFletera,
+        0
+    ) = 0
+
+
+    AND ISNULL(
+        f.EstatusLogistico,
+        ''
+    ) NOT IN
+    (
+        'CANCELADO',
+        'FLETERA CANCELADA'
+    )
+
+
+    AND
+    (
+        @VendedorId IS NULL
+
+        OR
+
+        f.VendedorId =
+            @VendedorId
+    )
+
+
+    /* DEBE QUEDAR ESPACIO */
+
+    AND
+    (
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+        -
+        ISNULL(
+            doc.KgCargados,
+            0
+        )
+    ) > 0
+
+
+ORDER BY
+    f.Folio;
+";
 
 
             var result =
@@ -33953,58 +34807,107 @@ ORDER BY
 
             while (await rd.ReadAsync(ct))
             {
-                var cargaKg =
+                decimal cargaSolicitadaKg =
                     rd.IsDBNull(3)
                         ? 0m
                         : rd.GetDecimal(3);
 
 
-                result.Add(
-                    new
-                    {
-                        id =
-                            rd.GetInt32(0),
+                string tipoTransporte =
+                    rd.IsDBNull(4)
+                        ? ""
+                        : rd.GetString(4);
 
-                        folio =
-                            rd.GetString(1),
 
-                        fechaEmbarque =
-                            rd.GetDateTime(2)
-                                .ToString(
-                                    "yyyy-MM-dd"
-                                ),
+                decimal capacidadNominalKg =
+                    rd.IsDBNull(5)
+                        ? 0m
+                        : rd.GetDecimal(5);
 
-                        cargaKg,
 
-                        toneladas =
-                            cargaKg / 1000m,
+                decimal capacidadMaximaKg =
+                    rd.IsDBNull(6)
+                        ? 0m
+                        : rd.GetDecimal(6);
 
-                        destino =
-                            rd.IsDBNull(4)
-                                ? ""
-                                : rd.GetString(4),
 
-                        tipoViaje =
-                            rd.IsDBNull(5)
-                                ? "SIN DEFINIR"
-                                : rd.GetString(5),
+                decimal kgCargados =
+                    rd.IsDBNull(7)
+                        ? 0m
+                        : rd.GetDecimal(7);
 
-                        vendedorId =
-                            rd.IsDBNull(6)
-                                ? 0
-                                : rd.GetInt32(6),
 
-                        vendedor =
-                            rd.IsDBNull(7)
-                                ? ""
-                                : rd.GetString(7),
+                decimal kgDisponible =
+                    rd.IsDBNull(8)
+                        ? 0m
+                        : rd.GetDecimal(8);
 
-                        estatus =
-                            rd.IsDBNull(8)
-                                ? "RESERVADO VENTA"
-                                : rd.GetString(8)
-                    }
-                );
+
+                int cantidadDocumentos =
+                    rd.IsDBNull(9)
+                        ? 0
+                        : rd.GetInt32(9);
+
+
+                result.Add(new
+                {
+                    id =
+                        rd.GetInt32(0),
+
+                    folio =
+                        rd.GetString(1),
+
+                    fechaEmbarque =
+                        rd.GetDateTime(2)
+                            .ToString(
+                                "yyyy-MM-dd"
+                            ),
+
+                    cargaSolicitadaKg,
+
+                    tipoTransporte,
+
+                    capacidadNominalKg,
+
+                    capacidadMaximaKg,
+
+                    kgCargados,
+
+                    kgDisponible,
+
+                    cantidadDocumentos,
+
+                    // IMPORTANTE:
+                    // Lo dejamos por compatibilidad con tu JS actual.
+                    // Ahora representa la capacidad DISPONIBLE.
+                    cargaKg =
+                        kgDisponible,
+
+                    destino =
+                        rd.IsDBNull(10)
+                            ? ""
+                            : rd.GetString(10),
+
+                    tipoViaje =
+                        rd.IsDBNull(11)
+                            ? "SIN DEFINIR"
+                            : rd.GetString(11),
+
+                    vendedorId =
+                        rd.IsDBNull(12)
+                            ? 0
+                            : rd.GetInt32(12),
+
+                    vendedor =
+                        rd.IsDBNull(13)
+                            ? ""
+                            : rd.GetString(13),
+
+                    estatus =
+                        rd.IsDBNull(14)
+                            ? "RESERVADO VENTA"
+                            : rd.GetString(14)
+                });
             }
 
 
@@ -34012,6 +34915,89 @@ ORDER BY
         }
 
 
+
+
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> ObtenerTiposTransporteLogistica(
+    CancellationToken ct = default)
+        {
+            var cs =
+                _configuration
+                    .GetConnectionString(
+                        "DefaultConnection"
+                    );
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje = "No existe DefaultConnection."
+                    }
+                );
+            }
+
+            const string sql = @"
+SELECT
+    Id,
+    Nombre,
+    CapacidadNominalKg,
+    CapacidadMaximaKg
+FROM dbo.LogisticaTipoTransporte
+WHERE
+    Activo = 1
+ORDER BY
+    CapacidadNominalKg,
+    Nombre;
+";
+
+            var lista =
+                new List<object>();
+
+            await using var cn =
+                new SqlConnection(cs);
+
+            await cn.OpenAsync(ct);
+
+            await using var cmd =
+                new SqlCommand(
+                    sql,
+                    cn
+                );
+
+            await using var rd =
+                await cmd.ExecuteReaderAsync(ct);
+
+            while (await rd.ReadAsync(ct))
+            {
+                lista.Add(new
+                {
+                    id =
+                        rd.GetInt32(0),
+
+                    nombre =
+                        rd.IsDBNull(1)
+                            ? ""
+                            : rd.GetString(1),
+
+                    capacidadNominalKg =
+                        rd.IsDBNull(2)
+                            ? 0m
+                            : rd.GetDecimal(2),
+
+                    capacidadMaximaKg =
+                        rd.IsDBNull(3)
+                            ? 0m
+                            : rd.GetDecimal(3)
+                });
+            }
+
+            return Json(lista);
+        }
 
 
 

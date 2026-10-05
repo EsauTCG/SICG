@@ -79,6 +79,139 @@ namespace Plataforma_CG.Controllers
         }
 
 
+
+        // ============================================================
+        // UBICACIÓN DINÁMICA POR ALMACÉN / MASTER / COLOR
+        //
+        // IMPORTANTE:
+        // - El controller NO conoce colores fijos.
+        // - El controller NO construye códigos de ubicación.
+        // - Colores, ubicaciones, racks, posiciones, alturas y orden físico
+        //   se administran en tablas de SIGO por CodigoAlmacen.
+        // - La rotación sólo decide cómo recorrer OrdenFisico.
+        // ============================================================
+        private sealed class UbicacionDinamicaArticuloDto
+        {
+            public string ProductoCodigo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public decimal? Rotacion { get; set; }
+            public string Master { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaUnidadDto
+        {
+            public long ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string Articulo { get; set; } = "";
+            public long? TarimaId { get; set; }
+            public string TarimaCodigo { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaLayoutDto
+        {
+            public int LayoutId { get; set; }
+            public string CodigoAlmacen { get; set; } = "";
+            public string CodigoLayout { get; set; } = "";
+            public string NombreLayout { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaColorDto
+        {
+            public int LayoutId { get; set; }
+            public int ColorAlmacenId { get; set; }
+            public string CodigoAlmacen { get; set; } = "";
+            public string CodigoColor { get; set; } = "";
+            public string NombreColor { get; set; } = "";
+            public string HexColor { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaCatalogoDto
+        {
+            public int LayoutId { get; set; }
+            public int UbicacionId { get; set; }
+            public string CodigoAlmacen { get; set; } = "";
+            public int ColorAlmacenId { get; set; }
+            public string CodigoColor { get; set; } = "";
+            public string NombreColor { get; set; } = "";
+            public string HexColor { get; set; } = "";
+            public string Rack { get; set; } = "";
+            public string Posicion { get; set; } = "";
+            public string Altura { get; set; } = "";
+            public string CodigoUbicacion { get; set; } = "";
+            public string CodigoMapa3D { get; set; } = "";
+            public int OrdenFisico { get; set; }
+        }
+
+
+        private sealed class UbicacionDinamicaReglaRotacionDto
+        {
+            public int Id { get; set; }
+            public int LayoutId { get; set; }
+            public string CodigoAlmacen { get; set; } = "";
+            public string NombreRegla { get; set; } = "";
+            public decimal? Desde { get; set; }
+            public decimal? Hasta { get; set; }
+            public bool AplicaSinRotacion { get; set; }
+            public string ModoOrden { get; set; } = "";
+            public int Prioridad { get; set; }
+        }
+
+
+        private sealed class UbicacionDinamicaProduccionDto
+        {
+            public long ProduccionId { get; set; }
+            public string CodigoUbicacion { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaAsignacionActualDto
+        {
+            public long Id { get; set; }
+            public int LayoutId { get; set; }
+            public int UbicacionId { get; set; }
+            public int ColorAlmacenId { get; set; }
+            public string CodigoColor { get; set; } = "";
+            public string NombreColor { get; set; } = "";
+            public string HexColor { get; set; } = "";
+            public string CodigoUbicacion { get; set; } = "";
+            public string CodigoMapa3D { get; set; } = "";
+        }
+
+
+        private sealed class UbicacionDinamicaRecomendacionDto
+        {
+            public int LayoutId { get; set; }
+            public string CodigoLayout { get; set; } = "";
+            public string NombreLayout { get; set; } = "";
+            public string UnidadCodigo { get; set; } = "";
+            public string Articulo { get; set; } = "";
+            public string ProductoNombre { get; set; } = "";
+            public string Master { get; set; } = "";
+            public decimal? Rotacion { get; set; }
+
+            public int ColorAlmacenId { get; set; }
+            public string CodigoColor { get; set; } = "";
+            public string NombreColor { get; set; } = "";
+            public string HexColor { get; set; } = "";
+
+            public string NombreReglaRotacion { get; set; } = "";
+            public string ModoOrden { get; set; } = "";
+
+            public int UbicacionId { get; set; }
+            public string CodigoUbicacion { get; set; } = "";
+            public string CodigoMapa3D { get; set; } = "";
+
+            public bool YaUbicada { get; set; }
+
+            public List<UbicacionDinamicaUnidadDto> Producciones { get; set; } =
+                new();
+        }
+
+
         // ============================================================
         // DTO INTERNO DEL USUARIO
         // ============================================================
@@ -2204,6 +2337,1419 @@ WHERE a.ProductoCodigo IN @Codigos;
 
 
 
+
+        // ============================================================
+        // UBICACIÓN DINÁMICA
+        //
+        // Flujo:
+        // Escaneo -> SKU -> U_MASTER -> Color configurado por almacén
+        // -> regla de rotación -> ubicaciones activas del color
+        // -> elimina ocupadas -> recomienda destino.
+        // ============================================================
+
+        private async Task<List<UbicacionDinamicaUnidadDto>>
+            BuscarUnidadInventarioUbicacionAsync(
+                SurtidoAlmacenVM almacen,
+                string codigoEscaneado,
+                CancellationToken ct)
+        {
+            var codigo =
+                (codigoEscaneado ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(codigo))
+            {
+                return new List<UbicacionDinamicaUnidadDto>();
+            }
+
+            var conexion =
+                ObtenerCadenaMeatPorAlmacen(
+                    almacen
+                );
+
+            const string sql = @"
+SELECT
+    ProduccionId =
+        CONVERT(BIGINT, p.ProduccionId),
+
+    CodigoEtiqueta =
+        ISNULL(p.CodigoEtiqueta, ''),
+
+    Articulo =
+        ISNULL(p.Articulo, ''),
+
+    TarimaId =
+        CONVERT(BIGINT, tx.TarimaId),
+
+    TarimaCodigo =
+        ISNULL(tx.TarimaCodigo, '')
+
+FROM dbo.Produccion p WITH (NOLOCK)
+
+OUTER APPLY
+(
+    SELECT TOP 1
+        td.TarimaId,
+
+        TarimaCodigo =
+            ISNULL(
+                t.Nombre,
+                ''
+            )
+
+    FROM dbo.TarimaDetalle td WITH (NOLOCK)
+
+    INNER JOIN dbo.Tarima t WITH (NOLOCK)
+        ON t.TarimaId = td.TarimaId
+
+    WHERE td.ProduccionId = p.ProduccionId
+
+    ORDER BY
+        td.FechaHora DESC,
+        td.TarimaId DESC
+) tx
+
+WHERE p.Estatus = 1
+  AND CONVERT(VARCHAR(40), p.Almacen) = @Almacen
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.SalidaEmbarque se WITH (NOLOCK)
+      WHERE se.ProduccionId = p.ProduccionId
+  )
+  AND
+  (
+         UPPER(LTRIM(RTRIM(ISNULL(p.CodigoEtiqueta, '')))) = @Codigo
+      OR UPPER(LTRIM(RTRIM(ISNULL(tx.TarimaCodigo, '')))) = @Codigo
+  )
+
+ORDER BY
+    p.ProduccionId;
+";
+
+            await using var cn =
+                new SqlConnection(
+                    conexion.Cadena
+                );
+
+            await cn.OpenAsync(ct);
+
+            return (
+                await cn.QueryAsync<UbicacionDinamicaUnidadDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Almacen =
+                                almacen.Codigo,
+
+                            Codigo =
+                                codigo
+                        },
+                        cancellationToken: ct
+                    )
+                )
+            ).ToList();
+        }
+
+
+        private async Task<UbicacionDinamicaArticuloDto?>
+            ObtenerArticuloUbicacionDinamicaAsync(
+                string articulo,
+                CancellationToken ct)
+        {
+            var codigo =
+                (articulo ?? "")
+                    .Trim();
+
+            if (string.IsNullOrWhiteSpace(codigo))
+            {
+                return null;
+            }
+
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    ProductoCodigo =
+        ISNULL(a.ProductoCodigo, ''),
+
+    ProductoNombre =
+        ISNULL(a.ProductoNombre, ''),
+
+    Rotacion =
+        a.Rotacion,
+
+    Master =
+        ISNULL(a.U_MASTER, '')
+
+FROM dbo.ArticuloSap a WITH (NOLOCK)
+
+WHERE a.ProductoCodigo = @Articulo;
+";
+
+            return await cn
+                .QueryFirstOrDefaultAsync<UbicacionDinamicaArticuloDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Articulo =
+                                codigo
+                        },
+                        cancellationToken: ct
+                    )
+                );
+        }
+
+
+        private async Task<UbicacionDinamicaLayoutDto?>
+            ObtenerLayoutOperativoUbicacionAsync(
+                string codigoAlmacen,
+                CancellationToken ct)
+        {
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    LayoutId = Id,
+    CodigoAlmacen,
+    CodigoLayout = ISNULL(CodigoLayout,''),
+    NombreLayout = ISNULL(NombreLayout,'')
+FROM dbo.SurtidoLayoutAlmacen WITH (NOLOCK)
+WHERE CodigoAlmacen = @CodigoAlmacen
+  AND Activo = 1
+  AND EsOperativo = 1
+ORDER BY Orden, Id;
+";
+
+            return await cn.QueryFirstOrDefaultAsync<UbicacionDinamicaLayoutDto>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        CodigoAlmacen =
+                            NormalizarCodigoAlmacen(codigoAlmacen)
+                    },
+                    cancellationToken: ct
+                )
+            );
+        }
+
+
+        private async Task<UbicacionDinamicaColorDto?>
+            ObtenerColorMasterUbicacionAsync(
+                string codigoAlmacen,
+                int layoutId,
+                string master,
+                CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(master))
+            {
+                return null;
+            }
+
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    LayoutId = c.LayoutId,
+
+    ColorAlmacenId =
+        c.Id,
+
+    CodigoAlmacen =
+        c.CodigoAlmacen,
+
+    CodigoColor =
+        ISNULL(c.CodigoColor, ''),
+
+    NombreColor =
+        ISNULL(c.NombreColor, ''),
+
+    HexColor =
+        ISNULL(c.HexColor, '')
+
+FROM dbo.SurtidoMasterColorAlmacen mc WITH (NOLOCK)
+
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id = mc.ColorAlmacenId
+   AND c.Activo = 1
+
+WHERE mc.Activo = 1
+  AND mc.CodigoAlmacen = @CodigoAlmacen
+  AND mc.LayoutId = @LayoutId
+  AND c.CodigoAlmacen = @CodigoAlmacen
+  AND c.LayoutId = @LayoutId
+  AND mc.Master = @Master
+
+ORDER BY
+    mc.Id DESC;
+";
+
+            return await cn
+                .QueryFirstOrDefaultAsync<UbicacionDinamicaColorDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            CodigoAlmacen =
+                                NormalizarCodigoAlmacen(
+                                    codigoAlmacen
+                                ),
+
+                            LayoutId =
+                                layoutId,
+
+                            Master =
+                                master.Trim()
+                        },
+                        cancellationToken: ct
+                    )
+                );
+        }
+
+
+        private async Task<UbicacionDinamicaReglaRotacionDto?>
+            ObtenerReglaRotacionUbicacionAsync(
+                string codigoAlmacen,
+                int layoutId,
+                decimal? rotacion,
+                CancellationToken ct)
+        {
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    Id,
+    LayoutId,
+    CodigoAlmacen,
+    NombreRegla =
+        ISNULL(NombreRegla, ''),
+
+    Desde,
+    Hasta,
+
+    AplicaSinRotacion =
+        ISNULL(AplicaSinRotacion, 0),
+
+    ModoOrden =
+        ISNULL(ModoOrden, ''),
+
+    Prioridad =
+        ISNULL(Prioridad, 1)
+
+FROM dbo.SurtidoRotacionReglaAlmacen WITH (NOLOCK)
+
+WHERE Activo = 1
+  AND CodigoAlmacen = @CodigoAlmacen
+  AND LayoutId = @LayoutId
+  AND
+  (
+      (
+          @Rotacion IS NULL
+          AND AplicaSinRotacion = 1
+      )
+      OR
+      (
+          @Rotacion IS NOT NULL
+          AND (Desde IS NULL OR @Rotacion >= Desde)
+          AND (Hasta IS NULL OR @Rotacion <= Hasta)
+      )
+  )
+
+ORDER BY
+    Prioridad ASC,
+    Id ASC;
+";
+
+            return await cn
+                .QueryFirstOrDefaultAsync<UbicacionDinamicaReglaRotacionDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            CodigoAlmacen =
+                                NormalizarCodigoAlmacen(
+                                    codigoAlmacen
+                                ),
+
+                            LayoutId =
+                                layoutId,
+
+                            Rotacion =
+                                rotacion
+                        },
+                        cancellationToken: ct
+                    )
+                );
+        }
+
+
+        private async Task<List<UbicacionDinamicaCatalogoDto>>
+            ObtenerUbicacionesColorDinamicasAsync(
+                string codigoAlmacen,
+                int layoutId,
+                int colorAlmacenId,
+                CancellationToken ct)
+        {
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT
+    LayoutId = u.LayoutId,
+
+    UbicacionId =
+        u.Id,
+
+    CodigoAlmacen =
+        u.CodigoAlmacen,
+
+    ColorAlmacenId =
+        u.ColorAlmacenId,
+
+    CodigoColor =
+        ISNULL(c.CodigoColor, ''),
+
+    NombreColor =
+        ISNULL(c.NombreColor, ''),
+
+    HexColor =
+        ISNULL(c.HexColor, ''),
+
+    Rack =
+        ISNULL(u.Rack, ''),
+
+    Posicion =
+        ISNULL(u.Posicion, ''),
+
+    Altura =
+        ISNULL(u.Altura, ''),
+
+    CodigoUbicacion =
+        ISNULL(u.CodigoUbicacion, ''),
+
+    CodigoMapa3D =
+        ISNULL(u.CodigoMapa3D, ''),
+
+    OrdenFisico =
+        u.OrdenFisico
+
+FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id = u.ColorAlmacenId
+   AND c.Activo = 1
+
+WHERE u.Activo = 1
+  AND u.CodigoAlmacen = @CodigoAlmacen
+  AND u.LayoutId = @LayoutId
+  AND c.CodigoAlmacen = @CodigoAlmacen
+  AND c.LayoutId = @LayoutId
+  AND u.ColorAlmacenId = @ColorAlmacenId
+
+ORDER BY
+    u.OrdenFisico,
+    u.Id;
+";
+
+            return (
+                await cn.QueryAsync<UbicacionDinamicaCatalogoDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            CodigoAlmacen =
+                                NormalizarCodigoAlmacen(
+                                    codigoAlmacen
+                                ),
+
+                            LayoutId =
+                                layoutId,
+
+                            ColorAlmacenId =
+                                colorAlmacenId
+                        },
+                        cancellationToken: ct
+                    )
+                )
+            ).ToList();
+        }
+
+
+        private async Task<UbicacionDinamicaCatalogoDto?>
+            ObtenerUbicacionDinamicaPorCodigoAsync(
+                string codigoAlmacen,
+                int layoutId,
+                string codigoUbicacion,
+                CancellationToken ct)
+        {
+            var codigo =
+                (codigoUbicacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(codigo))
+            {
+                return null;
+            }
+
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    LayoutId = u.LayoutId,
+
+    UbicacionId =
+        u.Id,
+
+    CodigoAlmacen =
+        u.CodigoAlmacen,
+
+    ColorAlmacenId =
+        u.ColorAlmacenId,
+
+    CodigoColor =
+        ISNULL(c.CodigoColor, ''),
+
+    NombreColor =
+        ISNULL(c.NombreColor, ''),
+
+    HexColor =
+        ISNULL(c.HexColor, ''),
+
+    Rack =
+        ISNULL(u.Rack, ''),
+
+    Posicion =
+        ISNULL(u.Posicion, ''),
+
+    Altura =
+        ISNULL(u.Altura, ''),
+
+    CodigoUbicacion =
+        ISNULL(u.CodigoUbicacion, ''),
+
+    CodigoMapa3D =
+        ISNULL(u.CodigoMapa3D, ''),
+
+    OrdenFisico =
+        u.OrdenFisico
+
+FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id = u.ColorAlmacenId
+   AND c.Activo = 1
+
+WHERE u.Activo = 1
+  AND u.CodigoAlmacen = @CodigoAlmacen
+  AND u.LayoutId = @LayoutId
+  AND c.CodigoAlmacen = @CodigoAlmacen
+  AND c.LayoutId = @LayoutId
+  AND UPPER(LTRIM(RTRIM(u.CodigoUbicacion))) = @CodigoUbicacion
+
+ORDER BY
+    u.Id DESC;
+";
+
+            return await cn
+                .QueryFirstOrDefaultAsync<UbicacionDinamicaCatalogoDto>(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            CodigoAlmacen =
+                                NormalizarCodigoAlmacen(
+                                    codigoAlmacen
+                                ),
+
+                            LayoutId =
+                                layoutId,
+
+                            CodigoUbicacion =
+                                codigo
+                        },
+                        cancellationToken: ct
+                    )
+                );
+        }
+
+
+        private async Task<UbicacionDinamicaAsignacionActualDto?>
+            ObtenerAsignacionUnidadActivaAsync(
+                string codigoAlmacen,
+                int layoutId,
+                string unidadCodigo,
+                CancellationToken ct)
+        {
+            var unidad =
+                (unidadCodigo ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(unidad))
+            {
+                return null;
+            }
+
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT TOP 1
+    Id =
+        a.Id,
+
+    LayoutId = a.LayoutId,
+
+    UbicacionId =
+        u.Id,
+
+    ColorAlmacenId =
+        u.ColorAlmacenId,
+
+    CodigoColor =
+        ISNULL(c.CodigoColor, ''),
+
+    NombreColor =
+        ISNULL(c.NombreColor, ''),
+
+    HexColor =
+        ISNULL(c.HexColor, ''),
+
+    CodigoUbicacion =
+        ISNULL(u.CodigoUbicacion, ''),
+
+    CodigoMapa3D =
+        ISNULL(u.CodigoMapa3D, '')
+
+FROM dbo.SurtidoUbicacionInventario a WITH (NOLOCK)
+
+INNER JOIN dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+    ON u.Id = a.UbicacionId
+
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id = u.ColorAlmacenId
+
+WHERE a.Activo = 1
+  AND a.CodigoAlmacen = @CodigoAlmacen
+  AND a.LayoutId = @LayoutId
+  AND UPPER(LTRIM(RTRIM(a.UnidadCodigo))) = @UnidadCodigo
+
+ORDER BY
+    a.Id DESC;
+";
+
+            try
+            {
+                return await cn
+                    .QueryFirstOrDefaultAsync<UbicacionDinamicaAsignacionActualDto>(
+                        new CommandDefinition(
+                            sql,
+                            new
+                            {
+                                CodigoAlmacen =
+                                    NormalizarCodigoAlmacen(
+                                        codigoAlmacen
+                                    ),
+
+                                LayoutId =
+                                    layoutId,
+
+                                UnidadCodigo =
+                                    unidad
+                            },
+                            cancellationToken: ct
+                        )
+                    );
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                return null;
+            }
+        }
+
+
+        private static List<UbicacionDinamicaCatalogoDto>
+            OrdenarUbicacionesDinamicas(
+                IEnumerable<UbicacionDinamicaCatalogoDto> ubicaciones,
+                string modoOrden)
+        {
+            var lista =
+                ubicaciones
+                    .ToList();
+
+            var modo =
+                (modoOrden ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (modo == "INICIO")
+            {
+                return lista
+                    .OrderBy(x => x.OrdenFisico)
+                    .ThenBy(x => x.UbicacionId)
+                    .ToList();
+            }
+
+            if (modo == "FINAL")
+            {
+                return lista
+                    .OrderByDescending(x => x.OrdenFisico)
+                    .ThenByDescending(x => x.UbicacionId)
+                    .ToList();
+            }
+
+            if (modo == "CENTRO")
+            {
+                if (lista.Count == 0)
+                {
+                    return lista;
+                }
+
+                var minimo =
+                    lista.Min(x =>
+                        x.OrdenFisico
+                    );
+
+                var maximo =
+                    lista.Max(x =>
+                        x.OrdenFisico
+                    );
+
+                var centro =
+                    (minimo + maximo)
+                    / 2.0;
+
+                return lista
+                    .OrderBy(x =>
+                        Math.Abs(
+                            x.OrdenFisico
+                            - centro
+                        )
+                    )
+                    .ThenBy(x =>
+                        x.OrdenFisico
+                    )
+                    .ToList();
+            }
+
+            throw new InvalidOperationException(
+                $"La regla de rotación tiene ModoOrden '{modoOrden}'. " +
+                "Los valores permitidos son INICIO, CENTRO o FINAL."
+            );
+        }
+
+
+        private async Task<HashSet<int>>
+            ObtenerUbicacionesOcupadasDinamicasAsync(
+                SurtidoAlmacenVM almacen,
+                IReadOnlyCollection<UbicacionDinamicaCatalogoDto> ubicaciones,
+                string unidadCodigo,
+                IReadOnlyCollection<long> produccionesExcluir,
+                CancellationToken ct)
+        {
+            var resultado =
+                new HashSet<int>();
+
+            if (ubicaciones.Count == 0)
+            {
+                return resultado;
+            }
+
+            var idsUbicacion =
+                ubicaciones
+                    .Select(x =>
+                        x.UbicacionId
+                    )
+                    .Distinct()
+                    .ToList();
+
+            var unidad =
+                (unidadCodigo ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            var sigo =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sqlSigo = @"
+SELECT
+    UbicacionId
+FROM dbo.SurtidoUbicacionInventario WITH (NOLOCK)
+WHERE Activo = 1
+  AND CodigoAlmacen = @CodigoAlmacen
+  AND UbicacionId IN @IdsUbicacion
+  AND UPPER(LTRIM(RTRIM(UnidadCodigo))) <> @UnidadCodigo;
+";
+
+            try
+            {
+                var ocupadasSigo =
+                    await sigo.QueryAsync<int>(
+                        new CommandDefinition(
+                            sqlSigo,
+                            new
+                            {
+                                CodigoAlmacen =
+                                    almacen.Codigo,
+
+                                IdsUbicacion =
+                                    idsUbicacion,
+
+                                UnidadCodigo =
+                                    unidad
+                            },
+                            cancellationToken: ct
+                        )
+                    );
+
+                foreach (var id in ocupadasSigo)
+                {
+                    resultado.Add(id);
+                }
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                // Permite desplegar primero el controller y después
+                // ejecutar el script, aunque la recomendación final
+                // seguirá requiriendo las tablas de configuración.
+            }
+
+            // ------------------------------------------------------------
+            // Compatibilidad con inventario histórico:
+            // ProduccionReferencia TipoReferenciaId = 16.
+            //
+            // Se comparan tanto CodigoUbicacion como CodigoMapa3D.
+            // Ninguno de los dos formatos se construye en el controller.
+            // ------------------------------------------------------------
+            var aliasAUbicacion =
+                new Dictionary<string, int>(
+                    StringComparer.OrdinalIgnoreCase
+                );
+
+            foreach (var u in ubicaciones)
+            {
+                var codigo =
+                    (u.CodigoUbicacion ?? "")
+                        .Trim()
+                        .ToUpperInvariant();
+
+                var mapa =
+                    (u.CodigoMapa3D ?? "")
+                        .Trim()
+                        .ToUpperInvariant();
+
+                if (!string.IsNullOrWhiteSpace(codigo))
+                {
+                    aliasAUbicacion[codigo] =
+                        u.UbicacionId;
+                }
+
+                if (!string.IsNullOrWhiteSpace(mapa))
+                {
+                    aliasAUbicacion[mapa] =
+                        u.UbicacionId;
+                }
+            }
+
+            var aliases =
+                aliasAUbicacion.Keys
+                    .ToList();
+
+            if (aliases.Count == 0)
+            {
+                return resultado;
+            }
+
+            var conexion =
+                ObtenerCadenaMeatPorAlmacen(
+                    almacen
+                );
+
+            var excluir =
+                produccionesExcluir.Count > 0
+                    ? produccionesExcluir
+                        .Distinct()
+                        .ToList()
+                    : new List<long>
+                    {
+                        -1
+                    };
+
+            const string sqlMeat = @"
+SELECT DISTINCT
+    Ubicacion =
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        ux.Ubicacion,
+                        ''
+                    )
+                )
+            )
+        )
+
+FROM dbo.Produccion p WITH (NOLOCK)
+
+CROSS APPLY
+(
+    SELECT TOP 1
+        Ubicacion =
+            pr.Referencia
+
+    FROM dbo.ProduccionReferencia pr WITH (NOLOCK)
+
+    WHERE pr.ProduccionId = p.ProduccionId
+      AND pr.TipoReferenciaId = 16
+
+    ORDER BY
+        pr.FechaHora DESC
+) ux
+
+WHERE p.Estatus = 1
+  AND CONVERT(VARCHAR(40), p.Almacen) = @Almacen
+  AND p.ProduccionId NOT IN @ProduccionesExcluir
+  AND UPPER(LTRIM(RTRIM(ISNULL(ux.Ubicacion, '')))) IN @Aliases
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.SalidaEmbarque se WITH (NOLOCK)
+      WHERE se.ProduccionId = p.ProduccionId
+  );
+";
+
+            await using var meat =
+                new SqlConnection(
+                    conexion.Cadena
+                );
+
+            await meat.OpenAsync(ct);
+
+            var ocupadasMeat =
+                await meat.QueryAsync<string>(
+                    new CommandDefinition(
+                        sqlMeat,
+                        new
+                        {
+                            Almacen =
+                                almacen.Codigo,
+
+                            ProduccionesExcluir =
+                                excluir,
+
+                            Aliases =
+                                aliases
+                        },
+                        cancellationToken: ct
+                    )
+                );
+
+            foreach (var valor in ocupadasMeat)
+            {
+                var key =
+                    (valor ?? "")
+                        .Trim()
+                        .ToUpperInvariant();
+
+                if (aliasAUbicacion.TryGetValue(
+                        key,
+                        out var ubicacionId))
+                {
+                    resultado.Add(
+                        ubicacionId
+                    );
+                }
+            }
+
+            return resultado;
+        }
+
+
+        private async Task<UbicacionDinamicaRecomendacionDto>
+            ConstruirRecomendacionUbicacionDinamicaAsync(
+                SurtidoAlmacenVM almacen,
+                string codigoInventario,
+                CancellationToken ct)
+        {
+            var codigoEscaneado =
+                (codigoInventario ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            var layout =
+                await ObtenerLayoutOperativoUbicacionAsync(
+                    almacen.Codigo,
+                    ct
+                );
+
+            if (layout == null)
+            {
+                throw new InvalidOperationException(
+                    $"El almacén {almacen.Codigo} no tiene un layout operativo activo."
+                );
+            }
+
+            var producciones =
+                await BuscarUnidadInventarioUbicacionAsync(
+                    almacen,
+                    codigoEscaneado,
+                    ct
+                );
+
+            if (producciones.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No se encontró la tarima o caja disponible en este almacén."
+                );
+            }
+
+            var articulos =
+                producciones
+                    .Select(x =>
+                        (x.Articulo ?? "")
+                            .Trim()
+                    )
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x)
+                    )
+                    .Distinct(
+                        StringComparer.OrdinalIgnoreCase
+                    )
+                    .ToList();
+
+            if (articulos.Count != 1)
+            {
+                throw new InvalidOperationException(
+                    "La unidad escaneada contiene más de un SKU. " +
+                    "Debe revisarse antes de asignar una ubicación."
+                );
+            }
+
+            var articulo =
+                articulos[0];
+
+            var datosArticulo =
+                await ObtenerArticuloUbicacionDinamicaAsync(
+                    articulo,
+                    ct
+                );
+
+            if (datosArticulo == null)
+            {
+                throw new InvalidOperationException(
+                    $"El SKU {articulo} no existe en ArticuloSap."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    datosArticulo.Master))
+            {
+                throw new InvalidOperationException(
+                    $"El SKU {articulo} no tiene U_MASTER configurado."
+                );
+            }
+
+            var color =
+                await ObtenerColorMasterUbicacionAsync(
+                    almacen.Codigo,
+                    layout.LayoutId,
+                    datosArticulo.Master,
+                    ct
+                );
+
+            if (color == null)
+            {
+                throw new InvalidOperationException(
+                    $"El MASTER '{datosArticulo.Master}' no tiene un color activo " +
+                    $"configurado para el almacén {almacen.Codigo}."
+                );
+            }
+
+            var regla =
+                await ObtenerReglaRotacionUbicacionAsync(
+                    almacen.Codigo,
+                    layout.LayoutId,
+                    datosArticulo.Rotacion,
+                    ct
+                );
+
+            if (regla == null)
+            {
+                throw new InvalidOperationException(
+                    datosArticulo.Rotacion.HasValue
+                        ? $"No existe una regla de rotación para el valor {datosArticulo.Rotacion} " +
+                          $"en el almacén {almacen.Codigo}."
+                        : $"El SKU {articulo} no tiene Rotacion y tampoco existe una regla " +
+                          $"marcada para productos sin rotación en {almacen.Codigo}."
+                );
+            }
+
+            var ubicaciones =
+                await ObtenerUbicacionesColorDinamicasAsync(
+                    almacen.Codigo,
+                    layout.LayoutId,
+                    color.ColorAlmacenId,
+                    ct
+                );
+
+            if (ubicaciones.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No existen ubicaciones activas para el color " +
+                    $"{color.NombreColor} ({color.CodigoColor}) en {almacen.Codigo}."
+                );
+            }
+
+            var unidadCodigo =
+                codigoEscaneado;
+
+            var asignacionActual =
+                await ObtenerAsignacionUnidadActivaAsync(
+                    almacen.Codigo,
+                    layout.LayoutId,
+                    unidadCodigo,
+                    ct
+                );
+
+            if (asignacionActual != null &&
+                asignacionActual.ColorAlmacenId ==
+                    color.ColorAlmacenId)
+            {
+                return new UbicacionDinamicaRecomendacionDto
+                {
+                    LayoutId = layout.LayoutId,
+                    CodigoLayout = layout.CodigoLayout,
+                    NombreLayout = layout.NombreLayout,
+
+                    UnidadCodigo =
+                        unidadCodigo,
+
+                    Articulo =
+                        articulo,
+
+                    ProductoNombre =
+                        datosArticulo.ProductoNombre,
+
+                    Master =
+                        datosArticulo.Master.Trim(),
+
+                    Rotacion =
+                        datosArticulo.Rotacion,
+
+                    ColorAlmacenId =
+                        color.ColorAlmacenId,
+
+                    CodigoColor =
+                        color.CodigoColor,
+
+                    NombreColor =
+                        color.NombreColor,
+
+                    HexColor =
+                        color.HexColor,
+
+                    NombreReglaRotacion =
+                        regla.NombreRegla,
+
+                    ModoOrden =
+                        regla.ModoOrden,
+
+                    UbicacionId =
+                        asignacionActual.UbicacionId,
+
+                    CodigoUbicacion =
+                        asignacionActual.CodigoUbicacion,
+
+                    CodigoMapa3D =
+                        asignacionActual.CodigoMapa3D,
+
+                    YaUbicada =
+                        true,
+
+                    Producciones =
+                        producciones
+                };
+            }
+
+            var idsProduccion =
+                producciones
+                    .Select(x =>
+                        x.ProduccionId
+                    )
+                    .Distinct()
+                    .ToList();
+
+            var ocupadas =
+                await ObtenerUbicacionesOcupadasDinamicasAsync(
+                    almacen,
+                    ubicaciones,
+                    unidadCodigo,
+                    idsProduccion,
+                    ct
+                );
+
+            var ordenadas =
+                OrdenarUbicacionesDinamicas(
+                    ubicaciones,
+                    regla.ModoOrden
+                );
+
+            var recomendada =
+                ordenadas.FirstOrDefault(x =>
+                    !ocupadas.Contains(
+                        x.UbicacionId
+                    )
+                );
+
+            if (recomendada == null)
+            {
+                throw new InvalidOperationException(
+                    $"No hay ubicaciones libres para el color " +
+                    $"{color.NombreColor} ({color.CodigoColor}) en {almacen.Codigo}."
+                );
+            }
+
+            return new UbicacionDinamicaRecomendacionDto
+            {
+                LayoutId = layout.LayoutId,
+                CodigoLayout = layout.CodigoLayout,
+                NombreLayout = layout.NombreLayout,
+
+                UnidadCodigo =
+                    unidadCodigo,
+
+                Articulo =
+                    articulo,
+
+                ProductoNombre =
+                    datosArticulo.ProductoNombre,
+
+                Master =
+                    datosArticulo.Master.Trim(),
+
+                Rotacion =
+                    datosArticulo.Rotacion,
+
+                ColorAlmacenId =
+                    color.ColorAlmacenId,
+
+                CodigoColor =
+                    color.CodigoColor,
+
+                NombreColor =
+                    color.NombreColor,
+
+                HexColor =
+                    color.HexColor,
+
+                NombreReglaRotacion =
+                    regla.NombreRegla,
+
+                ModoOrden =
+                    regla.ModoOrden,
+
+                UbicacionId =
+                    recomendada.UbicacionId,
+
+                CodigoUbicacion =
+                    recomendada.CodigoUbicacion,
+
+                CodigoMapa3D =
+                    recomendada.CodigoMapa3D,
+
+                YaUbicada =
+                    false,
+
+                Producciones =
+                    producciones
+            };
+        }
+
+
+        private async Task CompletarUbicacionesDesdeSigoAsync(
+            List<SurtidoPepsCajaVM> cajas,
+            SurtidoAlmacenVM almacen,
+            CancellationToken ct)
+        {
+            if (cajas == null ||
+                cajas.Count == 0)
+            {
+                return;
+            }
+
+            var ids =
+                cajas
+                    .Select(x =>
+                        x.ProduccionId
+                    )
+                    .Distinct()
+                    .ToList();
+
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+SELECT
+    d.ProduccionId,
+
+    CodigoUbicacion =
+        ISNULL(
+            u.CodigoUbicacion,
+            ''
+        )
+
+FROM dbo.SurtidoUbicacionInventario a WITH (NOLOCK)
+
+INNER JOIN dbo.SurtidoLayoutAlmacen l WITH (NOLOCK)
+    ON l.Id = a.LayoutId
+   AND l.CodigoAlmacen = a.CodigoAlmacen
+   AND l.Activo = 1
+   AND l.EsOperativo = 1
+
+INNER JOIN dbo.SurtidoUbicacionInventarioDetalle d WITH (NOLOCK)
+    ON d.AsignacionId = a.Id
+   AND d.Activo = 1
+
+INNER JOIN dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+    ON u.Id = a.UbicacionId
+   AND u.Activo = 1
+
+WHERE a.Activo = 1
+  AND a.CodigoAlmacen = @CodigoAlmacen
+  AND d.ProduccionId IN @Ids;
+";
+
+            try
+            {
+                var rows =
+                    (
+                        await cn.QueryAsync<UbicacionDinamicaProduccionDto>(
+                            new CommandDefinition(
+                                sql,
+                                new
+                                {
+                                    CodigoAlmacen =
+                                        almacen.Codigo,
+
+                                    Ids =
+                                        ids
+                                },
+                                cancellationToken: ct
+                            )
+                        )
+                    )
+                    .GroupBy(x =>
+                        x.ProduccionId
+                    )
+                    .ToDictionary(
+                        g =>
+                            g.Key,
+                        g =>
+                            g.First()
+                             .CodigoUbicacion
+                    );
+
+                foreach (var caja in cajas)
+                {
+                    if (rows.TryGetValue(
+                            caja.ProduccionId,
+                            out var ubicacion)
+                        &&
+                        !string.IsNullOrWhiteSpace(
+                            ubicacion))
+                    {
+                        caja.UbicacionOrigen =
+                            ubicacion
+                                .Trim()
+                                .ToUpperInvariant();
+                    }
+                }
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                // Durante una migración sin tablas nuevas,
+                // se conserva ProduccionReferencia Tipo 16.
+            }
+        }
+
+
+        private async Task LiberarProduccionUbicacionAsync(
+            SurtidoAlmacenVM almacen,
+            long produccionId,
+            CancellationToken ct)
+        {
+            var cn =
+                await ObtenerConexionSigoAsync(ct);
+
+            const string sql = @"
+UPDATE d
+SET
+    Activo = 0,
+    FechaSalida = SYSDATETIME()
+
+FROM dbo.SurtidoUbicacionInventarioDetalle d
+
+INNER JOIN dbo.SurtidoUbicacionInventario a
+    ON a.Id = d.AsignacionId
+
+WHERE a.Activo = 1
+  AND a.CodigoAlmacen = @CodigoAlmacen
+  AND d.Activo = 1
+  AND d.ProduccionId = @ProduccionId;
+
+
+UPDATE a
+SET
+    Activo = 0,
+    FechaLiberacion = SYSDATETIME()
+
+FROM dbo.SurtidoUbicacionInventario a
+
+WHERE a.Activo = 1
+  AND a.CodigoAlmacen = @CodigoAlmacen
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.SurtidoUbicacionInventarioDetalle d
+      WHERE d.AsignacionId = a.Id
+        AND d.Activo = 1
+  );
+";
+
+            try
+            {
+                await cn.ExecuteAsync(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            CodigoAlmacen =
+                                almacen.Codigo,
+
+                            ProduccionId =
+                                produccionId
+                        },
+                        cancellationToken: ct
+                    )
+                );
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                // Compatibilidad temporal de despliegue.
+            }
+        }
+
+
         // ============================================================
         // CANDIDATO DE PRODUCCIÓN PARA PEPS.
         //
@@ -2444,6 +3990,15 @@ ORDER BY
                     )
                 )
                 .ToList();
+
+            // Las asignaciones activas de SIGO tienen prioridad sobre
+            // ProduccionReferencia TipoReferenciaId = 16.
+            // Si no existe asignación nueva, se conserva la ubicación legacy.
+            await CompletarUbicacionesDesdeSigoAsync(
+                cajas,
+                almacen,
+                ct
+            );
 
             // Conserva exactamente el TOP original de cada SKU antes
             // de quitar reservadas, igual que hacía la consulta individual.
@@ -3215,6 +4770,15 @@ VALUES
                     },
                     cancellationToken: ct
                 )
+            );
+
+            // La caja ya salió físicamente del rack.
+            // Si era la última producción activa de la unidad,
+            // también se libera la cabecera/ubicación.
+            await LiberarProduccionUbicacionAsync(
+                almacen,
+                caja.ProduccionId,
+                ct
             );
         }
 
@@ -4729,6 +6293,806 @@ ORDER BY
         }
 
 
+
+        // ============================================================
+        // UBICAR - ENDPOINTS DE UBICACIÓN DINÁMICA
+        //
+        // Ninguno recibe ColorId / Master / Rotacion desde el cliente
+        // como dato confiable. Todo se recalcula en servidor.
+        // ============================================================
+
+        [HttpGet("/Surtido/Ubicar/BuscarInventario")]
+        public async Task<IActionResult> BuscarInventarioUbicacion(
+            string almacen,
+            string codigo,
+            CancellationToken ct = default)
+        {
+            var acceso =
+                await ValidarModuloAsync(
+                    almacen,
+                    "UBICAR",
+                    ct
+                );
+
+            if (!acceso.Ok)
+            {
+                return acceso.Error!;
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    codigo))
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Escanea una tarima o caja."
+                    }
+                );
+            }
+
+            try
+            {
+                var r =
+                    await ConstruirRecomendacionUbicacionDinamicaAsync(
+                        acceso.Almacen!,
+                        codigo,
+                        ct
+                    );
+
+                return Json(
+                    new
+                    {
+                        ok = true,
+                        layout = new
+                        {
+                            id = r.LayoutId,
+                            codigo = r.CodigoLayout,
+                            nombre = r.NombreLayout
+                        },
+
+                        unidad =
+                            r.UnidadCodigo,
+
+                        articulo =
+                            r.Articulo,
+
+                        producto =
+                            r.ProductoNombre,
+
+                        master =
+                            r.Master,
+
+                        rotacion =
+                            r.Rotacion,
+
+                        reglaRotacion =
+                            r.NombreReglaRotacion,
+
+                        modoOrden =
+                            r.ModoOrden,
+
+                        color =
+                            new
+                            {
+                                id =
+                                    r.ColorAlmacenId,
+
+                                codigo =
+                                    r.CodigoColor,
+
+                                nombre =
+                                    r.NombreColor,
+
+                                hex =
+                                    r.HexColor
+                            },
+
+                        ubicacion =
+                            new
+                            {
+                                id =
+                                    r.UbicacionId,
+
+                                codigo =
+                                    r.CodigoUbicacion,
+
+                                mapa3d =
+                                    r.CodigoMapa3D
+                            },
+
+                        yaUbicada =
+                            r.YaUbicada,
+
+                        cajas =
+                            r.Producciones.Count
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            ex.Message
+                    }
+                );
+            }
+        }
+
+
+        [HttpGet("/Surtido/Ubicar/ValidarDestino")]
+        public async Task<IActionResult> ValidarDestinoUbicacion(
+            string almacen,
+            string codigoInventario,
+            string ubicacion,
+            CancellationToken ct = default)
+        {
+            var acceso =
+                await ValidarModuloAsync(
+                    almacen,
+                    "UBICAR",
+                    ct
+                );
+
+            if (!acceso.Ok)
+            {
+                return acceso.Error!;
+            }
+
+            var destinoCodigo =
+                (ubicacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(
+                    destinoCodigo))
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Escanea una ubicación."
+                    }
+                );
+            }
+
+            try
+            {
+                var recomendacion =
+                    await ConstruirRecomendacionUbicacionDinamicaAsync(
+                        acceso.Almacen!,
+                        codigoInventario,
+                        ct
+                    );
+
+                var destino =
+                    await ObtenerUbicacionDinamicaPorCodigoAsync(
+                        acceso.Almacen!.Codigo,
+                        recomendacion.LayoutId,
+                        destinoCodigo,
+                        ct
+                    );
+
+                if (destino == null)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"La ubicación '{destinoCodigo}' no está activa " +
+                                $"en el almacén {acceso.Almacen.Codigo}."
+                        }
+                    );
+                }
+
+                if (destino.ColorAlmacenId !=
+                    recomendacion.ColorAlmacenId)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"Ese MASTER pertenece al color " +
+                                $"{recomendacion.NombreColor} " +
+                                $"({recomendacion.CodigoColor})."
+                        }
+                    );
+                }
+
+                var ocupadas =
+                    await ObtenerUbicacionesOcupadasDinamicasAsync(
+                        acceso.Almacen,
+                        new List<UbicacionDinamicaCatalogoDto>
+                        {
+                            destino
+                        },
+                        recomendacion.UnidadCodigo,
+                        recomendacion.Producciones
+                            .Select(x =>
+                                x.ProduccionId
+                            )
+                            .ToList(),
+                        ct
+                    );
+
+                if (ocupadas.Contains(
+                        destino.UbicacionId))
+                {
+                    return Conflict(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"La ubicación {destino.CodigoUbicacion} " +
+                                "ya está ocupada."
+                        }
+                    );
+                }
+
+                return Json(
+                    new
+                    {
+                        ok = true,
+
+                        ubicacion =
+                            new
+                            {
+                                id =
+                                    destino.UbicacionId,
+
+                                codigo =
+                                    destino.CodigoUbicacion,
+
+                                mapa3d =
+                                    destino.CodigoMapa3D
+                            },
+
+                        color =
+                            new
+                            {
+                                id =
+                                    destino.ColorAlmacenId,
+
+                                codigo =
+                                    destino.CodigoColor,
+
+                                nombre =
+                                    destino.NombreColor,
+
+                                hex =
+                                    destino.HexColor
+                            },
+
+                        esSugerida =
+                            destino.UbicacionId ==
+                            recomendacion.UbicacionId
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            ex.Message
+                    }
+                );
+            }
+        }
+
+
+        public sealed class ConfirmarUbicacionDinamicaReq
+        {
+            public string Almacen { get; set; } = "";
+            public string CodigoInventario { get; set; } = "";
+            public string CodigoUbicacion { get; set; } = "";
+        }
+
+
+        [HttpPost("/Surtido/Ubicar/Confirmar")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmarUbicacionDinamica(
+            [FromForm] ConfirmarUbicacionDinamicaReq req,
+            CancellationToken ct = default)
+        {
+            var acceso =
+                await ValidarModuloAsync(
+                    req.Almacen,
+                    "UBICAR",
+                    ct
+                );
+
+            if (!acceso.Ok)
+            {
+                return acceso.Error!;
+            }
+
+            var usuario =
+                await ObtenerUsuarioActualAsync(ct);
+
+            if (usuario == null)
+            {
+                return Forbid();
+            }
+
+            var destinoCodigo =
+                (req.CodigoUbicacion ?? "")
+                    .Trim()
+                    .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(
+                    req.CodigoInventario)
+                ||
+                string.IsNullOrWhiteSpace(
+                    destinoCodigo))
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            "Inventario y ubicación son obligatorios."
+                    }
+                );
+            }
+
+            try
+            {
+                // Recalcular SIEMPRE en servidor.
+                var recomendacion =
+                    await ConstruirRecomendacionUbicacionDinamicaAsync(
+                        acceso.Almacen!,
+                        req.CodigoInventario,
+                        ct
+                    );
+
+                var destino =
+                    await ObtenerUbicacionDinamicaPorCodigoAsync(
+                        acceso.Almacen.Codigo,
+                        recomendacion.LayoutId,
+                        destinoCodigo,
+                        ct
+                    );
+
+                if (destino == null)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"La ubicación '{destinoCodigo}' no está activa."
+                        }
+                    );
+                }
+
+                if (destino.ColorAlmacenId !=
+                    recomendacion.ColorAlmacenId)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"El MASTER '{recomendacion.Master}' pertenece " +
+                                $"al color {recomendacion.NombreColor} " +
+                                $"({recomendacion.CodigoColor})."
+                        }
+                    );
+                }
+
+                var ocupadas =
+                    await ObtenerUbicacionesOcupadasDinamicasAsync(
+                        acceso.Almacen,
+                        new List<UbicacionDinamicaCatalogoDto>
+                        {
+                            destino
+                        },
+                        recomendacion.UnidadCodigo,
+                        recomendacion.Producciones
+                            .Select(x =>
+                                x.ProduccionId
+                            )
+                            .ToList(),
+                        ct
+                    );
+
+                if (ocupadas.Contains(
+                        destino.UbicacionId))
+                {
+                    return Conflict(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                $"La ubicación {destino.CodigoUbicacion} " +
+                                "ya está ocupada."
+                        }
+                    );
+                }
+
+                var cn =
+                    await ObtenerConexionSigoAsync(ct);
+
+                using var tx =
+                    cn.BeginTransaction(
+                        IsolationLevel.Serializable
+                    );
+
+                try
+                {
+                    // 1) La ubicación sigue activa y sigue perteneciendo
+                    //    al color calculado para el MASTER.
+                    const string sqlValidarCatalogo = @"
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoUbicacionCatalogo u WITH (UPDLOCK, HOLDLOCK)
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (UPDLOCK, HOLDLOCK)
+    ON c.Id = u.ColorAlmacenId
+WHERE u.Id = @UbicacionId
+  AND u.Activo = 1
+  AND c.Activo = 1
+  AND u.CodigoAlmacen = @CodigoAlmacen
+  AND u.LayoutId = @LayoutId
+  AND c.CodigoAlmacen = @CodigoAlmacen
+  AND c.LayoutId = @LayoutId
+  AND u.ColorAlmacenId = @ColorAlmacenId;
+";
+
+                    var catalogoValido =
+                        await cn.ExecuteScalarAsync<long>(
+                            new CommandDefinition(
+                                sqlValidarCatalogo,
+                                new
+                                {
+                                    UbicacionId =
+                                        destino.UbicacionId,
+
+                                    CodigoAlmacen =
+                                        acceso.Almacen.Codigo,
+
+                                    LayoutId =
+                                        recomendacion.LayoutId,
+
+                                    ColorAlmacenId =
+                                        recomendacion.ColorAlmacenId
+                                },
+                                transaction: tx,
+                                cancellationToken: ct
+                            )
+                        );
+
+                    if (catalogoValido == 0)
+                    {
+                        tx.Rollback();
+
+                        return Conflict(
+                            new
+                            {
+                                ok = false,
+                                message =
+                                    "La configuración de la ubicación cambió. " +
+                                    "Vuelve a escanear."
+                            }
+                        );
+                    }
+
+                    // 2) Liberar asignación anterior de la MISMA unidad.
+                    const string sqlLiberarUnidad = @"
+DECLARE @Asignaciones TABLE (Id BIGINT);
+
+INSERT INTO @Asignaciones(Id)
+SELECT Id
+FROM dbo.SurtidoUbicacionInventario WITH (UPDLOCK, HOLDLOCK)
+WHERE CodigoAlmacen = @CodigoAlmacen
+  AND UPPER(LTRIM(RTRIM(UnidadCodigo))) = @UnidadCodigo
+  AND Activo = 1;
+
+
+UPDATE d
+SET
+    Activo = 0,
+    FechaSalida = SYSDATETIME()
+
+FROM dbo.SurtidoUbicacionInventarioDetalle d
+
+INNER JOIN @Asignaciones x
+    ON x.Id = d.AsignacionId
+
+WHERE d.Activo = 1;
+
+
+UPDATE a
+SET
+    Activo = 0,
+    FechaLiberacion = SYSDATETIME()
+
+FROM dbo.SurtidoUbicacionInventario a
+
+INNER JOIN @Asignaciones x
+    ON x.Id = a.Id
+
+WHERE a.Activo = 1;
+";
+
+                    await cn.ExecuteAsync(
+                        new CommandDefinition(
+                            sqlLiberarUnidad,
+                            new
+                            {
+                                CodigoAlmacen =
+                                    acceso.Almacen.Codigo,
+
+                                UnidadCodigo =
+                                    recomendacion.UnidadCodigo
+                                        .Trim()
+                                        .ToUpperInvariant()
+                            },
+                            transaction: tx,
+                            cancellationToken: ct
+                        )
+                    );
+
+                    // 3) Bloquear y verificar que nadie haya ocupado
+                    //    el destino entre VALIDAR y CONFIRMAR.
+                    const string sqlOcupada = @"
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoUbicacionInventario WITH (UPDLOCK, HOLDLOCK)
+WHERE CodigoAlmacen = @CodigoAlmacen
+  AND UbicacionId = @UbicacionId
+  AND Activo = 1;
+";
+
+                    var ocupada =
+                        await cn.ExecuteScalarAsync<long>(
+                            new CommandDefinition(
+                                sqlOcupada,
+                                new
+                                {
+                                    CodigoAlmacen =
+                                        acceso.Almacen.Codigo,
+
+                                    UbicacionId =
+                                        destino.UbicacionId
+                                },
+                                transaction: tx,
+                                cancellationToken: ct
+                            )
+                        );
+
+                    if (ocupada > 0)
+                    {
+                        tx.Rollback();
+
+                        return Conflict(
+                            new
+                            {
+                                ok = false,
+                                message =
+                                    $"La ubicación {destino.CodigoUbicacion} " +
+                                    "acaba de ser ocupada por otro movimiento."
+                            }
+                        );
+                    }
+
+                    // 4) Guardar cabecera.
+                    const string sqlCabecera = @"
+INSERT INTO dbo.SurtidoUbicacionInventario
+(
+    Planta,
+    CodigoAlmacen,
+    LayoutId,
+    UnidadCodigo,
+    Articulo,
+    Master,
+    ColorAlmacenId,
+    UbicacionId,
+    Activo,
+    UsuarioAsigno,
+    FechaAsignacion
+)
+OUTPUT INSERTED.Id
+VALUES
+(
+    @Planta,
+    @CodigoAlmacen,
+    @LayoutId,
+    @UnidadCodigo,
+    @Articulo,
+    @Master,
+    @ColorAlmacenId,
+    @UbicacionId,
+    1,
+    @UsuarioAsigno,
+    SYSDATETIME()
+);
+";
+
+                    var asignacionId =
+                        await cn.ExecuteScalarAsync<long>(
+                            new CommandDefinition(
+                                sqlCabecera,
+                                new
+                                {
+                                    Planta =
+                                        acceso.Almacen.Planta,
+
+                                    CodigoAlmacen =
+                                        acceso.Almacen.Codigo,
+
+                                    LayoutId =
+                                        recomendacion.LayoutId,
+
+                                    UnidadCodigo =
+                                        recomendacion.UnidadCodigo,
+
+                                    Articulo =
+                                        recomendacion.Articulo,
+
+                                    Master =
+                                        recomendacion.Master,
+
+                                    ColorAlmacenId =
+                                        recomendacion.ColorAlmacenId,
+
+                                    UbicacionId =
+                                        destino.UbicacionId,
+
+                                    UsuarioAsigno =
+                                        usuario.Usuario
+                                },
+                                transaction: tx,
+                                cancellationToken: ct
+                            )
+                        );
+
+                    // 5) Guardar todas las producciones que físicamente
+                    //    forman la tarima/caja escaneada.
+                    const string sqlDetalle = @"
+INSERT INTO dbo.SurtidoUbicacionInventarioDetalle
+(
+    AsignacionId,
+    ProduccionId,
+    CodigoEtiqueta,
+    Activo
+)
+VALUES
+(
+    @AsignacionId,
+    @ProduccionId,
+    @CodigoEtiqueta,
+    1
+);
+";
+
+                    foreach (var p in
+                        recomendacion.Producciones)
+                    {
+                        await cn.ExecuteAsync(
+                            new CommandDefinition(
+                                sqlDetalle,
+                                new
+                                {
+                                    AsignacionId =
+                                        asignacionId,
+
+                                    ProduccionId =
+                                        p.ProduccionId,
+
+                                    CodigoEtiqueta =
+                                        p.CodigoEtiqueta
+                                },
+                                transaction: tx,
+                                cancellationToken: ct
+                            )
+                        );
+                    }
+
+                    tx.Commit();
+
+                    return Json(
+                        new
+                        {
+                            ok = true,
+
+                            message =
+                                "Ubicación confirmada.",
+
+                            ubicacion =
+                                new
+                                {
+                                    id =
+                                        destino.UbicacionId,
+
+                                    codigo =
+                                        destino.CodigoUbicacion,
+
+                                    mapa3d =
+                                        destino.CodigoMapa3D
+                                },
+
+                            color =
+                                new
+                                {
+                                    id =
+                                        recomendacion.ColorAlmacenId,
+
+                                    codigo =
+                                        recomendacion.CodigoColor,
+
+                                    nombre =
+                                        recomendacion.NombreColor,
+
+                                    hex =
+                                        recomendacion.HexColor
+                                },
+
+                            master =
+                                recomendacion.Master
+                        }
+                    );
+                }
+                catch
+                {
+                    try
+                    {
+                        tx.Rollback();
+                    }
+                    catch
+                    {
+                    }
+
+                    throw;
+                }
+            }
+            catch (SqlException ex)
+            {
+                if (ex.Number == 2601 ||
+                    ex.Number == 2627)
+                {
+                    return Conflict(
+                        new
+                        {
+                            ok = false,
+                            message =
+                                "La unidad o la ubicación fue tomada por otro movimiento. " +
+                                "Vuelve a escanear."
+                        }
+                    );
+                }
+
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            $"No se pudo confirmar la ubicación. " +
+                            $"SQL {ex.Number}: {ex.Message}"
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(
+                    new
+                    {
+                        ok = false,
+                        message =
+                            ex.Message
+                    }
+                );
+            }
+        }
+
+
         // ============================================================
         // COORDINACIÓN SEGÚN PERMISOS DEL USUARIO
         //
@@ -5959,6 +8323,690 @@ END;
                         }
                 }
             );
+
+
+
+
         }
+
+
+
+        // ============================================================
+        // GESTIÓN DE LAYOUTS POR ALMACÉN
+        // ============================================================
+
+        private async Task<(
+            bool Ok,
+            IActionResult? Error,
+            UsuarioSurtidoDto? Usuario,
+            List<SurtidoAlmacenVM> Almacenes,
+            SurtidoAlmacenVM? Almacen)>
+            ValidarGestionLayoutAsync(
+                string? codigoAlmacen,
+                CancellationToken ct)
+        {
+            var usuario = await ObtenerUsuarioActualAsync(ct);
+            if (usuario == null)
+                return (false, Forbid(), null, new List<SurtidoAlmacenVM>(), null);
+
+            if (!usuario.LogisticaCoordinador)
+                return (
+                    false,
+                    StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        ok = false,
+                        message = "Se requiere permiso de Coordinador para administrar layouts."
+                    }),
+                    usuario,
+                    new List<SurtidoAlmacenVM>(),
+                    null
+                );
+
+            var plantas = await ObtenerPlantasUsuarioAsync(usuario.Id, ct);
+            var almacenes = ConstruirAlmacenesUsuario(usuario, plantas);
+            await AplicarConfiguracionUbicacionAsync(almacenes, ct);
+
+            if (almacenes.Count == 0)
+                return (false, BadRequest(new { ok = false, message = "El usuario no tiene almacenes disponibles." }), usuario, almacenes, null);
+
+            var almacen = string.IsNullOrWhiteSpace(codigoAlmacen)
+                ? almacenes.OrderBy(x => x.Planta).ThenBy(x => x.Nombre).FirstOrDefault()
+                : BuscarAlmacenPermitido(almacenes, codigoAlmacen);
+
+            if (almacen == null)
+                return (false, StatusCode(StatusCodes.Status403Forbidden, new { ok = false, message = "El almacén no está permitido para este usuario." }), usuario, almacenes, null);
+
+            return (true, null, usuario, almacenes, almacen);
+        }
+
+
+        private IActionResult RedirectGestionLayout(
+            string almacen,
+            int layoutId,
+            string anchor)
+        {
+            var url = Url.Action(
+                nameof(GestionLayouts),
+                "Surtido",
+                new
+                {
+                    almacen,
+                    layoutId
+                }
+            ) ?? "/Surtido/GestionLayouts";
+
+            return Redirect(url + "#" + anchor);
+        }
+
+
+        private async Task<bool> LayoutPerteneceAlmacenAsync(
+            IDbConnection cn,
+            string codigoAlmacen,
+            int layoutId,
+            CancellationToken ct)
+        {
+            const string sql = @"
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoLayoutAlmacen WITH (NOLOCK)
+WHERE Id = @LayoutId
+  AND CodigoAlmacen = @CodigoAlmacen;
+";
+
+            return await cn.ExecuteScalarAsync<long>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        LayoutId = layoutId,
+                        CodigoAlmacen = NormalizarCodigoAlmacen(codigoAlmacen)
+                    },
+                    cancellationToken: ct
+                )
+            ) > 0;
+        }
+
+
+        [HttpGet("/Surtido/GestionLayouts")]
+        public async Task<IActionResult> GestionLayouts(
+            string? almacen = null,
+            int? layoutId = null,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(almacen, ct);
+            if (!acceso.Ok) return acceso.Error!;
+
+            var actual = acceso.Almacen!;
+            var cn = await ObtenerConexionSigoAsync(ct);
+
+            const string sqlLayouts = @"
+SELECT
+    l.Id,
+    l.CodigoAlmacen,
+    CodigoLayout = ISNULL(l.CodigoLayout,''),
+    NombreLayout = ISNULL(l.NombreLayout,''),
+    Descripcion = ISNULL(l.Descripcion,''),
+    EsOperativo = ISNULL(l.EsOperativo,0),
+    Orden = ISNULL(l.Orden,1),
+    Activo = ISNULL(l.Activo,0),
+    Racks = CONVERT(INT, ISNULL(r.Total,0)),
+    Ubicaciones = CONVERT(INT, ISNULL(u.Total,0)),
+    Ocupadas = CONVERT(INT, ISNULL(o.Total,0))
+FROM dbo.SurtidoLayoutAlmacen l WITH (NOLOCK)
+OUTER APPLY
+(
+    SELECT Total = COUNT_BIG(1)
+    FROM dbo.SurtidoRackAlmacen x WITH (NOLOCK)
+    WHERE x.CodigoAlmacen=l.CodigoAlmacen AND x.LayoutId=l.Id AND x.Activo=1
+) r
+OUTER APPLY
+(
+    SELECT Total = COUNT_BIG(1)
+    FROM dbo.SurtidoUbicacionCatalogo x WITH (NOLOCK)
+    WHERE x.CodigoAlmacen=l.CodigoAlmacen AND x.LayoutId=l.Id AND x.Activo=1
+) u
+OUTER APPLY
+(
+    SELECT Total = COUNT_BIG(1)
+    FROM dbo.SurtidoUbicacionInventario x WITH (NOLOCK)
+    WHERE x.CodigoAlmacen=l.CodigoAlmacen AND x.LayoutId=l.Id AND x.Activo=1
+) o
+WHERE l.CodigoAlmacen=@CodigoAlmacen
+ORDER BY l.Activo DESC, l.EsOperativo DESC, l.Orden, l.Id;
+";
+
+            var layouts = (
+                await cn.QueryAsync<SurtidoLayoutAlmacenAdminVM>(
+                    new CommandDefinition(
+                        sqlLayouts,
+                        new { CodigoAlmacen = actual.Codigo },
+                        cancellationToken: ct
+                    )
+                )
+            ).ToList();
+
+            SurtidoLayoutAlmacenAdminVM? seleccionado = null;
+            if (layoutId.HasValue)
+                seleccionado = layouts.FirstOrDefault(x => x.Id == layoutId.Value);
+
+            seleccionado ??= layouts.FirstOrDefault(x => x.Activo && x.EsOperativo);
+            seleccionado ??= layouts.FirstOrDefault(x => x.Activo);
+            seleccionado ??= layouts.FirstOrDefault();
+
+            var vm = new SurtidoLayoutAdminVM
+            {
+                Almacenes = acceso.Almacenes,
+                Almacen = actual,
+                Layouts = layouts,
+                LayoutActual = seleccionado
+            };
+
+            if (seleccionado == null)
+                return View("~/Views/Surtido/GestionLayouts.cshtml", vm);
+
+            const string sql = @"
+-- COLORES
+SELECT Id, CodigoAlmacen, LayoutId,
+       CodigoColor=ISNULL(CodigoColor,''), NombreColor=ISNULL(NombreColor,''), HexColor=ISNULL(HexColor,''),
+       Orden=ISNULL(Orden,1), Activo=ISNULL(Activo,0)
+FROM dbo.SurtidoColorAlmacen WITH (NOLOCK)
+WHERE CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId
+ORDER BY Activo DESC, Orden, NombreColor, Id;
+
+-- MASTER / COLOR
+SELECT mc.Id, mc.CodigoAlmacen, mc.LayoutId, Master=ISNULL(mc.Master,''), mc.ColorAlmacenId,
+       CodigoColor=ISNULL(c.CodigoColor,''), NombreColor=ISNULL(c.NombreColor,''), HexColor=ISNULL(c.HexColor,''),
+       Activo=ISNULL(mc.Activo,0)
+FROM dbo.SurtidoMasterColorAlmacen mc WITH (NOLOCK)
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id=mc.ColorAlmacenId AND c.LayoutId=mc.LayoutId
+WHERE mc.CodigoAlmacen=@CodigoAlmacen AND mc.LayoutId=@LayoutId
+ORDER BY mc.Activo DESC, mc.Master, mc.Id;
+
+-- ROTACIÓN
+SELECT Id, CodigoAlmacen, LayoutId, NombreRegla=ISNULL(NombreRegla,''), Desde, Hasta,
+       AplicaSinRotacion=ISNULL(AplicaSinRotacion,0), ModoOrden=ISNULL(ModoOrden,''),
+       Prioridad=ISNULL(Prioridad,1), Activo=ISNULL(Activo,0)
+FROM dbo.SurtidoRotacionReglaAlmacen WITH (NOLOCK)
+WHERE CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId
+ORDER BY Activo DESC, Prioridad, Id;
+
+-- RACKS
+SELECT r.Id, r.CodigoAlmacen, r.LayoutId,
+       CodigoRack=ISNULL(r.CodigoRack,''), NombreRack=ISNULL(r.NombreRack,''),
+       PosX=ISNULL(r.PosX,0), PosZ=ISNULL(r.PosZ,0), Ancho=ISNULL(r.Ancho,10), Alto=ISNULL(r.Alto,6),
+       Profundidad=ISNULL(r.Profundidad,2), RotacionY=ISNULL(r.RotacionY,0),
+       Niveles=ISNULL(r.Niveles,4), PosicionesPorNivel=ISNULL(r.PosicionesPorNivel,10),
+       HexColor=ISNULL(r.HexColor,''), Orden=ISNULL(r.Orden,1), Activo=ISNULL(r.Activo,0),
+       TotalUbicaciones=CONVERT(INT,ISNULL(uc.Total,0)),
+       UbicacionesOcupadas=CONVERT(INT,ISNULL(oc.Total,0))
+FROM dbo.SurtidoRackAlmacen r WITH (NOLOCK)
+OUTER APPLY
+(
+    SELECT Total=COUNT_BIG(1)
+    FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+    WHERE u.CodigoAlmacen=r.CodigoAlmacen AND u.LayoutId=r.LayoutId AND u.RackId=r.Id AND u.Activo=1
+) uc
+OUTER APPLY
+(
+    SELECT Total=COUNT_BIG(1)
+    FROM dbo.SurtidoUbicacionInventario a WITH (NOLOCK)
+    WHERE a.CodigoAlmacen=r.CodigoAlmacen AND a.LayoutId=r.LayoutId AND a.Activo=1
+      AND EXISTS (SELECT 1 FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK) WHERE u.Id=a.UbicacionId AND u.RackId=r.Id)
+) oc
+WHERE r.CodigoAlmacen=@CodigoAlmacen AND r.LayoutId=@LayoutId
+ORDER BY r.Activo DESC, r.Orden, r.CodigoRack, r.Id;
+
+-- UBICACIONES
+SELECT u.Id, u.CodigoAlmacen, u.LayoutId, u.ColorAlmacenId,
+       CodigoColor=ISNULL(c.CodigoColor,''), NombreColor=ISNULL(c.NombreColor,''), HexColor=ISNULL(c.HexColor,''),
+       RackId=u.RackId, CodigoRack=ISNULL(r.CodigoRack,''), Rack=ISNULL(u.Rack,''),
+       Posicion=ISNULL(u.Posicion,''), Altura=ISNULL(u.Altura,''),
+       CodigoUbicacion=ISNULL(u.CodigoUbicacion,''), CodigoMapa3D=ISNULL(u.CodigoMapa3D,''),
+       OrdenFisico=ISNULL(u.OrdenFisico,1), Activo=ISNULL(u.Activo,0),
+       Ocupada=CONVERT(BIT,CASE WHEN a.Id IS NULL THEN 0 ELSE 1 END),
+       UnidadCodigo=ISNULL(a.UnidadCodigo,'')
+FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id=u.ColorAlmacenId AND c.LayoutId=u.LayoutId
+LEFT JOIN dbo.SurtidoRackAlmacen r WITH (NOLOCK)
+    ON r.Id=u.RackId AND r.LayoutId=u.LayoutId
+OUTER APPLY
+(
+    SELECT TOP 1 ai.Id, ai.UnidadCodigo
+    FROM dbo.SurtidoUbicacionInventario ai WITH (NOLOCK)
+    WHERE ai.CodigoAlmacen=u.CodigoAlmacen AND ai.LayoutId=u.LayoutId AND ai.UbicacionId=u.Id AND ai.Activo=1
+    ORDER BY ai.Id DESC
+) a
+WHERE u.CodigoAlmacen=@CodigoAlmacen AND u.LayoutId=@LayoutId
+ORDER BY u.Activo DESC, c.Orden, u.OrdenFisico, u.CodigoUbicacion, u.Id;
+
+-- RESUMEN COLORES
+SELECT c.Id AS ColorAlmacenId, CodigoColor=ISNULL(c.CodigoColor,''), NombreColor=ISNULL(c.NombreColor,''),
+       HexColor=ISNULL(c.HexColor,''), Total=CONVERT(INT,COUNT(u.Id)),
+       Ocupadas=CONVERT(INT,SUM(CASE WHEN a.Id IS NULL THEN 0 ELSE 1 END))
+FROM dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+LEFT JOIN dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+    ON u.ColorAlmacenId=c.Id AND u.LayoutId=c.LayoutId AND u.CodigoAlmacen=c.CodigoAlmacen AND u.Activo=1
+OUTER APPLY
+(
+    SELECT TOP 1 ai.Id
+    FROM dbo.SurtidoUbicacionInventario ai WITH (NOLOCK)
+    WHERE ai.CodigoAlmacen=c.CodigoAlmacen AND ai.LayoutId=c.LayoutId AND ai.UbicacionId=u.Id AND ai.Activo=1
+) a
+WHERE c.CodigoAlmacen=@CodigoAlmacen AND c.LayoutId=@LayoutId AND c.Activo=1
+GROUP BY c.Id,c.CodigoColor,c.NombreColor,c.HexColor,c.Orden
+ORDER BY c.Orden,c.NombreColor;
+";
+
+            using var multi = await cn.QueryMultipleAsync(
+                new CommandDefinition(
+                    sql,
+                    new { CodigoAlmacen = actual.Codigo, LayoutId = seleccionado.Id },
+                    cancellationToken: ct
+                )
+            );
+
+            vm.Colores = (await multi.ReadAsync<SurtidoColorAdminVM>()).ToList();
+            vm.Masters = (await multi.ReadAsync<SurtidoMasterColorAdminVM>()).ToList();
+            vm.ReglasRotacion = (await multi.ReadAsync<SurtidoRotacionReglaAdminVM>()).ToList();
+            vm.Racks = (await multi.ReadAsync<SurtidoRackAdminVM>()).ToList();
+            vm.Ubicaciones = (await multi.ReadAsync<SurtidoUbicacionAdminVM>()).ToList();
+            vm.ResumenColores = (await multi.ReadAsync<SurtidoColorResumenVM>()).ToList();
+
+            return View("~/Views/Surtido/GestionLayouts.cshtml", vm);
+        }
+
+
+        [HttpGet("/Surtido/GestionLayouts/Datos3D")]
+        public async Task<IActionResult> DatosLayout3D(
+            string almacen,
+            int layoutId,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(almacen, ct);
+            if (!acceso.Ok) return acceso.Error!;
+
+            var cn = await ObtenerConexionSigoAsync(ct);
+            if (!await LayoutPerteneceAlmacenAsync(cn, acceso.Almacen!.Codigo, layoutId, ct))
+                return BadRequest(new { ok = false, message = "El layout no pertenece al almacén." });
+
+            return await ConstruirJsonLayout3DAsync(cn, acceso.Almacen, layoutId, ct);
+        }
+
+
+        private async Task<IActionResult> ConstruirJsonLayout3DAsync(
+            IDbConnection cn,
+            SurtidoAlmacenVM almacen,
+            int layoutId,
+            CancellationToken ct)
+        {
+            const string sql = @"
+SELECT TOP 1 Id, CodigoAlmacen, CodigoLayout=ISNULL(CodigoLayout,''), NombreLayout=ISNULL(NombreLayout,''),
+       Descripcion=ISNULL(Descripcion,''), EsOperativo=ISNULL(EsOperativo,0), Activo=ISNULL(Activo,0)
+FROM dbo.SurtidoLayoutAlmacen WITH (NOLOCK)
+WHERE Id=@LayoutId AND CodigoAlmacen=@CodigoAlmacen;
+
+SELECT Id, LayoutId, CodigoRack=ISNULL(CodigoRack,''), NombreRack=ISNULL(NombreRack,''),
+       PosX=ISNULL(PosX,0), PosZ=ISNULL(PosZ,0), Ancho=ISNULL(Ancho,10), Alto=ISNULL(Alto,6),
+       Profundidad=ISNULL(Profundidad,2), RotacionY=ISNULL(RotacionY,0), Niveles=ISNULL(Niveles,4),
+       PosicionesPorNivel=ISNULL(PosicionesPorNivel,10), HexColor=ISNULL(HexColor,''), Orden=ISNULL(Orden,1)
+FROM dbo.SurtidoRackAlmacen WITH (NOLOCK)
+WHERE CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId AND Activo=1
+ORDER BY Orden,CodigoRack,Id;
+
+SELECT u.Id,u.LayoutId,u.RackId,CodigoRack=ISNULL(r.CodigoRack,''),
+       CodigoUbicacion=ISNULL(u.CodigoUbicacion,''), CodigoMapa3D=ISNULL(u.CodigoMapa3D,''),
+       CodigoColor=ISNULL(c.CodigoColor,''), NombreColor=ISNULL(c.NombreColor,''), HexColor=ISNULL(c.HexColor,''),
+       Posicion=ISNULL(u.Posicion,''), Altura=ISNULL(u.Altura,''), OrdenFisico=ISNULL(u.OrdenFisico,1),
+       Activo=ISNULL(u.Activo,0),
+       Ocupada=CONVERT(BIT,CASE WHEN a.Id IS NULL THEN 0 ELSE 1 END), UnidadCodigo=ISNULL(a.UnidadCodigo,'')
+FROM dbo.SurtidoUbicacionCatalogo u WITH (NOLOCK)
+INNER JOIN dbo.SurtidoColorAlmacen c WITH (NOLOCK)
+    ON c.Id=u.ColorAlmacenId AND c.LayoutId=u.LayoutId
+LEFT JOIN dbo.SurtidoRackAlmacen r WITH (NOLOCK)
+    ON r.Id=u.RackId AND r.LayoutId=u.LayoutId
+OUTER APPLY
+(
+    SELECT TOP 1 ai.Id,ai.UnidadCodigo
+    FROM dbo.SurtidoUbicacionInventario ai WITH (NOLOCK)
+    WHERE ai.CodigoAlmacen=u.CodigoAlmacen AND ai.LayoutId=u.LayoutId AND ai.UbicacionId=u.Id AND ai.Activo=1
+    ORDER BY ai.Id DESC
+) a
+WHERE u.CodigoAlmacen=@CodigoAlmacen AND u.LayoutId=@LayoutId AND u.Activo=1
+ORDER BY u.RackId,u.OrdenFisico,u.Id;
+";
+
+            using var multi = await cn.QueryMultipleAsync(
+                new CommandDefinition(
+                    sql,
+                    new { CodigoAlmacen = almacen.Codigo, LayoutId = layoutId },
+                    cancellationToken: ct
+                )
+            );
+
+            var layout = await multi.ReadFirstOrDefaultAsync<dynamic>();
+            var racks = (await multi.ReadAsync<dynamic>()).ToList();
+            var ubicaciones = (await multi.ReadAsync<dynamic>()).ToList();
+
+            if (layout == null)
+                return NotFound(new { ok = false, message = "Layout no encontrado." });
+
+            return Json(new
+            {
+                ok = true,
+                almacen = new { codigo = almacen.Codigo, nombre = almacen.Nombre, planta = almacen.Planta },
+                layout,
+                racks,
+                ubicaciones
+            });
+        }
+
+
+        // Datos del MAPA operativo. No requiere permiso de coordinador.
+        [HttpGet("/Surtido/Mapa3D/Datos")]
+        public async Task<IActionResult> DatosMapa3DOperativo(
+            string almacen,
+            CancellationToken ct = default)
+        {
+            var usuario = await ObtenerUsuarioActualAsync(ct);
+            if (usuario == null) return Forbid();
+
+            if (!usuario.LogisticaMontacarguista && !usuario.LogisticaUbicador && !usuario.LogisticaCoordinador)
+                return StatusCode(StatusCodes.Status403Forbidden, new { ok = false, message = "No tienes permiso para consultar el mapa 3D." });
+
+            var plantas = await ObtenerPlantasUsuarioAsync(usuario.Id, ct);
+            var almacenes = ConstruirAlmacenesUsuario(usuario, plantas);
+            await AplicarConfiguracionUbicacionAsync(almacenes, ct);
+            var actual = BuscarAlmacenPermitido(almacenes, almacen);
+            if (actual == null)
+                return StatusCode(StatusCodes.Status403Forbidden, new { ok = false, message = "Almacén no permitido." });
+
+            var layout = await ObtenerLayoutOperativoUbicacionAsync(actual.Codigo, ct);
+            if (layout == null)
+                return NotFound(new { ok = false, message = "Este almacén no tiene un layout operativo activo." });
+
+            var cn = await ObtenerConexionSigoAsync(ct);
+            return await ConstruirJsonLayout3DAsync(cn, actual, layout.LayoutId, ct);
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarLayout")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarLayoutAlmacen(
+            GuardarLayoutAlmacenReq req,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct);
+            if (!acceso.Ok) return acceso.Error!;
+            var usuario = acceso.Usuario!;
+            var codigoAlmacen = acceso.Almacen!.Codigo;
+            var cn = await ObtenerConexionSigoAsync(ct);
+
+            req.CodigoLayout = (req.CodigoLayout ?? "").Trim().ToUpperInvariant();
+            req.NombreLayout = (req.NombreLayout ?? "").Trim();
+            req.Descripcion = (req.Descripcion ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(req.CodigoLayout) || string.IsNullOrWhiteSpace(req.NombreLayout))
+            {
+                TempData["Error"] = "Código y nombre del layout son obligatorios.";
+                return RedirectGestionLayout(codigoAlmacen, req.Id, "layouts");
+            }
+
+            using var tx = cn.BeginTransaction(IsolationLevel.Serializable);
+            try
+            {
+                if (req.EsOperativo && req.Activo)
+                {
+                    const string sqlOcupado = @"
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoUbicacionInventario a WITH (UPDLOCK,HOLDLOCK)
+INNER JOIN dbo.SurtidoLayoutAlmacen l WITH (UPDLOCK,HOLDLOCK)
+    ON l.Id=a.LayoutId
+WHERE a.CodigoAlmacen=@CodigoAlmacen AND a.Activo=1
+  AND l.CodigoAlmacen=@CodigoAlmacen AND l.Activo=1 AND l.EsOperativo=1
+  AND (@Id=0 OR l.Id<>@Id);
+";
+                    var ocupadas = await cn.ExecuteScalarAsync<long>(sqlOcupado, new { CodigoAlmacen = codigoAlmacen, Id = req.Id }, tx);
+                    if (ocupadas > 0)
+                    {
+                        tx.Rollback();
+                        TempData["Error"] = "No puedes cambiar el layout operativo porque el layout actual todavía tiene inventario ubicado.";
+                        return RedirectGestionLayout(codigoAlmacen, req.Id, "layouts");
+                    }
+
+                    await cn.ExecuteAsync(@"
+UPDATE dbo.SurtidoLayoutAlmacen
+SET EsOperativo=0, UsuarioModificacion=@Usuario, FechaModificacion=SYSDATETIME()
+WHERE CodigoAlmacen=@CodigoAlmacen AND EsOperativo=1 AND Activo=1 AND (@Id=0 OR Id<>@Id);",
+                        new { CodigoAlmacen = codigoAlmacen, Id = req.Id, Usuario = usuario.Usuario }, tx);
+                }
+
+                const string sql = @"
+IF @Id > 0
+BEGIN
+    UPDATE dbo.SurtidoLayoutAlmacen
+    SET CodigoLayout=@CodigoLayout, NombreLayout=@NombreLayout, Descripcion=@Descripcion,
+        EsOperativo=@EsOperativo, Orden=@Orden, Activo=@Activo,
+        UsuarioModificacion=@Usuario, FechaModificacion=SYSDATETIME()
+    WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen;
+    SELECT @Id;
+END
+ELSE
+BEGIN
+    INSERT INTO dbo.SurtidoLayoutAlmacen
+    (CodigoAlmacen,CodigoLayout,NombreLayout,Descripcion,EsOperativo,Orden,Activo,UsuarioModificacion)
+    VALUES(@CodigoAlmacen,@CodigoLayout,@NombreLayout,@Descripcion,@EsOperativo,@Orden,@Activo,@Usuario);
+    SELECT CONVERT(INT,SCOPE_IDENTITY());
+END";
+
+                var id = await cn.ExecuteScalarAsync<int>(sql, new
+                {
+                    req.Id,
+                    CodigoAlmacen = codigoAlmacen,
+                    req.CodigoLayout,
+                    req.NombreLayout,
+                    req.Descripcion,
+                    req.EsOperativo,
+                    req.Orden,
+                    req.Activo,
+                    Usuario = usuario.Usuario
+                }, tx);
+                tx.Commit();
+                TempData["Exito"] = "Layout guardado correctamente.";
+                return RedirectGestionLayout(codigoAlmacen, id, "layouts");
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                TempData["Error"] = $"No se pudo guardar el layout: {ex.Message}";
+                return RedirectGestionLayout(codigoAlmacen, req.Id, "layouts");
+            }
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/ActivarLayout")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ActivarLayoutOperativo(
+            ActivarLayoutAlmacenReq req,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct);
+            if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct);
+            var usuario = acceso.Usuario!;
+            var codigoAlmacen = acceso.Almacen!.Codigo;
+
+            using var tx = cn.BeginTransaction(IsolationLevel.Serializable);
+            try
+            {
+                const string sqlValidar = @"
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoLayoutAlmacen WITH (UPDLOCK,HOLDLOCK)
+WHERE Id=@LayoutId AND CodigoAlmacen=@CodigoAlmacen AND Activo=1;
+
+SELECT COUNT_BIG(1)
+FROM dbo.SurtidoUbicacionInventario a WITH (UPDLOCK,HOLDLOCK)
+INNER JOIN dbo.SurtidoLayoutAlmacen l WITH (UPDLOCK,HOLDLOCK) ON l.Id=a.LayoutId
+WHERE a.CodigoAlmacen=@CodigoAlmacen AND a.Activo=1
+  AND l.CodigoAlmacen=@CodigoAlmacen AND l.Activo=1 AND l.EsOperativo=1
+  AND l.Id<>@LayoutId;";
+
+                using var multi = await cn.QueryMultipleAsync(sqlValidar, new { req.LayoutId, CodigoAlmacen = codigoAlmacen }, tx);
+                var existe = await multi.ReadFirstAsync<long>();
+                var ocupadas = await multi.ReadFirstAsync<long>();
+                if (existe == 0)
+                {
+                    tx.Rollback(); TempData["Error"] = "Layout inválido o inactivo.";
+                    return RedirectGestionLayout(codigoAlmacen, req.LayoutId, "layouts");
+                }
+                if (ocupadas > 0)
+                {
+                    tx.Rollback(); TempData["Error"] = "El layout operativo actual todavía tiene inventario ubicado. Libéralo antes de cambiar.";
+                    return RedirectGestionLayout(codigoAlmacen, req.LayoutId, "layouts");
+                }
+
+                await cn.ExecuteAsync(@"
+UPDATE dbo.SurtidoLayoutAlmacen
+SET EsOperativo=CASE WHEN Id=@LayoutId THEN 1 ELSE 0 END,
+    UsuarioModificacion=@Usuario, FechaModificacion=SYSDATETIME()
+WHERE CodigoAlmacen=@CodigoAlmacen AND Activo=1;",
+                    new { req.LayoutId, CodigoAlmacen = codigoAlmacen, Usuario = usuario.Usuario }, tx);
+                tx.Commit();
+                TempData["Exito"] = "Layout operativo actualizado.";
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback(); TempData["Error"] = $"No se pudo activar el layout: {ex.Message}";
+            }
+            return RedirectGestionLayout(codigoAlmacen, req.LayoutId, "layouts");
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarColor")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarColorLayout(GuardarColorLayoutReq req, CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct); if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct); var usuario = acceso.Usuario!; var alm = acceso.Almacen!.Codigo;
+            if (!await LayoutPerteneceAlmacenAsync(cn, alm, req.LayoutId, ct)) return BadRequest("Layout inválido.");
+            try
+            {
+                req.CodigoColor = (req.CodigoColor ?? "").Trim().ToUpperInvariant(); req.NombreColor = (req.NombreColor ?? "").Trim();
+                const string sql = @"
+IF @Id>0
+ UPDATE dbo.SurtidoColorAlmacen SET CodigoColor=@CodigoColor,NombreColor=@NombreColor,HexColor=@HexColor,Orden=@Orden,Activo=@Activo,UsuarioModificacion=@Usuario,FechaModificacion=SYSDATETIME()
+ WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;
+ELSE
+ INSERT INTO dbo.SurtidoColorAlmacen(CodigoAlmacen,LayoutId,CodigoColor,NombreColor,HexColor,Orden,Activo,UsuarioModificacion)
+ VALUES(@CodigoAlmacen,@LayoutId,@CodigoColor,@NombreColor,@HexColor,@Orden,@Activo,@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sql, new { req.Id, CodigoAlmacen = alm, req.LayoutId, req.CodigoColor, req.NombreColor, req.HexColor, req.Orden, req.Activo, Usuario = usuario.Usuario }, cancellationToken: ct));
+                TempData["Exito"] = "Color guardado.";
+            }
+            catch (Exception ex) { TempData["Error"] = $"No se pudo guardar el color: {ex.Message}"; }
+            return RedirectGestionLayout(alm, req.LayoutId, "colores");
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarMasterColor")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarMasterColorLayout(GuardarMasterColorLayoutReq req, CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct); if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct); var usuario = acceso.Usuario!; var alm = acceso.Almacen!.Codigo;
+            try
+            {
+                var colorOk = await cn.ExecuteScalarAsync<long>(new CommandDefinition(@"SELECT COUNT_BIG(1) FROM dbo.SurtidoColorAlmacen WHERE Id=@ColorId AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;", new { ColorId = req.ColorAlmacenId, CodigoAlmacen = alm, req.LayoutId }, cancellationToken: ct));
+                if (colorOk == 0) { TempData["Error"] = "El color no pertenece al layout seleccionado."; return RedirectGestionLayout(alm, req.LayoutId, "masters"); }
+                const string sql = @"
+IF @Id>0
+ UPDATE dbo.SurtidoMasterColorAlmacen SET Master=@Master,ColorAlmacenId=@ColorAlmacenId,Activo=@Activo,UsuarioModificacion=@Usuario,FechaModificacion=SYSDATETIME()
+ WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;
+ELSE
+ INSERT INTO dbo.SurtidoMasterColorAlmacen(CodigoAlmacen,LayoutId,Master,ColorAlmacenId,Activo,UsuarioModificacion)
+ VALUES(@CodigoAlmacen,@LayoutId,@Master,@ColorAlmacenId,@Activo,@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sql, new { req.Id, CodigoAlmacen = alm, req.LayoutId, Master = (req.Master ?? "").Trim(), req.ColorAlmacenId, req.Activo, Usuario = usuario.Usuario }, cancellationToken: ct));
+                TempData["Exito"] = "MASTER / Color guardado.";
+            }
+            catch (Exception ex) { TempData["Error"] = $"No se pudo guardar MASTER / Color: {ex.Message}"; }
+            return RedirectGestionLayout(alm, req.LayoutId, "masters");
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarRotacion")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarRotacionLayout(GuardarRotacionLayoutReq req, CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct); if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct); var usuario = acceso.Usuario!; var alm = acceso.Almacen!.Codigo;
+            var modo = (req.ModoOrden ?? "").Trim().ToUpperInvariant();
+            if (modo != "INICIO" && modo != "CENTRO" && modo != "FINAL") { TempData["Error"] = "Modo inválido."; return RedirectGestionLayout(alm, req.LayoutId, "rotacion"); }
+            try
+            {
+                const string sql = @"
+IF @Id>0
+ UPDATE dbo.SurtidoRotacionReglaAlmacen SET NombreRegla=@NombreRegla,Desde=@Desde,Hasta=@Hasta,AplicaSinRotacion=@AplicaSinRotacion,ModoOrden=@ModoOrden,Prioridad=@Prioridad,Activo=@Activo,UsuarioModificacion=@Usuario,FechaModificacion=SYSDATETIME()
+ WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;
+ELSE
+ INSERT INTO dbo.SurtidoRotacionReglaAlmacen(CodigoAlmacen,LayoutId,NombreRegla,Desde,Hasta,AplicaSinRotacion,ModoOrden,Prioridad,Activo,UsuarioModificacion)
+ VALUES(@CodigoAlmacen,@LayoutId,@NombreRegla,@Desde,@Hasta,@AplicaSinRotacion,@ModoOrden,@Prioridad,@Activo,@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sql, new { req.Id, CodigoAlmacen = alm, req.LayoutId, NombreRegla = (req.NombreRegla ?? "").Trim(), req.Desde, req.Hasta, req.AplicaSinRotacion, ModoOrden = modo, req.Prioridad, req.Activo, Usuario = usuario.Usuario }, cancellationToken: ct));
+                TempData["Exito"] = "Regla de rotación guardada.";
+            }
+            catch (Exception ex) { TempData["Error"] = $"No se pudo guardar la regla: {ex.Message}"; }
+            return RedirectGestionLayout(alm, req.LayoutId, "rotacion");
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarRack")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarRackLayout(GuardarRackLayoutReq req, CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct); if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct); var usuario = acceso.Usuario!; var alm = acceso.Almacen!.Codigo;
+            try
+            {
+                const string sql = @"
+IF @Id>0
+ UPDATE dbo.SurtidoRackAlmacen SET CodigoRack=@CodigoRack,NombreRack=@NombreRack,PosX=@PosX,PosZ=@PosZ,Ancho=@Ancho,Alto=@Alto,Profundidad=@Profundidad,RotacionY=@RotacionY,Niveles=@Niveles,PosicionesPorNivel=@PosicionesPorNivel,HexColor=@HexColor,Orden=@Orden,Activo=@Activo,UsuarioModificacion=@Usuario,FechaModificacion=SYSDATETIME()
+ WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;
+ELSE
+ INSERT INTO dbo.SurtidoRackAlmacen(CodigoAlmacen,LayoutId,CodigoRack,NombreRack,PosX,PosZ,Ancho,Alto,Profundidad,RotacionY,Niveles,PosicionesPorNivel,HexColor,Orden,Activo,UsuarioModificacion)
+ VALUES(@CodigoAlmacen,@LayoutId,@CodigoRack,@NombreRack,@PosX,@PosZ,@Ancho,@Alto,@Profundidad,@RotacionY,@Niveles,@PosicionesPorNivel,@HexColor,@Orden,@Activo,@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sql, new { req.Id, CodigoAlmacen = alm, req.LayoutId, CodigoRack = (req.CodigoRack ?? "").Trim().ToUpperInvariant(), NombreRack = (req.NombreRack ?? "").Trim(), req.PosX, req.PosZ, req.Ancho, req.Alto, req.Profundidad, req.RotacionY, req.Niveles, req.PosicionesPorNivel, req.HexColor, req.Orden, req.Activo, Usuario = usuario.Usuario }, cancellationToken: ct));
+                TempData["Exito"] = "Rack guardado.";
+            }
+            catch (Exception ex) { TempData["Error"] = $"No se pudo guardar el rack: {ex.Message}"; }
+            return RedirectGestionLayout(alm, req.LayoutId, "racks");
+        }
+
+
+        [HttpPost("/Surtido/GestionLayouts/GuardarUbicacion")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarUbicacionLayout(GuardarUbicacionLayoutReq req, CancellationToken ct = default)
+        {
+            var acceso = await ValidarGestionLayoutAsync(req.CodigoAlmacen, ct); if (!acceso.Ok) return acceso.Error!;
+            var cn = await ObtenerConexionSigoAsync(ct); var usuario = acceso.Usuario!; var alm = acceso.Almacen!.Codigo;
+            try
+            {
+                var colorOk = await cn.ExecuteScalarAsync<long>(new CommandDefinition(@"SELECT COUNT_BIG(1) FROM dbo.SurtidoColorAlmacen WHERE Id=@ColorId AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId AND Activo=1;", new { ColorId = req.ColorAlmacenId, CodigoAlmacen = alm, req.LayoutId }, cancellationToken: ct));
+                if (colorOk == 0) { TempData["Error"] = "El color no pertenece al layout."; return RedirectGestionLayout(alm, req.LayoutId, "ubicaciones"); }
+                if (req.RackId.HasValue)
+                {
+                    var rackOk = await cn.ExecuteScalarAsync<long>(new CommandDefinition(@"SELECT COUNT_BIG(1) FROM dbo.SurtidoRackAlmacen WHERE Id=@RackId AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId AND Activo=1;", new { req.RackId, CodigoAlmacen = alm, req.LayoutId }, cancellationToken: ct));
+                    if (rackOk == 0) { TempData["Error"] = "El rack no pertenece al layout."; return RedirectGestionLayout(alm, req.LayoutId, "ubicaciones"); }
+                }
+                const string sql = @"
+IF @Id>0
+ UPDATE dbo.SurtidoUbicacionCatalogo SET ColorAlmacenId=@ColorAlmacenId,RackId=@RackId,Rack=@Rack,Posicion=@Posicion,Altura=@Altura,CodigoUbicacion=@CodigoUbicacion,CodigoMapa3D=@CodigoMapa3D,OrdenFisico=@OrdenFisico,Activo=@Activo,UsuarioModificacion=@Usuario,FechaModificacion=SYSDATETIME()
+ WHERE Id=@Id AND CodigoAlmacen=@CodigoAlmacen AND LayoutId=@LayoutId;
+ELSE
+ INSERT INTO dbo.SurtidoUbicacionCatalogo(CodigoAlmacen,LayoutId,ColorAlmacenId,RackId,Rack,Posicion,Altura,CodigoUbicacion,CodigoMapa3D,OrdenFisico,Activo,UsuarioModificacion)
+ VALUES(@CodigoAlmacen,@LayoutId,@ColorAlmacenId,@RackId,@Rack,@Posicion,@Altura,@CodigoUbicacion,@CodigoMapa3D,@OrdenFisico,@Activo,@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sql, new { req.Id, CodigoAlmacen = alm, req.LayoutId, req.ColorAlmacenId, req.RackId, Rack = (req.Rack ?? "").Trim().ToUpperInvariant(), Posicion = (req.Posicion ?? "").Trim().ToUpperInvariant(), Altura = (req.Altura ?? "").Trim().ToUpperInvariant(), CodigoUbicacion = (req.CodigoUbicacion ?? "").Trim().ToUpperInvariant(), CodigoMapa3D = (req.CodigoMapa3D ?? "").Trim().ToUpperInvariant(), req.OrdenFisico, req.Activo, Usuario = usuario.Usuario }, cancellationToken: ct));
+                TempData["Exito"] = "Ubicación guardada.";
+            }
+            catch (Exception ex) { TempData["Error"] = $"No se pudo guardar la ubicación: {ex.Message}"; }
+            return RedirectGestionLayout(alm, req.LayoutId, "ubicaciones");
+        }
+
     }
 }

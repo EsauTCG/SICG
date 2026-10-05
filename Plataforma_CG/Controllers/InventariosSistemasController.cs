@@ -44,170 +44,7 @@ namespace Plataforma_CG.Controllers
 
         public IActionResult InventariosSis() => View();
 
-        public IActionResult ResumenInventario(string? planta = null, string? area = null)
-        {
-            planta = string.IsNullOrWhiteSpace(planta) ? "" : planta.Trim();
-            area = string.IsNullOrWhiteSpace(area) ? "" : area.Trim();
 
-            var todas = _context.InventarioSistemas.AsNoTracking().ToList();
-
-            // Filtro principal
-            IEnumerable<InventarioSistemas> items = todas;
-            if (!string.IsNullOrWhiteSpace(planta))
-                items = items.Where(i => (i.Planta ?? "").Trim() == planta);
-
-            if (!string.IsNullOrWhiteSpace(area))
-                items = items.Where(i => (i.Ubicacion ?? "").Trim() == area);
-
-            var lista = items.ToList();
-
-            bool EsUso(InventarioSistemas i) { var a = (i.Asignacion ?? "").Trim(); return a.Length > 0; }
-
-            var seriesDup = lista.Where(i => (i.NumeroSerie ?? "").Trim().Length > 0)
-                                 .GroupBy(i => (i.NumeroSerie.Trim(), (i.Planta ?? "").Trim()))
-                                 .Where(g => g.Count() > 1)
-                                 .Select(g => g.Key)
-                                 .ToHashSet();
-            var ipsDup = lista.Where(i => !string.IsNullOrWhiteSpace(i.IP))
-                              .GroupBy(i => (i.IP.Trim(), (i.Planta ?? "").Trim()))
-                              .Where(g => g.Count() > 1)
-                              .Select(g => g.Key)
-                              .ToHashSet();
-            var sapsDup = lista.GroupBy(i => ((i.IdArticuloSap ?? "").Trim(), (i.Planta ?? "").Trim()))
-                               .Where(g => g.Count() > 1)
-                               .Select(g => g.Key)
-                               .ToHashSet();
-
-            // Función Detalles actualizada (Sin límite Take)
-            List<ResumenDetalleItem> Detalles(IEnumerable<InventarioSistemas> origen, Func<InventarioSistemas, bool> pred, Func<InventarioSistemas, string> clave) =>
-                origen.Where(pred)
-                      .OrderBy(i => i.IdArticuloSap)
-                      .Select(i => new ResumenDetalleItem
-                      {
-                          Id = i.Id,
-                          Sap = i.IdArticuloSap,
-                          Nombre = i.Nombre,
-                          Serie = i.NumeroSerie ?? "",
-                          Planta = i.Planta ?? "",
-                          Ubicacion = i.Ubicacion ?? "",
-                          Asignacion = i.Asignacion ?? "",
-                          Costo = i.Costo,
-                          Clave = clave(i),
-                          TipoArticulo = i.TipoArticulo ?? "",
-                          Proveedor = i.Proveedor ?? ""
-                      })
-                      .ToList();
-
-            var vm = new ResumenInventarioViewModel
-            {
-                Planta = planta,
-                Plantas = todas.GroupBy(i => (i.Planta ?? "").Trim())
-                               .OrderByDescending(g => g.Count())
-                               .Select(g => g.Key)
-                               .Where(k => k.Length > 0)
-                               .ToList(),
-
-                Area = area,
-                Areas = todas.Where(i => planta == "" || (i.Planta ?? "").Trim() == planta)
-                             .GroupBy(i => (i.Ubicacion ?? "").Trim())
-                             .OrderBy(g => g.Key)
-                             .Select(g => g.Key)
-                             .Where(k => k.Length > 0)
-                             .ToList(),
-
-                TotalRegistros = lista.Count,
-                TotalValor = lista.Sum(i => i.Costo),
-                TotalEquipos = lista.Count(i => i.TipoArticulo == "Activo Fijo"),
-                EnUso = lista.Count(EsUso),
-                SinUso = lista.Count(i => !EsUso(i)),
-
-                PorTipo = lista.GroupBy(i => i.TipoArticulo)
-                               .Select(g => new ResumenValorTipo
-                               {
-                                   Nombre = g.Key,
-                                   Registros = g.Count(),
-                                   Valor = g.Sum(i => i.Costo),
-                                   EnUso = g.Count(EsUso),
-                                   SinUso = g.Count(i => !EsUso(i))
-                               })
-                               .OrderByDescending(x => x.Valor)
-                               .ToList(),
-
-                PorPlanta = todas.GroupBy(i => (i.Planta ?? "").Trim())
-                                 .Select(g => new ResumenValorPlanta
-                                 {
-                                     Nombre = g.Count() > 0 ? g.Key : "Sin planta",
-                                     Registros = g.Count(),
-                                     Equipos = g.Count(i => i.TipoArticulo == "Activo Fijo"),
-                                     Valor = g.Sum(i => i.Costo),
-                                     EnUso = g.Count(EsUso),
-                                     SinUso = g.Count(i => !EsUso(i))
-                                 })
-.OrderByDescending(x => x.Valor)
-                               .ToList(),
-                PorArea = lista.GroupBy(i => (i.Ubicacion ?? "").Trim())
-                               .Select(g => new ResumenValorArea
-                               {
-                                   Nombre = g.Key.Length > 0 ? g.Key : "Sin ubicación",
-                                   Valor = g.Sum(i => i.Costo),
-                                   Computo = g.Count(i => i.TipoArticulo == "Activo Fijo"),
-                                   SinUsoValor = g.Where(i => !EsUso(i)).Sum(i => i.Costo)
-                               })
-                               .OrderByDescending(x => x.Valor)
-                               .ToList(),
-
-                PorProveedor = lista.GroupBy(i => (i.Proveedor ?? "").Trim())
-                                    .Select(g => new ResumenValorProveedor
-                                    {
-                                        Nombre = g.Key.Length > 0 ? g.Key : "Sin proveedor capturado",
-                                        Registros = g.Count(),
-                                        Valor = g.Sum(i => i.Costo),
-                                        SinUsoValor = g.Where(i => !EsUso(i)).Sum(i => i.Costo)
-                                    })
-                                    .OrderByDescending(x => x.Valor)
-                                    .ToList(),
-
-                TopActivosSinUso = lista.Where(i => !EsUso(i))
-                                        .OrderByDescending(i => i.Costo)
-                                        .Take(6)
-                                        .Select(i => new ResumenValorArticulo
-                                        {
-                                            Nombre = i.Nombre,
-                                            SapCodigo = i.IdArticuloSap,
-                                            Ubicacion = i.Planta + (string.IsNullOrEmpty(i.Ubicacion) ? "" : ", " + i.Ubicacion),
-                                            Valor = i.Costo
-                                        })
-                                        .ToList(),
-
-                TodosLosArticulos = Detalles(lista, i => true, i => ""),
-
-                SerieIpRepetida = lista.Count(i =>
-                        ((i.NumeroSerie ?? "").Trim().Length > 0 && seriesDup.Contains((i.NumeroSerie.Trim(), (i.Planta ?? "").Trim())))
-                     || (!string.IsNullOrWhiteSpace(i.IP) && ipsDup.Contains((i.IP.Trim(), (i.Planta ?? "").Trim())))),
-
-                CostoDudoso = lista.Count(i => i.Costo <= 0),
-                SinPlantaUbicacion = lista.Count(i => string.IsNullOrWhiteSpace(i.Planta) || string.IsNullOrWhiteSpace(i.Ubicacion)),
-                SapRepetido = lista.Count(i => sapsDup.Contains(((i.IdArticuloSap ?? "").Trim(), (i.Planta ?? "").Trim()))),
-                EquipoSinSerie = lista.Count(i => i.TipoArticulo == "Activo Fijo" && string.IsNullOrWhiteSpace(i.NumeroSerie)),
-                SinResponsiva = lista.Count(i => !EsUso(i)),
-
-                DetalleSerieIp = Detalles(lista,
-                    i => ((i.NumeroSerie ?? "").Trim().Length > 0 && seriesDup.Contains((i.NumeroSerie.Trim(), (i.Planta ?? "").Trim())))
-                      || (!string.IsNullOrWhiteSpace(i.IP) && ipsDup.Contains((i.IP.Trim(), (i.Planta ?? "").Trim()))),
-                    i => (!string.IsNullOrWhiteSpace(i.IP) && ipsDup.Contains((i.IP.Trim(), (i.Planta ?? "").Trim()))) ? ("IP: " + i.IP.Trim()) : ("Serie: " + (i.NumeroSerie ?? "").Trim())),
-                DetalleCosto = Detalles(lista, i => i.Costo <= 0, i => "Costo: $" + i.Costo.ToString("N0")),
-                DetalleSinPlanta = Detalles(lista,
-                    i => string.IsNullOrWhiteSpace(i.Planta) || string.IsNullOrWhiteSpace(i.Ubicacion),
-                    i => string.IsNullOrWhiteSpace(i.Planta) ? "Sin planta" : "Sin ubicación"),
-                DetalleSap = Detalles(lista, i => sapsDup.Contains(((i.IdArticuloSap ?? "").Trim(), (i.Planta ?? "").Trim())), i => "SAP: " + i.IdArticuloSap),
-                DetalleSinSerie = Detalles(lista,
-                    i => i.TipoArticulo == "Activo Fijo" && string.IsNullOrWhiteSpace(i.NumeroSerie),
-                    i => "Sin serie"),
-                DetalleSinResponsiva = Detalles(lista, i => !EsUso(i), i => "Sin responsiva")
-            };
-
-            return View(vm);
-        }
         [HttpGet]
         public IActionResult GetInventario()
         {
@@ -1212,10 +1049,22 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "MODULOIPS");
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "MODULOIPS"
+                      && ppm.Activo
+                      && m.Activo
+                select new { ppm.PuedeLeer, ppm.PuedeEscribir, ppm.PuedeEliminar }
+            ).FirstOrDefaultAsync();
 
-            return Json(new { puedeLeer = puedeLeer, puedeEscribir = puedeEscribir, puedeEliminar = puedeEliminar });
+            if (permiso == null)
+                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
+
+            return Json(new { puedeLeer = permiso.PuedeLeer, puedeEscribir = permiso.PuedeEscribir, puedeEliminar = permiso.PuedeEliminar });
         }
 
         // =========================================================================================
@@ -1430,8 +1279,7 @@ namespace Plataforma_CG.Controllers
             {
                 var marcas = _context.MarcasInventario.Where(m => m.Activa).OrderBy(m => m.Nombre).Select(m => m.Nombre).ToList();
                 var areas = _context.AreasInventario.Where(a => a.Activa).OrderBy(a => a.Nombre).Select(a => a.Nombre).ToList();
-                var proveedores = _context.ProveedoresInventario.Where(p => p.Activa).OrderBy(p => p.Nombre).Select(p => p.Nombre).ToList();
-                return Json(new { ok = true, marcas = marcas, areas = areas, proveedores = proveedores });
+                return Json(new { ok = true, marcas = marcas, areas = areas });
             }
             catch (Exception ex)
             {
@@ -1475,177 +1323,6 @@ namespace Plataforma_CG.Controllers
                 _context.AreasInventario.Add(new AreaInventario { Nombre = nombre });
                 _context.SaveChanges();
                 return Json(new { ok = true, mensaje = "Área agregada." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult AgregarProveedorInventario(string nombre)
-        {
-            try
-            {
-                nombre = (nombre ?? "").Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(nombre))
-                    return Json(new { ok = false, mensaje = "Indica el nombre del proveedor." });
-
-                if (_context.ProveedoresInventario.Any(p => p.Nombre == nombre))
-                    return Json(new { ok = false, mensaje = "Ese proveedor ya existe en el catálogo." });
-
-                _context.ProveedoresInventario.Add(new ProveedorInventario { Nombre = nombre });
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Proveedor agregado." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpGet]
-        public IActionResult ObtenerCatalogosInventarioDetalle()
-        {
-            try
-            {
-                return Json(new
-                {
-                    ok = true,
-                    marcas = _context.MarcasInventario.OrderBy(m => m.Nombre).Select(m => new { m.Id, m.Nombre, m.Activa }).ToList(),
-                    areas = _context.AreasInventario.OrderBy(a => a.Nombre).Select(a => new { a.Id, a.Nombre, a.Activa }).ToList(),
-                    proveedores = _context.ProveedoresInventario.OrderBy(p => p.Nombre).Select(p => new { p.Id, p.Nombre, p.Activa }).ToList()
-                });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EditarMarcaInventario(int id, string nombre)
-        {
-            try
-            {
-                nombre = (nombre ?? "").Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(nombre))
-                    return Json(new { ok = false, mensaje = "Indica el nombre de la marca." });
-
-                var entidad = _context.MarcasInventario.FirstOrDefault(m => m.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Marca no encontrada." });
-
-                if (_context.MarcasInventario.Any(m => m.Id != id && m.Nombre == nombre))
-                    return Json(new { ok = false, mensaje = "Esa marca ya existe en el catálogo." });
-
-                string anterior = entidad.Nombre;
-                entidad.Nombre = nombre;
-                entidad.Activa = true;
-                foreach (var i in _context.InventarioSistemas.Where(i => i.Marca == anterior).ToList())
-                    i.Marca = nombre;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Marca actualizada." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EliminarMarcaInventario(int id)
-        {
-            try
-            {
-                var entidad = _context.MarcasInventario.FirstOrDefault(m => m.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Marca no encontrada." });
-
-                entidad.Activa = false;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Marca desactivada." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EditarAreaInventario(int id, string nombre)
-        {
-            try
-            {
-                nombre = (nombre ?? "").Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(nombre))
-                    return Json(new { ok = false, mensaje = "Indica el nombre del área/ubicación." });
-
-                var entidad = _context.AreasInventario.FirstOrDefault(a => a.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Área no encontrada." });
-
-                if (_context.AreasInventario.Any(a => a.Id != id && a.Nombre == nombre))
-                    return Json(new { ok = false, mensaje = "Esa área ya existe en el catálogo." });
-
-                string anterior = entidad.Nombre;
-                entidad.Nombre = nombre;
-                entidad.Activa = true;
-                foreach (var i in _context.InventarioSistemas.Where(i => i.Ubicacion == anterior).ToList())
-                    i.Ubicacion = nombre;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Área actualizada." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EliminarAreaInventario(int id)
-        {
-            try
-            {
-                var entidad = _context.AreasInventario.FirstOrDefault(a => a.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Área no encontrada." });
-
-                entidad.Activa = false;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Área desactivada." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EditarProveedorInventario(int id, string nombre)
-        {
-            try
-            {
-                nombre = (nombre ?? "").Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(nombre))
-                    return Json(new { ok = false, mensaje = "Indica el nombre del proveedor." });
-
-                var entidad = _context.ProveedoresInventario.FirstOrDefault(p => p.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Proveedor no encontrado." });
-
-                if (_context.ProveedoresInventario.Any(p => p.Id != id && p.Nombre == nombre))
-                    return Json(new { ok = false, mensaje = "Ese proveedor ya existe en el catálogo." });
-
-                string anterior = entidad.Nombre;
-                entidad.Nombre = nombre;
-                entidad.Activa = true;
-                foreach (var i in _context.InventarioSistemas.Where(i => i.Proveedor == anterior).ToList())
-                    i.Proveedor = nombre;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Proveedor actualizado." });
-            }
-            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
-        }
-
-        [HttpPost]
-        [RevisarPermiso("INVENTARIOSISTEMAS", "ESCRIBIR")]
-        public IActionResult EliminarProveedorInventario(int id)
-        {
-            try
-            {
-                var entidad = _context.ProveedoresInventario.FirstOrDefault(p => p.Id == id);
-                if (entidad == null)
-                    return Json(new { ok = false, mensaje = "Proveedor no encontrado." });
-
-                entidad.Activa = false;
-                _context.SaveChanges();
-                return Json(new { ok = true, mensaje = "Proveedor desactivado." });
             }
             catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
         }
@@ -1948,14 +1625,31 @@ namespace Plataforma_CG.Controllers
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, "INVENTARIOSISTEMAS");
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "INVENTARIOSISTEMAS"
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
 
             return Json(new
             {
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
             });
         }
 
@@ -2590,14 +2284,38 @@ END;";
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_context, login, MODULO_COMPRAS_TI);
+            var permiso = await (
+                from u in _context.UsuarioSQL
+                join p in _context.Perfiles on u.PerfilId equals p.Id
+                join ppm in _context.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _context.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == MODULO_COMPRAS_TI
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new
+                {
+                    puedeLeer = false,
+                    puedeEscribir = false,
+                    puedeEliminar = false
+                });
+            }
 
             return Json(new
             {
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
             });
         }
 
