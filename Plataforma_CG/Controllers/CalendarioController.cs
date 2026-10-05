@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
+using Plataforma_CG.Filters;
 using System.Data;
 using ClosedXML.Excel;
 
@@ -13,6 +14,34 @@ namespace Plataforma_CG.Controllers
     {
         private readonly AppDbContext _db;
         private readonly string _connString;
+
+        private sealed class LogisticaTransportesPermisoVM
+        {
+            public bool PuedeLeer { get; set; }
+            public bool PuedeEscribir { get; set; }
+            public bool PuedeEliminar { get; set; }
+        }
+
+        private sealed class UsuarioLogisticaActualVM
+        {
+            public string Usuario { get; set; } = "";
+            public string Nombre { get; set; } = "";
+            public int? VendedorId { get; set; }
+        }
+
+        public sealed class TransporteCatalogoGuardarRequest
+        {
+            public int Id { get; set; }
+            public string? Nombre { get; set; }
+            public decimal CapacidadNominalKg { get; set; }
+            public decimal CapacidadMaximaKg { get; set; }
+        }
+
+        public sealed class TransporteCatalogoEstatusRequest
+        {
+            public int Id { get; set; }
+            public bool Activo { get; set; }
+        }
 
         public CalendarioController(AppDbContext db, IConfiguration config)
         {
@@ -107,6 +136,12 @@ namespace Plataforma_CG.Controllers
                 usuarioSql.VendedorId.HasValue &&
                 usuarioSql.VendedorId.Value > 0;
 
+            var permisoTransportes =
+                await ObtenerPermisoTransportesAsync(ct);
+
+            bool esLogistica =
+                !tieneVendedorId;
+
             return Json(
                 new
                 {
@@ -133,9 +168,794 @@ namespace Plataforma_CG.Controllers
                         tieneVendedorId,
 
                     puedeEditarLogistica =
-                        !tieneVendedorId
+                        !tieneVendedorId,
+
+                    puedeLeerCatalogoTransportes =
+                        esLogistica &&
+                        permisoTransportes.PuedeLeer,
+
+                    puedeEscribirCatalogoTransportes =
+                        esLogistica &&
+                        permisoTransportes.PuedeEscribir,
+
+                    puedeEliminarCatalogoTransportes =
+                        esLogistica &&
+                        permisoTransportes.PuedeEliminar
                 }
             );
+        }
+
+
+        // ============================================================
+        // CATÁLOGO DE TIPOS DE TRANSPORTE
+        //
+        // REGLA DE SEGURIDAD:
+        // 1) El usuario debe NO tener VendedorId.
+        // 2) Debe contar con permiso LOGISTICA_TRANSPORTES.
+        //
+        // LEER      = consultar catálogo.
+        // ESCRIBIR  = alta y edición.
+        // ELIMINAR  = inactivar / reactivar.
+        //
+        // NO se elimina físicamente porque puede existir historial
+        // relacionado en LogisticaFolio.
+        // ============================================================
+
+        [Authorize]
+        [HttpGet]
+        [RevisarPermiso("LOGISTICA_TRANSPORTES", "LEER")]
+        public async Task<IActionResult> TransporteCatalogoPermisos(
+            CancellationToken ct = default)
+        {
+            var usuario =
+                await ObtenerUsuarioLogisticaActualAsync(ct);
+
+            if (usuario == null)
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El usuario actual no está configurado como usuario activo en UsuarioSQL."
+                    }
+                );
+            }
+
+            bool esLogistica =
+                !usuario.VendedorId.HasValue ||
+                usuario.VendedorId.Value <= 0;
+
+            var permiso =
+                await ObtenerPermisoTransportesAsync(ct);
+
+            return Ok(new
+            {
+                ok = true,
+
+                esLogistica,
+
+                puedeLeer =
+                    esLogistica &&
+                    permiso.PuedeLeer,
+
+                puedeEscribir =
+                    esLogistica &&
+                    permiso.PuedeEscribir,
+
+                puedeEliminar =
+                    esLogistica &&
+                    permiso.PuedeEliminar,
+
+                regla =
+                    "LEER consulta; ESCRIBIR crea/edita; ELIMINAR inactiva o reactiva. " +
+                    "Sólo usuarios sin VendedorId pueden administrar el catálogo."
+            });
+        }
+
+
+        [Authorize]
+        [HttpGet]
+        [RevisarPermiso("LOGISTICA_TRANSPORTES", "LEER")]
+        public async Task<IActionResult> TransportesCatalogo(
+            CancellationToken ct = default)
+        {
+            var usuario =
+                await ObtenerUsuarioLogisticaActualAsync(ct);
+
+            if (usuario == null)
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El usuario actual no está configurado como usuario activo en UsuarioSQL."
+                    }
+                );
+            }
+
+            if (
+                usuario.VendedorId.HasValue &&
+                usuario.VendedorId.Value > 0
+            )
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "Los vendedores no pueden administrar el catálogo de transportes."
+                    }
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(_connString))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No hay ConnectionString configurado: DefaultConnection."
+                    }
+                );
+            }
+
+            const string sql = @"
+SELECT
+    Id,
+    Nombre,
+    CapacidadNominalKg,
+    CapacidadMaximaKg,
+    Activo,
+    FechaRegistro
+FROM dbo.LogisticaTipoTransporte
+ORDER BY
+    Activo DESC,
+    CapacidadNominalKg,
+    Nombre;";
+
+            var lista =
+                new List<object>();
+
+            await using var cn =
+                new SqlConnection(_connString);
+
+            await cn.OpenAsync(ct);
+
+            await using var cmd =
+                new SqlCommand(sql, cn);
+
+            await using var rd =
+                await cmd.ExecuteReaderAsync(ct);
+
+            while (await rd.ReadAsync(ct))
+            {
+                lista.Add(new
+                {
+                    id =
+                        rd.GetInt32(
+                            rd.GetOrdinal("Id")
+                        ),
+
+                    nombre =
+                        rd["Nombre"]?.ToString() ?? "",
+
+                    capacidadNominalKg =
+                        Convert.ToDecimal(
+                            rd["CapacidadNominalKg"]
+                        ),
+
+                    capacidadMaximaKg =
+                        Convert.ToDecimal(
+                            rd["CapacidadMaximaKg"]
+                        ),
+
+                    activo =
+                        Convert.ToBoolean(
+                            rd["Activo"]
+                        ),
+
+                    fechaRegistro =
+                        Convert.ToDateTime(
+                            rd["FechaRegistro"]
+                        )
+                });
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                transportes = lista
+            });
+        }
+
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso("LOGISTICA_TRANSPORTES", "ESCRIBIR")]
+        public async Task<IActionResult> TransporteGuardar(
+            [FromBody] TransporteCatalogoGuardarRequest model,
+            CancellationToken ct = default)
+        {
+            var usuario =
+                await ObtenerUsuarioLogisticaActualAsync(ct);
+
+            if (usuario == null)
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El usuario actual no está configurado como usuario activo en UsuarioSQL."
+                    }
+                );
+            }
+
+            if (
+                usuario.VendedorId.HasValue &&
+                usuario.VendedorId.Value > 0
+            )
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "Sólo usuarios de Logística pueden administrar transportes."
+                    }
+                );
+            }
+
+            var nombre =
+                (model.Nombre ?? "")
+                .Trim()
+                .ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(nombre))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Captura el nombre del transporte."
+                });
+            }
+
+            if (nombre.Length > 100)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "El nombre del transporte no puede exceder 100 caracteres."
+                });
+            }
+
+            if (model.CapacidadNominalKg <= 0m)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "La capacidad nominal debe ser mayor a cero."
+                });
+            }
+
+            if (
+                model.CapacidadMaximaKg <
+                model.CapacidadNominalKg
+            )
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "La capacidad máxima no puede ser menor que la capacidad nominal."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(_connString))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No hay ConnectionString configurado: DefaultConnection."
+                    }
+                );
+            }
+
+            await using var cn =
+                new SqlConnection(_connString);
+
+            await cn.OpenAsync(ct);
+
+            await using var tx =
+                (SqlTransaction)await cn.BeginTransactionAsync(ct);
+
+            try
+            {
+                const string sqlDuplicado = @"
+SELECT COUNT(1)
+FROM dbo.LogisticaTipoTransporte
+WHERE
+    UPPER(LTRIM(RTRIM(Nombre))) =
+        UPPER(LTRIM(RTRIM(@Nombre)))
+    AND Id <> @Id;";
+
+                await using (
+                    var cmdDuplicado =
+                        new SqlCommand(
+                            sqlDuplicado,
+                            cn,
+                            tx
+                        )
+                )
+                {
+                    cmdDuplicado.Parameters
+                        .Add(
+                            "@Nombre",
+                            SqlDbType.NVarChar,
+                            100
+                        )
+                        .Value =
+                            nombre;
+
+                    cmdDuplicado.Parameters
+                        .Add(
+                            "@Id",
+                            SqlDbType.Int
+                        )
+                        .Value =
+                            model.Id;
+
+                    int existe =
+                        Convert.ToInt32(
+                            await cmdDuplicado
+                                .ExecuteScalarAsync(ct)
+                        );
+
+                    if (existe > 0)
+                    {
+                        await tx.RollbackAsync(ct);
+
+                        return BadRequest(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "Ya existe un transporte con ese nombre."
+                        });
+                    }
+                }
+
+                int idFinal;
+
+                if (model.Id <= 0)
+                {
+                    const string sqlInsert = @"
+INSERT INTO dbo.LogisticaTipoTransporte
+(
+    Nombre,
+    CapacidadNominalKg,
+    CapacidadMaximaKg,
+    Activo,
+    FechaRegistro
+)
+OUTPUT INSERTED.Id
+VALUES
+(
+    @Nombre,
+    @CapacidadNominalKg,
+    @CapacidadMaximaKg,
+    1,
+    SYSDATETIME()
+);";
+
+                    await using var cmdInsert =
+                        new SqlCommand(
+                            sqlInsert,
+                            cn,
+                            tx
+                        );
+
+                    cmdInsert.Parameters
+                        .Add(
+                            "@Nombre",
+                            SqlDbType.NVarChar,
+                            100
+                        )
+                        .Value =
+                            nombre;
+
+                    var pNominal =
+                        cmdInsert.Parameters
+                            .Add(
+                                "@CapacidadNominalKg",
+                                SqlDbType.Decimal
+                            );
+
+                    pNominal.Precision = 18;
+                    pNominal.Scale = 2;
+                    pNominal.Value =
+                        model.CapacidadNominalKg;
+
+                    var pMaxima =
+                        cmdInsert.Parameters
+                            .Add(
+                                "@CapacidadMaximaKg",
+                                SqlDbType.Decimal
+                            );
+
+                    pMaxima.Precision = 18;
+                    pMaxima.Scale = 2;
+                    pMaxima.Value =
+                        model.CapacidadMaximaKg;
+
+                    idFinal =
+                        Convert.ToInt32(
+                            await cmdInsert
+                                .ExecuteScalarAsync(ct)
+                        );
+                }
+                else
+                {
+                    const string sqlUpdate = @"
+UPDATE dbo.LogisticaTipoTransporte
+SET
+    Nombre = @Nombre,
+    CapacidadNominalKg = @CapacidadNominalKg,
+    CapacidadMaximaKg = @CapacidadMaximaKg
+WHERE
+    Id = @Id;
+
+SELECT @@ROWCOUNT;";
+
+                    await using var cmdUpdate =
+                        new SqlCommand(
+                            sqlUpdate,
+                            cn,
+                            tx
+                        );
+
+                    cmdUpdate.Parameters
+                        .Add(
+                            "@Id",
+                            SqlDbType.Int
+                        )
+                        .Value =
+                            model.Id;
+
+                    cmdUpdate.Parameters
+                        .Add(
+                            "@Nombre",
+                            SqlDbType.NVarChar,
+                            100
+                        )
+                        .Value =
+                            nombre;
+
+                    var pNominal =
+                        cmdUpdate.Parameters
+                            .Add(
+                                "@CapacidadNominalKg",
+                                SqlDbType.Decimal
+                            );
+
+                    pNominal.Precision = 18;
+                    pNominal.Scale = 2;
+                    pNominal.Value =
+                        model.CapacidadNominalKg;
+
+                    var pMaxima =
+                        cmdUpdate.Parameters
+                            .Add(
+                                "@CapacidadMaximaKg",
+                                SqlDbType.Decimal
+                            );
+
+                    pMaxima.Precision = 18;
+                    pMaxima.Scale = 2;
+                    pMaxima.Value =
+                        model.CapacidadMaximaKg;
+
+                    int afectados =
+                        Convert.ToInt32(
+                            await cmdUpdate
+                                .ExecuteScalarAsync(ct)
+                        );
+
+                    if (afectados <= 0)
+                    {
+                        await tx.RollbackAsync(ct);
+
+                        return NotFound(new
+                        {
+                            ok = false,
+                            mensaje =
+                                "No se encontró el transporte a editar."
+                        });
+                    }
+
+                    idFinal =
+                        model.Id;
+                }
+
+                await tx.CommitAsync(ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    id = idFinal,
+                    mensaje =
+                        model.Id <= 0
+                            ? "Transporte creado correctamente."
+                            : "Transporte actualizado correctamente."
+                });
+            }
+            catch
+            {
+                try
+                {
+                    await tx.RollbackAsync(ct);
+                }
+                catch
+                {
+                }
+
+                throw;
+            }
+        }
+
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso("LOGISTICA_TRANSPORTES", "ELIMINAR")]
+        public async Task<IActionResult> TransporteCambiarEstatus(
+            [FromBody] TransporteCatalogoEstatusRequest model,
+            CancellationToken ct = default)
+        {
+            var usuario =
+                await ObtenerUsuarioLogisticaActualAsync(ct);
+
+            if (usuario == null)
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "El usuario actual no está configurado como usuario activo en UsuarioSQL."
+                    }
+                );
+            }
+
+            if (
+                usuario.VendedorId.HasValue &&
+                usuario.VendedorId.Value > 0
+            )
+            {
+                return StatusCode(
+                    403,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "Sólo usuarios de Logística pueden administrar transportes."
+                    }
+                );
+            }
+
+            if (model.Id <= 0)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje =
+                        "Transporte inválido."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(_connString))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje =
+                            "No hay ConnectionString configurado: DefaultConnection."
+                    }
+                );
+            }
+
+            const string sql = @"
+UPDATE dbo.LogisticaTipoTransporte
+SET
+    Activo = @Activo
+WHERE
+    Id = @Id;
+
+SELECT @@ROWCOUNT;";
+
+            await using var cn =
+                new SqlConnection(_connString);
+
+            await cn.OpenAsync(ct);
+
+            await using var cmd =
+                new SqlCommand(sql, cn);
+
+            cmd.Parameters
+                .Add(
+                    "@Id",
+                    SqlDbType.Int
+                )
+                .Value =
+                    model.Id;
+
+            cmd.Parameters
+                .Add(
+                    "@Activo",
+                    SqlDbType.Bit
+                )
+                .Value =
+                    model.Activo;
+
+            int afectados =
+                Convert.ToInt32(
+                    await cmd.ExecuteScalarAsync(ct)
+                );
+
+            if (afectados <= 0)
+            {
+                return NotFound(new
+                {
+                    ok = false,
+                    mensaje =
+                        "No se encontró el transporte."
+                });
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                mensaje =
+                    model.Activo
+                        ? "Transporte reactivado correctamente."
+                        : "Transporte inactivado correctamente."
+            });
+        }
+
+
+        private async Task<UsuarioLogisticaActualVM?> ObtenerUsuarioLogisticaActualAsync(
+            CancellationToken ct = default)
+        {
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(login))
+                return null;
+
+            var username =
+                login.Contains("\\")
+                    ? login.Split("\\").Last()
+                    : login;
+
+            var usernameEmail =
+                username.Contains("@")
+                    ? username
+                    : $"{username}@carnesg.net";
+
+            return await _db.UsuarioSQL
+                .AsNoTracking()
+                .Where(u =>
+                    u.Activo &&
+                    (
+                        u.Usuario == login ||
+                        u.Usuario == username ||
+                        u.Usuario == usernameEmail ||
+                        u.Nombre == login ||
+                        u.Nombre == username
+                    )
+                )
+                .Select(u =>
+                    new UsuarioLogisticaActualVM
+                    {
+                        Usuario =
+                            u.Usuario ?? "",
+
+                        Nombre =
+                            u.Nombre ?? "",
+
+                        VendedorId =
+                            (int?)u.VendedorId
+                    }
+                )
+                .FirstOrDefaultAsync(ct);
+        }
+
+
+        private async Task<LogisticaTransportesPermisoVM> ObtenerPermisoTransportesAsync(
+            CancellationToken ct = default)
+        {
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(login))
+                return new LogisticaTransportesPermisoVM();
+
+            var username =
+                login.Contains("\\")
+                    ? login.Split("\\").Last()
+                    : login;
+
+            var usernameEmail =
+                username.Contains("@")
+                    ? username
+                    : $"{username}@carnesg.net";
+
+            var permiso =
+                await (
+                    from u in _db.UsuarioSQL
+
+                    join p in _db.Perfiles
+                        on u.PerfilId equals p.Id
+
+                    join ppm in _db.PerfilPermisoModulo
+                        on p.Id equals ppm.PerfilId
+
+                    join m in _db.ModulosSistema
+                        on ppm.ModuloId equals m.Id
+
+                    where
+                        u.Activo
+                        &&
+                        (
+                            u.Usuario == login ||
+                            u.Usuario == username ||
+                            u.Usuario == usernameEmail ||
+                            u.Nombre == login ||
+                            u.Nombre == username
+                        )
+                        &&
+                        m.Clave == "LOGISTICA_TRANSPORTES"
+                        &&
+                        ppm.Activo
+                        &&
+                        m.Activo
+
+                    select new LogisticaTransportesPermisoVM
+                    {
+                        PuedeLeer =
+                            ppm.PuedeLeer,
+
+                        PuedeEscribir =
+                            ppm.PuedeEscribir,
+
+                        PuedeEliminar =
+                            ppm.PuedeEliminar
+                    }
+                )
+                .FirstOrDefaultAsync(ct);
+
+            return permiso
+                ?? new LogisticaTransportesPermisoVM();
         }
 
 
@@ -155,8 +975,9 @@ namespace Plataforma_CG.Controllers
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetPedidosLogistica(
-    DateTime fechaInicio,
-    DateTime fechaFin)
+            DateTime fechaInicio,
+            DateTime fechaFin,
+            CancellationToken ct = default)
         {
             try
             {
@@ -192,15 +1013,7 @@ namespace Plataforma_CG.Controllers
 
 
                 // ============================================================
-                // 2) OBTENER VendedorId DIRECTAMENTE DE UsuarioSQL
-                //
-                // REGLA:
-                //
-                // VendedorId > 0
-                //      => solamente ve sus propios folios.
-                //
-                // VendedorId NULL / 0
-                //      => ve todos los folios.
+                // 2) FILTRO DE VENDEDOR DESDE UsuarioSQL
                 // ============================================================
 
                 var usuarioSql =
@@ -221,7 +1034,7 @@ namespace Plataforma_CG.Controllers
                             VendedorId =
                                 (int?)u.VendedorId
                         })
-                        .FirstOrDefaultAsync();
+                        .FirstOrDefaultAsync(ct);
 
 
                 int? vendedorFiltro =
@@ -232,7 +1045,13 @@ namespace Plataforma_CG.Controllers
 
 
                 // ============================================================
-                // 3) CONSULTAR CALENDARIO
+                // 3) CONSULTAR CALENDARIO MULTI-OV
+                //
+                // IMPORTANTE:
+                // - Un folio puede tener varias OV.
+                // - LogisticaFolioDocumento es la fuente de los documentos.
+                // - Una OV cancelada solamente se desactiva del folio.
+                // - NO se cancela todo el transporte por una sola OV.
                 // ============================================================
 
                 var lista =
@@ -243,45 +1062,62 @@ namespace Plataforma_CG.Controllers
 SET NOCOUNT ON;
 
 /* ============================================================
-   SINCRONIZACIÓN AUTOMÁTICA:
-   Si la OV ligada ya está en Estatus = 0,
-   el transporte queda CANCELADO.
+   MULTI-OV: DESACTIVAR ÚNICAMENTE LAS OV CANCELADAS
+
+   Antes se cancelaba TODO el folio cuando la OV guardada en
+   LogisticaFolio.OrdenVentaId estaba cancelada.
+
+   Ahora un folio puede contener varias OV, por lo que únicamente
+   liberamos el documento cancelado.
+   ============================================================ */
+UPDATE d
+SET
+    d.Activo = 0
+FROM dbo.LogisticaFolioDocumento d
+INNER JOIN dbo.OrdenVenta ovCancelada
+    ON ovCancelada.Id = d.DocumentoId
+WHERE
+    d.TipoDocumento = 'OV'
+    AND d.Activo = 1
+    AND ovCancelada.Estatus = 0;
+
+
+/* ============================================================
+   SINCRONIZAR KG ACUMULADOS DEL FOLIO
    ============================================================ */
 UPDATE f
 SET
-    f.Cancelado = 1,
-    f.EstatusLogistico = 'CANCELADO',
-    f.MotivoCancelacion =
-        COALESCE(
-            NULLIF(
-                LTRIM(
-                    RTRIM(
-                        f.MotivoCancelacion
-                    )
-                ),
-                ''
-            ),
-            'ORDEN DE VENTA CANCELADA'
-        ),
-    f.UsuarioModificacion = 'SISTEMA',
-    f.FechaModificacion = SYSDATETIME()
+    f.KgOrdenVenta =
+        ISNULL(docTotal.KgCargados, 0)
 FROM dbo.LogisticaFolio f
-INNER JOIN dbo.OrdenVenta ovCancelada
-    ON ovCancelada.Id = f.OrdenVentaId
+OUTER APPLY
+(
+    SELECT
+        SUM(
+            CAST(
+                ISNULL(d.Kg, 0)
+                AS DECIMAL(18,4)
+            )
+        ) AS KgCargados
+    FROM dbo.LogisticaFolioDocumento d
+    WHERE
+        d.LogisticaFolioId = f.Id
+        AND d.Activo = 1
+) docTotal
 WHERE
-    ovCancelada.Estatus = 0
-    AND
-    (
-        ISNULL(f.Cancelado, 0) = 0
-        OR ISNULL(f.EstatusLogistico, '') <> 'CANCELADO'
-    );
+    f.FechaEmbarque >= @FechaInicio
+    AND f.FechaEmbarque < DATEADD(DAY, 1, @FechaFin);
+
 
 SELECT
     f.Id AS FolioLogisticaId,
     f.Folio,
 
+    /* Primera OV activa únicamente para conservar compatibilidad
+       con la vista actual. El total real está en los campos
+       CantidadDocumentos / KgCargados. */
     ISNULL(
-        f.OrdenVentaId,
+        ov.Id,
         0
     ) AS OrdenVentaId,
 
@@ -289,7 +1125,7 @@ SELECT
         NULLIF(
             LTRIM(
                 RTRIM(
-                    f.OrdenVentaConsecutivo
+                    docPrincipal.DocumentoConsecutivo
                 )
             ),
             ''
@@ -298,6 +1134,14 @@ SELECT
             LTRIM(
                 RTRIM(
                     ov.Consecutivo
+                )
+            ),
+            ''
+        ),
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.OrdenVentaConsecutivo
                 )
             ),
             ''
@@ -351,7 +1195,7 @@ SELECT
         NULLIF(
             LTRIM(
                 RTRIM(
-                    f.ClienteCodigo
+                    docPrincipal.ClienteCodigo
                 )
             ),
             ''
@@ -364,6 +1208,14 @@ SELECT
             ),
             ''
         ),
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.ClienteCodigo
+                )
+            ),
+            ''
+        ),
         ''
     ) AS ClienteCodigo,
 
@@ -371,7 +1223,7 @@ SELECT
         NULLIF(
             LTRIM(
                 RTRIM(
-                    f.ClienteNombre
+                    docPrincipal.ClienteNombre
                 )
             ),
             ''
@@ -388,6 +1240,14 @@ SELECT
             LTRIM(
                 RTRIM(
                     ov.Cliente
+                )
+            ),
+            ''
+        ),
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.ClienteNombre
                 )
             ),
             ''
@@ -441,7 +1301,7 @@ SELECT
         NULLIF(
             LTRIM(
                 RTRIM(
-                    f.Ruta
+                    docPrincipal.Ruta
                 )
             ),
             ''
@@ -454,6 +1314,14 @@ SELECT
             ),
             ''
         ),
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.Ruta
+                )
+            ),
+            ''
+        ),
         ''
     ) AS Ruta,
 
@@ -461,7 +1329,7 @@ SELECT
         NULLIF(
             LTRIM(
                 RTRIM(
-                    f.Presentacion
+                    docPrincipal.Presentacion
                 )
             ),
             ''
@@ -474,6 +1342,14 @@ SELECT
             ),
             ''
         ),
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.Presentacion
+                )
+            ),
+            ''
+        ),
         ''
     ) AS Presentacion,
 
@@ -482,35 +1358,180 @@ SELECT
         ''
     ) AS Observacion,
 
+    /* ========================================================
+       CAPACIDAD / TRANSPORTE
+       ======================================================== */
+
     ISNULL(
         f.CargaSolicitadaKg,
         0
     ) AS CargaSolicitadaKg,
 
     ISNULL(
-        f.KgOrdenVenta,
+        t.Id,
+        0
+    ) AS TipoTransporteId,
+
+    ISNULL(
+        t.Nombre,
+        'SIN TIPO DE TRANSPORTE'
+    ) AS TipoTransporte,
+
+    CAST(
         ISNULL(
-            kg.KgProgramados,
-            0
-        )
-    ) AS KgOrdenVenta,
-
-    CASE
-        WHEN f.OrdenVentaId IS NULL
-            THEN ISNULL(
-                f.CargaSolicitadaKg,
-                0
-            )
-
-        ELSE
+            f.CapacidadNominalKg,
             ISNULL(
-                kg.KgProgramados,
+                t.CapacidadNominalKg,
                 ISNULL(
-                    f.KgOrdenVenta,
+                    f.CargaSolicitadaKg,
                     0
                 )
             )
-    END AS Saldo,
+        )
+        AS DECIMAL(18,2)
+    ) AS CapacidadNominalKg,
+
+    CAST(
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+        AS DECIMAL(18,2)
+    ) AS CapacidadMaximaKg,
+
+    CAST(
+        ISNULL(
+            docTotal.KgCargados,
+            0
+        )
+        AS DECIMAL(18,2)
+    ) AS KgCargados,
+
+    CAST(
+        CASE
+            WHEN
+                ISNULL(
+                    f.CapacidadMaximaKg,
+                    ISNULL(
+                        t.CapacidadMaximaKg,
+                        ISNULL(
+                            f.CargaSolicitadaKg,
+                            0
+                        )
+                    )
+                )
+                -
+                ISNULL(
+                    docTotal.KgCargados,
+                    0
+                )
+                > 0
+            THEN
+                ISNULL(
+                    f.CapacidadMaximaKg,
+                    ISNULL(
+                        t.CapacidadMaximaKg,
+                        ISNULL(
+                            f.CargaSolicitadaKg,
+                            0
+                        )
+                    )
+                )
+                -
+                ISNULL(
+                    docTotal.KgCargados,
+                    0
+                )
+            ELSE 0
+        END
+        AS DECIMAL(18,2)
+    ) AS KgDisponible,
+
+    ISNULL(
+        docTotal.CantidadDocumentos,
+        0
+    ) AS CantidadDocumentos,
+
+    /* ========================================================
+       TODOS LOS DOCUMENTOS LIGADOS AL FOLIO
+
+       Regresamos JSON para que la vista pueda mostrar TODAS
+       las OV y TRANSFERENCIAS del mismo transporte.
+       ======================================================== */
+    ISNULL(
+        (
+            SELECT
+                TipoDocumento =
+                    ISNULL(d.TipoDocumento, ''),
+
+                DocumentoId =
+                    d.DocumentoId,
+
+                DocumentoConsecutivo =
+                    ISNULL(d.DocumentoConsecutivo, ''),
+
+                Kg =
+                    CAST(
+                        ISNULL(d.Kg, 0)
+                        AS DECIMAL(18,2)
+                    ),
+
+                ClienteCodigo =
+                    ISNULL(d.ClienteCodigo, ''),
+
+                ClienteNombre =
+                    ISNULL(d.ClienteNombre, ''),
+
+                Ruta =
+                    ISNULL(d.Ruta, ''),
+
+                Presentacion =
+                    ISNULL(d.Presentacion, '')
+
+            FROM dbo.LogisticaFolioDocumento d
+
+            WHERE
+                d.LogisticaFolioId = f.Id
+                AND d.Activo = 1
+
+            ORDER BY
+                d.Id
+
+            FOR JSON PATH
+        ),
+        '[]'
+    ) AS DocumentosJson,
+
+    /* Compatibilidad: KgOrdenVenta ahora representa el total
+       activo acumulado del folio. */
+    CAST(
+        ISNULL(
+            docTotal.KgCargados,
+            ISNULL(
+                f.KgOrdenVenta,
+                0
+            )
+        )
+        AS DECIMAL(18,2)
+    ) AS KgOrdenVenta,
+
+    /* La vista existente usa Saldo como kilos en algunas partes.
+       Conservamos el campo, pero ahora refleja el total cargado;
+       si todavía no hay documentos refleja la carga solicitada. */
+    CAST(
+        CASE
+            WHEN ISNULL(docTotal.CantidadDocumentos, 0) = 0
+                THEN ISNULL(f.CargaSolicitadaKg, 0)
+            ELSE ISNULL(docTotal.KgCargados, 0)
+        END
+        AS DECIMAL(18,2)
+    ) AS Saldo,
 
     ISNULL(
         ov.OtrosPedidos,
@@ -541,32 +1562,21 @@ SELECT
         ''
     ) AS HoraLlegadaUnidad,
 
-    CASE
-        WHEN
-            f.OrdenVentaId IS NOT NULL
-            AND ISNULL(ov.Estatus, -1) = 0
-            THEN 'CANCELADO'
-
-        ELSE
-            ISNULL(
-                NULLIF(
-                    LTRIM(
-                        RTRIM(
-                            f.EstatusLogistico
-                        )
-                    ),
-                    ''
-                ),
-
-                CASE
-                    WHEN f.OrdenVentaId IS NULL
-                        THEN 'RESERVADO VENTA'
-
-                    ELSE
-                        'PENDIENTE FLETERA'
-                END
-            )
-    END AS EstatusLogistico,
+    ISNULL(
+        NULLIF(
+            LTRIM(
+                RTRIM(
+                    f.EstatusLogistico
+                )
+            ),
+            ''
+        ),
+        CASE
+            WHEN ISNULL(docTotal.CantidadDocumentos, 0) = 0
+                THEN 'RESERVADO VENTA'
+            ELSE 'PENDIENTE FLETERA'
+        END
+    ) AS EstatusLogistico,
 
     ISNULL(
         f.ObservacionLogistica,
@@ -584,18 +1594,10 @@ SELECT
     ) AS MotivoCancelacionFletera,
 
     CAST(
-        CASE
-            WHEN
-                f.OrdenVentaId IS NOT NULL
-                AND ISNULL(ov.Estatus, -1) = 0
-                THEN 1
-
-            ELSE
-                ISNULL(
-                    f.Cancelado,
-                    0
-                )
-        END
+        ISNULL(
+            f.Cancelado,
+            0
+        )
         AS BIT
     ) AS Cancelado,
 
@@ -609,9 +1611,73 @@ SELECT
 
 FROM dbo.LogisticaFolio f
 
+LEFT JOIN dbo.LogisticaTipoTransporte t
+    ON t.Id = f.TipoTransporteId
+
+/* ============================================================
+   PRIMERA OV ACTIVA PARA COMPATIBILIDAD VISUAL
+   ============================================================ */
+OUTER APPLY
+(
+    SELECT TOP (1)
+        d.DocumentoId,
+        d.DocumentoConsecutivo,
+        d.ClienteCodigo,
+        d.ClienteNombre,
+        d.Ruta,
+        d.Presentacion,
+        d.Kg
+    FROM dbo.LogisticaFolioDocumento d
+    WHERE
+        d.LogisticaFolioId = f.Id
+        AND d.TipoDocumento = 'OV'
+        AND d.Activo = 1
+    ORDER BY
+        d.Id
+) docPrincipal
+
+/* ============================================================
+   TOTAL REAL DEL CAMIÓN / FOLIO
+   Incluye cualquier documento activo: OV, TRANSFERENCIA, etc.
+   ============================================================ */
+OUTER APPLY
+(
+    SELECT
+        KgCargados =
+            SUM(
+                CAST(
+                    ISNULL(d.Kg, 0)
+                    AS DECIMAL(18,4)
+                )
+            ),
+
+        CantidadDocumentos =
+            COUNT(*)
+
+    FROM dbo.LogisticaFolioDocumento d
+    WHERE
+        d.LogisticaFolioId = f.Id
+        AND d.Activo = 1
+) docTotal
+
+/* Saber si el folio ya usa el esquema nuevo, incluso cuando todos
+   sus documentos históricos estén inactivos. */
+OUTER APPLY
+(
+    SELECT
+        COUNT(*) AS CantidadHistorica
+    FROM dbo.LogisticaFolioDocumento d
+    WHERE
+        d.LogisticaFolioId = f.Id
+) docHistorico
+
 LEFT JOIN dbo.OrdenVenta ov
     ON ov.Id =
-       f.OrdenVentaId
+       CASE
+           WHEN ISNULL(docHistorico.CantidadHistorica, 0) > 0
+               THEN docPrincipal.DocumentoId
+           ELSE f.OrdenVentaId
+       END
 
 LEFT JOIN dbo.series s
     ON UPPER(
@@ -640,7 +1706,11 @@ LEFT JOIN dbo.ClienteSap cs
        UPPER(
            LTRIM(
                RTRIM(
-                   ISNULL(
+                   COALESCE(
+                       NULLIF(
+                           docPrincipal.ClienteCodigo,
+                           ''
+                       ),
                        NULLIF(
                            f.ClienteCodigo,
                            ''
@@ -651,36 +1721,8 @@ LEFT JOIN dbo.ClienteSap cs
            )
        )
 
-OUTER APPLY
-(
-    SELECT
-        KgProgramados =
-            SUM(
-                CAST(
-                    ISNULL(
-                        op.Peso,
-                        0
-                    )
-                    AS DECIMAL(18,4)
-                )
-            )
-
-    FROM dbo.OrdenVentaProducto op
-
-    WHERE
-        op.PedidoId =
-            ov.Id
-
-        AND ISNULL(
-            op.Eliminado,
-            0
-        ) = 0
-
-) kg
-
 WHERE
-    f.FechaEmbarque >=
-        @FechaInicio
+    f.FechaEmbarque >= @FechaInicio
 
     AND f.FechaEmbarque <
         DATEADD(
@@ -689,23 +1731,11 @@ WHERE
             @FechaFin
         )
 
-    /*
-        REGLA DE VISIBILIDAD:
-
-        @VendedorId = 7
-            => sólo registros del vendedor 7.
-
-        @VendedorId = NULL
-            => todos los registros.
-    */
     AND
     (
         @VendedorId IS NULL
-
         OR
-
-        f.VendedorId =
-            @VendedorId
+        f.VendedorId = @VendedorId
     )
 
 ORDER BY
@@ -725,7 +1755,7 @@ ORDER BY
                     );
 
 
-                await cn.OpenAsync();
+                await cn.OpenAsync(ct);
 
 
                 await using var cmd =
@@ -757,17 +1787,6 @@ ORDER BY
                         fechaFin.Date;
 
 
-                // ============================================================
-                // VENDEDOR
-                //
-                // vendedorFiltro = 7
-                //      => @VendedorId = 7
-                //
-                // vendedorFiltro = null
-                //      => @VendedorId = NULL
-                //      => VE TODOS
-                // ============================================================
-
                 cmd.Parameters
                     .Add(
                         "@VendedorId",
@@ -780,7 +1799,7 @@ ORDER BY
 
 
                 await using var rd =
-                    await cmd.ExecuteReaderAsync();
+                    await cmd.ExecuteReaderAsync(ct);
 
 
                 // ============================================================
@@ -788,7 +1807,7 @@ ORDER BY
                 // ============================================================
 
                 while (
-                    await rd.ReadAsync()
+                    await rd.ReadAsync(ct)
                 )
                 {
                     lista.Add(
@@ -932,6 +1951,54 @@ ORDER BY
                                     "CargaSolicitadaKg"
                                 ),
 
+                            TipoTransporteId =
+                                GetInt(
+                                    rd,
+                                    "TipoTransporteId"
+                                ),
+
+                            TipoTransporte =
+                                GetString(
+                                    rd,
+                                    "TipoTransporte"
+                                ),
+
+                            CapacidadNominalKg =
+                                GetDecimal(
+                                    rd,
+                                    "CapacidadNominalKg"
+                                ),
+
+                            CapacidadMaximaKg =
+                                GetDecimal(
+                                    rd,
+                                    "CapacidadMaximaKg"
+                                ),
+
+                            KgCargados =
+                                GetDecimal(
+                                    rd,
+                                    "KgCargados"
+                                ),
+
+                            KgDisponible =
+                                GetDecimal(
+                                    rd,
+                                    "KgDisponible"
+                                ),
+
+                            CantidadDocumentos =
+                                GetInt(
+                                    rd,
+                                    "CantidadDocumentos"
+                                ),
+
+                            DocumentosJson =
+                                GetString(
+                                    rd,
+                                    "DocumentosJson"
+                                ),
+
                             KgOrdenVenta =
                                 GetDecimal(
                                     rd,
@@ -1041,12 +2108,12 @@ ORDER BY
         // ============================================================
         // LOGÍSTICA COMPLETA SOLAMENTE LOS DATOS QUE LE CORRESPONDEN
         //
-        // El folio YA debe tener una OV ligada.
+        // El folio puede existir SIN OV o contener VARIAS OV.
         //
         // Compatibilidad temporal:
         // - Preferido: FolioLogisticaId.
         // - Si la vista vieja todavía manda OrdenVentaId,
-        //   se busca el folio por OrdenVentaId.
+        //   se busca primero en LogisticaFolioDocumento.
         // ============================================================
         [Authorize]
         [HttpPost]
@@ -1095,13 +2162,12 @@ ORDER BY
                 );
             }
 
+
             // ============================================================
             // SEGURIDAD REAL DEL LADO DEL SERVIDOR
             //
             // Sólo un usuario ACTIVO de UsuarioSQL SIN VendedorId
             // puede modificar campos de logística.
-            //
-            // No dependemos de que el botón esté oculto en JavaScript.
             // ============================================================
 
             var loginPermiso =
@@ -1171,9 +2237,11 @@ ORDER BY
                 );
             }
 
+
             var usuario =
                 User?.Identity?.Name
                 ?? "Sistema";
+
 
             TimeSpan? horaLlegada = null;
 
@@ -1191,6 +2259,7 @@ ORDER BY
                 horaLlegada = hora;
             }
 
+
             var fletera =
                 (model.Fletera ?? "")
                     .Trim()
@@ -1206,6 +2275,7 @@ ORDER BY
                     .Trim()
                     .ToUpperInvariant();
 
+
             // Registros anteriores pueden venir SIN DEFINIR.
             // En ese caso NO pisamos el valor existente en SQL.
             string? tipoViaje =
@@ -1214,6 +2284,7 @@ ORDER BY
                     : tipoViajeTexto == "TENTATIVO"
                         ? "TENTATIVO"
                         : null;
+
 
             string estatusFinal;
 
@@ -1242,69 +2313,82 @@ ORDER BY
                     "PENDIENTE FLETERA";
             }
 
-            const string sql = @"
-DECLARE @FolioId INT = NULLIF(@FolioLogisticaId, 0);
 
-/* Compatibilidad con llamadas que todavía mandan OrdenVentaId */
+            // ============================================================
+            // MULTI-OV
+            //
+            // Ya NO se cancela el folio porque una sola OV esté cancelada.
+            // Si la vista vieja manda OrdenVentaId, primero buscamos el folio
+            // en LogisticaFolioDocumento y luego usamos el campo antiguo como
+            // compatibilidad.
+            // ============================================================
+
+            const string sql = @"
+SET NOCOUNT ON;
+
+DECLARE @FolioId INT =
+    NULLIF(
+        @FolioLogisticaId,
+        0
+    );
+
+
+/* ============================================================
+   COMPATIBILIDAD CON LLAMADAS QUE TODAVÍA MANDAN OrdenVentaId
+   ============================================================ */
 IF @FolioId IS NULL AND @OrdenVentaId > 0
 BEGIN
+
     SELECT TOP (1)
-        @FolioId = f.Id
-    FROM dbo.LogisticaFolio f
-    WHERE f.OrdenVentaId = @OrdenVentaId
-    ORDER BY f.Id DESC;
+        @FolioId =
+            d.LogisticaFolioId
+    FROM dbo.LogisticaFolioDocumento d
+    WHERE
+        d.TipoDocumento = 'OV'
+        AND d.DocumentoId = @OrdenVentaId
+        AND d.Activo = 1
+    ORDER BY
+        d.Id DESC;
+
 END;
 
-/* ============================================================
-   Si la OV ya fue cancelada, cancelamos también el transporte
-   y no permitimos volver a editarlo como activo.
-   ============================================================ */
-IF EXISTS
-(
-    SELECT 1
-    FROM dbo.LogisticaFolio f
-    INNER JOIN dbo.OrdenVenta ov
-        ON ov.Id = f.OrdenVentaId
-    WHERE
-        f.Id = @FolioId
-        AND ov.Estatus = 0
-)
+
+/* Compatibilidad adicional con folios antiguos. */
+IF @FolioId IS NULL AND @OrdenVentaId > 0
 BEGIN
-    UPDATE dbo.LogisticaFolio
-    SET
-        Cancelado = 1,
-        EstatusLogistico = 'CANCELADO',
-        MotivoCancelacion =
-            COALESCE(
-                NULLIF(
-                    LTRIM(
-                        RTRIM(
-                            MotivoCancelacion
-                        )
-                    ),
-                    ''
-                ),
-                'ORDEN DE VENTA CANCELADA'
-            ),
-        UsuarioModificacion = @Usuario,
-        FechaModificacion = SYSDATETIME()
-    WHERE
-        Id = @FolioId;
 
-    SELECT CAST(-2 AS INT);
-    RETURN;
+    SELECT TOP (1)
+        @FolioId =
+            f.Id
+    FROM dbo.LogisticaFolio f
+    WHERE
+        f.OrdenVentaId = @OrdenVentaId
+    ORDER BY
+        f.Id DESC;
+
 END;
 
+
+IF @FolioId IS NULL
+BEGIN
+
+    SELECT CAST(0 AS INT);
+    RETURN;
+
+END;
+
+
 /* ============================================================
-   IMPORTANTE:
-   Ya NO exigimos OrdenVentaId.
-   Logística puede completar el folio desde que fue solicitado.
+   ACTUALIZAR SOLAMENTE DATOS DEL VIAJE / TRANSPORTE
    ============================================================ */
 UPDATE dbo.LogisticaFolio
 SET
     Destino =
         COALESCE(
-            NULLIF(@Destino, ''),
+            NULLIF(
+                @Destino,
+                ''
+            ),
             Destino
         ),
 
@@ -1314,29 +2398,55 @@ SET
             TipoViaje
         ),
 
-    Fletera = @Fletera,
-    EspacioTarimas = @EspacioTarimas,
-    HoraLlegadaUnidad = @HoraLlegadaUnidad,
-    EstatusLogistico = @EstatusLogistico,
-    ObservacionLogistica = @ObservacionLogistica,
-    MotivoCancelacion = @MotivoCancelacion,
-    MotivoCancelacionFletera = @MotivoCancelacionFletera,
-    Cancelado = @Cancelado,
-    CanceladoFletera = @CanceladoFletera,
-    UsuarioModificacion = @Usuario,
-    FechaModificacion = SYSDATETIME()
+    Fletera =
+        @Fletera,
+
+    EspacioTarimas =
+        @EspacioTarimas,
+
+    HoraLlegadaUnidad =
+        @HoraLlegadaUnidad,
+
+    EstatusLogistico =
+        @EstatusLogistico,
+
+    ObservacionLogistica =
+        @ObservacionLogistica,
+
+    MotivoCancelacion =
+        @MotivoCancelacion,
+
+    MotivoCancelacionFletera =
+        @MotivoCancelacionFletera,
+
+    Cancelado =
+        @Cancelado,
+
+    CanceladoFletera =
+        @CanceladoFletera,
+
+    UsuarioModificacion =
+        @Usuario,
+
+    FechaModificacion =
+        SYSDATETIME()
+
 WHERE
     Id = @FolioId;
 
-SELECT @@ROWCOUNT;";
+
+SELECT @@ROWCOUNT;
+";
+
 
             await using var cn =
                 new SqlConnection(_connString);
 
-            await cn.OpenAsync();
+            await cn.OpenAsync(ct);
 
             await using var cmd =
                 new SqlCommand(sql, cn);
+
 
             cmd.Parameters
                 .Add(
@@ -1468,23 +2578,12 @@ SELECT @@ROWCOUNT;";
                 .Value =
                     usuario;
 
+
             var actualizados =
                 Convert.ToInt32(
-                    await cmd.ExecuteScalarAsync()
+                    await cmd.ExecuteScalarAsync(ct)
                 );
 
-            if (actualizados == -2)
-            {
-                return BadRequest(
-                    new
-                    {
-                        ok = false,
-                        mensaje =
-                            "La Orden de Venta ligada está cancelada. " +
-                            "El transporte fue marcado automáticamente como CANCELADO."
-                    }
-                );
-            }
 
             if (actualizados != 1)
             {
@@ -1497,6 +2596,7 @@ SELECT @@ROWCOUNT;";
                     }
                 );
             }
+
 
             return Json(
                 new

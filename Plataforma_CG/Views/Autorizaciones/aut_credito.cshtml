@@ -1788,71 +1788,1515 @@ $("#btnDescargarHistCreditoExcel")
             $("#lastUpdatedCredito").text(new Date().toLocaleTimeString('es-MX'));
         }
 
-        function renderTablaCredito(items) {
-            const $tb = $("#tbodyCredito").empty();
-            if (!items || !items.length) {
-                $tb.append("<tr><td colspan='10' class='text-center' style='padding:16px;color:#6a3a3a;'>No hay órdenes pendientes</td></tr>");
-                return;
-            }
-            items.forEach(it => {
-                const ov = it.ordenVenta ?? '';
-                const excede = Number(it.excede||0) > 0;
-                const rowClass = excede ? 'row-danger' : '';
-                const clienteNombre = it.clienteNombre ?? '';
-                const clienteCodigo = it.cliente ?? '';
-                const clienteTxt = clienteNombre || clienteCodigo;
-                const kgOv = it.kgOv ?? it.kilogramos ?? 0;
+        // =========================================================
+        // CARGA LOCAL RÁPIDA + SAP POR CAMBIOS
+        //
+        // REGLAS:
+        // 1) La tabla local se actualiza cada 15 s SIN borrar/recrear
+        //    las filas existentes.
+        // 2) SAP se consulta aparte.
+        // 3) Una fila nueva queda con AUTORIZAR deshabilitado hasta
+        //    que SAP responda correctamente.
+        // 4) Si SAP falla o vence el tiempo, se muestra "Sin dato SAP"
+        //    y AUTORIZAR permanece deshabilitado.
+        // 5) Si SAP responde bien, conserva esos datos y ya NO vuelve
+        //    a consultar mientras la pantalla permanezca abierta.
+        // 6) Si SAP falla, muestra "Sin dato SAP" y reintenta
+        //    AUTOMÁTICAMENTE cada 15 segundos hasta obtener dato válido.
+        // =========================================================
 
-                $tb.append(`
-                  <tr data-ov="${esc(ov)}" class="${rowClass}">
-                    <td class="col-ov" title="${esc(ov)}"><b>${esc(ov)}</b></td>
-                    <td class="col-client" title="${esc(clienteNombre ? (clienteNombre+' • '+clienteCodigo) : clienteCodigo)}">${esc(clienteTxt)}</td>
-                    <td class="td-num col-kg">${kgFmt(kgOv)}</td>
-                    <td class="td-num col-num">${money(it.importePedido)}</td>
-                    <td class="td-num col-num">${money(it.limiteCredito)}</td>
-                    <td class="td-num col-num">${money(it.saldoActual)}</td>
-                    <td class="td-num col-num">${money(it.otrosPedidos)}</td>
-                    <td class="td-num col-num">${money(it.disponible)}</td>
-                    <td class="td-num col-num">
-                        ${excede ? `<span class="text-danger">${money(it.montoExcedido)}</span>` : '-'}
-                    </td>
-                    <td class="text-center col-acc">
-                        <div class="acciones-ov">
-                            <button class="pm-btn pm-btn-success autorizar" data-ov="${esc(ov)}">✔ Autorizar</button>
-                            <button class="pm-btn pm-btn-danger rechazar" data-ov="${esc(ov)}">✖ Rechazar</button>
-                        </div>
-                    </td>
-                  </tr>`);
+        const sapEstado =
+            new Map();
+
+        const SAP_REFRESH_OK_MS =
+            60000;
+
+        const SAP_RETRY_ERROR_MS =
+            15000;
+
+        function filasDeCliente(clienteCodigo) {
+
+            const codigo =
+                String(
+                    clienteCodigo ||
+                    ''
+                );
+
+            return $("#tbodyCredito tr[data-cliente]")
+                .filter(function () {
+
+                    return String(
+                        $(this)
+                            .attr(
+                                'data-cliente'
+                            ) ||
+                        ''
+                    ) === codigo;
+                });
+        }
+
+
+        function setCellText(
+            $tr,
+            campo,
+            texto
+        ) {
+
+            const $cell =
+                $tr.find(
+                    `[data-sap="${campo}"]`
+                );
+
+            if (
+                $cell.text().trim() !==
+                String(texto).trim()
+            ) {
+
+                $cell.text(
+                    texto
+                );
+            }
+        }
+
+
+        function setAuthorizeReady(
+            $tr,
+            listo
+        ) {
+
+            $tr.attr(
+                'data-sap-ready',
+                listo
+                    ? '1'
+                    : '0'
+            );
+
+
+            const $btn =
+                $tr.find(
+                    '.autorizar'
+                );
+
+
+            $btn.prop(
+                'disabled',
+                !listo
+            );
+
+
+            if (listo) {
+
+                $btn
+                    .attr(
+                        'title',
+                        'Autorizar crédito'
+                    );
+
+            } else {
+
+                $btn
+                    .attr(
+                        'title',
+                        'Esperando información válida de SAP'
+                    );
+            }
+        }
+
+
+        function sapPlaceholder() {
+
+            return `
+                <span
+                    class="sap-cargando"
+                    style="
+                        display:inline-flex;
+                        align-items:center;
+                        gap:4px;
+                        color:#66747c;
+                        font-size:9px;
+                        white-space:nowrap;
+                    ">
+                    <span
+                        class="spinner-border spinner-border-sm"
+                        role="status"
+                        aria-hidden="true"
+                        style="
+                            width:.70rem;
+                            height:.70rem;
+                        ">
+                    </span>
+                    Consultando…
+                </span>
+            `;
+        }
+
+
+        function marcarFilaEsperandoSap(
+            $tr
+        ) {
+
+            setAuthorizeReady(
+                $tr,
+                false
+            );
+
+
+            $tr
+                .find(
+                    '[data-sap]'
+                )
+                .html(
+                    sapPlaceholder()
+                );
+
+
+            $tr
+                .removeClass(
+                    'row-danger'
+                );
+        }
+
+
+        function marcarClienteReintentandoSap(
+            clienteCodigo,
+            intentos
+        ) {
+
+            const $filas =
+                filasDeCliente(
+                    clienteCodigo
+                );
+
+
+            const texto =
+                intentos < 3
+                    ? "Reintentando SAP…"
+                    : "Sin dato SAP · reintentando";
+
+
+            $filas.each(function () {
+
+                const $tr =
+                    $(this);
+
+
+                setAuthorizeReady(
+                    $tr,
+                    false
+                );
+
+
+                $tr
+                    .find(
+                        '[data-sap]'
+                    )
+                    .html(
+                        `<span style="
+                            color:#8a5d00;
+                            font-size:9px;
+                            font-weight:600;">
+                            ${texto}
+                         </span>`
+                    );
+
+
+                $tr
+                    .removeClass(
+                        'row-danger'
+                    );
             });
         }
 
-        window.cargar = function() {
-            if (inFlight) return;
-            inFlight = true;
-            setStatus("Actualizando…", "info");
-            $.ajax({ url:'/Comercial/ObtenerOrdenesConCredito', type:'GET', data:{ fechaEntrega }, cache:false })
-                .done(data => { renderTablaCredito(data); backoff = POLL; setUpdated(); setStatus("Al día", "ok"); })
-                .fail((xhr, st, err) => {
-                    console.error("Error AJAX (crédito):", st, err);
-                    setStatus("Error. Reintentando…", "err");
-                    backoff = Math.min(backoff*2, MAX_BACK);
-                    if (timer) clearInterval(timer);
-                    timer = setInterval(window.cargar, backoff);
-                })
-                .always(() => { inFlight = false; });
+
+        function marcarClienteSinSap(
+            clienteCodigo
+        ) {
+
+            const $filas =
+                filasDeCliente(
+                    clienteCodigo
+                );
+
+
+            $filas.each(function () {
+
+                const $tr =
+                    $(this);
+
+
+                setAuthorizeReady(
+                    $tr,
+                    false
+                );
+
+
+                $tr
+                    .find(
+                        '[data-sap]'
+                    )
+                    .html(
+                        '<span style="color:#9b2e37;font-size:9px;font-weight:600;">Sin dato SAP</span>'
+                    );
+
+
+                $tr
+                    .removeClass(
+                        'row-danger'
+                    );
+
+            });
+        }
+
+
+        function aplicarSapAFila(
+            $tr,
+            sap
+        ) {
+
+            const limite =
+                Number(
+                    sap?.credito ||
+                    0
+                );
+
+            const saldo =
+                Number(
+                    sap?.saldo ||
+                    0
+                );
+
+            const otros =
+                Number(
+                    sap?.sumpedidos ||
+                    0
+                );
+
+            const importe =
+                Number(
+                    $tr.attr(
+                        'data-importe'
+                    ) ||
+                    0
+                );
+
+
+            const disponible =
+                limite
+                - saldo
+                - otros;
+
+
+            const excede =
+                importe
+                - disponible;
+
+
+            const montoExcedido =
+                excede > 0
+                    ? excede
+                    : 0;
+
+
+            setCellText(
+                $tr,
+                'limite',
+                money(limite)
+            );
+
+
+            setCellText(
+                $tr,
+                'saldo',
+                money(saldo)
+            );
+
+
+            setCellText(
+                $tr,
+                'otros',
+                money(otros)
+            );
+
+
+            setCellText(
+                $tr,
+                'disponible',
+                money(disponible)
+            );
+
+
+            const $excedente =
+                $tr.find(
+                    '[data-sap="excedente"]'
+                );
+
+
+            if (montoExcedido > 0) {
+
+                const nuevoHtml =
+                    `<span class="text-danger">${money(montoExcedido)}</span>`;
+
+
+                if (
+                    $excedente.html().trim() !==
+                    nuevoHtml.trim()
+                ) {
+
+                    $excedente.html(
+                        nuevoHtml
+                    );
+                }
+
+
+                $tr.addClass(
+                    'row-danger'
+                );
+
+            } else {
+
+                setCellText(
+                    $tr,
+                    'excedente',
+                    '-'
+                );
+
+
+                $tr.removeClass(
+                    'row-danger'
+                );
+            }
+
+
+            setAuthorizeReady(
+                $tr,
+                true
+            );
+
+        }
+
+
+        function aplicarSapACliente(
+            clienteCodigo,
+            sap
+        ) {
+
+            filasDeCliente(
+                clienteCodigo
+            )
+            .each(function () {
+
+                aplicarSapAFila(
+                    $(this),
+                    sap
+                );
+            });
+        }
+
+
+        function actualizarEstadoGeneralSap() {
+
+            const clientes =
+                [
+                    ...new Set(
+                        $("#tbodyCredito tr[data-cliente]")
+                            .map(function () {
+
+                                return String(
+                                    $(this)
+                                        .attr(
+                                            'data-cliente'
+                                        ) ||
+                                    ''
+                                )
+                                .trim();
+                            })
+                            .get()
+                            .filter(Boolean)
+                    )
+                ];
+
+
+            if (!clientes.length) {
+
+                setStatus(
+                    "Al día",
+                    "ok"
+                );
+
+                return;
+            }
+
+
+            let listos =
+                0;
+
+            let errores =
+                0;
+
+
+            clientes.forEach(
+                clienteCodigo => {
+
+                    const estado =
+                        sapEstado.get(
+                            clienteCodigo
+                        );
+
+
+                    if (
+                        estado?.estado ===
+                        'ok'
+                    ) {
+
+                        listos++;
+
+                    } else if (
+                        estado?.estado ===
+                        'error'
+                    ) {
+
+                        errores++;
+                    }
+                }
+            );
+
+
+            if (
+                listos ===
+                clientes.length
+            ) {
+
+                setStatus(
+                    `Datos listos · SAP ${listos}/${clientes.length}`,
+                    "ok"
+                );
+
+            } else if (
+                errores > 0
+            ) {
+
+                setStatus(
+                    `Datos base listos · SAP ${listos}/${clientes.length} · ${errores} reintentando`,
+                    "warn"
+                );
+
+            } else {
+
+                setStatus(
+                    `Datos base listos · SAP ${listos}/${clientes.length}`,
+                    "info"
+                );
+            }
+        }
+
+
+        function htmlFilaBase(it) {
+
+            const ov =
+                it.ordenVenta ??
+                '';
+
+            const clienteNombre =
+                it.clienteNombre ??
+                '';
+
+            const clienteCodigo =
+                it.cliente ??
+                '';
+
+            const clienteTxt =
+                clienteNombre ||
+                clienteCodigo;
+
+            const kgOv =
+                it.kgOv ??
+                it.kilogramos ??
+                0;
+
+            const importePedido =
+                Number(
+                    it.importePedido ||
+                    0
+                );
+
+
+            return `
+                <tr
+                    data-ov="${esc(ov)}"
+                    data-cliente="${esc(clienteCodigo)}"
+                    data-importe="${importePedido}"
+                    data-sap-ready="0">
+
+                    <td
+                        class="col-ov"
+                        title="${esc(ov)}">
+                        <b>${esc(ov)}</b>
+                    </td>
+
+                    <td
+                        class="col-client"
+                        title="${esc(
+                            clienteNombre
+                                ? (
+                                    clienteNombre +
+                                    ' • ' +
+                                    clienteCodigo
+                                  )
+                                : clienteCodigo
+                        )}">
+                        ${esc(clienteTxt)}
+                    </td>
+
+                    <td
+                        class="td-num col-kg"
+                        data-local="kg">
+                        ${kgFmt(kgOv)}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-local="importe">
+                        ${money(importePedido)}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-sap="limite">
+                        ${sapPlaceholder()}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-sap="saldo">
+                        ${sapPlaceholder()}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-sap="otros">
+                        ${sapPlaceholder()}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-sap="disponible">
+                        ${sapPlaceholder()}
+                    </td>
+
+                    <td
+                        class="td-num col-num"
+                        data-sap="excedente">
+                        ${sapPlaceholder()}
+                    </td>
+
+                    <td class="text-center col-acc">
+
+                        <div class="acciones-ov">
+
+                            <button
+                                class="pm-btn pm-btn-success autorizar"
+                                data-ov="${esc(ov)}"
+                                disabled
+                                title="Esperando información válida de SAP">
+                                ✔ Autorizar
+                            </button>
+
+                            <button
+                                class="pm-btn pm-btn-danger rechazar"
+                                data-ov="${esc(ov)}">
+                                ✖ Rechazar
+                            </button>
+
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+
+        function sincronizarTablaBase(
+            items
+        ) {
+
+            const $tb =
+                $("#tbodyCredito");
+
+
+            const lista =
+                Array.isArray(items)
+                    ? items
+                    : [];
+
+
+            if (!lista.length) {
+
+                $tb.html(
+                    "<tr>" +
+                    "<td colspan='10' " +
+                    "class='text-center' " +
+                    "style='padding:16px;color:#6a3a3a;'>" +
+                    "No hay órdenes pendientes" +
+                    "</td>" +
+                    "</tr>"
+                );
+
+                actualizarEstadoGeneralSap();
+
+                return;
+            }
+
+
+            // Quitar el renglón informativo "No hay órdenes".
+            $tb
+                .find(
+                    'tr:not([data-ov])'
+                )
+                .remove();
+
+
+            const ovsActuales =
+                new Set(
+                    lista.map(x =>
+                        String(
+                            x.ordenVenta ||
+                            ''
+                        )
+                    )
+                );
+
+
+            // =============================================
+            // QUITAR SOLO LAS OV QUE YA NO EXISTEN
+            // =============================================
+            $tb
+                .find(
+                    'tr[data-ov]'
+                )
+                .each(function () {
+
+                    const ov =
+                        String(
+                            $(this)
+                                .attr(
+                                    'data-ov'
+                                ) ||
+                            ''
+                        );
+
+
+                    if (
+                        !ovsActuales.has(
+                            ov
+                        )
+                    ) {
+
+                        $(this)
+                            .remove();
+                    }
+                });
+
+
+            // =============================================
+            // AGREGAR / ACTUALIZAR SOLO LO QUE CAMBIÓ
+            // =============================================
+            lista.forEach(it => {
+
+                const ov =
+                    String(
+                        it.ordenVenta ||
+                        ''
+                    );
+
+                const clienteCodigo =
+                    String(
+                        it.cliente ||
+                        ''
+                    );
+
+                const clienteNombre =
+                    String(
+                        it.clienteNombre ||
+                        ''
+                    );
+
+                const kgOv =
+                    Number(
+                        it.kgOv ??
+                        it.kilogramos ??
+                        0
+                    );
+
+                const importe =
+                    Number(
+                        it.importePedido ||
+                        0
+                    );
+
+
+                let $tr =
+                    $tb
+                        .find(
+                            'tr[data-ov]'
+                        )
+                        .filter(function () {
+
+                            return String(
+                                $(this)
+                                    .attr(
+                                        'data-ov'
+                                    ) ||
+                                ''
+                            ) === ov;
+                        })
+                        .first();
+
+
+                // =========================================
+                // NUEVA OV
+                // =========================================
+                if (!$tr.length) {
+
+                    $tb.append(
+                        htmlFilaBase(
+                            it
+                        )
+                    );
+
+
+                    $tr =
+                        $tb
+                            .find(
+                                'tr[data-ov]'
+                            )
+                            .filter(function () {
+
+                                return String(
+                                    $(this)
+                                        .attr(
+                                            'data-ov'
+                                        ) ||
+                                    ''
+                                ) === ov;
+                            })
+                            .first();
+
+
+                    const estado =
+                        sapEstado.get(
+                            clienteCodigo
+                        );
+
+
+                    if (
+                        estado?.estado ===
+                        'ok'
+                        &&
+                        estado?.data
+                    ) {
+
+                        aplicarSapAFila(
+                            $tr,
+                            estado.data
+                        );
+
+                    } else if (
+                        estado?.estado ===
+                        'error'
+                    ) {
+
+                        marcarClienteSinSap(
+                            clienteCodigo
+                        );
+                    }
+
+                    return;
+                }
+
+
+                // =========================================
+                // OV YA EXISTENTE:
+                // NO BORRAR INFORMACIÓN SAP.
+                // =========================================
+                const clienteAnterior =
+                    String(
+                        $tr.attr(
+                            'data-cliente'
+                        ) ||
+                        ''
+                    );
+
+
+                if (
+                    clienteAnterior !==
+                    clienteCodigo
+                ) {
+
+                    $tr.attr(
+                        'data-cliente',
+                        clienteCodigo
+                    );
+
+
+                    marcarFilaEsperandoSap(
+                        $tr
+                    );
+                }
+
+
+                const clienteTxt =
+                    clienteNombre ||
+                    clienteCodigo;
+
+
+                const $clienteCell =
+                    $tr.find(
+                        '.col-client'
+                    );
+
+
+                if (
+                    $clienteCell.text().trim() !==
+                    clienteTxt.trim()
+                ) {
+
+                    $clienteCell
+                        .text(
+                            clienteTxt
+                        )
+                        .attr(
+                            'title',
+                            clienteNombre
+                                ? (
+                                    clienteNombre +
+                                    ' • ' +
+                                    clienteCodigo
+                                  )
+                                : clienteCodigo
+                        );
+                }
+
+
+                const kgTxt =
+                    kgFmt(
+                        kgOv
+                    );
+
+
+                const $kg =
+                    $tr.find(
+                        '[data-local="kg"]'
+                    );
+
+
+                if (
+                    $kg.text().trim() !==
+                    kgTxt.trim()
+                ) {
+
+                    $kg.text(
+                        kgTxt
+                    );
+                }
+
+
+                const importeAnterior =
+                    Number(
+                        $tr.attr(
+                            'data-importe'
+                        ) ||
+                        0
+                    );
+
+
+                if (
+                    importeAnterior !==
+                    importe
+                ) {
+
+                    $tr.attr(
+                        'data-importe',
+                        importe
+                    );
+
+
+                    $tr.find(
+                        '[data-local="importe"]'
+                    )
+                    .text(
+                        money(
+                            importe
+                        )
+                    );
+
+
+                    // Si ya tenemos SAP válido, solo recalcular
+                    // disponible/excedente de ESTA fila.
+                    const estado =
+                        sapEstado.get(
+                            clienteCodigo
+                        );
+
+
+                    if (
+                        estado?.estado ===
+                        'ok'
+                        &&
+                        estado?.data
+                    ) {
+
+                        aplicarSapAFila(
+                            $tr,
+                            estado.data
+                        );
+                    }
+                }
+            });
+
+
+            actualizarEstadoGeneralSap();
+        }
+
+
+        async function consultarSapCliente(
+            clienteCodigo,
+            forzar = false
+        ) {
+
+            clienteCodigo =
+                String(
+                    clienteCodigo ||
+                    ''
+                )
+                .trim();
+
+
+            if (!clienteCodigo) {
+                return false;
+            }
+
+
+            const ahora =
+                Date.now();
+
+
+            const anterior =
+                sapEstado.get(
+                    clienteCodigo
+                );
+
+
+            if (
+                anterior?.estado ===
+                'loading'
+            ) {
+
+                return false;
+            }
+
+
+            // Una vez que SAP respondió correctamente, conservamos
+            // esos datos en pantalla. NO volvemos a consultar SAP en
+            // cada refresco local.
+            if (
+                !forzar
+                &&
+                anterior?.estado ===
+                'ok'
+            ) {
+                return true;
+            }
+
+
+            // Si SAP falló, esperar 15 segundos antes del siguiente
+            // intento automático. Así no saturamos Service Layer.
+            if (
+                !forzar
+                &&
+                anterior?.estado ===
+                'error'
+                &&
+                (
+                    ahora -
+                    (
+                        anterior.ultimaConsulta ||
+                        0
+                    )
+                ) <
+                SAP_RETRY_ERROR_MS
+            ) {
+                return false;
+            }
+
+
+            // Solo mostrar "Consultando..." cuando TODAVÍA no existe
+            // una lectura SAP válida. En refrescos posteriores no
+            // cambiamos visualmente los datos mientras consulta.
+            if (
+                !anterior ||
+                anterior.estado !==
+                'ok'
+            ) {
+
+                filasDeCliente(
+                    clienteCodigo
+                )
+                .each(function () {
+
+                    marcarFilaEsperandoSap(
+                        $(this)
+                    );
+                });
+            }
+
+
+            const numeroIntento =
+                (anterior?.intentos || 0) + 1;
+
+
+            sapEstado.set(
+                clienteCodigo,
+                {
+                    estado:
+                        'loading',
+
+                    data:
+                        anterior?.data ||
+                        null,
+
+                    ultimaConsulta:
+                        ahora,
+
+                    intentos:
+                        numeroIntento
+                }
+            );
+
+
+            actualizarEstadoGeneralSap();
+
+
+            let avisoLento = null;
+
+            // Si SAP tarda, solo cambiamos el texto visual.
+            // NO abortamos la petición: dejamos que SAP termine.
+            avisoLento =
+                setTimeout(
+                    function () {
+
+                        filasDeCliente(
+                            clienteCodigo
+                        )
+                        .each(function () {
+
+                            const $tr =
+                                $(this);
+
+                            if (
+                                $tr.attr(
+                                    'data-sap-ready'
+                                ) !== '1'
+                            ) {
+
+                                $tr
+                                    .find(
+                                        '[data-sap]'
+                                    )
+                                    .html(
+                                        '<span style="color:#8a5d00;font-size:9px;font-weight:600;">SAP tardando…</span>'
+                                    );
+                            }
+                        });
+                    },
+                    12000
+                );
+
+
+            try {
+
+                const data =
+                    await $.ajax({
+
+                        url:
+                            '/Comercial/ObtenerComplementoCliente',
+
+                        type:
+                            'GET',
+
+                        data: {
+                            cardCode:
+                                clienteCodigo
+                        },
+
+                        cache:
+                            false
+                    });
+
+
+                if (avisoLento) {
+                    clearTimeout(
+                        avisoLento
+                    );
+                    avisoLento =
+                        null;
+                }
+
+
+                if (
+                    !data ||
+                    data.success === false
+                ) {
+
+                    sapEstado.set(
+                        clienteCodigo,
+                        {
+                            estado:
+                                'error',
+
+                            data:
+                                null,
+
+                            ultimaConsulta:
+                                Date.now(),
+
+                            intentos:
+                                numeroIntento
+                        }
+                    );
+
+
+                    marcarClienteReintentandoSap(
+                        clienteCodigo,
+                        numeroIntento
+                    );
+
+
+                    actualizarEstadoGeneralSap();
+
+                    return false;
+                }
+
+
+                sapEstado.set(
+                    clienteCodigo,
+                    {
+                        estado:
+                            'ok',
+
+                        data:
+                            data,
+
+                        ultimaConsulta:
+                            Date.now(),
+
+                        intentos:
+                            0
+                    }
+                );
+
+
+                // Solo modifica las celdas SAP de ese cliente.
+                aplicarSapACliente(
+                    clienteCodigo,
+                    data
+                );
+
+
+                actualizarEstadoGeneralSap();
+
+                setUpdated();
+
+                return true;
+
+            } catch (err) {
+
+                if (avisoLento) {
+                    clearTimeout(
+                        avisoLento
+                    );
+                    avisoLento =
+                        null;
+                }
+
+
+                console.error(
+                    "Error SAP cliente:",
+                    clienteCodigo,
+                    err
+                );
+
+
+                sapEstado.set(
+                    clienteCodigo,
+                    {
+                        estado:
+                            'error',
+
+                        data:
+                            null,
+
+                        ultimaConsulta:
+                            Date.now(),
+
+                        intentos:
+                            numeroIntento
+                    }
+                );
+
+
+                marcarClienteReintentandoSap(
+                    clienteCodigo,
+                    numeroIntento
+                );
+
+
+                actualizarEstadoGeneralSap();
+
+                return false;
+            }
+        }
+
+
+        function clientesVisibles() {
+
+            return [
+                ...new Set(
+                    $("#tbodyCredito tr[data-cliente]")
+                        .map(function () {
+
+                            return String(
+                                $(this)
+                                    .attr(
+                                        'data-cliente'
+                                    ) ||
+                                ''
+                            )
+                            .trim();
+                        })
+                        .get()
+                        .filter(Boolean)
+                )
+            ];
+        }
+
+
+        async function consultarSapNecesario() {
+
+            const clientes =
+                clientesVisibles();
+
+
+            if (!clientes.length) {
+                return;
+            }
+
+
+            // Máximo 3 consultas al mismo tiempo.
+            const cola =
+                [...clientes];
+
+
+            const worker =
+                async function () {
+
+                    while (
+                        cola.length
+                    ) {
+
+                        const clienteCodigo =
+                            cola.shift();
+
+
+                        await consultarSapCliente(
+                            clienteCodigo,
+                            false
+                        );
+                    }
+                };
+
+
+            // IMPORTANTE:
+            // SAP se consulta de forma SECUENCIAL (1 cliente a la vez).
+            // Evita varias llamadas simultáneas usando la misma sesión
+            // de Service Layer y reduce fallas intermitentes.
+            const workers =
+                Math.min(
+                    1,
+                    clientes.length
+                );
+
+
+            await Promise.all(
+                Array.from(
+                    {
+                        length:
+                            workers
+                    },
+                    () =>
+                        worker()
+                )
+            );
+        }
+
+        window.cargar = function () {
+
+            if (inFlight) {
+                return;
+            }
+
+
+            inFlight =
+                true;
+
+
+            setStatus(
+                "Actualizando datos base…",
+                "info"
+            );
+
+
+            $.ajax({
+
+                url:
+                    '/Comercial/ObtenerOrdenesConCredito',
+
+                type:
+                    'GET',
+
+                data: {
+                    fechaEntrega
+                },
+
+                cache:
+                    false
+            })
+
+            .done(function (data) {
+
+                // Solo agrega/quita/modifica lo que cambió.
+                // NO reinicia las celdas SAP de filas existentes.
+                sincronizarTablaBase(
+                    data
+                );
+
+
+                backoff =
+                    POLL;
+
+
+                setUpdated();
+
+
+                // Primera carga o clientes nuevos/error:
+                // consulta únicamente lo que haga falta.
+                consultarSapNecesario();
+            })
+
+            .fail(function (
+                xhr,
+                st,
+                err
+            ) {
+
+                console.error(
+                    "Error AJAX (crédito):",
+                    st,
+                    err
+                );
+
+
+                setStatus(
+                    "Error. Reintentando…",
+                    "err"
+                );
+
+
+                backoff =
+                    Math.min(
+                        backoff * 2,
+                        MAX_BACK
+                    );
+
+
+                if (timer) {
+
+                    clearInterval(
+                        timer
+                    );
+                }
+
+
+                timer =
+                    setInterval(
+                        window.cargar,
+                        backoff
+                    );
+            })
+
+            .always(function () {
+
+                inFlight =
+                    false;
+            });
         };
+
 
         function start() {
             if (timer) clearInterval(timer);
             timer = setInterval(window.cargar, POLL);
         }
 
+        let sapRetryTimer = null;
+
+        function startSapRetryWatch() {
+
+            if (sapRetryTimer) {
+                clearInterval(sapRetryTimer);
+            }
+
+            // Revisa cada 5 segundos si algún cliente con error ya
+            // cumplió los 15 segundos para reintentar.
+            // Clientes SAP=OK se omiten automáticamente.
+            sapRetryTimer = setInterval(
+                function () {
+
+                    if (document.hidden) {
+                        return;
+                    }
+
+                    consultarSapNecesario();
+                },
+                5000
+            );
+        }
+
         window.cargar();
         start();
+        startSapRetryWatch();
 
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) { clearInterval(timer); timer = null; }
-            else { window.cargar(); start(); }
+
+            if (document.hidden) {
+
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+
+                if (sapRetryTimer) {
+                    clearInterval(sapRetryTimer);
+                    sapRetryTimer = null;
+                }
+
+            } else {
+
+                window.cargar();
+                start();
+                startSapRetryWatch();
+
+                // Al volver a la pestaña, intenta de inmediato sólo
+                // clientes nuevos o clientes SAP que siguen con error.
+                consultarSapNecesario();
+            }
         });
 
    // =========================================================
@@ -1865,6 +3309,20 @@ $("#tbodyCredito").on(
 
         const ov =
             $(this).data('ov');
+
+        const $filaAutorizar =
+            $(this).closest('tr');
+
+        if (
+            $filaAutorizar.attr('data-sap-ready') !==
+            '1'
+        ) {
+            mostrarMensajeCentro(
+                "No puedes autorizar hasta que la información de crédito de SAP esté cargada correctamente.",
+                "Información SAP pendiente"
+            );
+            return;
+        }
 
         if (!ov) {
             mostrarMensajeCentro(
@@ -1904,11 +3362,16 @@ $("#tbodyCredito").on(
 
 
 // =========================================================
-// CONFIRMAR AUTORIZACIÓN
+// CONFIRMAR AUTORIZACIÓN - UX CORREGIDA
+// - Cierra el modal inmediatamente para que no parezca congelado.
+// - Deshabilita la fila mientras se procesa.
+// - Evita abrir dos modales de Bootstrap al mismo tiempo.
+// - Si falla, reabre el modal conservando el motivo.
 // =========================================================
 $("#btnConfirmarMotivoCredito")
+    .off('click.autCredito')
     .on(
-        'click',
+        'click.autCredito',
         function () {
 
             const modalEl =
@@ -1931,16 +3394,9 @@ $("#btnConfirmarMotivoCredito")
                         .val() || ''
                 ).trim();
 
-
-            // =============================================
-            // VALIDAR MOTIVO
-            // =============================================
             if (!motivo) {
-
                 $("#motivoCreditoError")
-                    .text(
-                        "Debes capturar el motivo de la autorización."
-                    )
+                    .text("Debes capturar el motivo de la autorización.")
                     .show();
 
                 $("#motivoCreditoTexto")
@@ -1948,14 +3404,10 @@ $("#btnConfirmarMotivoCredito")
 
                 return;
             }
-
 
             if (motivo.length < 3) {
-
                 $("#motivoCreditoError")
-                    .text(
-                        "El motivo debe contener al menos 3 caracteres."
-                    )
+                    .text("El motivo debe contener al menos 3 caracteres.")
                     .show();
 
                 $("#motivoCreditoTexto")
@@ -1963,33 +3415,47 @@ $("#btnConfirmarMotivoCredito")
 
                 return;
             }
-
 
             $("#motivoCreditoError").hide();
 
-
             const token =
-                $(
-                    'input[name="__RequestVerificationToken"]'
-                ).val();
-
+                $('input[name="__RequestVerificationToken"]')
+                    .val();
 
             const $btn =
                 $(this);
 
+            const $tr =
+                $(`tr[data-ov='${ov}']`);
+
+            // Evita doble clic / doble autorización.
             $btn
                 .prop('disabled', true)
                 .text('Autorizando...');
 
+            $tr
+                .find('button')
+                .prop('disabled', true);
+
+            $("#motivoCreditoTexto")
+                .prop('disabled', true);
+
+            setStatus(
+                `Autorizando ${ov}…`,
+                "info"
+            );
 
             if (timer) {
                 clearInterval(timer);
                 timer = null;
             }
 
+            // IMPORTANTE:
+            // El modal se cierra ANTES de la llamada para que el usuario
+            // no vea la ventana "pegada" mientras el servidor trabaja.
+            modal.hide();
 
             $.ajax({
-
                 url:
                     '/Comercial/AutorizarCredito',
 
@@ -2010,61 +3476,118 @@ $("#btnConfirmarMotivoCredito")
                 headers: {
                     'RequestVerificationToken':
                         token
-                }
+                },
+
+                cache:
+                    false
             })
             .done(function (res) {
 
-                modal.hide();
-
-                mostrarMensajeCentro(
-                    res?.mensaje ||
-                    "Crédito autorizado correctamente.",
-                    "Autorización"
-                );
-
-
-                const $tr =
-                    $(
-                        `tr[data-ov='${ov}']`
-                    );
-
+                // La OV ya no debe seguir en pendientes.
                 $tr
-                    .removeClass(
-                        'row-danger'
-                    )
-                    .addClass(
-                        'row-ok'
-                    );
+                    .removeClass('row-danger')
+                    .addClass('row-ok');
 
                 $tr
                     .find('button')
-                    .prop(
-                        'disabled',
-                        true
+                    .prop('disabled', true);
+
+                setStatus(
+                    "Crédito autorizado",
+                    "ok"
+                );
+
+                setUpdated();
+
+                // Mostrar el mensaje solamente cuando el modal anterior
+                // ya terminó de ocultarse, evitando backdrops atorados.
+                const mostrarExito = function () {
+                    mostrarMensajeCentro(
+                        res?.mensaje ||
+                        "Crédito autorizado correctamente.",
+                        "Autorización"
                     );
+                };
 
+                if ($(modalEl).hasClass('show')) {
+                    $(modalEl)
+                        .one(
+                            'hidden.bs.modal.autCredito',
+                            mostrarExito
+                        );
+                } else {
+                    mostrarExito();
+                }
 
-                window.cargar();
+                // Reflejo inmediato: quitar la fila sin esperar una
+                // segunda consulta al servidor/SAP.
+                $tr.fadeOut(
+                    150,
+                    function () {
+                        $(this).remove();
+
+                        if (
+                            $("#tbodyCredito tr")
+                                .length === 0
+                        ) {
+                            $("#tbodyCredito").html(
+                                "<tr><td colspan='10' class='text-center' style='padding:16px;color:#6a3a3a;'>No hay órdenes pendientes</td></tr>"
+                            );
+                        }
+                    }
+                );
+
+                // =================================================
+                // SINCRONIZAR LA TABLA DESPUÉS DE GUARDAR.
+                //
+                // La fila ya se quitó visualmente arriba, así que el
+                // usuario ve el cambio inmediato. Después hacemos una
+                // recarga controlada para traer el estado real desde BD.
+                // =================================================
+                setTimeout(function () {
+                    window.cargar();
+                }, 800);
             })
-            .fail(function (xhr) {
+            .fail(function (xhr, statusText) {
 
-                mostrarMensajeCentro(
+                const mensaje =
                     xhr.responseJSON?.mensaje ||
                     xhr.responseJSON?.error ||
-                    "Error al autorizar crédito.",
-                    "Error"
+                    (
+                        statusText === 'timeout'
+                            ? "La autorización tardó demasiado. Actualiza la pantalla antes de intentar nuevamente."
+                            : "Error al autorizar crédito."
+                    );
+
+                setStatus(
+                    "No se pudo autorizar",
+                    "err"
                 );
+
+                // Reabrir el modal y conservar el motivo capturado.
+                $("#motivoCreditoTexto")
+                    .prop('disabled', false)
+                    .val(motivo);
+
+                $("#motivoCreditoError")
+                    .text(mensaje)
+                    .show();
+
+                modal.show();
+
+                setTimeout(function () {
+                    $("#motivoCreditoTexto")
+                        .trigger('focus');
+                }, 250);
             })
             .always(function () {
 
                 $btn
-                    .prop(
-                        'disabled',
-                        false
-                    )
-                    .text(
-                        'Autorizar crédito'
-                    );
+                    .prop('disabled', false)
+                    .text('Autorizar crédito');
+
+                $("#motivoCreditoTexto")
+                    .prop('disabled', false);
 
                 start();
             });

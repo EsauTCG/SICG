@@ -8,13 +8,23 @@
     // Si el usuario ya filtró, conserva el rango seleccionado.
     var fechaDesde = Model.Desde ?? DateTime.Today;
     var fechaHasta = Model.Hasta ?? DateTime.Today;
+
+    var fechaEntregaPorCompromiso =
+        ViewBag.FechaEntregaPorCompromiso
+        as System.Collections.Generic.Dictionary<int, DateTime?>
+        ?? new System.Collections.Generic.Dictionary<int, DateTime?>();
+
+    var montoPorCompromiso =
+        ViewBag.MontoPorCompromiso
+        as System.Collections.Generic.Dictionary<int, decimal>
+        ?? new System.Collections.Generic.Dictionary<int, decimal>();
 }
 
 <style>
     /* =========================================================
-           COBRANZA - ESTILO SIGO / ERP COMPACTO
-           Scoped para no afectar _Layout2 ni otros módulos.
-           ========================================================= */
+                   COBRANZA - ESTILO SIGO / ERP COMPACTO
+                   Scoped para no afectar _Layout2 ni otros módulos.
+                   ========================================================= */
 
     #cobranzaApp {
         --cob-bg: #f1e2e2;
@@ -420,7 +430,7 @@
 
     #cobranzaApp .cob-table {
         width: 100%;
-        min-width: 1180px;
+        min-width: 1395px;
         margin: 0;
         table-layout: fixed;
         border-collapse: separate;
@@ -585,41 +595,60 @@
 
     #cobranzaApp .cob-table th:nth-child(3),
     #cobranzaApp .cob-table td:nth-child(3) {
-        width: 270px;
+        width: 245px;
     }
 
+    /* FECHA ENTREGA */
     #cobranzaApp .cob-table th:nth-child(4),
     #cobranzaApp .cob-table td:nth-child(4) {
-        width: 120px;
+        width: 95px;
     }
 
+    /* MONTO OV */
     #cobranzaApp .cob-table th:nth-child(5),
     #cobranzaApp .cob-table td:nth-child(5) {
         width: 120px;
     }
 
+    /* SALDO INICIAL */
     #cobranzaApp .cob-table th:nth-child(6),
     #cobranzaApp .cob-table td:nth-child(6) {
+        width: 120px;
+    }
+
+    /* SALDO ACTUAL */
+    #cobranzaApp .cob-table th:nth-child(7),
+    #cobranzaApp .cob-table td:nth-child(7) {
+        width: 120px;
+    }
+
+    /* COMPROMISO */
+    #cobranzaApp .cob-table th:nth-child(8),
+    #cobranzaApp .cob-table td:nth-child(8) {
         width: 100px;
     }
 
-    #cobranzaApp .cob-table th:nth-child(7),
-    #cobranzaApp .cob-table td:nth-child(7) {
+    /* FACTURAS */
+    #cobranzaApp .cob-table th:nth-child(9),
+    #cobranzaApp .cob-table td:nth-child(9) {
         width: 70px;
     }
 
-    #cobranzaApp .cob-table th:nth-child(8),
-    #cobranzaApp .cob-table td:nth-child(8) {
+    /* ULTIMO PAGO SAP */
+    #cobranzaApp .cob-table th:nth-child(10),
+    #cobranzaApp .cob-table td:nth-child(10) {
         width: 110px;
     }
 
-    #cobranzaApp .cob-table th:nth-child(9),
-    #cobranzaApp .cob-table td:nth-child(9) {
+    /* ULTIMA VALIDACION */
+    #cobranzaApp .cob-table th:nth-child(11),
+    #cobranzaApp .cob-table td:nth-child(11) {
         width: 135px;
     }
 
-    #cobranzaApp .cob-table th:nth-child(10),
-    #cobranzaApp .cob-table td:nth-child(10) {
+    /* VER */
+    #cobranzaApp .cob-table th:nth-child(12),
+    #cobranzaApp .cob-table td:nth-child(12) {
         width: 62px;
     }
 
@@ -892,6 +921,8 @@
                                 <th>Estatus</th>
                                 <th>OV</th>
                                 <th>Cliente</th>
+                                <th class="cob-center">FECHA CARGA</th>
+                                <th class="cob-money">MONTO OV</th>
                                 <th class="cob-money">Saldo inicial</th>
                                 <th class="cob-money">Saldo actual</th>
                                 <th>Compromiso</th>
@@ -906,7 +937,7 @@
                             @if (Model.Items.Count == 0)
                             {
                                 <tr>
-                                    <td colspan="10" class="cob-empty">
+                                    <td colspan="12" class="cob-empty">
                                         No existen compromisos para los filtros seleccionados.
                                     </td>
                                 </tr>
@@ -925,6 +956,22 @@
                                         _ => "badge-pendiente"
                                     };
 
+                                    var fechaEntrega =
+                                        fechaEntregaPorCompromiso
+                                            .TryGetValue(
+                                                x.Id,
+                                                out var fechaOv)
+                                            ? fechaOv
+                                            : null;
+
+                                    var montoOv =
+                                        montoPorCompromiso
+                                            .TryGetValue(
+                                                x.Id,
+                                                out var montoTotal)
+                                            ? montoTotal
+                                            : 0m;
+
                                     <tr>
                                         <td>
                                             <span class="cob-badge @badgeClass">
@@ -939,6 +986,14 @@
                                         <td class="cob-cliente">
                                             <span class="cob-client-name">@x.ClienteNombre</span>
                                             <span class="cob-client-code">@x.ClienteCodigo</span>
+                                        </td>
+
+                                        <td class="cob-center" style="font-weight:800;">
+                                            @(fechaEntrega?.ToString("dd/MM/yyyy") ?? "—")
+                                        </td>
+
+                                        <td class="cob-money cob-money-strong">
+                                            @montoOv.ToString("C2")
                                         </td>
 
                                         <td class="cob-money">

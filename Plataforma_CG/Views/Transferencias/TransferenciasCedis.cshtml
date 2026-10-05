@@ -3416,6 +3416,21 @@ body,
                                     </div>
 
                                     <div class="col-12">
+                                        <label class="form-label">Folio de transporte</label>
+                                        <select id="LogisticaFolioId"
+                                                name="LogisticaFolioId"
+                                                class="form-select st-primary-field">
+                                            <option value="">Sin folio de transporte</option>
+                                        </select>
+
+                                        <div id="logisticaFolioTransferenciaInfo"
+                                             class="form-text">
+                                            Si ya existe una solicitud de transporte para esta fecha,
+                                            puedes ligar esta transferencia al mismo camión.
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
                                         <label class="form-label">Observación</label>
                                         <textarea asp-for="Observacion" rows="2" class="form-control" placeholder="Comentarios de la transferencia, prioridad, referencia o indicaciones..."></textarea>
                                     </div>
@@ -4208,11 +4223,244 @@ body,
         $('#accionField').val(val);
         });
 
+        // ============================================================
+        // LOGÍSTICA / TRANSPORTE PARA TRANSFERENCIAS
+        //
+        // El folio es OPCIONAL para no romper el flujo existente.
+        // Si se selecciona, la transferencia comparte capacidad con
+        // las OV y otras transferencias ya ligadas al mismo camión.
+        // ============================================================
+
+        function totalKgTransferenciaCapturada() {
+        let total = 0;
+
+        $("#tbodyArt tr").each(function () {
+        const kg = parseFloat($(this).find(".cant").val()) || 0;
+        if (kg > 0) total += kg;
+        });
+
+        return total;
+        }
+
+        function fmtKgLogistica(v) {
+        return Number(v || 0).toLocaleString("es-MX", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+        });
+        }
+
+        function actualizarResumenFolioTransferencia() {
+        const $folio = $("#LogisticaFolioId");
+        const $info = $("#logisticaFolioTransferenciaInfo");
+
+        if (!$folio.length || !$info.length) return;
+
+        const option = $folio[0]?.selectedOptions?.[0];
+
+        if (!option || !option.value) {
+        $info.text(
+        "Si ya existe una solicitud de transporte para esta fecha, " +
+        "puedes ligar esta transferencia al mismo camión."
+        );
+        return;
+        }
+
+        const cargados = Number(option.dataset.kgCargados || 0);
+        const disponible = Number(option.dataset.kgDisponible || 0);
+        const maximo = Number(option.dataset.capacidadMaximaKg || 0);
+        const documentos = Number(option.dataset.cantidadDocumentos || 0);
+        const transferencia = totalKgTransferenciaCapturada();
+        const restante = disponible - transferencia;
+
+        $info.text(
+        `Cargado actualmente: ${fmtKgLogistica(cargados)} kg · ` +
+        `Disponible: ${fmtKgLogistica(disponible)} kg · ` +
+        `Máximo: ${fmtKgLogistica(maximo)} kg · ` +
+        `Documentos ligados: ${documentos} · ` +
+        `Esta transferencia: ${fmtKgLogistica(transferencia)} kg · ` +
+        (
+        restante >= 0
+        ? `Restaría: ${fmtKgLogistica(restante)} kg`
+        : `EXCESO: ${fmtKgLogistica(Math.abs(restante))} kg`
+        )
+        );
+
+        $info.toggleClass("text-danger", restante < 0);
+        }
+
+        async function cargarFoliosLogisticaTransferencia() {
+        const fecha = ($("input[name='FechaSolicitud']").val() || "").trim();
+        const $folio = $("#LogisticaFolioId");
+        const $info = $("#logisticaFolioTransferenciaInfo");
+
+        if (!$folio.length) return;
+
+        const valorAnterior = ($folio.val() || "").toString();
+
+        $folio.empty();
+
+        if (!fecha) {
+        $folio.append(
+        '<option value="">Selecciona primero la fecha...</option>'
+        );
+        $info.text("Selecciona la fecha para consultar transportes disponibles.");
+        return;
+        }
+
+        $folio.prop("disabled", true);
+        $folio.append(
+        '<option value="">Buscando folios disponibles...</option>'
+        );
+        $info.text("Consultando capacidad de transporte...");
+
+        try {
+        const url =
+        `/Transferencias/FoliosLogisticaDisponiblesTransferencia` +
+        `?fechaSolicitud=${encodeURIComponent(fecha)}`;
+
+        const response = await fetch(url, {
+        method: "GET",
+        headers: {
+        "Accept": "application/json"
+        }
+        });
+
+        const result = await response.json().catch(() => null);
+
+        if (!response.ok) {
+        throw new Error(
+        result?.mensaje ||
+        result?.message ||
+        `HTTP ${response.status}`
+        );
+        }
+
+        const lista = Array.isArray(result) ? result : [];
+
+        $folio.empty();
+
+        $folio.append(
+        '<option value="">Sin folio de transporte</option>'
+        );
+
+        lista.forEach(x => {
+        const option = document.createElement("option");
+
+        option.value = x.id;
+
+        option.textContent =
+        `${x.folio} | ${x.tipoTransporte || "TRANSPORTE"} | ` +
+        `Cargado ${fmtKgLogistica(x.kgCargados)} kg | ` +
+        `Disponible ${fmtKgLogistica(x.kgDisponible)} kg | ` +
+        `Máx ${fmtKgLogistica(x.capacidadMaximaKg)} kg` +
+        (x.destino ? ` | ${x.destino}` : "");
+
+        option.dataset.kgCargados =
+        String(x.kgCargados || 0);
+
+        option.dataset.kgDisponible =
+        String(x.kgDisponible || 0);
+
+        option.dataset.capacidadMaximaKg =
+        String(x.capacidadMaximaKg || 0);
+
+        option.dataset.cantidadDocumentos =
+        String(x.cantidadDocumentos || 0);
+
+        option.dataset.tipoTransporte =
+        x.tipoTransporte || "";
+
+        $folio.append(option);
+        });
+
+        if (
+        valorAnterior &&
+        $folio.find(`option[value="${valorAnterior}"]`).length
+        ) {
+        $folio.val(valorAnterior);
+        }
+
+        if (!lista.length) {
+        $info.text(
+        "No hay folios de transporte con capacidad disponible para esta fecha. " +
+        "La transferencia puede guardarse sin folio de transporte."
+        );
+        } else {
+        $info.text(
+        `${lista.length} folio(s) con capacidad disponible para ${fecha}.`
+        );
+        }
+
+        actualizarResumenFolioTransferencia();
+        }
+        catch (error) {
+        console.error("Folios logística transferencia:", error);
+
+        $folio.empty().append(
+        '<option value="">Sin folio / error al consultar</option>'
+        );
+
+        $info.text(
+        error?.message ||
+        "No fue posible consultar los folios de transporte."
+        );
+        }
+        finally {
+        $folio.prop("disabled", false);
+        }
+        }
+
+        $(document).on(
+        "change.logisticaTransferencia",
+        "input[name='FechaSolicitud']",
+        cargarFoliosLogisticaTransferencia
+        );
+
+        $(document).on(
+        "change.logisticaTransferencia",
+        "#LogisticaFolioId",
+        actualizarResumenFolioTransferencia
+        );
+
+        $(document).on(
+        "input.logisticaTransferencia",
+        "#tbodyArt .cant",
+        actualizarResumenFolioTransferencia
+        );
+
+        cargarFoliosLogisticaTransferencia();
+
+
         $('#formST').on('submit', async function (e) {
         const sucursal = ($("select[name='Sucursal']").val() || "").toString().trim();
         const fecha = $("input[name='FechaSolicitud']").val();
+
+        const $folioLogistica = $("#LogisticaFolioId");
+        const folioLogisticaId =
+        Number($folioLogistica.val() || 0);
+
+        const folioOption =
+        $folioLogistica[0]?.selectedOptions?.[0];
+
+        const kgDisponibleFolio =
+        Number(folioOption?.dataset?.kgDisponible || 0);
+
+        const kgTransferenciaCapturada =
+        totalKgTransferenciaCapturada();
+
         let ok = true, msg = "";
         if (!sucursal) { ok = false; msg += "- Debes seleccionar una Sucursal.\n"; }
+
+        if (
+        folioLogisticaId > 0 &&
+        kgTransferenciaCapturada > kgDisponibleFolio + 0.001
+        ) {
+        ok = false;
+
+        msg +=
+        `- La transferencia tiene ${fmtKgLogistica(kgTransferenciaCapturada)} kg, ` +
+        `pero el folio seleccionado sólo tiene ${fmtKgLogistica(kgDisponibleFolio)} kg disponibles.\n`;
+        }
 
         let alMenosUno = false;
         $("#tbodyArt tr").each(function () {

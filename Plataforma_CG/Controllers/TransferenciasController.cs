@@ -1091,6 +1091,443 @@ ORDER BY Origen;";
 
 
 
+
+        // ============================================================
+        // FOLIOS DE LOGÍSTICA DISPONIBLES PARA TRANSFERENCIAS
+        //
+        // La transferencia puede ligarse al mismo folio que ya contiene
+        // una o varias OV, siempre que exista capacidad disponible.
+        // ============================================================
+        [HttpGet("Transferencias/FoliosLogisticaDisponiblesTransferencia")]
+        public async Task<IActionResult> FoliosLogisticaDisponiblesTransferencia(
+            DateTime fechaSolicitud,
+            CancellationToken ct = default)
+        {
+            if (fechaSolicitud == default)
+                return Json(Array.Empty<object>());
+
+            // =========================================================
+            // USUARIO ACTUAL
+            //
+            // En Transferencias NO filtramos por VendedorId.
+            // Cada usuario sólo ve los folios de transporte que él mismo
+            // creó (LogisticaFolio.UsuarioRegistro).
+            // =========================================================
+            var usuarioActual =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(usuarioActual))
+            {
+                return Unauthorized(new
+                {
+                    ok = false,
+                    mensaje = "No se pudo identificar al usuario actual."
+                });
+            }
+
+            var usuarioCorto =
+                usuarioActual.Contains("\\")
+                    ? usuarioActual.Split('\\').Last().Trim()
+                    : usuarioActual;
+
+            if (usuarioCorto.Contains("@"))
+            {
+                usuarioCorto =
+                    usuarioCorto.Split('@')[0].Trim();
+            }
+
+            var usuarioEmail =
+                usuarioActual.Contains("@")
+                    ? usuarioActual
+                    : $"{usuarioCorto}@carnesg.net";
+
+            var cs =
+                _cfg.GetConnectionString(
+                    "DefaultConnection"
+                );
+
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        mensaje = "No existe DefaultConnection."
+                    }
+                );
+            }
+
+            const string sql = @"
+SET NOCOUNT ON;
+
+SELECT
+    f.Id,
+    f.Folio,
+    f.FechaEmbarque,
+
+    ISNULL(
+        t.Nombre,
+        'TRANSPORTE'
+    ) AS TipoTransporte,
+
+    ISNULL(
+        f.CapacidadNominalKg,
+        ISNULL(
+            t.CapacidadNominalKg,
+            ISNULL(
+                f.CargaSolicitadaKg,
+                0
+            )
+        )
+    ) AS CapacidadNominalKg,
+
+    ISNULL(
+        f.CapacidadMaximaKg,
+        ISNULL(
+            t.CapacidadMaximaKg,
+            ISNULL(
+                f.CargaSolicitadaKg,
+                0
+            )
+        )
+    ) AS CapacidadMaximaKg,
+
+    ISNULL(
+        doc.KgCargados,
+        0
+    ) AS KgCargados,
+
+    (
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+        -
+        ISNULL(
+            doc.KgCargados,
+            0
+        )
+    ) AS KgDisponible,
+
+    ISNULL(
+        doc.CantidadDocumentos,
+        0
+    ) AS CantidadDocumentos,
+
+    ISNULL(
+        f.Destino,
+        ''
+    ) AS Destino,
+
+    ISNULL(
+        f.Vendedor,
+        ''
+    ) AS Vendedor,
+
+    ISNULL(
+        f.EstatusLogistico,
+        'RESERVADO VENTA'
+    ) AS EstatusLogistico
+
+FROM dbo.LogisticaFolio f
+
+LEFT JOIN dbo.LogisticaTipoTransporte t
+    ON t.Id =
+       f.TipoTransporteId
+
+OUTER APPLY
+(
+    SELECT
+        KgCargados =
+            SUM(
+                ISNULL(
+                    d.Kg,
+                    0
+                )
+            ),
+
+        CantidadDocumentos =
+            COUNT(*)
+
+    FROM dbo.LogisticaFolioDocumento d
+
+    WHERE
+        d.LogisticaFolioId =
+            f.Id
+
+        AND d.Activo =
+            1
+) doc
+
+WHERE
+    CAST(
+        f.FechaEmbarque
+        AS DATE
+    ) =
+        @FechaSolicitud
+
+    /* =========================================================
+       SEGURIDAD TRANSFERENCIAS:
+       SOLO FOLIOS CREADOS POR EL USUARIO ACTUAL
+
+       Se contemplan formatos comunes de autenticación:
+       DOMINIO\\usuario, usuario y usuario@carnesg.net.
+       ========================================================= */
+    AND
+    (
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        f.UsuarioRegistro,
+                        ''
+                    )
+                )
+            )
+        ) =
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    @UsuarioActual
+                )
+            )
+        )
+
+        OR
+
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        f.UsuarioRegistro,
+                        ''
+                    )
+                )
+            )
+        ) =
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    @UsuarioCorto
+                )
+            )
+        )
+
+        OR
+
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        f.UsuarioRegistro,
+                        ''
+                    )
+                )
+            )
+        ) =
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    @UsuarioEmail
+                )
+            )
+        )
+
+        OR
+
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        f.UsuarioRegistro,
+                        ''
+                    )
+                )
+            )
+        ) LIKE
+            '%\' +
+            UPPER(
+                LTRIM(
+                    RTRIM(
+                        @UsuarioCorto
+                    )
+                )
+            )
+    )
+
+    AND ISNULL(
+        f.Cancelado,
+        0
+    ) = 0
+
+    AND ISNULL(
+        f.CanceladoFletera,
+        0
+    ) = 0
+
+    AND ISNULL(
+        f.EstatusLogistico,
+        ''
+    ) NOT IN
+    (
+        'CANCELADO',
+        'FLETERA CANCELADA'
+    )
+
+    /* Debe quedar capacidad disponible. */
+    AND
+    (
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+        -
+        ISNULL(
+            doc.KgCargados,
+            0
+        )
+    ) > 0
+
+ORDER BY
+    f.Folio;
+";
+
+            var result =
+                new List<object>();
+
+            await using var cn =
+                new SqlConnection(cs);
+
+            await cn.OpenAsync(ct);
+
+            await using var cmd =
+                new SqlCommand(
+                    sql,
+                    cn
+                );
+
+            cmd.Parameters
+                .Add(
+                    "@FechaSolicitud",
+                    SqlDbType.Date
+                )
+                .Value =
+                    fechaSolicitud.Date;
+
+            cmd.Parameters
+                .Add(
+                    "@UsuarioActual",
+                    SqlDbType.NVarChar,
+                    150
+                )
+                .Value =
+                    usuarioActual;
+
+            cmd.Parameters
+                .Add(
+                    "@UsuarioCorto",
+                    SqlDbType.NVarChar,
+                    150
+                )
+                .Value =
+                    usuarioCorto;
+
+            cmd.Parameters
+                .Add(
+                    "@UsuarioEmail",
+                    SqlDbType.NVarChar,
+                    150
+                )
+                .Value =
+                    usuarioEmail;
+
+            await using var rd =
+                await cmd.ExecuteReaderAsync(ct);
+
+            while (await rd.ReadAsync(ct))
+            {
+                result.Add(new
+                {
+                    id =
+                        rd.GetInt32(
+                            rd.GetOrdinal("Id")
+                        ),
+
+                    folio =
+                        rd["Folio"]?.ToString()
+                        ?? "",
+
+                    fecha =
+                        Convert
+                            .ToDateTime(
+                                rd["FechaEmbarque"]
+                            )
+                            .ToString(
+                                "yyyy-MM-dd"
+                            ),
+
+                    tipoTransporte =
+                        rd["TipoTransporte"]?.ToString()
+                        ?? "TRANSPORTE",
+
+                    capacidadNominalKg =
+                        Convert.ToDecimal(
+                            rd["CapacidadNominalKg"]
+                        ),
+
+                    capacidadMaximaKg =
+                        Convert.ToDecimal(
+                            rd["CapacidadMaximaKg"]
+                        ),
+
+                    kgCargados =
+                        Convert.ToDecimal(
+                            rd["KgCargados"]
+                        ),
+
+                    kgDisponible =
+                        Convert.ToDecimal(
+                            rd["KgDisponible"]
+                        ),
+
+                    cantidadDocumentos =
+                        Convert.ToInt32(
+                            rd["CantidadDocumentos"]
+                        ),
+
+                    destino =
+                        rd["Destino"]?.ToString()
+                        ?? "",
+
+                    vendedor =
+                        rd["Vendedor"]?.ToString()
+                        ?? "",
+
+                    estatus =
+                        rd["EstatusLogistico"]?.ToString()
+                        ?? ""
+                });
+            }
+
+            return Json(result);
+        }
+
+
+
         // ============================
         // GUARDAR TRANSFERENCIA
         // ============================
@@ -1106,6 +1543,31 @@ ORDER BY Origen;";
             try { model.Accion = accion; } catch { }
             ModelState.Remove("accion");
             ModelState.Remove("Accion");
+
+            // ==================================================
+            // FOLIO DE LOGÍSTICA OPCIONAL
+            //
+            // Se toma directo del formulario para NO obligarte a
+            // modificar SolicitudTransferenciaViewModel.
+            // ==================================================
+            int? logisticaFolioId = null;
+
+            var logisticaFolioRaw =
+                Request.Form["LogisticaFolioId"]
+                    .FirstOrDefault();
+
+            if (
+                int.TryParse(
+                    logisticaFolioRaw,
+                    out var logisticaFolioParsed
+                )
+                &&
+                logisticaFolioParsed > 0
+            )
+            {
+                logisticaFolioId =
+                    logisticaFolioParsed;
+            }
 
             // FIX Nota requerida (permitir vacía)
             if (model.Productos != null)
@@ -1305,6 +1767,9 @@ ORDER BY Origen;";
                 return View("~/Views/Transferencias/TransferenciasCedis.cshtml", model);
             }
 
+            decimal totalKgTransferencia =
+                detalles.Sum(x => x.CantidadKg);
+
             await using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -1359,6 +1824,346 @@ ORDER BY Origen;";
                     }
                 }
 
+                // ==================================================
+                // 3) LIGAR TRANSFERENCIA AL FOLIO DE TRANSPORTE
+                //
+                // Es opcional para NO romper tu flujo actual.
+                // Si el usuario seleccionó un folio, se valida de nuevo
+                // en SQL con bloqueo para evitar sobrecargar el camión.
+                // ==================================================
+                if (
+                    logisticaFolioId.HasValue &&
+                    logisticaFolioId.Value > 0
+                )
+                {
+                    var usuarioLogistica =
+                        (User?.Identity?.Name ?? "")
+                        .Trim();
+
+                    if (string.IsNullOrWhiteSpace(usuarioLogistica))
+                    {
+                        throw new InvalidOperationException(
+                            "No se pudo identificar al usuario actual para validar el folio de transporte."
+                        );
+                    }
+
+                    var usuarioLogisticaCorto =
+                        usuarioLogistica.Contains("\\")
+                            ? usuarioLogistica.Split('\\').Last().Trim()
+                            : usuarioLogistica;
+
+                    if (usuarioLogisticaCorto.Contains("@"))
+                    {
+                        usuarioLogisticaCorto =
+                            usuarioLogisticaCorto.Split('@')[0].Trim();
+                    }
+
+                    var usuarioLogisticaEmail =
+                        usuarioLogistica.Contains("@")
+                            ? usuarioLogistica
+                            : $"{usuarioLogisticaCorto}@carnesg.net";
+
+                    _ =
+                        await _context.Database
+                            .ExecuteSqlInterpolatedAsync(
+                                $@"
+SET NOCOUNT ON;
+
+DECLARE @Existe BIT = 0;
+DECLARE @CapacidadMaximaKg DECIMAL(18,2) = 0;
+DECLARE @KgCargados DECIMAL(18,2) = 0;
+
+
+/* =========================================================
+   BLOQUEAR FOLIO PARA EVITAR SOBRECARGA CONCURRENTE
+   ========================================================= */
+
+SELECT
+    @Existe = 1,
+
+    @CapacidadMaximaKg =
+        ISNULL(
+            f.CapacidadMaximaKg,
+            ISNULL(
+                t.CapacidadMaximaKg,
+                ISNULL(
+                    f.CargaSolicitadaKg,
+                    0
+                )
+            )
+        )
+
+FROM dbo.LogisticaFolio f
+WITH
+(
+    UPDLOCK,
+    HOLDLOCK
+)
+
+LEFT JOIN dbo.LogisticaTipoTransporte t
+    ON t.Id =
+       f.TipoTransporteId
+
+WHERE
+    f.Id =
+        {logisticaFolioId.Value}
+
+    AND CAST(
+        f.FechaEmbarque
+        AS DATE
+    ) =
+        {model.FechaSolicitud.Date}
+
+    /* =========================================================
+       SEGURIDAD:
+       EL FOLIO DEBE HABER SIDO CREADO POR EL USUARIO ACTUAL
+       ========================================================= */
+    AND
+    (
+        UPPER(LTRIM(RTRIM(ISNULL(f.UsuarioRegistro, '')))) =
+            UPPER(LTRIM(RTRIM({usuarioLogistica})))
+
+        OR
+
+        UPPER(LTRIM(RTRIM(ISNULL(f.UsuarioRegistro, '')))) =
+            UPPER(LTRIM(RTRIM({usuarioLogisticaCorto})))
+
+        OR
+
+        UPPER(LTRIM(RTRIM(ISNULL(f.UsuarioRegistro, '')))) =
+            UPPER(LTRIM(RTRIM({usuarioLogisticaEmail})))
+
+        OR
+
+        UPPER(LTRIM(RTRIM(ISNULL(f.UsuarioRegistro, '')))) LIKE
+            '%\' + UPPER(LTRIM(RTRIM({usuarioLogisticaCorto})))
+    )
+
+    AND ISNULL(
+        f.Cancelado,
+        0
+    ) = 0
+
+    AND ISNULL(
+        f.CanceladoFletera,
+        0
+    ) = 0
+
+    AND ISNULL(
+        f.EstatusLogistico,
+        ''
+    ) NOT IN
+    (
+        'CANCELADO',
+        'FLETERA CANCELADA'
+    );
+
+
+IF @Existe = 0
+BEGIN
+    THROW 50011,
+        'El folio de transporte no existe, no fue creado por tu usuario, está cancelado o no corresponde a la fecha de la transferencia.',
+        1;
+END;
+
+
+IF @CapacidadMaximaKg <= 0
+BEGIN
+    THROW 50012,
+        'El folio de transporte no tiene una capacidad máxima válida.',
+        1;
+END;
+
+
+/* =========================================================
+   EVITAR DUPLICAR LA MISMA TRANSFERENCIA
+   ========================================================= */
+
+IF EXISTS
+(
+    SELECT 1
+    FROM dbo.LogisticaFolioDocumento
+    WHERE
+        TipoDocumento =
+            'TRANSFERENCIA'
+
+        AND DocumentoId =
+            {ent.Id}
+
+        AND Activo =
+            1
+)
+BEGIN
+    THROW 50013,
+        'La transferencia ya está ligada a un folio de transporte.',
+        1;
+END;
+
+
+/* =========================================================
+   KG YA CARGADOS
+   ========================================================= */
+
+SELECT
+    @KgCargados =
+        ISNULL(
+            SUM(
+                ISNULL(
+                    d.Kg,
+                    0
+                )
+            ),
+            0
+        )
+FROM dbo.LogisticaFolioDocumento d
+WHERE
+    d.LogisticaFolioId =
+        {logisticaFolioId.Value}
+
+    AND d.Activo =
+        1;
+
+
+/* =========================================================
+   VALIDACIÓN DE CAPACIDAD
+   ========================================================= */
+
+IF
+(
+    @KgCargados
+    +
+    {totalKgTransferencia}
+)
+>
+@CapacidadMaximaKg
+BEGIN
+    DECLARE @Mensaje NVARCHAR(2048);
+
+    SET @Mensaje =
+        CONCAT(
+            'No se puede ligar la transferencia porque excede la capacidad del transporte. ',
+            'Capacidad máxima: ',
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @CapacidadMaximaKg
+                    AS DECIMAL(18,2)
+                )
+            ),
+            ' kg. Ya cargados: ',
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @KgCargados
+                    AS DECIMAL(18,2)
+                )
+            ),
+            ' kg. Disponible: ',
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    @CapacidadMaximaKg
+                    -
+                    @KgCargados
+                    AS DECIMAL(18,2)
+                )
+            ),
+            ' kg. Transferencia: ',
+            CONVERT(
+                VARCHAR(30),
+                CAST(
+                    {totalKgTransferencia}
+                    AS DECIMAL(18,2)
+                )
+            ),
+            ' kg.'
+        );
+
+    THROW 50014,
+        @Mensaje,
+        1;
+END;
+
+
+/* =========================================================
+   INSERTAR LA TRANSFERENCIA EN EL FOLIO
+   ========================================================= */
+
+INSERT INTO dbo.LogisticaFolioDocumento
+(
+    LogisticaFolioId,
+    TipoDocumento,
+    DocumentoId,
+    DocumentoConsecutivo,
+    Kg,
+    ClienteCodigo,
+    ClienteNombre,
+    Ruta,
+    Presentacion,
+    Activo,
+    UsuarioRegistro,
+    FechaRegistro
+)
+VALUES
+(
+    {logisticaFolioId.Value},
+    'TRANSFERENCIA',
+    {ent.Id},
+    {ent.Consecutivo ?? $"TRANSF-{ent.Id:D7}"},
+    {totalKgTransferencia},
+    {"TRANSFERENCIA"},
+    {model.Sucursal ?? ""},
+    {model.Sucursal ?? ""},
+    {"TRANSFERENCIA"},
+    1,
+    {usuarioLogistica},
+    SYSDATETIME()
+);
+
+
+/* =========================================================
+   ACTUALIZAR TOTAL ACUMULADO DEL FOLIO
+   ========================================================= */
+
+UPDATE dbo.LogisticaFolio
+SET
+    KgOrdenVenta =
+        @KgCargados
+        +
+        {totalKgTransferencia},
+
+    EstatusLogistico =
+        CASE
+            WHEN NULLIF(
+                LTRIM(
+                    RTRIM(
+                        ISNULL(
+                            Fletera,
+                            ''
+                        )
+                    )
+                ),
+                ''
+            ) IS NOT NULL
+                THEN 'ASIGNADO'
+            ELSE 'PENDIENTE FLETERA'
+        END,
+
+    UsuarioModificacion =
+        {usuarioLogistica},
+
+    FechaModificacion =
+        SYSDATETIME()
+
+WHERE
+    Id =
+        {logisticaFolioId.Value};
+",
+                                HttpContext.RequestAborted
+                            );
+                }
+
+
                 await tx.CommitAsync();
 
                 var redirect = accion == "nuevo"
@@ -1381,7 +2186,8 @@ ORDER BY Origen;";
                         folio = ent.Consecutivo,
                         redirect,
                         sobrePresupuesto = false,
-                        skusSobrePresupuesto = new List<string>()
+                        skusSobrePresupuesto = new List<string>(),
+                        logisticaFolioId = logisticaFolioId
                     });
 
                 // Mensajes para vista normal
@@ -1413,6 +2219,28 @@ ORDER BY Origen;";
                     });
 
                 ModelState.AddModelError("", $"Error BD al guardar la transferencia: {detalle}");
+            }
+            catch (SqlException ex)
+                when (
+                    ex.Number >= 50011 &&
+                    ex.Number <= 50014
+                )
+            {
+                await tx.RollbackAsync();
+
+                if (IsAjax(Request))
+                {
+                    return BadRequest(new
+                    {
+                        ok = false,
+                        message = ex.Message
+                    });
+                }
+
+                ModelState.AddModelError(
+                    "",
+                    ex.Message
+                );
             }
             catch (Exception)
             {
@@ -2820,6 +3648,67 @@ ORDER BY Origen;";
             if (tr.Estatus != 1 && tr.Estatus != 2)
                 return Ok(new { ok = false, msg = "No permitido en este estatus." });
 
+            // =========================================================
+            // SI YA ESTÁ LIGADA A TRANSPORTE, LA FECHA DEBE COINCIDIR
+            // =========================================================
+            var connLogistica =
+                _context.Database
+                    .GetDbConnection();
+
+            if (connLogistica.State != ConnectionState.Open)
+            {
+                await connLogistica.OpenAsync(
+                    HttpContext.RequestAborted
+                );
+            }
+
+            var fechaFolioLogistica =
+                await connLogistica
+                    .QueryFirstOrDefaultAsync<DateTime?>(
+                        new CommandDefinition(
+                            @"
+SELECT TOP (1)
+    CAST(
+        f.FechaEmbarque
+        AS DATE
+    )
+FROM dbo.LogisticaFolioDocumento d
+INNER JOIN dbo.LogisticaFolio f
+    ON f.Id =
+       d.LogisticaFolioId
+WHERE
+    d.TipoDocumento =
+        'TRANSFERENCIA'
+    AND d.DocumentoId =
+        @TransferenciaId
+    AND d.Activo =
+        1;
+",
+                            new
+                            {
+                                TransferenciaId =
+                                    tr.Id
+                            },
+                            cancellationToken:
+                                HttpContext.RequestAborted
+                        )
+                    );
+
+            if (
+                fechaFolioLogistica.HasValue &&
+                fechaFolioLogistica.Value.Date != fecha.Date
+            )
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    msg =
+                        $"La transferencia está ligada a un transporte con fecha " +
+                        $"{fechaFolioLogistica.Value:dd/MM/yyyy}. " +
+                        "Primero debes quitar o cambiar el folio de transporte."
+                });
+            }
+
             // Guardar (si tu campo es DateTime? ajusta según tu entidad)
             tr.FechaSolicitud = fecha;
 
@@ -3844,45 +4733,193 @@ ORDER BY s.TransferenciaId DESC;
 
 
 
+        // ============================================================
+        // LIBERAR CAPACIDAD DEL TRANSPORTE AL CANCELAR TRANSFERENCIA
+        // ============================================================
+        private async Task LiberarCapacidadLogisticaTransferenciaAsync(
+            int transferenciaId,
+            CancellationToken ct = default)
+        {
+            _ =
+                await _context.Database
+                    .ExecuteSqlInterpolatedAsync(
+                        $@"
+SET NOCOUNT ON;
+
+DECLARE @Folios TABLE
+(
+    Id INT PRIMARY KEY
+);
+
+UPDATE d
+SET
+    Activo = 0
+OUTPUT
+    inserted.LogisticaFolioId
+INTO
+    @Folios(Id)
+FROM dbo.LogisticaFolioDocumento d
+WHERE
+    d.TipoDocumento = 'TRANSFERENCIA'
+    AND d.DocumentoId = {transferenciaId}
+    AND d.Activo = 1;
+
+
+UPDATE f
+SET
+    KgOrdenVenta =
+        ISNULL(
+            (
+                SELECT
+                    SUM(
+                        ISNULL(
+                            d2.Kg,
+                            0
+                        )
+                    )
+                FROM dbo.LogisticaFolioDocumento d2
+                WHERE
+                    d2.LogisticaFolioId = f.Id
+                    AND d2.Activo = 1
+            ),
+            0
+        ),
+
+    EstatusLogistico =
+        CASE
+            WHEN NULLIF(
+                LTRIM(
+                    RTRIM(
+                        ISNULL(
+                            f.Fletera,
+                            ''
+                        )
+                    )
+                ),
+                ''
+            ) IS NOT NULL
+                THEN 'ASIGNADO'
+
+            WHEN NOT EXISTS
+            (
+                SELECT 1
+                FROM dbo.LogisticaFolioDocumento d3
+                WHERE
+                    d3.LogisticaFolioId = f.Id
+                    AND d3.Activo = 1
+            )
+                THEN 'RESERVADO VENTA'
+
+            ELSE 'PENDIENTE FLETERA'
+        END,
+
+    UsuarioModificacion = 'SISTEMA',
+
+    FechaModificacion =
+        SYSDATETIME()
+
+FROM dbo.LogisticaFolio f
+INNER JOIN @Folios x
+    ON x.Id = f.Id;
+",
+                        ct
+                    );
+        }
+
+
         public record CancelarReq(int transferenciaId);
 
         [HttpPost("Transferencias/Cancelar")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Cancelar([FromBody] CancelarReq req)
+        public async Task<IActionResult> Cancelar(
+            [FromBody] CancelarReq req,
+            CancellationToken ct = default)
         {
             if (req == null || req.transferenciaId <= 0)
                 return BadRequest(new { ok = false, msg = "Transferencia inválida." });
 
-            var t = await _context.Transferencias
-                .FirstOrDefaultAsync(x => x.Id == req.transferenciaId);
+            await using var tx =
+                await _context.Database
+                    .BeginTransactionAsync(ct);
 
-            if (t == null)
-                return NotFound(new { ok = false, msg = "Transferencia no encontrada." });
-
-            if (t.Estatus == 0)
+            try
             {
+                var t =
+                    await _context.Transferencias
+                        .FirstOrDefaultAsync(
+                            x =>
+                                x.Id ==
+                                req.transferenciaId,
+                            ct
+                        );
+
+                if (t == null)
+                {
+                    await tx.RollbackAsync(ct);
+
+                    return NotFound(new
+                    {
+                        ok = false,
+                        msg = "Transferencia no encontrada."
+                    });
+                }
+
+                if (t.Estatus == 0)
+                {
+                    // Aun si ya estaba cancelada, limpiamos cualquier vínculo
+                    // de logística que pudiera haber quedado activo.
+                    await LiberarCapacidadLogisticaTransferenciaAsync(
+                        t.Id,
+                        ct
+                    );
+
+                    await tx.CommitAsync(ct);
+
+                    return Ok(new
+                    {
+                        ok = true,
+                        msg = "La transferencia ya estaba cancelada.",
+                        estatus = t.Estatus
+                    });
+                }
+
+                t.Estatus = 0;
+
+                await _context.SaveChangesAsync(ct);
+
+                await LiberarCapacidadLogisticaTransferenciaAsync(
+                    t.Id,
+                    ct
+                );
+
+                await tx.CommitAsync(ct);
+
                 return Ok(new
                 {
                     ok = true,
-                    msg = "La transferencia ya estaba cancelada.",
+                    msg =
+                        "Transferencia cancelada correctamente. " +
+                        "La capacidad del transporte fue liberada.",
                     estatus = t.Estatus
                 });
             }
-
-            t.Estatus = 0;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                ok = true,
-                msg = "Transferencia cancelada correctamente.",
-                estatus = t.Estatus
-            });
+                await tx.RollbackAsync(ct);
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        msg =
+                            "No se pudo cancelar la transferencia.",
+                        error =
+                            ex.GetBaseException().Message
+                    }
+                );
+            }
         }
-
-
-
 
 
         private async Task<(List<string> Etiquetas, string Error)> BuscarTarimaEtiquetasAsync(
@@ -8916,26 +9953,71 @@ WHERE
         public record CancelarTransferenciaReq(int Id);
 
         [HttpPost("Transferencias/CancelarTransferencia")]
-        public async Task<IActionResult> CancelarTransferencia([FromBody] CancelarTransferenciaReq req)
+        public async Task<IActionResult> CancelarTransferencia(
+            [FromBody] CancelarTransferenciaReq req,
+            CancellationToken ct = default)
         {
             if (req == null || req.Id <= 0)
                 return BadRequest(new { ok = false, msg = "Id inválido." });
 
-            var tr = await _context.Transferencias.FirstOrDefaultAsync(x => x.Id == req.Id);
+            await using var tx =
+                await _context.Database
+                    .BeginTransactionAsync(ct);
 
-            if (tr == null)
-                return NotFound(new { ok = false, msg = "Transferencia no encontrada." });
-
-            // Ajusta el estatus que uses como cancelado
-            tr.Estatus = 0;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            try
             {
-                ok = true,
-                msg = $"La transferencia {tr.Consecutivo ?? tr.Id.ToString()} fue cancelada correctamente."
-            });
+                var tr =
+                    await _context.Transferencias
+                        .FirstOrDefaultAsync(
+                            x => x.Id == req.Id,
+                            ct
+                        );
+
+                if (tr == null)
+                {
+                    await tx.RollbackAsync(ct);
+
+                    return NotFound(new
+                    {
+                        ok = false,
+                        msg = "Transferencia no encontrada."
+                    });
+                }
+
+                tr.Estatus = 0;
+
+                await _context.SaveChangesAsync(ct);
+
+                await LiberarCapacidadLogisticaTransferenciaAsync(
+                    tr.Id,
+                    ct
+                );
+
+                await tx.CommitAsync(ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg =
+                        $"La transferencia {tr.Consecutivo ?? tr.Id.ToString()} " +
+                        "fue cancelada correctamente. " +
+                        "La capacidad del transporte fue liberada."
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync(ct);
+
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        ok = false,
+                        msg = "No se pudo cancelar la transferencia.",
+                        error = ex.GetBaseException().Message
+                    }
+                );
+            }
         }
 
 

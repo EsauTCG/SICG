@@ -4228,19 +4228,6 @@ body:has(#inventarioSistemasApp) {
                         data-bs-target="#modalNivelesEquipo">
                     <i class="bi bi-info-circle-fill me-1"></i> Guia Equipos
                 </button>
-
-                <a href="@Url.Action("ResumenInventario", "InventariosSistemas")"
-                   class="btn btn-sm btn-outline-light fw-bold"
-                   title="Abrir tablero gerencial de inventario">
-                    <i class="bi bi-bar-chart-fill me-1"></i> Resumen
-                </a>
-
-                <button type="button"
-                        class="btn btn-sm btn-outline-light fw-bold"
-                        onclick="abrirModalCatalogos()"
-                        title="Administrar catálogos de marca, área y proveedor">
-                    <i class="bi bi-gear-fill me-1"></i> Catálogos
-                </button>
             </div>
         </div>
 
@@ -4686,9 +4673,7 @@ body:has(#inventarioSistemasApp) {
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NUEVO PROVEEDOR</label>
-                                            <select id="resProveedor" class="form-select form-select-sm">
-                                                <option value="" selected>Opcional</option>
-                                            </select>
+                                            <input type="text" class="form-control" id="resProveedor" placeholder="Opcional">
                                         </div>
                                     </div>
                                     <div class="mb-4">
@@ -4741,14 +4726,7 @@ body:has(#inventarioSistemasApp) {
                                         <div class="col-12 col-md-6 mt-1 campo-avanzado"><input type="text" id="entSerie" class="form-control form-control-sm border-danger" placeholder="# Serie *"></div>
 
                                         <!-- Campos Avanzados (Se ocultan si es chatarra) -->
-                                        <div class="col-12 col-md-6 mt-1 campo-avanzado">
-                                            <div class="input-group input-group-sm">
-                                                <select id="entProveedor" class="form-select form-select-sm border-danger" required>
-                                                    <option value="" selected>PROVEEDOR *</option>
-                                                </select>
-                                                <button type="button" class="btn btn-outline-secondary border-danger" title="Agregar proveedor" onclick="abrirModalAgregarCatalogo('proveedor')"><i class="bi bi-plus-lg"></i></button>
-                                            </div>
-                                        </div>
+                                        <div class="col-12 col-md-6 mt-1 campo-avanzado"><input type="text" id="entProveedor" class="form-control form-control-sm border-danger" placeholder="Proveedor *"></div>
                                         <div class="col-12 col-md-6 mt-1 campo-avanzado"><div class="input-group input-group-sm"><span class="input-group-text">$</span><input type="number" id="entCosto" class="form-control border-danger" placeholder="Costo *"></div></div>
 
                                         <div class="col-12 col-md-6 mt-1" id="divIP" style="display:none;">
@@ -5539,41 +5517,6 @@ body:has(#inventarioSistemasApp) {
                 <button type="button" class="btn btn-brand" onclick="guardarCatalogo()">
                     <i class="bi bi-check-lg me-1"></i>Guardar
                 </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ========================================================= -->
-<!-- MODAL ADMIN CATÁLOGOS (MARCA / ÁREA / PROVEEDOR)          -->
-<!-- ========================================================= -->
-<div class="modal fade" id="modalCatalogosInventario" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header" style="background: var(--brand-main, #7a0c13); color:#fff;">
-                <h6 class="modal-title"><i class="bi bi-gear-fill me-1"></i>Catálogos de inventario</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body">
-                <ul class="nav nav-tabs nav-justified" role="tablist">
-                    <li class="nav-item">
-                        <button class="nav-link active" id="tabCatMarcaBtn" data-bs-toggle="tab" data-bs-target="#tabCatMarca" type="button" onclick="renderListaCatalogo('marca')">Marcas</button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" id="tabCatAreaBtn" data-bs-toggle="tab" data-bs-target="#tabCatArea" type="button" onclick="renderListaCatalogo('area')">Áreas / Ubicaciones</button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" id="tabCatProveedorBtn" data-bs-toggle="tab" data-bs-target="#tabCatProveedor" type="button" onclick="renderListaCatalogo('proveedor')">Proveedores</button>
-                    </li>
-                </ul>
-                <div class="tab-content mt-3">
-                    <div class="tab-pane fade show active" id="tabCatMarca"><div id="listaCatalogoMarca"></div></div>
-                    <div class="tab-pane fade" id="tabCatArea"><div id="listaCatalogoArea"></div></div>
-                    <div class="tab-pane fade" id="tabCatProveedor"><div id="listaCatalogoProveedor"></div></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -6810,7 +6753,6 @@ body:has(#inventarioSistemasApp) {
         let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias, agregarCatalogoModal, seguimientoSalidasModal;
         let catalogoMarcas = [];
         let catalogoAreas = [];
-        let catalogoProveedores = [];
         let alertasStockActuales = [];
         let signaturePad;
         let streamActual = null;
@@ -7043,7 +6985,6 @@ body:has(#inventarioSistemasApp) {
                 if (!data.ok) return;
                 catalogoMarcas = data.marcas || [];
                 catalogoAreas = data.areas || [];
-                catalogoProveedores = data.proveedores || [];
 
                 const selMarca = document.getElementById('entMarca');
                 const marcaSel = selMarca.value;
@@ -7069,19 +7010,6 @@ body:has(#inventarioSistemasApp) {
                     selSalArea.innerHTML = '<option value="">Sin área (no aplica seguimiento)</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
                     if (catalogoAreas.includes(salAreaSel)) selSalArea.value = salAreaSel;
                 }
-
-                ['entProveedor', 'resProveedor'].forEach(id => {
-                    const sel = document.getElementById(id);
-                    if (!sel) return;
-                    const previo = sel.value;
-                    const vacio = id === 'resProveedor' ? 'Opcional' : 'PROVEEDOR *';
-                    sel.innerHTML = `<option value="" selected>${vacio}</option>` + catalogoProveedores.map(p => `<option value="${p}">${p}</option>`).join('');
-                    if (previo && !catalogoProveedores.includes(previo)) {
-                        sel.insertAdjacentHTML('afterbegin', `<option value="${previo}" selected>${previo}</option>`);
-                    } else if (catalogoProveedores.includes(previo)) {
-                        sel.value = previo;
-                    }
-                });
             } catch (e) { }
         }
 
@@ -7092,8 +7020,8 @@ body:has(#inventarioSistemasApp) {
             }
             window._catalogoTipo = tipo;
             $('#agregarCatalogoNombre').val('');
-            $('#agregarCatalogoTitulo').text(tipo === 'marca' ? 'Agregar marca' : tipo === 'proveedor' ? 'Agregar proveedor' : 'Agregar área / ubicación');
-            $('#agregarCatalogoLabel').text(tipo === 'marca' ? 'NOMBRE DE LA MARCA *' : tipo === 'proveedor' ? 'NOMBRE DEL PROVEEDOR *' : 'NOMBRE DEL ÁREA / UBICACIÓN *');
+            $('#agregarCatalogoTitulo').text(tipo === 'marca' ? 'Agregar marca' : 'Agregar área / ubicación');
+            $('#agregarCatalogoLabel').text(tipo === 'marca' ? 'NOMBRE DE LA MARCA *' : 'NOMBRE DEL ÁREA / UBICACIÓN *');
             agregarCatalogoModal?.show();
             setTimeout(() => document.getElementById('agregarCatalogoNombre')?.focus(), 150);
         }
@@ -7103,7 +7031,7 @@ body:has(#inventarioSistemasApp) {
             const nombre = ($('#agregarCatalogoNombre').val() || '').trim();
             if (!nombre) { alert('Escribe el nombre antes de guardar.'); return; }
 
-            const url = tipo === 'marca' ? '/InventariosSistemas/AgregarMarcaInventario' : tipo === 'proveedor' ? '/InventariosSistemas/AgregarProveedorInventario' : '/InventariosSistemas/AgregarAreaInventario';
+            const url = tipo === 'marca' ? '/InventariosSistemas/AgregarMarcaInventario' : '/InventariosSistemas/AgregarAreaInventario';
             try {
                 const res = await fetch(url, {
                     method: 'POST',
@@ -7125,14 +7053,6 @@ body:has(#inventarioSistemasApp) {
                         sel.value = nuevoNombre;
                         $(sel).trigger('change');
                     }
-                } else if (tipo === 'proveedor') {
-                    ['entProveedor', 'resProveedor'].forEach(id => {
-                        const sel = document.getElementById(id);
-                        if (sel && [...sel.options].some(o => o.value === nuevoNombre)) {
-                            sel.value = nuevoNombre;
-                            $(sel).trigger('change');
-                        }
-                    });
                 } else {
                     ['entUbicacion', 'asigUbicacion'].forEach(id => {
                         const sel = document.getElementById(id);
@@ -7143,133 +7063,6 @@ body:has(#inventarioSistemasApp) {
                     });
                 }
                 alert(data.mensaje);
-            } catch (e) {
-                alert('Error de red: ' + e.message);
-            }
-        }
-
-        // ===== Admin catálogos (marca / área / proveedor) =====
-        let catalogoDetalle = null;
-        let catalogoModalObj = null;
-
-        async function abrirModalCatalogos() {
-            if (!catalogoModalObj) {
-                const el = document.getElementById('modalCatalogosInventario');
-                if (!el) return;
-                catalogoModalObj = bootstrap.Modal.getOrCreateInstance(el);
-            }
-            catalogoDetalle = null;
-            catalogoModalObj.show();
-            await cargarDetalleCatalogos();
-            renderListaCatalogo('marca');
-        }
-
-        async function cargarDetalleCatalogos() {
-            try {
-                const res = await fetch('/InventariosSistemas/ObtenerCatalogosInventarioDetalle');
-                const data = await res.json();
-                if (!data.ok) { alert(data.mensaje || 'No se pudo cargar.'); return; }
-                catalogoDetalle = data;
-            } catch (e) {
-                alert('Error de red: ' + e.message);
-            }
-        }
-
-        function renderListaCatalogo(tipo) {
-            if (!catalogoDetalle) return;
-            const lista = catalogoDetalle[tipo === 'marca' ? 'marcas' : tipo === 'proveedor' ? 'proveedores' : 'areas'] || [];
-            const cont = document.getElementById('listaCatalogo' + (tipo === 'marca' ? 'Marca' : tipo === 'proveedor' ? 'Proveedor' : 'Area'));
-            if (!cont) return;
-
-            const etiqueta = tipo === 'marca' ? 'Nueva marca' : tipo === 'proveedor' ? 'Nuevo proveedor' : 'Nueva área / ubicación';
-            const rows = lista.map(item => `
-                <div class="input-group input-group-sm mb-1" style="${item.activa ? '' : 'opacity:0.65;'}">
-                    <span class="input-group-text ${item.activa ? '' : 'text-muted'}" style="width: 90px; font-size: 0.7rem;">${item.activa ? 'Activa' : 'Inactiva'}</span>
-                    <input type="text" class="form-control" value="${item.nombre}" data-id="${item.id}" data-orig="${item.nombre}"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault(); guardarCatalogoItem('${tipo}', this);}">
-                    <button class="btn btn-outline-success btn-sm" title="Guardar cambios" onclick="guardarCatalogoItem('${tipo}', this.previousElementSibling)"><i class="bi bi-check-lg"></i></button>
-                    <button class="btn btn-outline-danger btn-sm" title="Eliminar / desactivar" onclick="eliminarCatalogoItem('${tipo}', ${item.id}, '${item.nombre.replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>
-                </div>`).join('');
-
-            cont.innerHTML = `
-                <div class="input-group input-group-sm mb-3">
-                    <input type="text" id="nuevoCatalogo_${tipo}" class="form-control" placeholder="${etiqueta}..."
-                           onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarCatalogoItem('${tipo}');}">
-                    <button class="btn btn-brand btn-sm" onclick="agregarCatalogoItem('${tipo}')"><i class="bi bi-plus-lg me-1"></i>Agregar</button>
-                </div>
-                ${rows || '<p class="text-center text-muted my-3">Sin registros.</p>'}`;
-        }
-
-        async function agregarCatalogoItem(tipo) {
-            const input = document.getElementById('nuevoCatalogo_' + tipo);
-            if (!input) return;
-            const nombre = (input.value || '').trim();
-            if (!nombre) { alert('Escribe el nombre antes de agregar.'); return; }
-            const url = tipo === 'marca' ? '/InventariosSistemas/AgregarMarcaInventario' : tipo === 'proveedor' ? '/InventariosSistemas/AgregarProveedorInventario' : '/InventariosSistemas/AgregarAreaInventario';
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
-                    },
-                    body: `nombre=${encodeURIComponent(nombre)}`
-                });
-                const data = await res.json();
-                if (!data.ok) { alert(data.mensaje || 'No se pudo guardar.'); return; }
-                input.value = '';
-                await cargarDetalleCatalogos();
-                renderListaCatalogo(tipo);
-                await cargarCatalogosInventario();
-            } catch (e) {
-                alert('Error de red: ' + e.message);
-            }
-        }
-
-        async function guardarCatalogoItem(tipo, input) {
-            if (!input) return;
-            const id = input.dataset.id;
-            const nuevo = (input.value || '').trim().toUpperCase();
-            if (!nuevo) { alert('El nombre no puede quedar vacío.'); input.focus(); return; }
-            if (nuevo === (input.dataset.orig || '').toUpperCase()) return;
-            const url = tipo === 'marca' ? '/InventariosSistemas/EditarMarcaInventario' : tipo === 'proveedor' ? '/InventariosSistemas/EditarProveedorInventario' : '/InventariosSistemas/EditarAreaInventario';
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
-                    },
-                    body: `id=${encodeURIComponent(id)}&nombre=${encodeURIComponent(nuevo)}`
-                });
-                const data = await res.json();
-                if (!data.ok) { alert(data.mensaje || 'No se pudo actualizar.'); return; }
-                await cargarDetalleCatalogos();
-                renderListaCatalogo(tipo);
-                await cargarCatalogosInventario();
-                alert(data.mensaje);
-            } catch (e) {
-                alert('Error de red: ' + e.message);
-            }
-        }
-
-        async function eliminarCatalogoItem(tipo, id, nombre) {
-            if (!confirm(`Eliminar "${nombre}" del catálogo?\nSe ocultará de los combos. Los artículos que ya lo usan conservan su valor.`)) return;
-            const url = tipo === 'marca' ? '/InventariosSistemas/EliminarMarcaInventario' : tipo === 'proveedor' ? '/InventariosSistemas/EliminarProveedorInventario' : '/InventariosSistemas/EliminarAreaInventario';
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
-                    },
-                    body: `id=${encodeURIComponent(id)}`
-                });
-                const data = await res.json();
-                if (!data.ok) { alert(data.mensaje || 'No se pudo eliminar.'); return; }
-                await cargarDetalleCatalogos();
-                renderListaCatalogo(tipo);
-                await cargarCatalogosInventario();
             } catch (e) {
                 alert('Error de red: ' + e.message);
             }
@@ -9492,12 +9285,7 @@ body:has(#inventarioSistemasApp) {
             $('#entNombre').val(item.nombre);
             $('#entMarca').val(item.marca);
             $('#entModelo').val(item.modelo);
-            const provEdit = item.proveedor || '';
-            $('#entProveedor').val(provEdit);
-            const selProv = document.getElementById('entProveedor');
-            if (provEdit && selProv && ![...selProv.options].some(o => o.value === provEdit)) {
-                selProv.insertAdjacentHTML('beforeend', `<option value="${provEdit}" selected>${provEdit}</option>`);
-            }
+            $('#entProveedor').val(item.proveedor);
             $('#entCosto').val(item.costo);
             $('#entIP').val(item.ip || '');
             $('#entSerie').val(item.numeroSerie);
@@ -13211,43 +12999,4 @@ body:has(#inventarioSistemasApp) {
              link.download = `Reporte_Auditoria_${new Date().toISOString().split('T')[0]}.csv`;
              link.click();
          }
-</script>
-
-<script>
-    // ==========================================
-    // FILTROS DESDE LA URL (drill-down del Tablero Gerencial)
-    // ?planta=, ?tipo=, ?estado=, ?q=
-    // ==========================================
-    (function () {
-        var p = new URLSearchParams(location.search);
-        var planta = p.get('planta');
-        var tipo = p.get('tipo');
-        var estado = p.get('estado');
-        var q = p.get('q');
-        if (!planta && !tipo && !estado && !q) return;
-
-        var $ = window.jQuery;
-
-        function aplicar() {
-            if (!window.datosInventario || !datosInventario.length) return false;
-            if (planta) {
-                try { plantaGlobal = planta; } catch (e) { }
-                localStorage.setItem('invPlantaGlobal', planta);
-                $('#plantaGlobal').val(planta);
-                $('#filtroPlanta').val(planta);
-            }
-            if (tipo) $('#filtroTipo').val(tipo);
-            if (estado) $('#filtroEstado').val(estado);
-            if (q) $('#filtroGeneral').val(q);
-            try { aplicarFiltros(); } catch (e) { }
-            return true;
-        }
-
-        if (aplicar()) return;
-        var intentos = 0;
-        var t = setInterval(function () {
-            intentos++;
-            if (aplicar() || intentos >= 20) clearInterval(t);
-        }, 300);
-    })();
 </script>

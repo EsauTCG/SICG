@@ -153,6 +153,121 @@ namespace Plataforma_CG.Controllers
                             x => x.Fecha,
                             ct);
 
+            // =========================================================
+            // FECHA DE ENTREGA Y MONTO TOTAL POR ORDEN DE VENTA
+            //
+            // FECHA ENTREGA = OrdenVenta.FechaEntrega
+            // MONTO OV      = SUM(Peso * Precio)
+            //
+            // La fecha se toma directamente de la cabecera OrdenVenta.
+            // El monto se calcula desde OrdenVentaProducto.
+            // =========================================================
+            var ordenVentaIds =
+                registros
+                    .Select(x =>
+                        x.OrdenVentaId)
+                    .Distinct()
+                    .ToList();
+
+            // =========================================================
+            // FECHA DE ENTREGA DE LA OV
+            // =========================================================
+            var fechaEntregaPorOrdenVenta =
+                ordenVentaIds.Count == 0
+                    ? new Dictionary<int, DateTime?>()
+                    : await _context
+                        .OrdenVenta
+                        .AsNoTracking()
+                        .Where(x =>
+                            ordenVentaIds.Contains(
+                                x.Id))
+                        .Select(x => new
+                        {
+                            OrdenVentaId =
+                                x.Id,
+
+                            FechaEntrega =
+                                (DateTime?)x.FechaEntrega
+                        })
+                        .ToDictionaryAsync(
+                            x =>
+                                x.OrdenVentaId,
+                            x =>
+                                x.FechaEntrega,
+                            ct);
+
+            // =========================================================
+            // MONTO OV
+            // =========================================================
+            var montoPorOrdenVenta =
+                ordenVentaIds.Count == 0
+                    ? new Dictionary<int, decimal>()
+                    : await _context
+                        .OrdenVentaProducto
+                        .AsNoTracking()
+                        .Where(x =>
+                            ordenVentaIds.Contains(
+                                x.PedidoId)
+                            &&
+                            (
+                                x.Eliminado == false
+                                ||
+                                x.Eliminado == null
+                            ))
+                        .GroupBy(x =>
+                            x.PedidoId)
+                        .Select(g => new
+                        {
+                            OrdenVentaId =
+                                g.Key,
+
+                            MontoTotal =
+                                g.Sum(x =>
+                                    (decimal?)(
+                                        x.Peso * x.Precio))
+                                ?? 0m
+                        })
+                        .ToDictionaryAsync(
+                            x =>
+                                x.OrdenVentaId,
+                            x =>
+                                x.MontoTotal,
+                            ct);
+
+            // =========================================================
+            // DICCIONARIOS POR COMPROMISO
+            // =========================================================
+            var fechaEntregaPorCompromiso =
+                registros
+                    .ToDictionary(
+                        x => x.Id,
+                        x =>
+                            fechaEntregaPorOrdenVenta
+                                .TryGetValue(
+                                    x.OrdenVentaId,
+                                    out var fechaEntrega)
+                                ? fechaEntrega
+                                : null);
+
+            var montoPorCompromiso =
+                registros
+                    .ToDictionary(
+                        x => x.Id,
+                        x =>
+                            montoPorOrdenVenta
+                                .TryGetValue(
+                                    x.OrdenVentaId,
+                                    out var monto)
+                                ? monto
+                                : 0m);
+
+            ViewBag.FechaEntregaPorCompromiso =
+                fechaEntregaPorCompromiso;
+
+            ViewBag.MontoPorCompromiso =
+                montoPorCompromiso;
+
+
             var vm =
                 new CobranzaReporteViewModel
                 {

@@ -10,6 +10,8 @@ namespace Plataforma_CG.ViewModels
         public DateTime? Desde { get; set; }
         public DateTime? Hasta { get; set; }
 
+        public decimal KgTotales { get; set; }
+
         public int Total { get; set; }
         public int Pendientes { get; set; }
         public int Incumplidos { get; set; }

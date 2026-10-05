@@ -186,6 +186,27 @@ WHERE TipoLoteId = @TipoLoteId
                 new { TipoLoteId = lote.TipoLoteId },
                 commandTimeout: 60);
 
+            // Reglas operativas configurables por TipoLote.
+            // Estas columnas permiten que un usuario autorizado ajuste umbrales
+            // sin modificar código. Los bloqueos técnicos estructurales permanecen fijos.
+            var reglas = await cn.QueryFirstOrDefaultAsync<CierreLoteReglasOperativasRow>(@"
+SELECT TOP (1)
+    TipoLoteId,
+    CONVERT(bit, ISNULL(ValidarPesoEntrada, 1)) AS ValidarPesoEntrada,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoEntrada, 0.010)) AS PesoMinimoEntrada,
+    CONVERT(bit, ISNULL(ValidarPesoSalida, 1)) AS ValidarPesoSalida,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoSalida, 0.010)) AS PesoMinimoSalida,
+    CONVERT(bit, ISNULL(ValidarRelacionSalidaEntrada, 1)) AS ValidarRelacionSalidaEntrada,
+    CONVERT(decimal(18,4), ISNULL(RelacionMaximaSalidaEntrada, 2.0000)) AS RelacionMaximaSalidaEntrada,
+    CONVERT(bit, ISNULL(BloquearEntradaDuplicada, 1)) AS BloquearEntradaDuplicada,
+    CONVERT(bit, ISNULL(BloquearEntradaCompartida, 1)) AS BloquearEntradaCompartida
+FROM dbo.meat_CierreLoteTipoConfig
+WHERE TipoLoteId = @TipoLoteId
+  AND Activo = 1;",
+                new { TipoLoteId = lote.TipoLoteId },
+                commandTimeout: 60)
+                ?? new CierreLoteReglasOperativasRow();
+
             CanalLoteBaseRow? canalBase = null;
             List<CierreLoteMovimientoVM> movimientos;
 
@@ -271,6 +292,7 @@ WHERE TipoLoteId = @TipoLoteId
                     });
                 }
 
+                // La existencia de al menos una salida continúa siendo un bloqueo técnico.
                 if (salidas.Count == 0)
                 {
                     diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
@@ -284,18 +306,80 @@ WHERE TipoLoteId = @TipoLoteId
                     });
                 }
 
-                if (salidas.Any(x => x.PesoNeto <= 0))
+                // ============================================================
+                // REGLAS OPERATIVAS CONFIGURABLES
+                // ============================================================
+                if (reglas.ValidarPesoEntrada && entradas.Count > 0)
                 {
-                    var n = salidas.Count(x => x.PesoNeto <= 0);
-                    diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                    var invalidasEntrada = entradas
+                        .Where(x => x.PesoNeto <= reglas.PesoMinimoEntrada)
+                        .ToList();
+
+                    if (invalidasEntrada.Count > 0)
                     {
-                        Codigo = "SALIDA_PESO_INVALIDO",
-                        Nivel = "BLOQUEO",
-                        Titulo = "Salidas con peso cero o negativo",
-                        Detalle = $"Se detectaron {n:N0} salida(s) con PesoNeto <= 0."
-                    });
+                        diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                        {
+                            Codigo = "ENTRADA_PESO_INVALIDO",
+                            Nivel = "BLOQUEO",
+                            Titulo = "Entradas con peso inferior o igual al mínimo permitido",
+                            Detalle = $"Se detectaron {invalidasEntrada.Count:N0} entrada(s) con PesoNeto <= {reglas.PesoMinimoEntrada:N3} kg."
+                        });
+                    }
                 }
 
+                if (reglas.ValidarPesoSalida && salidas.Count > 0)
+                {
+                    var invalidasSalida = salidas
+                        .Where(x => x.PesoNeto <= reglas.PesoMinimoSalida)
+                        .ToList();
+
+                    if (invalidasSalida.Count > 0)
+                    {
+                        diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                        {
+                            Codigo = "SALIDA_PESO_INVALIDO",
+                            Nivel = "BLOQUEO",
+                            Titulo = "Salidas con peso inferior o igual al mínimo permitido",
+                            Detalle = $"Se detectaron {invalidasSalida.Count:N0} salida(s) con PesoNeto <= {reglas.PesoMinimoSalida:N3} kg."
+                        });
+                    }
+                }
+
+                if (config.RequiereEntradasLogistica && reglas.ValidarRelacionSalidaEntrada && diagnostico.KgSalida > 0)
+                {
+                    var entradaMinima = Math.Max(0m, reglas.PesoMinimoEntrada);
+
+                    if (diagnostico.KgEntrada <= entradaMinima)
+                    {
+                        diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                        {
+                            Codigo = "ENTRADA_KG_INSUFICIENTE",
+                            Nivel = "BLOQUEO",
+                            Titulo = "Kg de entrada insuficientes para las salidas",
+                            Detalle = $"Entrada={diagnostico.KgEntrada:N3} kg y salida={diagnostico.KgSalida:N3} kg. La entrada está por debajo o igual al mínimo técnico configurado ({entradaMinima:N3} kg)."
+                        });
+                    }
+                    else if (reglas.RelacionMaximaSalidaEntrada > 0)
+                    {
+                        var relacion = diagnostico.KgSalida / diagnostico.KgEntrada;
+
+                        if (relacion >= reglas.RelacionMaximaSalidaEntrada)
+                        {
+                            diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                            {
+                                Codigo = "SALIDA_DESPROPORCIONADA",
+                                Nivel = "BLOQUEO",
+                                Titulo = "Salida desproporcionada respecto a la entrada",
+                                Detalle = $"Entrada={diagnostico.KgEntrada:N3} kg, salida={diagnostico.KgSalida:N3} kg, relación={relacion:N2} veces. El máximo configurado es {reglas.RelacionMaximaSalidaEntrada:N2} veces.",
+                                Valor = relacion,
+                                Limite = reglas.RelacionMaximaSalidaEntrada
+                            });
+                        }
+                    }
+                }
+
+                // Variación porcentual: continúa usando los campos existentes,
+                // que ya son configurables por TipoLote.
                 if (config.RequiereEntradasLogistica && diagnostico.KgEntrada > 0 && diagnostico.KgSalida > 0)
                 {
                     if (config.VariacionBloqueoPct > 0 && diagnostico.VariacionPct >= config.VariacionBloqueoPct)
@@ -324,7 +408,7 @@ WHERE TipoLoteId = @TipoLoteId
                     }
                 }
 
-                if (config.RequiereEntradasLogistica)
+                if (reglas.BloquearEntradaDuplicada)
                 {
                     var duplicadosLog = await cn.QueryAsync<DuplicadoLogisticaRow>(@"
 SELECT
@@ -344,6 +428,40 @@ HAVING COUNT(*) > 1;", new { LoteId = loteId }, commandTimeout: 60);
                             Nivel = "BLOQUEO",
                             Titulo = "Entradas duplicadas en ProduccionLogistica",
                             Detalle = $"Se detectaron {dupList.Count:N0} ProduccionId con duplicidad. Esto puede multiplicar kg o costo y debe corregirse antes del cierre."
+                        });
+                    }
+                }
+
+                if (reglas.BloquearEntradaCompartida)
+                {
+                    var compartidas = (await cn.QueryAsync<EntradaCompartidaRow>(@"
+SELECT
+    pl.ProduccionId,
+    COUNT(DISTINCT pl.SolicitudProduccionId) AS Coincidencias,
+    MIN(pl.SolicitudProduccionId) AS OtroLoteId
+FROM dbo.ProduccionLogistica pl
+INNER JOIN dbo.Lote l
+    ON l.LoteId = pl.SolicitudProduccionId
+WHERE pl.ProduccionId IN
+(
+    SELECT DISTINCT ProduccionId
+    FROM dbo.ProduccionLogistica
+    WHERE SolicitudProduccionId = @LoteId
+)
+  AND pl.SolicitudProduccionId <> @LoteId
+  AND ISNULL(l.EstatusId, 0) <> 3
+GROUP BY pl.ProduccionId;",
+                        new { LoteId = loteId },
+                        commandTimeout: 60)).ToList();
+
+                    if (compartidas.Count > 0)
+                    {
+                        diagnostico.Anomalias.Add(new CierreLoteAnomaliaVM
+                        {
+                            Codigo = "ENTRADA_COMPARTIDA_OTRO_LOTE",
+                            Nivel = "BLOQUEO",
+                            Titulo = "Entrada utilizada en otro lote abierto",
+                            Detalle = $"Se detectaron {compartidas.Count:N0} ProduccionId de entrada relacionados también con otro lote abierto. Revise ProduccionLogistica antes del cierre."
                         });
                     }
                 }
@@ -2688,6 +2806,26 @@ WHERE CompatibilidadId=@CompatibilidadId;",
         {
             public int ProduccionId { get; set; }
             public int Coincidencias { get; set; }
+        }
+
+        private sealed class CierreLoteReglasOperativasRow
+        {
+            public int TipoLoteId { get; set; }
+            public bool ValidarPesoEntrada { get; set; } = true;
+            public decimal PesoMinimoEntrada { get; set; } = 0.010m;
+            public bool ValidarPesoSalida { get; set; } = true;
+            public decimal PesoMinimoSalida { get; set; } = 0.010m;
+            public bool ValidarRelacionSalidaEntrada { get; set; } = true;
+            public decimal RelacionMaximaSalidaEntrada { get; set; } = 2.0000m;
+            public bool BloquearEntradaDuplicada { get; set; } = true;
+            public bool BloquearEntradaCompartida { get; set; } = true;
+        }
+
+        private sealed class EntradaCompartidaRow
+        {
+            public int ProduccionId { get; set; }
+            public int Coincidencias { get; set; }
+            public int? OtroLoteId { get; set; }
         }
 
         private sealed class CostoSalidaRow

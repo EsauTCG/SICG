@@ -336,14 +336,33 @@ ORDER BY
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "ENTREGAS_SAP");
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "ENTREGAS_SAP"
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
+            }
 
             return Json(new
             {
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
             });
         }
         // ========================= ENTREGAS SAP =========================
@@ -4472,14 +4491,38 @@ SELECT
                 });
             }
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AUTOCOMPLETAR_SAP");
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "AUTOCOMPLETAR_SAP"
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new
+                {
+                    puedeLeer = false,
+                    puedeEscribir = false,
+                    puedeEliminar = false
+                });
+            }
 
             return Json(new
             {
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
             });
         }
 
@@ -11043,14 +11086,33 @@ OPTION (RECOMPILE);";
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AUTO_ARTICULOS");
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "AUTO_ARTICULOS"
+                      && ppm.Activo
+                      && m.Activo
+                select new
+                {
+                    ppm.PuedeLeer,
+                    ppm.PuedeEscribir,
+                    ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
+
+            if (permiso == null)
+            {
+                return Json(new { puedeLeer = false, puedeEscribir = false, puedeEliminar = false });
+            }
 
             return Json(new
             {
-                puedeLeer = puedeLeer,
-                puedeEscribir = puedeEscribir,
-                puedeEliminar = puedeEliminar
+                puedeLeer = permiso.PuedeLeer,
+                puedeEscribir = permiso.PuedeEscribir,
+                puedeEliminar = permiso.PuedeEliminar
             });
         }
         //========================================================================================================================
@@ -17513,15 +17575,24 @@ VALUES
         {
             var login = (User?.Identity?.Name ?? "").Trim();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "AJUSTE_ETIQUETAS");
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "AJUSTE_ETIQUETAS"
+                      && ppm.Activo
+                      && m.Activo
+                select new AjusteEtiquetaPermisoVM
+                {
+                    PuedeLeer = ppm.PuedeLeer,
+                    PuedeEscribir = ppm.PuedeEscribir,
+                    PuedeEliminar = ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
 
-            return new AjusteEtiquetaPermisoVM
-            {
-                PuedeLeer = puedeLeer,
-                PuedeEscribir = puedeEscribir,
-                PuedeEliminar = puedeEliminar
-            };
+            return permiso ?? new AjusteEtiquetaPermisoVM();
         }
 
         private static string AjusteEtiquetaSqlIdentifier(string name)
@@ -17767,6 +17838,38 @@ VALUES
         // EstatusId 3 (cerrado) -> EstatusId 1 (abierto)
         // =======================================================
 
+        public sealed class CierreLoteConfigBloqueosRequestVM
+        {
+            public string Source { get; set; } = "TIF";
+            public int TipoLoteId { get; set; }
+            public bool RequiereEntradasLogistica { get; set; }
+            public bool ValidarCompatibilidad { get; set; }
+            public decimal VariacionAdvertenciaPct { get; set; }
+            public decimal VariacionBloqueoPct { get; set; }
+            public int AprobacionesRequeridas { get; set; } = 1;
+            public bool ValidarPesoEntrada { get; set; }
+            public decimal PesoMinimoEntrada { get; set; }
+            public bool ValidarPesoSalida { get; set; }
+            public decimal PesoMinimoSalida { get; set; }
+            public bool ValidarRelacionSalidaEntrada { get; set; }
+            public decimal RelacionMaximaSalidaEntrada { get; set; }
+            public bool BloquearEntradaDuplicada { get; set; }
+            public bool BloquearEntradaCompartida { get; set; }
+        }
+
+
+        private sealed class CierreLoteGridReglasVM
+        {
+            public int TipoLoteId { get; set; }
+            public bool ValidarPesoEntrada { get; set; }
+            public decimal PesoMinimoEntrada { get; set; }
+            public bool ValidarPesoSalida { get; set; }
+            public decimal PesoMinimoSalida { get; set; }
+            public bool ValidarRelacionSalidaEntrada { get; set; }
+            public decimal RelacionMaximaSalidaEntrada { get; set; }
+        }
+
+
         public sealed class CierreLoteAperturaSolicitudRequestVM
         {
             public string Source { get; set; } = "TIF";
@@ -17809,16 +17912,47 @@ VALUES
 
         [HttpGet("CierreLotePermisos")]
         [RevisarPermiso("CIERRE_LOTES", "LEER")]
-        public async Task<IActionResult> CierreLotePermisos()
+        public async Task<IActionResult> CierreLotePermisos(string source = "TIF")
         {
-            var permiso = await ObtenerPermisoCierreLotesAsync();
+            source = NormalizeSource(source);
+
+            var permisoModulo =
+                await ObtenerPermisoCierreLotesAsync();
+
+            var permisosTipo =
+                await ObtenerPermisosTiposLoteUsuarioAsync(source);
+
             return Ok(new
             {
                 ok = true,
-                puedeLeer = permiso.PuedeLeer,
-                puedeEscribir = permiso.PuedeEscribir,
-                puedeAutorizar = permiso.PuedeEliminar,
-                regla = "LEER consulta; ESCRIBIR solicita/cierra y puede solicitar reapertura; ELIMINAR autoriza o rechaza cierres y reaperturas. El solicitante no puede autoautorizarse."
+
+                // Permiso general existente del módulo.
+                puedeLeer = permisoModulo.PuedeLeer,
+                puedeEscribir = permisoModulo.PuedeEscribir,
+                puedeAutorizar = permisoModulo.PuedeEliminar,
+
+                // Resumen de la nueva matriz por Perfil + Planta + TipoLote.
+                puedeConsultarTipos =
+                    permisoModulo.PuedeLeer &&
+                    permisosTipo.Any(x => x.PuedeConsultar),
+
+                puedeCerrarTipos =
+                    permisoModulo.PuedeEscribir &&
+                    permisosTipo.Any(x => x.PuedeCerrar),
+
+                puedeAutorizarTipos =
+                    permisoModulo.PuedeEliminar &&
+                    permisosTipo.Any(x => x.PuedeAutorizar),
+
+                puedeReabrirTipos =
+                    permisoModulo.PuedeEscribir &&
+                    permisosTipo.Any(x => x.PuedeReabrir),
+
+                source,
+
+                regla =
+                    "El permiso general CIERRE_LOTES sigue vigente y además se valida " +
+                    "Perfil + Planta + TipoLote para Consultar, Cerrar, Autorizar y Reabrir."
             });
         }
 
@@ -17844,6 +17978,46 @@ VALUES
                         d2,
                         estado
                     );
+
+                // ====================================================
+                // SEGURIDAD POR PERFIL + PLANTA + TIPO DE LOTE
+                // El usuario sólo ve tipos con PuedeConsultar = 1.
+                // ====================================================
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisosTipo =
+                    await ObtenerPermisosTiposLoteUsuarioAsync(source);
+
+                var tiposConsultables =
+                    permisosTipo
+                        .Where(x => x.PuedeConsultar)
+                        .Select(x => x.TipoLoteId)
+                        .ToHashSet();
+
+                if (!permisoModulo.PuedeLeer ||
+                    tiposConsultables.Count == 0)
+                {
+                    rows = rows
+                        .Where(_ => false)
+                        .ToList();
+                }
+                else
+                {
+                    rows = rows
+                        .Where(x =>
+                            tiposConsultables.Contains(x.TipoLoteId)
+                        )
+                        .ToList();
+                }
+
+                var permisosPorTipo =
+                    permisosTipo
+                        .GroupBy(x => x.TipoLoteId)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.First()
+                        );
 
                 // ====================================================
                 // PLANTA 1:
@@ -17886,6 +18060,51 @@ VALUES
                         );
                 }
 
+                // ====================================================
+                // REGLAS OPERATIVAS PARA EL SEMÁFORO DEL GRID
+                // No se fuerza VERDE por estar cerrado: se evalúan los
+                // datos del lote con la configuración actual.
+                // ====================================================
+                var reglasGridPorTipo =
+                    new Dictionary<int, CierreLoteGridReglasVM>();
+
+                var csReglasGrid =
+                    _configuration.GetConnectionString(
+                        source == "TIF"
+                            ? "CadenaMeatTIF"
+                            : "CadenaMeatP1"
+                    );
+
+                if (!string.IsNullOrWhiteSpace(csReglasGrid))
+                {
+                    await using var cnReglasGrid =
+                        new SqlConnection(csReglasGrid);
+
+                    var reglasGrid =
+                        (await cnReglasGrid.QueryAsync<CierreLoteGridReglasVM>(
+                            @"
+SELECT
+    TipoLoteId,
+    CONVERT(bit, ISNULL(ValidarPesoEntrada,1)) AS ValidarPesoEntrada,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoEntrada,0.010)) AS PesoMinimoEntrada,
+    CONVERT(bit, ISNULL(ValidarPesoSalida,1)) AS ValidarPesoSalida,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoSalida,0.010)) AS PesoMinimoSalida,
+    CONVERT(bit, ISNULL(ValidarRelacionSalidaEntrada,1)) AS ValidarRelacionSalidaEntrada,
+    CONVERT(decimal(18,4), ISNULL(RelacionMaximaSalidaEntrada,2.0000)) AS RelacionMaximaSalidaEntrada
+FROM dbo.meat_CierreLoteTipoConfig
+WHERE ISNULL(Activo,1)=1;",
+                            commandTimeout: 60
+                        )).ToList();
+
+                    reglasGridPorTipo =
+                        reglasGrid
+                            .GroupBy(x => x.TipoLoteId)
+                            .ToDictionary(
+                                g => g.Key,
+                                g => g.First()
+                            );
+                }
+
                 var rowsVista =
                     rows
                         .Select(x =>
@@ -17926,13 +18145,15 @@ VALUES
                             string cumplimiento;
                             string cumplimientoTexto;
 
-                            if (x.EstatusId == 3)
-                            {
-                                cumplimiento = "VERDE";
-                                cumplimientoTexto =
-                                    "Lote cerrado.";
-                            }
-                            else if (config == null)
+                            reglasGridPorTipo.TryGetValue(
+                                x.TipoLoteId,
+                                out var reglasGrid
+                            );
+
+                            // Un lote cerrado NO se considera verde
+                            // automáticamente. Se conserva el estado CERRADO,
+                            // pero el semáforo refleja la integridad de sus datos.
+                            if (config == null)
                             {
                                 cumplimiento = "ROJO";
                                 cumplimientoTexto =
@@ -17951,6 +18172,44 @@ VALUES
                                 cumplimiento = "ROJO";
                                 cumplimientoTexto =
                                     "El lote no tiene salidas activas.";
+                            }
+                            else if (
+                                config.RequiereEntradasLogistica &&
+                                reglasGrid != null &&
+                                reglasGrid.ValidarPesoEntrada &&
+                                x.Entradas > 0 &&
+                                kgEntrada <= reglasGrid.PesoMinimoEntrada)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    $"ENTRADA_KG_INSUFICIENTE: entrada={kgEntrada:N3} kg; mínimo configurado={reglasGrid.PesoMinimoEntrada:N3} kg.";
+                            }
+                            else if (
+                                reglasGrid != null &&
+                                reglasGrid.ValidarPesoSalida &&
+                                x.Salidas > 0 &&
+                                kgSalida <= reglasGrid.PesoMinimoSalida)
+                            {
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    $"SALIDA_PESO_INVALIDO: salida={kgSalida:N3} kg; mínimo configurado={reglasGrid.PesoMinimoSalida:N3} kg.";
+                            }
+                            else if (
+                                config.RequiereEntradasLogistica &&
+                                reglasGrid != null &&
+                                reglasGrid.ValidarRelacionSalidaEntrada &&
+                                kgEntrada > reglasGrid.PesoMinimoEntrada &&
+                                kgSalida > 0 &&
+                                reglasGrid.RelacionMaximaSalidaEntrada > 0 &&
+                                (kgSalida / kgEntrada) >=
+                                    reglasGrid.RelacionMaximaSalidaEntrada)
+                            {
+                                var relacionGrid =
+                                    kgSalida / kgEntrada;
+
+                                cumplimiento = "ROJO";
+                                cumplimientoTexto =
+                                    $"SALIDA_DESPROPORCIONADA: relación salida/entrada={relacionGrid:N2}; máximo configurado={reglasGrid.RelacionMaximaSalidaEntrada:N2}.";
                             }
                             else if (
                                 config.RequiereEntradasLogistica &&
@@ -17986,12 +18245,33 @@ VALUES
                                         : "Cumplimiento operativo sin comparación de kg de entrada.";
                             }
 
+                            permisosPorTipo.TryGetValue(
+                                x.TipoLoteId,
+                                out var permisoTipo
+                            );
+
                             return new
                             {
                                 x.LoteId,
                                 x.Nombre,
                                 x.TipoLoteId,
                                 TipoProceso = tipoProceso,
+
+                                PuedeConsultar =
+                                    permisoModulo.PuedeLeer &&
+                                    (permisoTipo?.PuedeConsultar ?? false),
+
+                                PuedeCerrar =
+                                    permisoModulo.PuedeEscribir &&
+                                    (permisoTipo?.PuedeCerrar ?? false),
+
+                                PuedeAutorizar =
+                                    permisoModulo.PuedeEliminar &&
+                                    (permisoTipo?.PuedeAutorizar ?? false),
+
+                                PuedeReabrir =
+                                    permisoModulo.PuedeEscribir &&
+                                    (permisoTipo?.PuedeReabrir ?? false),
                                 x.EstatusId,
                                 x.FechaProduccion,
                                 x.Entradas,
@@ -18013,7 +18293,8 @@ VALUES
                                     config?.RequiereEntradasLogistica ?? false,
 
                                 Cumplimiento = cumplimiento,
-                                CumplimientoTexto = cumplimientoTexto
+                                CumplimientoTexto = cumplimientoTexto,
+                                EsCerrado = x.EstatusId == 3
                             };
                         })
                         .ToList();
@@ -18062,6 +18343,27 @@ VALUES
                     validarCosteo: false
                 );
 
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisoTipo =
+                    await ObtenerPermisoTipoLoteUsuarioAsync(
+                        source,
+                        d.TipoLoteId
+                    );
+
+                if (!permisoModulo.PuedeLeer ||
+                    permisoTipo == null ||
+                    !permisoTipo.PuedeConsultar)
+                {
+                    return StatusCode(403, new
+                    {
+                        ok = false,
+                        msg =
+                            "Tu perfil no tiene permiso para consultar este tipo de lote."
+                    });
+                }
+
                 var auth = d.RequiereAutorizacion
                     ? await cierre.ObtenerAutorizacionEstadoAsync(
                         source,
@@ -18070,11 +18372,72 @@ VALUES
                     )
                     : new CierreLoteAutorizacionEstadoVM();
 
+                object? cierreRegistrado = null;
+
+                if (d.EstatusId == 3)
+                {
+                    var csCierre =
+                        _configuration.GetConnectionString(
+                            source == "TIF"
+                                ? "CadenaMeatTIF"
+                                : "CadenaMeatP1"
+                        );
+
+                    if (!string.IsNullOrWhiteSpace(csCierre))
+                    {
+                        await using var cnCierre =
+                            new SqlConnection(csCierre);
+
+                        cierreRegistrado =
+                            await cnCierre.QueryFirstOrDefaultAsync(
+                                @"
+SELECT TOP (1)
+    FechaHora,
+    Usuario,
+    SolicitudId,
+    Detalle
+FROM dbo.meat_CierreLoteBitacora
+WHERE
+    Source = @Source
+    AND LoteId = @LoteId
+    AND Accion = 'CERRAR_LOTE'
+    AND Ok = 1
+ORDER BY FechaHora DESC;",
+                                new
+                                {
+                                    Source = source,
+                                    LoteId = loteId.Value
+                                },
+                                commandTimeout: 60
+                            );
+                    }
+                }
+
                 return Ok(new
                 {
                     ok = true,
                     diagnostico = d,
-                    autorizacion = auth
+                    autorizacion = auth,
+                    cierreRegistrado,
+
+                    permisoTipo = new
+                    {
+                        puedeConsultar =
+                            permisoModulo.PuedeLeer &&
+                            permisoTipo.PuedeConsultar,
+
+                        puedeCerrar =
+                            permisoModulo.PuedeEscribir &&
+                            permisoTipo.PuedeCerrar,
+
+                        puedeAutorizar =
+                            permisoModulo.PuedeEliminar &&
+                            permisoTipo.PuedeAutorizar,
+
+                        puedeReabrir =
+                            permisoModulo.PuedeEscribir &&
+                            permisoTipo.PuedeReabrir
+                    }
                 });
             }
             catch (Exception ex)
@@ -18105,6 +18468,27 @@ VALUES
                 req.Source = NormalizeSource(req.Source);
                 var usuario = (User?.Identity?.Name ?? "sistema").Trim();
                 var diagnostico = await cierre.DiagnosticarAsync(req.Source, req.LoteId, validarCosteo: false);
+
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisoTipo =
+                    await ObtenerPermisoTipoLoteUsuarioAsync(
+                        req.Source,
+                        diagnostico.TipoLoteId
+                    );
+
+                if (!permisoModulo.PuedeEscribir ||
+                    permisoTipo == null ||
+                    !permisoTipo.PuedeCerrar)
+                {
+                    return StatusCode(403, new
+                    {
+                        ok = false,
+                        msg =
+                            "Tu perfil no tiene permiso para cerrar este tipo de lote."
+                    });
+                }
 
                 var solicitudId = await cierre.CrearSolicitudAsync(
                     req.Source,
@@ -18157,7 +18541,40 @@ VALUES
             try
             {
                 source = NormalizeSource(source);
-                var rows = await cierre.ObtenerSolicitudesPendientesAsync(source);
+
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisosTipo =
+                    await ObtenerPermisosTiposLoteUsuarioAsync(source);
+
+                var tiposAutorizables =
+                    permisosTipo
+                        .Where(x => x.PuedeAutorizar)
+                        .Select(x => x.TipoLoteId)
+                        .ToHashSet();
+
+                if (!permisoModulo.PuedeEliminar ||
+                    tiposAutorizables.Count == 0)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
+                var rows =
+                    await cierre.ObtenerSolicitudesPendientesAsync(source);
+
+                rows =
+                    rows
+                        .Where(x =>
+                            tiposAutorizables.Contains(x.TipoLoteId)
+                        )
+                        .ToList();
+
                 return Ok(new { ok = true, source, rows });
             }
             catch (Exception ex)
@@ -18189,6 +18606,43 @@ VALUES
             {
                 req.Source = NormalizeSource(req.Source);
                 var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var solicitudPendiente =
+                    (await cierre.ObtenerSolicitudesPendientesAsync(req.Source))
+                        .FirstOrDefault(x =>
+                            x.SolicitudId == req.SolicitudId
+                        );
+
+                if (solicitudPendiente == null)
+                {
+                    return Conflict(new
+                    {
+                        ok = false,
+                        msg =
+                            "La solicitud ya no está pendiente o no existe."
+                    });
+                }
+
+                var permisoTipo =
+                    await ObtenerPermisoTipoLoteUsuarioAsync(
+                        req.Source,
+                        solicitudPendiente.TipoLoteId
+                    );
+
+                if (!permisoModulo.PuedeEliminar ||
+                    permisoTipo == null ||
+                    !permisoTipo.PuedeAutorizar)
+                {
+                    return StatusCode(403, new
+                    {
+                        ok = false,
+                        msg =
+                            "Tu perfil no tiene permiso para autorizar este tipo de lote."
+                    });
+                }
 
                 var estado = await cierre.RegistrarDecisionAsync(
                     req.Source,
@@ -18247,6 +18701,28 @@ VALUES
             {
                 // 1) Diagnóstico operacional inmediatamente antes del costeo.
                 var pre = await cierre.DiagnosticarAsync(req.Source, req.LoteId, validarCosteo: false);
+
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisoTipo =
+                    await ObtenerPermisoTipoLoteUsuarioAsync(
+                        req.Source,
+                        pre.TipoLoteId
+                    );
+
+                if (!permisoModulo.PuedeEscribir ||
+                    permisoTipo == null ||
+                    !permisoTipo.PuedeCerrar)
+                {
+                    return StatusCode(403, new
+                    {
+                        ok = false,
+                        etapa = "PERMISO_TIPO_LOTE",
+                        msg =
+                            "Tu perfil no tiene permiso para cerrar este tipo de lote."
+                    });
+                }
 
                 if (pre.TieneBloqueos)
                 {
@@ -18553,6 +19029,32 @@ WHERE LoteId = @LoteId;",
 
                     if (lote == null)
                         throw new InvalidOperationException("El lote no existe.");
+
+                    var tipoLoteId =
+                        lote.TipoLoteId == null
+                            ? 0
+                            : Convert.ToInt32(lote.TipoLoteId);
+
+                    var permisoModulo =
+                        await ObtenerPermisoCierreLotesAsync();
+
+                    var permisoTipo =
+                        await ObtenerPermisoTipoLoteUsuarioAsync(
+                            req.Source,
+                            tipoLoteId
+                        );
+
+                    if (!permisoModulo.PuedeEscribir ||
+                        permisoTipo == null ||
+                        !permisoTipo.PuedeReabrir)
+                    {
+                        return StatusCode(403, new
+                        {
+                            ok = false,
+                            msg =
+                                "Tu perfil no tiene permiso para reabrir este tipo de lote."
+                        });
+                    }
 
                     int estatusActual =
                         Convert.ToInt32(lote.EstatusId ?? 0);
@@ -18999,6 +19501,29 @@ END;"
                     });
                 }
 
+                var permisoModulo =
+                    await ObtenerPermisoCierreLotesAsync();
+
+                var permisosTipo =
+                    await ObtenerPermisosTiposLoteUsuarioAsync(source);
+
+                var tiposReabribles =
+                    permisosTipo
+                        .Where(x => x.PuedeReabrir)
+                        .Select(x => x.TipoLoteId)
+                        .ToHashSet();
+
+                if (!permisoModulo.PuedeEliminar ||
+                    tiposReabribles.Count == 0)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        source,
+                        rows = Array.Empty<object>()
+                    });
+                }
+
                 var rows =
                     (await cn.QueryAsync(
                         @"
@@ -19027,6 +19552,15 @@ ORDER BY
                             Source = source
                         }
                     ))
+                    .Where(x =>
+                    {
+                        var tipo =
+                            Convert.ToInt32(
+                                x.TipoLoteId ?? 0
+                            );
+
+                        return tiposReabribles.Contains(tipo);
+                    })
                     .ToList();
 
                 return Ok(new
@@ -19163,6 +19697,27 @@ WHERE
 
                     if (solicitud == null)
                         throw new InvalidOperationException("La solicitud de apertura no existe.");
+
+                    var permisoModulo =
+                        await ObtenerPermisoCierreLotesAsync();
+
+                    var permisoTipo =
+                        await ObtenerPermisoTipoLoteUsuarioAsync(
+                            req.Source,
+                            solicitud.TipoLoteId ?? 0
+                        );
+
+                    if (!permisoModulo.PuedeEliminar ||
+                        permisoTipo == null ||
+                        !permisoTipo.PuedeReabrir)
+                    {
+                        return StatusCode(403, new
+                        {
+                            ok = false,
+                            msg =
+                                "Tu perfil no tiene permiso para reabrir este tipo de lote."
+                        });
+                    }
 
                     if (!string.Equals(
                         solicitud.Estado,
@@ -19510,6 +20065,151 @@ ORDER BY
         }
 
 
+        // =======================================================
+        // CONFIGURACION OPERATIVA DE BLOQUEOS POR TIPO DE LOTE
+        // Requiere ELIMINAR en CIERRE_LOTES para evitar que cualquier
+        // operador pueda relajar controles de cierre.
+        // =======================================================
+        [HttpGet("CierreLoteConfiguracionBloqueos")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteConfiguracionBloqueos(
+            string source = "TIF")
+        {
+            try
+            {
+                source = NormalizeSource(source);
+                var cs = _configuration.GetConnectionString(
+                    source == "TIF" ? "CadenaMeatTIF" : "CadenaMeatP1")
+                    ?? throw new InvalidOperationException("No existe la cadena de conexión de la planta.");
+
+                const string sql = @"
+SELECT
+    TipoLoteId,
+    CONVERT(nvarchar(100), ISNULL(TipoProceso,'')) AS TipoProceso,
+    CONVERT(bit, ISNULL(RequiereEntradasLogistica,0)) AS RequiereEntradasLogistica,
+    CONVERT(bit, ISNULL(ValidarCompatibilidad,0)) AS ValidarCompatibilidad,
+    CONVERT(decimal(18,3), ISNULL(VariacionAdvertenciaPct,0)) AS VariacionAdvertenciaPct,
+    CONVERT(decimal(18,3), ISNULL(VariacionBloqueoPct,0)) AS VariacionBloqueoPct,
+    CONVERT(int, ISNULL(AprobacionesRequeridas,1)) AS AprobacionesRequeridas,
+    CONVERT(bit, ISNULL(ValidarPesoEntrada,1)) AS ValidarPesoEntrada,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoEntrada,0.010)) AS PesoMinimoEntrada,
+    CONVERT(bit, ISNULL(ValidarPesoSalida,1)) AS ValidarPesoSalida,
+    CONVERT(decimal(18,3), ISNULL(PesoMinimoSalida,0.010)) AS PesoMinimoSalida,
+    CONVERT(bit, ISNULL(ValidarRelacionSalidaEntrada,1)) AS ValidarRelacionSalidaEntrada,
+    CONVERT(decimal(18,4), ISNULL(RelacionMaximaSalidaEntrada,2.0000)) AS RelacionMaximaSalidaEntrada,
+    CONVERT(bit, ISNULL(BloquearEntradaDuplicada,1)) AS BloquearEntradaDuplicada,
+    CONVERT(bit, ISNULL(BloquearEntradaCompartida,1)) AS BloquearEntradaCompartida,
+    CONVERT(bit, ISNULL(Activo,1)) AS Activo
+FROM dbo.meat_CierreLoteTipoConfig
+WHERE ISNULL(Activo,1)=1
+ORDER BY TipoLoteId;";
+
+                await using var cn = new SqlConnection(cs);
+                var rows = (await cn.QueryAsync(sql, commandTimeout: 60)).ToList();
+
+                return Ok(new { ok = true, source, rows });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando configuración de bloqueos de cierre.");
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost("CierreLoteConfiguracionBloqueosGuardar")]
+        [RevisarPermiso("CIERRE_LOTES", "ELIMINAR")]
+        public async Task<IActionResult> CierreLoteConfiguracionBloqueosGuardar(
+            [FromBody] CierreLoteConfigBloqueosRequestVM req)
+        {
+            try
+            {
+                req.Source = NormalizeSource(req.Source);
+
+                if (req.TipoLoteId <= 0)
+                    return BadRequest(new { ok = false, msg = "TipoLoteId inválido." });
+
+                if (req.PesoMinimoEntrada < 0 || req.PesoMinimoSalida < 0)
+                    return BadRequest(new { ok = false, msg = "Los pesos mínimos no pueden ser negativos." });
+
+                if (req.VariacionAdvertenciaPct < 0 || req.VariacionBloqueoPct < 0)
+                    return BadRequest(new { ok = false, msg = "Los porcentajes de variación no pueden ser negativos." });
+
+                if (req.RelacionMaximaSalidaEntrada < 0)
+                    return BadRequest(new { ok = false, msg = "La relación máxima no puede ser negativa." });
+
+                if (req.AprobacionesRequeridas < 1)
+                    req.AprobacionesRequeridas = 1;
+
+                var cs = _configuration.GetConnectionString(
+                    req.Source == "TIF" ? "CadenaMeatTIF" : "CadenaMeatP1")
+                    ?? throw new InvalidOperationException("No existe la cadena de conexión de la planta.");
+
+                var usuario = (User?.Identity?.Name ?? "sistema").Trim();
+
+                const string sql = @"
+UPDATE dbo.meat_CierreLoteTipoConfig
+SET
+    RequiereEntradasLogistica = @RequiereEntradasLogistica,
+    ValidarCompatibilidad = @ValidarCompatibilidad,
+    VariacionAdvertenciaPct = @VariacionAdvertenciaPct,
+    VariacionBloqueoPct = @VariacionBloqueoPct,
+    AprobacionesRequeridas = @AprobacionesRequeridas,
+    ValidarPesoEntrada = @ValidarPesoEntrada,
+    PesoMinimoEntrada = @PesoMinimoEntrada,
+    ValidarPesoSalida = @ValidarPesoSalida,
+    PesoMinimoSalida = @PesoMinimoSalida,
+    ValidarRelacionSalidaEntrada = @ValidarRelacionSalidaEntrada,
+    RelacionMaximaSalidaEntrada = @RelacionMaximaSalidaEntrada,
+    BloquearEntradaDuplicada = @BloquearEntradaDuplicada,
+    BloquearEntradaCompartida = @BloquearEntradaCompartida,
+    UsuarioModifica = @Usuario,
+    FechaModifica = GETDATE()
+WHERE TipoLoteId = @TipoLoteId
+  AND Activo = 1;
+
+SELECT @@ROWCOUNT;";
+
+                await using var cn = new SqlConnection(cs);
+                var afectadas = await cn.ExecuteScalarAsync<int>(sql, new
+                {
+                    req.TipoLoteId,
+                    req.RequiereEntradasLogistica,
+                    req.ValidarCompatibilidad,
+                    req.VariacionAdvertenciaPct,
+                    req.VariacionBloqueoPct,
+                    req.AprobacionesRequeridas,
+                    req.ValidarPesoEntrada,
+                    req.PesoMinimoEntrada,
+                    req.ValidarPesoSalida,
+                    req.PesoMinimoSalida,
+                    req.ValidarRelacionSalidaEntrada,
+                    req.RelacionMaximaSalidaEntrada,
+                    req.BloquearEntradaDuplicada,
+                    req.BloquearEntradaCompartida,
+                    Usuario = usuario
+                }, commandTimeout: 60);
+
+                if (afectadas <= 0)
+                    return NotFound(new { ok = false, msg = "No se encontró configuración activa para ese TipoLoteId." });
+
+                _logger.LogInformation(
+                    "Configuración cierre actualizada. Source={Source}, TipoLoteId={TipoLoteId}, Usuario={Usuario}",
+                    req.Source, req.TipoLoteId, usuario);
+
+                return Ok(new
+                {
+                    ok = true,
+                    msg = $"Configuración de TipoLoteId={req.TipoLoteId} guardada correctamente."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error guardando configuración de bloqueos de cierre.");
+                return StatusCode(500, new { ok = false, msg = ex.GetBaseException().Message });
+            }
+        }
+
+
         [HttpGet("CierreLoteCompatibilidad")]
         [RevisarPermiso("CIERRE_LOTES", "LEER")]
         public async Task<IActionResult> CierreLoteCompatibilidad(
@@ -19571,21 +20271,205 @@ ORDER BY
             }
         }
 
+        private sealed class CierreLoteTipoPermisoUsuarioVM
+        {
+            public int PerfilId { get; set; }
+            public string Source { get; set; } = "";
+            public int TipoLoteId { get; set; }
+            public bool PuedeConsultar { get; set; }
+            public bool PuedeCerrar { get; set; }
+            public bool PuedeAutorizar { get; set; }
+            public bool PuedeReabrir { get; set; }
+        }
+
+
+        private async Task<int?> ObtenerPerfilIdUsuarioActualAsync()
+        {
+            var login =
+                (User?.Identity?.Name ?? "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(login))
+                return null;
+
+            return await _db.UsuarioSQL
+                .Where(x =>
+                    x.Usuario == login ||
+                    x.Nombre == login
+                )
+                .Select(x => (int?)x.PerfilId)
+                .FirstOrDefaultAsync();
+        }
+
+
+        private async Task<List<CierreLoteTipoPermisoUsuarioVM>>
+            ObtenerPermisosTiposLoteUsuarioAsync(string source)
+        {
+            source =
+                NormalizeSource(source);
+
+            var perfilId =
+                await ObtenerPerfilIdUsuarioActualAsync();
+
+            if (!perfilId.HasValue ||
+                perfilId.Value <= 0)
+            {
+                return new List<CierreLoteTipoPermisoUsuarioVM>();
+            }
+
+            var cn =
+                _db.Database.GetDbConnection();
+
+            var cerrarConexion =
+                cn.State != ConnectionState.Open;
+
+            if (cerrarConexion)
+                await cn.OpenAsync();
+
+            try
+            {
+                var existe =
+                    await cn.ExecuteScalarAsync<int>(
+                        @"
+SELECT CASE
+    WHEN OBJECT_ID('dbo.CierreLotePerfilTipoPermiso', 'U') IS NOT NULL
+    THEN 1 ELSE 0
+END;"
+                    );
+
+                if (existe != 1)
+                    return new List<CierreLoteTipoPermisoUsuarioVM>();
+
+                var rows =
+                    await cn.QueryAsync<CierreLoteTipoPermisoUsuarioVM>(
+                        @"
+SELECT
+    PerfilId,
+    Source,
+    TipoLoteId,
+    PuedeConsultar,
+    PuedeCerrar,
+    PuedeAutorizar,
+    PuedeReabrir
+FROM dbo.CierreLotePerfilTipoPermiso
+WHERE
+    PerfilId = @PerfilId
+    AND UPPER(LTRIM(RTRIM(Source))) = @Source
+    AND Activo = 1;",
+                        new
+                        {
+                            PerfilId = perfilId.Value,
+                            Source = source
+                        },
+                        commandTimeout: 30
+                    );
+
+                return rows.ToList();
+            }
+            finally
+            {
+                if (cerrarConexion)
+                    await cn.CloseAsync();
+            }
+        }
+
+
+        private async Task<CierreLoteTipoPermisoUsuarioVM?>
+            ObtenerPermisoTipoLoteUsuarioAsync(
+                string source,
+                int tipoLoteId)
+        {
+            if (tipoLoteId <= 0)
+                return null;
+
+            var permisos =
+                await ObtenerPermisosTiposLoteUsuarioAsync(source);
+
+            return permisos.FirstOrDefault(
+                x => x.TipoLoteId == tipoLoteId
+            );
+        }
+
+
         private async Task<CierreLotePermisoVM> ObtenerPermisoCierreLotesAsync()
         {
             var login = (User?.Identity?.Name ?? "").Trim();
             if (string.IsNullOrWhiteSpace(login))
                 return new CierreLotePermisoVM();
 
-            var (puedeLeer, puedeEscribir, puedeEliminar) =
-                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, "CIERRE_LOTES");
+            var permiso = await (
+                from u in _db.UsuarioSQL
+                join p in _db.Perfiles on u.PerfilId equals p.Id
+                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
+                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
+                where (u.Usuario == login || u.Nombre == login)
+                      && m.Clave == "CIERRE_LOTES"
+                      && ppm.Activo
+                      && m.Activo
+                select new CierreLotePermisoVM
+                {
+                    PuedeLeer = ppm.PuedeLeer,
+                    PuedeEscribir = ppm.PuedeEscribir,
+                    PuedeEliminar = ppm.PuedeEliminar
+                }
+            ).FirstOrDefaultAsync();
 
-            return new CierreLotePermisoVM
+            return permiso ?? new CierreLotePermisoVM();
+        }
+
+        // =======================================================
+        // VALIDACION ADICIONAL DE INTEGRIDAD DE KG PARA CIERRE
+        // No modifica las reglas existentes de variacion/autorizacion.
+        // Solo agrega bloqueos tecnicos para relaciones imposibles de
+        // entrada/salida antes de permitir costear o cerrar un lote.
+        // =======================================================
+        private static (bool Bloqueado, string Codigo, string Mensaje)
+            ValidarIntegridadKgCierre(
+                decimal kgEntrada,
+                decimal kgSalida,
+                bool requiereEntradasLogistica)
+        {
+            // Si el tipo de proceso no requiere entradas logisticas,
+            // conservamos exactamente el comportamiento existente.
+            if (!requiereEntradasLogistica)
+                return (false, "", "");
+
+            const decimal entradaMinimaTecnica = 0.010m;
+            const decimal relacionMaximaSeguridad = 2.00m;
+
+            // Entrada en cero o practicamente cero con salida real.
+            if (kgSalida > entradaMinimaTecnica &&
+                kgEntrada <= entradaMinimaTecnica)
             {
-                PuedeLeer = puedeLeer,
-                PuedeEscribir = puedeEscribir,
-                PuedeEliminar = puedeEliminar
-            };
+                return (
+                    true,
+                    "ENTRADA_KG_INSUFICIENTE",
+                    $"El lote tiene {kgEntrada:N3} kg de entrada y {kgSalida:N3} kg de salida. " +
+                    "La entrada es cero o practicamente cero. No esta permitido cerrar el lote; " +
+                    "deben revisarse los movimientos."
+                );
+            }
+
+            // Entrada positiva, pero salida exageradamente superior.
+            if (kgEntrada > entradaMinimaTecnica &&
+                kgSalida > 0)
+            {
+                var relacionSalidaEntrada = kgSalida / kgEntrada;
+
+                if (relacionSalidaEntrada >= relacionMaximaSeguridad)
+                {
+                    return (
+                        true,
+                        "SALIDA_DESPROPORCIONADA",
+                        $"El lote tiene {kgEntrada:N3} kg de entrada y {kgSalida:N3} kg de salida. " +
+                        $"La salida representa {relacionSalidaEntrada:N2} veces la entrada. " +
+                        "La relacion es operativamente inconsistente. No esta permitido cerrar " +
+                        "el lote hasta revisar los movimientos."
+                    );
+                }
+            }
+
+            return (false, "", "");
         }
 
         private static bool ResultadoCosteoOk(object? item)
