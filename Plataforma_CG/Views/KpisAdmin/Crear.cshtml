@@ -1,85 +1,25 @@
 ﻿@model Plataforma_CG.Models.ViewModels.KpiCatalogoFormVM
+
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Crear KPI";
 }
 
-<style>
-    :root {
-        --brand-grad: linear-gradient(90deg,#8B0000 0%,#5a0000 50%,#1a0000 100%);
-        --pane: #fff;
-        --bar: #e6e9ef;
-        --bar-2: #dde2ea;
-        --line: #d8dce3;
-        --ink: #20262e;
-        --muted: #636d7b;
-        --radius: 10px;
-        --shadow: 0 1px 0 rgba(0,0,0,.05), 0 12px 24px rgba(0,0,0,.06);
-    }
+@await Html.PartialAsync("_KpiAdminTheme")
 
-    .container-sap {
-        max-width: 980px;
-        margin: 1.25rem auto 2rem;
-    }
+<div class="container-fluid py-4 px-3 px-md-4 container-custom form-width">
 
-    .sap-titlebar {
-        background: linear-gradient(#eef1f6,#e7ebf2);
-        border: 1px solid var(--bar-2);
-        border-radius: var(--radius);
-        padding: .85rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        flex-wrap: wrap;
-        box-shadow: var(--shadow);
-    }
-
-        .sap-titlebar .title {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: .55rem;
-            font-weight: 800;
-            color: #2b3642;
-        }
-
-        .sap-titlebar .sub {
-            margin: 0;
-            font-size: .92rem;
-            color: var(--muted);
-        }
-
-    .sap-card {
-        background: var(--pane);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin-top: 1rem;
-    }
-
-    .sap-card-head {
-        padding: .75rem 1rem;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(#f6f8fb,#eef2f7);
-        font-weight: 800;
-        color: #2b3642;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-        flex-wrap: wrap;
-    }
-</style>
-
-<div class="container-sap">
-    <div class="sap-titlebar">
+    <div class="top-banner d-flex justify-content-between align-items-center flex-wrap gap-3 shadow-sm">
         <div>
-            <h4 class="title"><i class="bi bi-plus-circle"></i> Crear KPI</h4>
-            <p class="sub">Registra un KPI en el catálogo.</p>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-plus-circle me-2"></i> Crear KPI
+            </h2>
+            <p class="mb-0" style="font-size: 0.85rem; opacity: 0.85;">
+                Registra un nuevo indicador en el catálogo, agrega su imagen y enlaza su reporte Power BI.
+            </p>
         </div>
-        <div class="actions">
-            <a class="btn btn-secondary btn-sm" href="@Url.Action("InicioKpi", "KpisAdmin")">
+        <div>
+            <a class="btn btn-sm btn-outline-light fw-bold px-3 border-2" href="@Url.Action("InicioKpi", "KpisAdmin")">
                 <i class="bi bi-arrow-left-circle me-1"></i> Volver
             </a>
         </div>
@@ -87,74 +27,89 @@
 
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]</div>
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]
+        </div>
     }
 
-    <div class="sap-card mt-3">
-        <div class="sap-card-head">
-            <span><i class="bi bi-pencil-square me-1"></i> Datos del KPI</span>
+    <div class="dashboard-panel">
+        <div class="dashboard-panel-head">
+            <div>
+                <h6 class="dashboard-panel-title">
+                    <i class="bi bi-pencil-square me-1"></i> Datos del KPI
+                </h6>
+                <p class="dashboard-panel-subtitle">
+                    Completa la información principal para mostrar el KPI en el portal.
+                </p>
+            </div>
         </div>
 
-        <div class="p-3">
+        <div class="p-3 p-md-4">
             <form method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
 
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Título</label>
-                        <input class="form-control" asp-for="Titulo" />
-                        <span class="text-danger" asp-validation-for="Titulo"></span>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Categoría</label>
-                        <select class="form-select" asp-for="Categoria">
-                            <option value="">-- Selecciona una categoría --</option>
-                            <option value="Ventas">Ventas</option>
-                            <option value="Compras">Compras</option>
-                            <option value="Producción">Producción</option>
-                            <option value="Sacrificio">Sacrificio</option>
-                            <option value="Inventarios">Inventarios</option>
-@*                          <option value="GRAL">GRAL</option>
-                            <option value="CDMX">CDMX</option>
-                            <option value="MDA">MDA</option>
-                            <option value="MTY">MTY</option>
-                            <option value="MXL">MXL</option>
-                            <option value="SLW">SLW</option>
-                            <option value="TJN">TJN</option> *@
-                        </select>
-                        <span class="text-danger" asp-validation-for="Categoria"></span>
-                    </div>
+                <div class="filter-panel mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">TÍTULO</label>
+                            <input class="form-control" asp-for="Titulo" placeholder="Ej. Ventas mensuales" />
+                            <span class="text-danger" asp-validation-for="Titulo"></span>
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label fw-bold">Descripción</label>
-                        <textarea class="form-control" rows="4" asp-for="Descripcion"></textarea>
-                        <span class="text-danger" asp-validation-for="Descripcion"></span>
-                    </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">CATEGORÍA</label>
+                            <select class="form-select" asp-for="Categoria">
+                                <option value="">-- Selecciona una categoría --</option>
+                                <option value="Ventas">Ventas</option>
+                                <option value="Compras">Compras</option>
+                                <option value="Producción">Producción</option>
+                                <option value="Sacrificio">Sacrificio</option>
+                                <option value="Inventarios">Inventarios</option>
+                            </select>
+                            <span class="text-danger" asp-validation-for="Categoria"></span>
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label fw-bold">Embed URL (Power BI)</label>
-                        <input class="form-control" asp-for="EmbedUrl" />
-                        <span class="text-danger" asp-validation-for="EmbedUrl"></span>
-                        <div class="text-muted small mt-1">Pega el link del reporte.</div>
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold text-muted small">DESCRIPCIÓN</label>
+                            <textarea class="form-control" rows="4" asp-for="Descripcion" placeholder="Describe brevemente qué muestra este indicador..."></textarea>
+                            <span class="text-danger" asp-validation-for="Descripcion"></span>
+                        </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Imagen (opcional)</label>
-                        <input class="form-control" asp-for="Imagen" type="file" accept="image/*" />
-                        <div class="text-muted small mt-1">Se guarda en <code>wwwroot/img/kpi</code>.</div>
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold text-muted small">EMBED URL POWER BI</label>
+                            <input class="form-control" asp-for="EmbedUrl" placeholder="Pega aquí el link del reporte..." />
+                            <span class="text-danger" asp-validation-for="EmbedUrl"></span>
+                            <div class="text-muted small mt-1">
+                                Pega el enlace de inserción o acceso del reporte.
+                            </div>
+                        </div>
 
-                    <div class="col-md-6 d-flex align-items-end">
-                        <div class="form-check">
-                            <input class="form-check-input" asp-for="Activo" />
-                            <label class="form-check-label fw-bold" asp-for="Activo">Activo</label>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">IMAGEN OPCIONAL</label>
+                            <input class="form-control" asp-for="Imagen" type="file" accept="image/*" />
+                            <div class="text-muted small mt-1">
+                                Se guarda en <code>wwwroot/img/kpi</code>.
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" asp-for="Activo" />
+                                <label class="form-check-label fw-bold text-dark" asp-for="Activo">
+                                    Publicar como activo
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="text-end mt-4">
-                    <button class="btn btn-outline-primary">
-                        <i class="bi bi-save me-1"></i> Guardar
+                <div class="d-flex justify-content-end gap-2 flex-wrap">
+                    <a class="btn btn-outline-secondary fw-bold" href="@Url.Action("InicioKpi", "KpisAdmin")">
+                        <i class="bi bi-x-circle me-1"></i> Cancelar
+                    </a>
+
+                    <button class="btn btn-brand fw-bold px-4">
+                        <i class="bi bi-save me-1"></i> Guardar KPI
                     </button>
                 </div>
             </form>

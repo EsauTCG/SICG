@@ -1,0 +1,400 @@
+@model Plataforma_CG.ViewModels.SurtidoPedidoDetallePaginaVM
+
+@{
+    ViewData["Title"] = "Detalle de pedido";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    body {
+        background:#f4f7fb;
+    }
+
+    .det-wrap {
+        max-width:1220px;
+        margin:0 auto;
+        padding:14px 12px 34px;
+    }
+
+    .det-head {
+        color:#fff;
+        background:
+            radial-gradient(circle at top right, rgba(13,110,253,.26), transparent 34%),
+            linear-gradient(135deg,#071827,#103553);
+        border-radius:18px;
+        padding:17px;
+        box-shadow:0 14px 34px rgba(10,30,50,.15);
+    }
+
+    .det-head-row {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        flex-wrap:wrap;
+    }
+
+    .det-kicker {
+        opacity:.66;
+        font-size:.67rem;
+        font-weight:950;
+        letter-spacing:.09em;
+    }
+
+    .det-title {
+        margin-top:3px;
+        font-size:1.45rem;
+        font-weight:950;
+    }
+
+    .det-sub {
+        margin-top:4px;
+        opacity:.76;
+        font-size:.75rem;
+    }
+
+    .det-back {
+        text-decoration:none!important;
+        color:#fff!important;
+        padding:8px 12px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,.22);
+        background:rgba(255,255,255,.08);
+        font-size:.72rem;
+        font-weight:900;
+    }
+
+    .det-stats {
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:8px;
+        margin-top:10px;
+    }
+
+    .stat {
+        background:#fff;
+        border:1px solid #dbe4ee;
+        border-radius:13px;
+        padding:11px;
+    }
+
+    .stat small {
+        display:block;
+        font-size:.63rem;
+        font-weight:950;
+        color:#718398;
+    }
+
+    .stat strong {
+        display:block;
+        margin-top:3px;
+        color:#152235;
+        font-size:.94rem;
+    }
+
+    .det-error {
+        margin-top:10px;
+        padding:14px;
+        border:1px solid #efb9b9;
+        background:#fff3f3;
+        color:#991b1b;
+        border-radius:14px;
+        font-size:.78rem;
+    }
+
+    .det-table-wrap {
+        margin-top:10px;
+        background:#fff;
+        border:1px solid #dbe4ee;
+        border-radius:14px;
+        overflow:auto;
+    }
+
+    .det-table {
+        width:100%;
+        border-collapse:collapse;
+        min-width:880px;
+    }
+
+    .det-table th {
+        padding:9px;
+        background:#f5f7fb;
+        border-bottom:1px solid #dbe4ee;
+        color:#53667a;
+        font-size:.65rem;
+        text-transform:uppercase;
+        font-weight:950;
+        text-align:left;
+    }
+
+    .det-table td {
+        padding:10px 9px;
+        border-bottom:1px solid #edf1f5;
+        color:#27384c;
+        font-size:.75rem;
+        vertical-align:middle;
+    }
+
+    .sku {
+        font-weight:950;
+        color:#0d6efd;
+    }
+
+    .producto {
+        font-weight:900;
+        color:#152235;
+    }
+
+    .cantidad {
+        font-size:.95rem;
+        font-weight:950;
+        color:#152235;
+    }
+
+    .badge-ok,
+    .badge-miss {
+        display:inline-flex;
+        border-radius:999px;
+        padding:4px 7px;
+        font-size:.60rem;
+        font-weight:950;
+    }
+
+    .badge-ok {
+        background:#e9f7ef;
+        color:#198754;
+    }
+
+    .badge-miss {
+        background:#fff3df;
+        color:#b86500;
+    }
+
+    .empty {
+        padding:28px 14px;
+        text-align:center;
+        color:#718398;
+    }
+
+    @@media(max-width:800px) {
+        .det-stats {
+            grid-template-columns:1fr 1fr;
+        }
+    }
+
+    body[data-theme="dark"] .stat,
+    body[data-theme="dark"] .det-table-wrap {
+        background:#111827!important;
+        border-color:rgba(255,255,255,.12)!important;
+    }
+
+    body[data-theme="dark"] .stat strong,
+    body[data-theme="dark"] .producto,
+    body[data-theme="dark"] .cantidad {
+        color:#f8fafc!important;
+    }
+
+    body[data-theme="dark"] .det-table th {
+        background:#172033!important;
+        color:#f8fafc!important;
+        border-color:rgba(255,255,255,.12)!important;
+    }
+
+    body[data-theme="dark"] .det-table td {
+        color:#e5e7eb!important;
+        border-color:rgba(255,255,255,.09)!important;
+    }
+</style>
+
+
+<div class="det-wrap">
+
+    <section class="det-head">
+
+        <div class="det-head-row">
+
+            <div>
+                <div class="det-kicker">
+                    SURTIDO · DETALLE DE SOLICITUD
+                </div>
+
+                <div class="det-title">
+                    Pedido @(Model.Pedido?.Pedido ?? Model.SolicitudSurtidoId.ToString())
+                </div>
+
+                <div class="det-sub">
+                    @(Model.Pedido?.Cliente ?? "Cliente no disponible")
+                    · @Model.Almacen.Nombre
+                    · @Model.Almacen.Sucursal
+                </div>
+            </div>
+
+            <a class="det-back"
+               href="@Url.Action(
+                    "Picking",
+                    "Surtido",
+                    new
+                    {
+                        almacen = Model.Almacen.Codigo
+                    }
+               )">
+                ← Volver a Picking
+            </a>
+
+        </div>
+
+    </section>
+
+
+    <section class="det-stats">
+
+        <div class="stat">
+            <small>SOLICITUD</small>
+            <strong>@Model.SolicitudSurtidoId</strong>
+        </div>
+
+        <div class="stat">
+            <small>LÍNEAS</small>
+            <strong>@Model.TotalLineas</strong>
+        </div>
+
+        <div class="stat">
+            <small>CANTIDAD TOTAL</small>
+            <strong>@Model.TotalCantidad.ToString("N2")</strong>
+        </div>
+
+        <div class="stat">
+            <small>CONEXIÓN MEAT</small>
+            <strong>@Model.NombreConexion</strong>
+        </div>
+
+    </section>
+
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="det-error">
+            <strong>No fue posible cargar el detalle.</strong><br />
+            @Model.Error
+        </div>
+    }
+    else
+    {
+        <section class="det-table-wrap">
+
+            <table class="det-table">
+
+                <thead>
+                    <tr>
+                        <th>Artículo</th>
+                        <th>Producto</th>
+                        <th>Almacén pedido</th>
+                        <th>Regla ubicación</th>
+                        <th>Cantidad</th>
+                        <th>Kg/Caja</th>
+                        <th>Rotación</th>
+                        <th>Master</th>
+                        <th>Catálogo SIGO</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @if (Model.Detalle.Any())
+                    {
+                        @foreach (var item in Model.Detalle)
+                        {
+                            <tr>
+
+                                <td class="sku">
+                                    @item.Articulo
+                                </td>
+
+                                <td class="producto">
+                                    @item.ProductoNombre
+                                </td>
+
+                                <td>
+                                    <strong>@item.Almacen</strong>
+                                    <br />
+                                    <small>@item.AlmacenNombre</small>
+                                </td>
+
+                                <td>
+                                    @if (!item.TieneConfiguracionUbicacion)
+                                    {
+                                        <span class="badge-miss">
+                                            SIN CONFIGURAR
+                                        </span>
+                                    }
+                                    else if (item.ObligaUbicacion)
+                                    {
+                                        <span class="badge-ok">
+                                            OBLIGATORIA
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-miss">
+                                            OPCIONAL
+                                        </span>
+                                    }
+                                </td>
+
+                                <td class="cantidad">
+                                    @item.Cantidad.ToString("N2")
+                                </td>
+
+                                <td>
+                                    @(item.KilosCaja.HasValue
+                                        ? item.KilosCaja.Value.ToString("N3")
+                                        : "-")
+                                </td>
+
+                                <td>
+                                    @(item.Rotacion?.ToString() ?? "-")
+                                </td>
+
+                                <td>
+                                    @(string.IsNullOrWhiteSpace(item.Master)
+                                        ? "-"
+                                        : item.Master)
+                                </td>
+
+                                <td>
+                                    @if (item.EncontradoEnArticuloSap)
+                                    {
+                                        <span class="badge-ok">
+                                            ENCONTRADO
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-miss">
+                                            SIN CATÁLOGO
+                                        </span>
+                                    }
+                                </td>
+
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="9"
+                                class="empty">
+                                La solicitud no tiene productos
+                                en SolicitudSurtidoDetalle.
+                            </td>
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+
+        </section>
+    }
+
+</div>

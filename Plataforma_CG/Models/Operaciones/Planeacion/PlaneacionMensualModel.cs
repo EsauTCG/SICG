@@ -3,6 +3,7 @@
     public class PlaneacionMensualModel
     {
         public int Id { get; set; }
+        public int IdClas { get; set; }
         public string Fecha { get; set; }
         public string SkuClasificacion { get; set; }
         public string NombreClasificacion { get; set; }

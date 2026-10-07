@@ -1,552 +1,1024 @@
-﻿@{
+@{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Simulador y Ajuste de Precios por SKU";
 }
 
 <style>
-    :root {
-        --bg: #f0dede;
-        --panel: #f8eeee;
-        --panel-2: #f1dede;
-        --line: #c79d9d;
-        --text: #3b1717;
-        --white: #ffffff;
-        --font: Tahoma, sans-serif;
+@@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');:root{--sap-bg:#f0dede;--sap-panel:#f8eeee;--sap-panel-2:#f1dede;--sap-surface:#fffafa;--sap-soft:#fff7f7;--sap-soft-2:#f4dddd;--sap-line:#c79d9d;--sap-line-dark:#8f4c4c;--sap-text:#3b1717;--sap-muted:#6a3a3a;--sap-brand:#8b0000;--sap-header:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);--sap-toolbar:linear-gradient(#fff6f6, #ecd8d8);--sap-font:"Poppins", "Segoe UI", Arial, sans-serif;--sap-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);--bg:var(--sap-bg);--panel:var(--sap-panel);--panel-2:var(--sap-panel-2);--line:var(--sap-line);--text:var(--sap-text)}body{margin:0 !important;padding:0 !important;overflow-x:hidden !important;background:transparent !important}body[data-theme="dark"]{--sap-bg:#0b1120;--sap-panel:#111827;--sap-panel-2:#182235;--sap-surface:#111827;--sap-soft:#1f2937;--sap-soft-2:#243044;--sap-line:#374151;--sap-line-dark:#4b5563;--sap-text:#f9fafb;--sap-muted:#9ca3af;--sap-header:linear-gradient(180deg, #7f1d1d 0%, #5f1212 55%, #2b0505 100%);--sap-toolbar:linear-gradient(180deg, #1f2937 0%, #111827 100%);--sap-shadow:0 10px 24px rgba(0,0,0,.35)}.app-shell, .app-shell *{box-sizing:border-box}.app-shell{width:100% !important;max-width:100% !important;min-width:0 !important;min-height:0;margin:0;padding:0;display:flex;flex-direction:column;font-family:var(--sap-font);font-size:10.8px;color:var(--sap-text);background:var(--sap-bg);box-sizing:border-box;container-type:inline-size;container-name:sku-price-app}.price-window{width:100% !important;max-width:100% !important;min-width:0 !important;min-height:0;margin:0 !important;padding:0 !important;display:flex;flex-direction:column;border:1px solid var(--sap-line-dark);background:var(--sap-panel);box-shadow:var(--sap-shadow);color:var(--sap-text);overflow:hidden;box-sizing:border-box}.price-header{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 7px;background:var(--sap-header);color:#fff;border-bottom:1px solid #4a0000;flex-wrap:wrap}.price-title{display:flex;align-items:center;gap:6px;min-width:0}.price-title-icon{width:29px;height:29px;flex:0 0 29px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);font-size:12px;font-weight:700}.price-title h1{margin:0;font-size:13.5px;line-height:1.05;font-weight:800}.price-title small{display:block;margin-top:2px;color:#f4d7d7;font-size:8.8px}.header-source{display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 7px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.15);font-size:8.7px;font-weight:600}.header-source select{width:78px;height:24px;border:1px solid rgba(255,255,255,.55);border-radius:0;background:#fffafa;color:#3b1717;font-family:inherit;font-size:9.2px;font-weight:600}.price-toolbar{display:grid;grid-template-columns:minmax(185px, 1.6fr) minmax(115px, .75fr) minmax(145px, 1fr) minmax(150px, 1fr) auto;gap:4px;align-items:end;padding:4px;background:var(--sap-toolbar);border-bottom:1px solid var(--sap-line)}.field{min-width:0}.field label, .panel-lateral label, .modal-backdrop-custom label{display:block;margin-bottom:3px;color:var(--sap-text);font-size:8.7px;font-weight:600;text-transform:none}.field input, .field select, .panel-lateral input, .panel-lateral select, .modal-backdrop-custom input, .modal-backdrop-custom select{width:100%;height:29px;padding:3px 6px;border:1px solid var(--sap-line-dark);border-radius:0;background:var(--sap-surface);color:var(--sap-text);font-family:inherit;font-size:10px;outline:none}.field input:focus, .field select:focus, .panel-lateral input:focus, .panel-lateral select:focus, .modal-backdrop-custom input:focus, .modal-backdrop-custom select:focus{border-color:var(--sap-brand);box-shadow:0 0 0 1px rgba(139,0,0,.20)}.toolbar-actions{display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap}.price-window .btn, .modal-backdrop-custom .btn{height:28px;min-width:0;padding:0 7px;border:1px solid var(--sap-line-dark);border-radius:0;background:linear-gradient(#fffefe, #ecd7d7);color:#4a1111;font-family:inherit;font-size:8.9px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;text-decoration:none;box-shadow:none}.price-window .btn:hover, .modal-backdrop-custom .btn:hover{filter:brightness(1.05)}.price-window .btn:disabled, .modal-backdrop-custom .btn:disabled{cursor:not-allowed;opacity:.6}.price-window .btn-primary, .price-window .btn:not(.btn-sec):not(.btn-green):not(.btn-log):not(.btn-alerta), .modal-backdrop-custom .btn:not(.btn-sec):not(.btn-green):not(.btn-log):not(.btn-alerta){color:#fff;border-color:#7f0a0a;background:linear-gradient(180deg, #b40000 0%, #8f0000 55%, #6e0000 100%)}.price-window .btn-green, .modal-backdrop-custom .btn-green{color:#fff !important;border-color:#157347;background:linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%) !important}.price-window .btn-alerta, .modal-backdrop-custom .btn-alerta{color:#854d0e !important;border-color:#ca8a04;background:linear-gradient(#fff, #fef08a) !important}.price-window .btn-log, .modal-backdrop-custom .btn-log{color:#fff !important;border-color:#5b21b6;background:linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%) !important}.price-content{width:100%;max-width:100%;min-width:0;min-height:0;flex:1 1 auto;padding:4px;display:flex;flex-direction:column;background:var(--sap-bg);overflow:visible;box-sizing:border-box}#alertaPreciosBanner{padding:4px 7px;margin-bottom:4px;font-size:9px}.split-layout{width:100%;max-width:100%;min-width:0;min-height:0;flex:1 1 auto;display:grid;grid-template-columns:minmax(0, 1fr) 285px;gap:4px;align-items:stretch;box-sizing:border-box}.section, .panel-lateral{width:100%;max-width:100%;display:flex;flex-direction:column;min-width:0;min-height:0;border:1px solid var(--sap-line);background:var(--sap-surface);overflow:hidden;box-sizing:border-box}.section-title, .card-title{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:29px;padding:4px 6px;margin:0;background:var(--sap-header);color:#fff;font-size:10px;font-weight:600;border-bottom:1px solid #4a0000}.section-title .status{padding:2px 5px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.15);font-size:8px;white-space:nowrap}.table-wrap{width:100%;max-width:100%;min-width:0;min-height:320px;height:var(--sku-work-height, clamp(330px, 52dvh, 620px));flex:1 1 auto;overflow:auto;background:var(--sap-surface);scrollbar-gutter:stable;box-sizing:border-box}.price-window table, .modal-backdrop-custom table{width:100%;min-width:1060px;table-layout:fixed;border-collapse:separate !important;border-spacing:0 !important;color:var(--sap-text);font-size:10.5px}.price-window thead th, .modal-backdrop-custom thead th{position:sticky;top:0;z-index:20;padding:5px 4px;border-right:1px solid rgba(0,0,0,.35);border-bottom:1px solid rgba(0,0,0,.45);background:var(--sap-header) !important;color:#fff !important;text-align:left;white-space:nowrap;font-size:9.4px;font-weight:600}.price-window tbody td, .modal-backdrop-custom tbody td{padding:4px;border-right:1px solid var(--sap-line);border-bottom:1px solid var(--sap-line);background:var(--sap-surface);color:var(--sap-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;font-size:10.5px;line-height:1.12}.price-window tbody tr:nth-child(even) td, .modal-backdrop-custom tbody tr:nth-child(even) td{background:var(--sap-panel-2)}.price-window tbody tr:hover td, .modal-backdrop-custom tbody tr:hover td{background:var(--sap-soft-2)}.price-window input[type="checkbox"]{width:15px;height:15px;min-width:15px;padding:0}.input-precio{width:88px !important;height:25px !important;text-align:right;font-family:Consolas, monospace !important;font-size:10.3px !important;font-weight:600}.badge-dif{display:inline-block;padding:2px 6px;font-family:Consolas, monospace;font-size:8.5px;font-weight:600;border-radius:0}.b-up{background:#dcfce7;color:#14532d;border:1px solid #86efac}.b-down{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}.b-zero{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1}.pager{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:4px 5px;border-top:1px solid var(--sap-line);background:var(--sap-surface);flex-wrap:wrap}.pag-texto{min-width:155px;padding:4px 8px;border:1px solid var(--sap-line);background:var(--sap-soft);color:var(--sap-text);font-size:8.8px;font-weight:600;text-align:center}.panel-lateral{height:calc(var(--sku-work-height, clamp(330px, 52dvh, 620px)) + 34px);overflow:hidden}.panel-body{flex:1;min-height:0;padding:5px;display:flex;flex-direction:column;gap:5px;background:var(--sap-panel)}.caja-tags{flex:1;min-height:80px;overflow:auto;padding:4px;border:1px solid var(--sap-line);background:var(--sap-surface)}.session-kpi{padding:5px;border:1px solid var(--sap-line);background:var(--sap-panel-2);text-align:center}.session-kpi span{display:block;color:var(--sap-muted);font-size:8px;font-weight:600;text-transform:none}.session-kpi strong{display:block;margin-top:3px;color:var(--sap-brand);font-size:15px}.price-statusbar{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:3px 6px;border-top:1px solid var(--sap-line);background:var(--sap-toolbar);color:var(--sap-muted);font-size:8.4px;flex-wrap:wrap}.modal-backdrop-custom{position:fixed;inset:0;z-index:2500;display:none;align-items:center;justify-content:center;padding:8px;background:rgba(0,0,0,.60)}.modal-backdrop-custom.show{display:flex}.modal-custom{width:min(1050px, 96vw);max-height:92dvh;overflow:auto;border:1px solid #5c0000;background:var(--sap-bg);box-shadow:0 10px 30px rgba(0,0,0,.25);padding:0}.modal-head{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:5px 7px;margin:0;background:var(--sap-header);color:#fff}.modal-head h3{margin:0;font-size:11.2px}.modal-filter-grid{display:grid;grid-template-columns:minmax(180px, 1.4fr) 130px 90px 105px 95px;gap:4px;margin-bottom:0;padding:5px;border:1px solid var(--sap-line);background:var(--sap-panel-2)}.modal-table-wrap{width:100%;max-height:58dvh;overflow:auto;border:1px solid var(--sap-line);background:var(--sap-surface)}.toast{position:fixed;right:12px;bottom:12px;z-index:3000;padding:7px 9px;border:1px solid #5c0000;background:#3b1717;color:#fff;font-weight:800;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1}@@container sku-price-app (max-width:1180px){.price-toolbar{grid-template-columns:repeat(2, minmax(0, 1fr))}.toolbar-actions{grid-column:1 / -1;justify-content:stretch}.toolbar-actions .btn{flex:1 1 150px}}@@container sku-price-app (max-width:900px){.split-layout{grid-template-columns:1fr}.table-wrap{height:60vh}.panel-lateral{height:auto;min-height:480px}}@@container sku-price-app (max-width:620px){.price-toolbar, .modal-filter-grid{grid-template-columns:1fr}.toolbar-actions{grid-column:auto}.toolbar-actions .btn{width:100%}.price-header{align-items:flex-start}.header-source{width:100%;justify-content:space-between}.price-window table{min-width:980px}.price-statusbar{align-items:flex-start;flex-direction:column}}.app-shell.ajuste-precios-sku-app{font-family:var(--sap-font) !important}.price-window tbody td .btn{min-height:23px !important;height:23px !important;padding:0 5px !important;font-size:8.2px !important}.price-window .sel-estatus{min-height:24px !important;height:24px !important;font-size:9.3px !important}.pager .btn{min-height:25px !important;height:25px !important;font-size:8.5px !important}#kpiSeleccionados{font-size:8.5px !important}#contenedorTags > div{margin-bottom:3px !important;padding:4px 5px !important;font-size:9px !important}#modalAlertasPrecios .modal-custom{width:min(430px,94vw) !important;max-width:min(430px,94vw) !important}#modalAlertasPrecios .modal-custom > div:last-child{padding:7px !important}#modalAlertasPrecios p{margin:0 0 7px !important;font-size:9px !important;line-height:1.2 !important}body:has(.ajuste-precios-sku-app) .layout-main-content, body:has(.ajuste-precios-sku-app) .layout-main-content .layout-container-fluid, body:has(.ajuste-precios-sku-app) main[role="main"]{min-height:0 !important;height:auto !important;max-height:none !important}body:has(.ajuste-precios-sku-app) .layout-main-content{flex:0 0 auto !important;width:auto !important;max-width:100% !important;min-width:0 !important;overflow-x:hidden !important;overflow-y:visible !important}body:has(.ajuste-precios-sku-app) .layout-main-content .layout-container-fluid{width:100% !important;max-width:100% !important;min-width:0 !important;margin:0 !important;padding:0 !important}body:has(.ajuste-precios-sku-app) footer, body:has(.ajuste-precios-sku-app) .footer, body:has(.ajuste-precios-sku-app) .layout-footer{position:static !important;min-height:29px !important;height:auto !important;margin-top:4px !important;padding:4px 0 !important;font-family:var(--sap-font) !important;font-size:10.5px !important;line-height:1.15 !important}@@container sku-price-app (max-width:900px){.panel-body{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr)) !important}.panel-body > div[style*="display:flex;flex-direction:column;flex:1"]{grid-column:1/-1 !important;min-height:120px !important}.panel-body > .session-kpi, .panel-body > label[title]{grid-column:1/-1 !important}}@@container sku-price-app (max-width:620px){.toolbar-actions{display:grid !important;grid-template-columns:1fr 1fr !important}.toolbar-actions .btn{width:100% !important}.panel-body{grid-template-columns:1fr !important}.panel-body > div[style*="display:flex;flex-direction:column;flex:1"], .panel-body > .session-kpi, .panel-body > label[title]{grid-column:auto !important}.modal-filter-grid{grid-template-columns:1fr !important}.price-statusbar{display:grid !important;grid-template-columns:1fr !important;gap:2px !important}}
+</style>
+
+
+<style id="ajuste-precios-sku-erp-final">
+    /* ===============================================================
+       AJUSTE DE PRECIOS SKU — ESTILO ERP FINAL
+       =============================================================== */
+
+    body:not([data-theme="dark"]) {
+        --aps-bg: #eef2f4 !important;
+        --aps-panel: #ffffff !important;
+        --aps-panel-2: #f7f9fa !important;
+        --aps-line: #bec9cf !important;
+        --aps-line-soft: #d3dce1 !important;
+        --aps-text: #30373b !important;
+        --aps-muted: #66747c !important;
+        --aps-tinto: #7a2029 !important;
+        --aps-tinto-dark: #5e1820 !important;
+        --aps-tinto-soft: #f3e7e9 !important;
+
+        --sap-bg: var(--aps-bg) !important;
+        --sap-panel: var(--aps-panel) !important;
+        --sap-panel-2: var(--aps-panel-2) !important;
+        --sap-surface: #ffffff !important;
+        --sap-soft: #f7f9fa !important;
+        --sap-soft-2: #f3e7e9 !important;
+        --sap-line: var(--aps-line) !important;
+        --sap-line-dark: #aebbc3 !important;
+        --sap-text: var(--aps-text) !important;
+        --sap-muted: var(--aps-muted) !important;
+        --sap-brand: var(--aps-tinto) !important;
+        --sap-header:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+        --sap-toolbar:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+        --sap-font: "Poppins", sans-serif !important;
     }
 
-    .app-shell {
-        width: 100%;
-        margin: 0;
-        padding: 0;
-        font-family: var(--font);
-        font-size: 11px;
-        color: var(--text);
-        background: var(--bg);
-        min-height: 85vh;
-        display: flex;
-        flex-direction: column;
+    /* ===============================================================
+       TIPOGRAFÍA + ICONOS
+       =============================================================== */
+    body:not([data-theme="dark"]),
+    body:not([data-theme="dark"]) button,
+    body:not([data-theme="dark"]) input,
+    body:not([data-theme="dark"]) select,
+    body:not([data-theme="dark"]) textarea,
+    body:not([data-theme="dark"]) table,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app * {
+        font-family: "Poppins", sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: geometricPrecision !important;
     }
 
-        .app-shell * {
-            box-sizing: border-box;
-        }
-
-    /* ENCABEZADO */
-    .module-header {
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        border-bottom: 1px solid #4a0000;
-        padding: 10px 15px;
-        box-shadow: 0 4px 8px rgba(0,0,0,.15);
-        position: sticky;
-        top: 0;
-        z-index: 100;
+    body:not([data-theme="dark"]) .bi,
+    body:not([data-theme="dark"]) .bi::before,
+    body:not([data-theme="dark"]) [class^="bi-"],
+    body:not([data-theme="dark"]) [class*=" bi-"] {
+        font-family: "bootstrap-icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        font-variant: normal !important;
+        text-transform: none !important;
+        line-height: 1 !important;
     }
 
-    .header-content {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 15px;
-        flex-wrap: wrap;
+    /* ===============================================================
+       ANCHO REAL CON SIDEBAR
+       =============================================================== */
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
 
-    .brand {
-        display: flex;
-        gap: 10px;
-        align-items: center;
+    body:has(.ajuste-precios-sku-app) .layout-main-content {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+        box-sizing: border-box !important;
     }
 
-    .brand-mark {
-        width: 30px;
-        height: 30px;
-        display: grid;
-        place-items: center;
-        background: rgba(255,255,255,.15);
-        border: 1px solid rgba(255,255,255,.25);
-        font-weight: bold;
-        font-size: 14px;
-        color: #fff;
-        border-radius: 2px;
+    body:has(.ajuste-precios-sku-app)
+    .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-width)) !important;
+        max-width: calc(100% - var(--layout-sidebar-width)) !important;
+        margin-left: var(--layout-sidebar-width) !important;
     }
 
-    .brand h1 {
-        font-size: 14px;
-        margin: 0;
-        font-weight: bold;
-        color: #fff;
+    body:has(.layout-sidebar.layout-hidden):has(.ajuste-precios-sku-app)
+    .layout-main-content,
+
+    body:has(.layout-sidebar.layout-hidden):has(.ajuste-precios-sku-app)
+    .layout-main-content.layout-sidebar-open {
+        width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+        margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
     }
 
-    .brand small {
-        display: block;
-        color: #f4d7d7;
-        font-size: 10px;
-        margin-top: 2px;
+    body:has(.ajuste-precios-sku-app)
+    .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
     }
 
-    .module-main {
-        padding: 12px;
-        flex: 1;
+    /* ===============================================================
+       CONTENEDOR PRINCIPAL
+       =============================================================== */
+    body:not([data-theme="dark"]) .app-shell.ajuste-precios-sku-app {
+        width: calc(100% - 12px) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+
+        margin: 6px auto 12px !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+        color: #30373b !important;
+
+        box-sizing: border-box !important;
+        overflow: visible !important;
     }
 
-    /* BOTONES */
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        height: 26px;
-        padding: 0 12px;
-        border: 1px solid #7a2d2d;
-        background: linear-gradient(180deg, #b30000 0%, #8b0000 100%);
-        color: #fff;
-        font-size: 11px;
-        font-weight: bold;
-        cursor: pointer;
-        text-decoration: none;
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-window {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        margin: 0 !important;
+
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+        overflow: hidden !important;
     }
 
-        .btn:hover {
-            filter: brightness(1.1);
-        }
+    /* ===============================================================
+       HEADER
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-header {
+        min-height: 42px !important;
 
-    .btn-sec {
-        background: linear-gradient(#fff, #ecd7d7);
-        border-color: #9a5a5a;
-        color: #4a1111;
+        padding: 6px 9px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        color: #fff !important;
+
+        border-bottom: 1px solid #351014 !important;
     }
 
-        .btn-sec:hover {
-            background: #fff;
-            color: #000;
-        }
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-title-icon {
+        width: 28px !important;
+        height: 28px !important;
 
-    .btn-green {
-        background: linear-gradient(180deg, #1f9a54 0%, #166534 100%);
-        border-color: #14532d;
+        flex: 0 0 28px !important;
+
+        background: rgba(255,255,255,.08) !important;
+
+        border: 1px solid rgba(255,255,255,.20) !important;
+        border-radius: 2px !important;
+
+        font-size: 11px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-title h1 {
+        color: #fff !important;
+
+        font-size: 13px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-title small {
+        color: #e8d7da !important;
+
+        font-size: 8.8px !important;
+        font-weight: 400 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .header-source {
+        min-height: 28px !important;
+
+        padding: 3px 5px !important;
+
+        background: rgba(255,255,255,.07) !important;
+
+        border: 1px solid rgba(255,255,255,.18) !important;
+        border-radius: 2px !important;
+
+        font-size: 8.8px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .header-source select {
+        height: 24px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #c5d0d6 !important;
+        border-radius: 2px !important;
+
+        font-size: 9.2px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       TOOLBAR / CAMPOS
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-toolbar {
+        padding: 6px !important;
+        gap: 5px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #f4f7f8 0%,
+                #e8edef 100%
+            ) !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .field label,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral label,
+    body:not([data-theme="dark"]) .modal-backdrop-custom label {
+        color: #3f474b !important;
+
+        font-size: 9.3px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .field input,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .field select,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral input,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral select,
+    body:not([data-theme="dark"]) .modal-backdrop-custom input,
+    body:not([data-theme="dark"]) .modal-backdrop-custom select {
+        min-height: 30px !important;
+        height: 30px !important;
+
+        padding: 4px 7px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 10px !important;
+        font-weight: 500 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .field input:focus,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .field select:focus,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral input:focus,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral select:focus {
+        border-color: #9e7479 !important;
+
+        box-shadow:
+            0 0 0 2px rgba(122,32,41,.08) !important;
+    }
+
+    /* ===============================================================
+       BOTONES
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn,
+    body:not([data-theme="dark"]) .modal-backdrop-custom .btn {
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: 0 8px !important;
+
+        background: #fff !important;
+        color: #424b50 !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        box-shadow: none !important;
+
+        font-size: 9.3px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-primary,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn:not(.btn-sec):not(.btn-green):not(.btn-log):not(.btn-alerta),
+    body:not([data-theme="dark"]) .modal-backdrop-custom .btn:not(.btn-sec):not(.btn-green):not(.btn-log):not(.btn-alerta) {
+        background: #7a2029 !important;
+        border-color: #5e1820 !important;
         color: #fff !important;
     }
 
-    .btn-log {
-        background: linear-gradient(#fff, #fef08a);
-        border-color: #ca8a04;
-        color: #854d0e;
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-green,
+    body:not([data-theme="dark"]) .modal-backdrop-custom .btn-green {
+        background: #25824d !important;
+        border-color: #1d6d40 !important;
+        color: #fff !important;
     }
 
-        .btn-log:hover {
-            background: #fef08a;
-            color: #000;
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-alerta,
+    body:not([data-theme="dark"]) .modal-backdrop-custom .btn-alerta {
+        background: #fff8df !important;
+        border-color: #d2b15c !important;
+        color: #6f5410 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-log,
+    body:not([data-theme="dark"]) .modal-backdrop-custom .btn-log {
+        background: #6d6265 !important;
+        border-color: #5a5153 !important;
+        color: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-sec {
+        background: #fff !important;
+        border-color: #b9c5cb !important;
+        color: #424b50 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .btn-sec:hover {
+        background: #f3e7e9 !important;
+        color: #5e1820 !important;
+        border-color: #a67b81 !important;
+    }
+
+    /* ===============================================================
+       CONTENIDO / PANELES
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-content {
+        padding: 5px !important;
+
+        background: #eef2f4 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .section,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-lateral {
+        background: #fff !important;
+
+        border: 1px solid #bec9cf !important;
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .section-title,
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .card-title {
+        min-height: 31px !important;
+
+        padding: 5px 8px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border-bottom: 1px solid #bec9cf !important;
+        border-left: 3px solid #7a2029 !important;
+
+        font-size: 9.8px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .section-title .status {
+        background: #fff !important;
+        color: #59666d !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 2px !important;
+
+        font-size: 8px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       TABLA
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        background: #fff !important;
+
+        overflow: auto !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app table {
+        width: 100% !important;
+        min-width: 1060px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        font-size: 10.2px !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app thead th {
+        height: 31px !important;
+        min-height: 31px !important;
+
+        padding: 4px 5px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #dce4e8 0%,
+                #d1dbe0 100%
+            ) !important;
+
+        color: #3f4549 !important;
+
+        border-color: #aebbc3 !important;
+
+        font-size: 9.2px !important;
+        font-weight: 700 !important;
+        line-height: 1.08 !important;
+
+        text-shadow: 0 0 .01px currentColor !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app tbody td {
+        height: 28px !important;
+
+        padding: 3px 5px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border-color: #c5d0d6 !important;
+
+        font-size: 10.2px !important;
+        font-weight: 500 !important;
+        line-height: 1.12 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app tbody tr:nth-child(even) td {
+        background: #f2f5f6 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app tbody tr:hover td {
+        background: #f3e7e9 !important;
+        color: #272d31 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .input-precio {
+        height: 26px !important;
+
+        background: #fff !important;
+        color: #30373b !important;
+
+        border: 1px solid #b9c5cb !important;
+
+        font-family: "Poppins", sans-serif !important;
+        font-size: 9.8px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .sel-estatus {
+        min-height: 26px !important;
+        height: 26px !important;
+
+        font-size: 9.5px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       PAGINACIÓN
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .pager {
+        padding: 5px !important;
+
+        background: #e8edef !important;
+
+        border-top: 1px solid #bec9cf !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .pag-texto {
+        min-height: 26px !important;
+
+        padding: 4px 8px !important;
+
+        background: #fff !important;
+        color: #59666d !important;
+
+        border: 1px solid #b9c5cb !important;
+
+        font-size: 8.8px !important;
+        font-weight: 600 !important;
+    }
+
+    /* ===============================================================
+       PANEL LATERAL
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .panel-body {
+        padding: 6px !important;
+
+        background: #fff !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .caja-tags {
+        background: #f7f9fa !important;
+
+        border-color: #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .session-kpi {
+        background: #eef2f4 !important;
+
+        border-color: #c5d0d6 !important;
+
+        border-radius: 2px !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .session-kpi span {
+        color: #59666d !important;
+
+        font-size: 8.2px !important;
+        font-weight: 600 !important;
+    }
+
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .session-kpi strong {
+        color: #7a2029 !important;
+
+        font-size: 14px !important;
+        font-weight: 700 !important;
+    }
+
+    /* ===============================================================
+       STATUSBAR
+       =============================================================== */
+    body:not([data-theme="dark"]) .ajuste-precios-sku-app .price-statusbar {
+        min-height: 25px !important;
+
+        padding: 4px 7px !important;
+
+        background: #e1e8eb !important;
+        color: #59666d !important;
+
+        border-top: 1px solid #bec9cf !important;
+
+        font-size: 8.8px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===============================================================
+       MODALES
+       =============================================================== */
+    body:not([data-theme="dark"]) .modal-custom {
+        background: #fff !important;
+
+        border: 1px solid #b9c5cb !important;
+        border-radius: 3px !important;
+
+        box-shadow:
+            0 14px 34px rgba(0,0,0,.18) !important;
+    }
+
+    body:not([data-theme="dark"]) .modal-head {
+        padding: 7px 9px !important;
+
+        background:
+            linear-gradient(
+                180deg,
+                #5a171d 0%,
+                #481318 48%,
+                #351014 100%
+            ) !important;
+
+        border-bottom: 1px solid #351014 !important;
+    }
+
+    body:not([data-theme="dark"]) .modal-head h3 {
+        color: #fff !important;
+
+        font-size: 11px !important;
+        font-weight: 700 !important;
+    }
+
+    body:not([data-theme="dark"]) .modal-filter-grid {
+        background: #eef2f4 !important;
+
+        border-color: #c5d0d6 !important;
+    }
+
+    body:not([data-theme="dark"]) .modal-table-wrap {
+        background: #fff !important;
+
+        border-color: #c5d0d6 !important;
+    }
+
+    /* ===============================================================
+       RESPONSIVE
+       =============================================================== */
+    @@media (max-width: 768px) {
+        body:has(.ajuste-precios-sku-app) .layout-main-content,
+        body:has(.ajuste-precios-sku-app) .layout-main-content.layout-sidebar-open,
+        body:has(.layout-sidebar.layout-hidden):has(.ajuste-precios-sku-app) .layout-main-content,
+        body:has(.layout-sidebar.layout-hidden):has(.ajuste-precios-sku-app) .layout-main-content.layout-sidebar-open {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
         }
 
-    /* CONTENEDORES Y REJILLAS */
-    .card {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-
-    .card-title {
-        font-size: 11px;
-        font-weight: bold;
-        color: #fff;
-        background: #8b0000;
-        padding: 4px 8px;
-        margin: -10px -10px 10px -10px;
-        border-bottom: 1px solid #5c0000;
-    }
-
-    .grid-superior {
-        display: grid;
-        grid-template-columns: 1fr 220px;
-        gap: 10px;
-        align-items: end;
-    }
-
-    .split-layout {
-        display: grid;
-        grid-template-columns: 1fr 310px;
-        gap: 12px;
-        align-items: start;
-    }
-
-    .panel-lateral {
-        position: sticky;
-        top: 58px;
-        background: var(--panel);
-        height: calc(100vh - 240px);
-        display: flex;
-        flex-direction: column;
-    }
-
-    label {
-        display: block;
-        color: #5c1a1a;
-        font-weight: bold;
-        margin-bottom: 3px;
-        font-size: 10px;
-        text-transform: uppercase;
-    }
-
-    input, select {
-        width: 100%;
-        border: 1px solid #b48787;
-        background: #fffdfd;
-        color: #111;
-        font-size: 11px;
-        height: 24px;
-        padding: 1px 6px;
-        outline: none;
-    }
-
-        input:focus, select:focus {
-            border-color: #8b0000;
-            background: #fff;
+        body:not([data-theme="dark"]) .app-shell.ajuste-precios-sku-app {
+            width: 100% !important;
+            margin: 0 !important;
         }
-
-    /* TABLAS */
-    /* TABLAS */
-    .table-wrap { 
-        width: 100%; 
-        border: 1px solid var(--line); 
-        background: #fffafa; 
-        height: calc(100vh - 240px); /* Ajuste dinámico que calcula el espacio sobrante */
-        overflow-y: auto; 
     }
-
-    table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-    }
-
-    th, td {
-        padding: 5px 8px;
-        text-align: left;
-        border-bottom: 1px solid #d8bcbc;
-        border-right: 1px solid #d8bcbc;
-    }
-
-    th {
-        background: #8b0000;
-        color: #fff;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        border-right-color: #6b0000;
-        font-weight: bold;
-    }
-
-    tbody tr:nth-child(even) td {
-        background: #f9eded;
-    }
-
-    tbody tr:hover td {
-        background: #f2d6d6;
-    }
-
-    .caja-tags {
-        flex: 1;
-        overflow-y: auto;
-        background: #fff;
-        border: 1px solid var(--line);
-        padding: 4px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-height: 50px;
-    }
-    /* INDICADORES */
-    .input-precio {
-        width: 85px;
-        text-align: right;
-        font-family: Consolas, monospace;
-        font-size: 11px;
-        font-weight: bold;
-        color: #000;
-    }
-
-    .badge-dif {
-        display: inline-block;
-        padding: 1px 5px;
-        font-family: Consolas, monospace;
-        font-size: 10px;
-        font-weight: bold;
-        border-radius: 2px;
-    }
-
-    .b-up {
-        background: #dcfce7;
-        color: #14532d;
-        border: 1px solid #86efac;
-    }
-
-    .b-down {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fca5a5;
-    }
-
-    .b-zero {
-        background: #f1f5f9;
-        color: #64748b;
-        border: 1px solid #cbd5e1;
-    }
-
-    /* MODAL DE AUDITORIA */
-    .modal-backdrop-custom {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,.6);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 15px;
-        z-index: 1900;
-    }
-
-        .modal-backdrop-custom.show {
-            display: flex;
-        }
-
-    .modal-custom {
-        background: var(--bg);
-        border: 1px solid #8b0000;
-        max-width: 860px;
-        width: 100%;
-        max-height: 88vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 10px 30px rgba(0,0,0,.3);
-    }
-
-    .modal-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 12px;
-        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
-        border-bottom: 1px solid #5c0000;
-        color: #fff;
-        flex-shrink: 0;
-    }
-
-        .modal-head h3 {
-            margin: 0;
-            color: #fff;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-    .link-sku {
-        color: #8b0000;
-        font-weight: 900;
-        text-decoration: underline;
-        cursor: pointer;
-    }
-
-        .link-sku:hover {
-            color: #b30000;
-        }
-
-    .toast {
-        position: fixed;
-        right: 18px;
-        bottom: 18px;
-        background: #3b1717;
-        color: #fff;
-        padding: 8px 14px;
-        border: 1px solid #8b0000;
-        font-weight: bold;
-        opacity: 0;
-        transition: 0.25s;
-        pointer-events: none;
-        z-index: 2000;
-    }
-
-        .toast.show {
-            opacity: 1;
-        }
 </style>
 
-<div class="app-shell">
-    <header class="module-header">
-        <div class="header-content">
-            <div class="brand">
-                <div class="brand-mark">$</div>
+<div class="app-shell ajuste-precios-sku-app">
+    <div class="price-window" id="skuApp">
+        <header class="price-header">
+            <div class="price-title">
+                <div class="price-title-icon">$</div>
                 <div>
-                    <h1> Ajuste de Precios SKU</h1>
+                    <h1>Ajuste de Precios SKU</h1>
+                    <small>Simulador, operación masiva y auditoría de precios por planta</small>
                 </div>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <label style="color: #fff; margin: 0; font-size: 11px;">Planta:</label>
-                <select id="selPlanta" style="width: 70px; height: 26px; font-weight: bold;" onchange="cambiarPlanta()">
+
+            <div class="header-source">
+                <span>Planta activa</span>
+                <select id="selPlanta" onchange="cambiarPlanta()" aria-label="Seleccionar planta">
                     <option value="TIF">TIF</option>
                     <option value="P1">P1</option>
                 </select>
+            </div>
+        </header>
 
-                <input type="file" id="inputCargaMasiva" accept=".csv" style="display: none;" onchange="procesarArchivoCSV(event)">
-                <button type="button" class="btn btn-sec" onclick="qs('#inputCargaMasiva').click()">Cargar CSV</button>
-                <button type="button" class="btn btn-log" onclick="abrirBitacoraGeneral()">Bitácora general</button>
+        <div class="price-toolbar">
+            <div class="field">
+                <label for="filtroTexto">Buscar producto</label>
+                <input type="text"
+                       id="filtroTexto"
+                       placeholder="Código SKU o descripción del producto..."
+                       autocomplete="off">
+            </div>
+
+            <div class="field">
+                <label for="filtroEstatus">Estatus del artículo</label>
+                <select id="filtroEstatus" onchange="aplicarFiltrosTabla()">
+                    <option value="">Todos los estatus</option>
+                    <option value="1">Activo</option>
+                    <option value="2">Pausado</option>
+                    <option value="0">Inactivo</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="filtroMaster">Categoría</label>
+                <select id="filtroMaster" onchange="aplicarFiltrosTabla()">
+                    <option value="todas">Todas las categorías</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="filtroEstado">Estatus de edición</label>
+                <select id="filtroEstado" onchange="aplicarFiltrosTabla()">
+                    <option value="todos">Mostrar todo el listado</option>
+                    <option value="modificados">Solo artículos modificados</option>
+                    <option value="sin_cambio">Solo artículos sin alterar</option>
+                </select>
+            </div>
+
+            <div class="toolbar-actions">
+                <input type="file"
+                       id="inputCargaMasiva"
+                       accept=".csv"
+                       style="display:none"
+                       onchange="procesarArchivoCSV(event)">
+
+                <button type="button" class="btn btn-sec" onclick="qs('#inputCargaMasiva').click()">
+                    <i class="bi bi-upload"></i> Cargar CSV
+                </button>
+
+                <button type="button" class="btn btn-alerta" onclick="abrirModalAlertas()">
+                    <i class="bi bi-bell"></i> Alertas
+                </button>
+
+                <button type="button" class="btn btn-log" onclick="abrirBitacoraGeneral()">
+                    <i class="bi bi-clock-history"></i> Histórico / Auditoría
+                </button>
+
+                <button type="button" class="btn btn-green" onclick="descargarExcelPrecios()">
+                    <i class="bi bi-file-earmark-excel"></i> Descargar lista
+                </button>
             </div>
         </div>
-    </header>
 
-    <main class="module-main">
-        <div class="card">
-            <div class="grid-superior" style="grid-template-columns: 1fr 160px 220px;">
-                <div>
-                    <label>Buscar por código SKU o descripción del producto</label>
-                    <input type="text" id="filtroTexto" placeholder="Teclee para filtrar la lista en tiempo real..." autocomplete="off">
-                </div>
-                <div>
-                    <label>Filtrar por Categoría</label>
-                    <select id="filtroMaster" onchange="aplicarFiltrosTabla()">
-                        <option value="todas">Todas las categorías</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Filtrar por estatus de edición</label>
-                    <select id="filtroEstado" onchange="aplicarFiltrosTabla()">
-                        <option value="todos">Mostrar todo el listado</option>
-                        <option value="modificados">Solo artículos modificados</option>
-                        <option value="sin_cambio">Solo artículos sin alterar</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <div class="split-layout">
-
-            <div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 28px; text-align: center;"><input type="checkbox" id="chkMaster" onclick="toggleTodosPagina(this)"></th>
-                                <th style="width: 70px;">SKU</th>
-                                <th>Descripción SAP</th>
-                                <th style="width: 100px;">Categoría</th>
-                                <th style="width: 85px; text-align: right;">Base ($)</th>
-                                <th style="width: 95px; text-align: right;">Nuevo ($)</th>
-                                <th style="width: 120px; text-align: center;">Variación</th>
-                                <th style="width: 125px; text-align: center;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaBody">
-                            <tr><td colspan="7" style="text-align: center;">Estableciendo conexión con SQL Server...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="paginador">
-                    <button type="button" class="btn btn-sec" onclick="cambiarPagina(-1)">Anterior</button>
-                    <span class="pag-texto" id="lblPaginacion">Página 1 de 1</span>
-                    <button type="button" class="btn btn-sec" onclick="cambiarPagina(1)">Siguiente</button>
-                </div>
+        <main class="price-content">
+            <div id="alertaPreciosBanner"
+                 style="display:none; background:#fffbeb; border:1px solid #fef08a; color:#854d0e; align-items:center; justify-content:space-between;">
             </div>
 
-            <div class="card panel-lateral">
-                <div class="card-title">Operación Masiva</div>
-                <div style="display: flex; flex-direction: column; flex: 1; gap: 8px; min-height: 0;">
-                    <div>
-                        <label>Acción matemática</label>
-                        <select id="opTipo">
-                            <option value="sumar">Sumar monto fijo (+$)</option>
-                            <option value="restar">Restar monto fijo (-$)</option>
-                            <option value="fijar">Establecer precio fijo (=)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Cantidad en pesos</label>
-                        <input type="number" step="0.01" id="opValor" placeholder="Ej. 15.50">
+            <div class="split-layout">
+                <section class="section">
+                    <div class="section-title">
+                        <span>Catálogo de precios por SKU</span>
+                        <span class="status" id="skuRegistroEstado">Consultando...</span>
                     </div>
 
-                    <button type="button" class="btn" style="width: 100%;" onclick="aplicarCalculoMasivo()">Impactar marcados</button>
+                    <div class="table-wrap" id="skuTableWrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:34px; text-align:center;">
+                                        <input type="checkbox" id="chkMaster" onclick="toggleTodosPagina(this)">
+                                    </th>
+                                    <th style="width:82px;">SKU</th>
+                                    <th>Descripción SAP</th>
+                                    <th style="width:115px;">Categoría</th>
+                                    <th style="width:95px; text-align:right;">Precio actual ($)</th>
+                                    <th style="width:105px; text-align:right;">Nuevo ($)</th>
+                                    <th style="width:120px; text-align:center;">Variación</th>
+                                    <th style="width:95px; text-align:center;">Estatus</th>
+                                    <th style="width:145px; text-align:center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaBody">
+                                <tr>
+                                    <td colspan="9" style="text-align:center; padding:30px;">
+                                        Estableciendo conexión con SQL Server...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-                    <hr style="border: 0; border-top: 1px dashed var(--line); margin: 2px 0;">
+                    <div class="pager">
+                        <button type="button" class="btn btn-sec" onclick="cambiarPagina(-1)">
+                            <i class="bi bi-chevron-left"></i> Anterior
+                        </button>
+                        <span class="pag-texto" id="lblPaginacion">Página 1 de 1</span>
+                        <button type="button" class="btn btn-sec" onclick="cambiarPagina(1)">
+                            Siguiente <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </section>
 
-                    <div style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                            <label style="margin: 0;">Previsualizar Selección</label>
-                            <span id="kpiSeleccionados" style="font-size: 9px; font-weight: bold; color: #8b0000;">0 activos</span>
+                <aside class="panel-lateral" id="skuPanelLateral">
+                    <div class="card-title">Operación masiva</div>
+
+                    <div class="panel-body">
+                        <div>
+                            <label for="opTipo">Acción matemática</label>
+                            <select id="opTipo">
+                                <option value="sumar">Sumar monto fijo (+$)</option>
+                                <option value="restar">Restar monto fijo (-$)</option>
+                                <option value="fijar">Establecer precio fijo (=)</option>
+                            </select>
                         </div>
-                        <div id="contenedorTags" class="caja-tags"></div>
-                    </div>
 
-                    <div style="background: var(--panel-2); border: 1px solid var(--line); padding: 6px; text-align: center;">
-                        <span style="display: block; font-size: 9px; color: #5c1a1a; font-weight: bold; text-transform: uppercase;">Modificados en sesión</span>
-                        <strong id="kpiModificados" style="font-size: 15px; color: #8b0000; display: block; margin-top: 2px;">0 / 0</strong>
-                    </div>
+                        <div>
+                            <label for="opValor">Cantidad en pesos</label>
+                            <input type="number" step="0.01" id="opValor" placeholder="Ej. 15.50">
+                        </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                        <button type="button" class="btn btn-sec" style="height: 28px; font-size: 10px;" onclick="deshacerMasivo()">Deshacer masivo</button>
-                        <button type="button" class="btn btn-green" id="btnGuardarMasivo" style="height: 28px; font-size: 10px;" onclick="guardarMasivoOficial()">Guardar masivo</button>
+                        <button type="button" class="btn btn-primary" style="width:100%;" onclick="aplicarCalculoMasivo()">
+                            Impactar marcados
+                        </button>
+
+                        <hr style="border:0; border-top:1px dashed var(--sap-line); margin:2px 0;">
+
+                        <div>
+                            <label for="opEstatus">Cambiar estatus de marcados</label>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                                <select id="opEstatus">
+                                    <option value="1">Activo</option>
+                                    <option value="2">Pausado</option>
+                                    <option value="0">Inactivo</option>
+                                </select>
+                                <button type="button" class="btn btn-sec" style="height:30px;" onclick="aplicarEstatusMasivo()">
+                                    Aplicar
+                                </button>
+                            </div>
+                        </div>
+
+                        <hr style="border:0; border-top:1px dashed var(--sap-line); margin:2px 0;">
+
+                        <div style="display:flex; flex-direction:column; flex:1; min-height:0;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <label style="margin:0;">Previsualizar selección</label>
+                                <span id="kpiSeleccionados" style="font-size:9px; font-weight:800; color:var(--sap-brand);">
+                                    0 activos
+                                </span>
+                            </div>
+                            <div id="contenedorTags" class="caja-tags"></div>
+                        </div>
+
+                        <div class="session-kpi">
+                            <span>Modificados en sesión</span>
+                            <strong id="kpiModificados">0 / 0</strong>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <button type="button" class="btn btn-sec" onclick="deshacerMasivo()">
+                                Deshacer masivo
+                            </button>
+                            <button type="button" class="btn btn-green" id="btnGuardarMasivo" onclick="guardarMasivoOficial()">
+                                Guardar masivo
+                            </button>
+                        </div>
+
+                        <label style="display:flex; align-items:center; gap:6px; font-size:10px; cursor:pointer; color:var(--sap-brand); font-weight:800; text-transform:none;"
+                               title="Al guardar masivo, aplicar los precios en TIF y P1">
+                            <input type="checkbox" id="chkAmbas" style="width:14px; height:14px;">
+                            Aplicar en ambas plantas
+                        </label>
                     </div>
+                </aside>
+            </div>
+        </main>
+
+        <div class="price-statusbar">
+            <span>Registro listo</span>
+            <span>Usuario: @(User?.Identity?.Name ?? "")</span>
+            <span>Empresa: Carnes G SA de CV</span>
+            <span>Módulo: Ajuste de Precios SKU</span>
+        </div>
+    </div>
+
+    <div class="modal-backdrop-custom" id="modalLogPrecios" onclick="cerrarModalLog(event)">
+        <div class="modal-custom">
+            <div class="modal-head">
+                <h3 id="txtTituloModalLog">Centro de Auditoría de Precios</h3>
+                <button type="button" class="btn btn-sec" style="height:24px;" onclick="qs('#modalLogPrecios').classList.remove('show')">
+                    Cerrar
+                </button>
+            </div>
+
+            <div class="modal-filter-grid">
+                <div>
+                    <label for="inputBuscarSkuLog">Rastrear por código SKU</label>
+                    <input type="text" id="inputBuscarSkuLog" placeholder="Ej. 2201" onkeydown="siEsEnterBuscar(event)">
+                </div>
+                <div>
+                    <label for="inputMesLog">Mes opcional</label>
+                    <input type="month" id="inputMesLog">
+                </div>
+                <div>
+                    <label for="inputPlantaLog">Planta</label>
+                    <select id="inputPlantaLog" onchange="abrirBitacoraGeneral()">
+                        <option value="TODAS">Ambas</option>
+                        <option value="TIF">TIF</option>
+                        <option value="P1">P1</option>
+                    </select>
+                </div>
+                <div style="align-self:end;">
+                    <button type="button" class="btn" style="width:100%;" onclick="ejecutarRastreoProfundo()">
+                        Rastrear SKU
+                    </button>
+                </div>
+                <div style="align-self:end;">
+                    <button type="button" class="btn btn-sec" style="width:100%;" onclick="abrirBitacoraGeneral()">
+                        Log general
+                    </button>
                 </div>
             </div>
 
-        </div>
-    </main>
-</div>
+            <div id="bannerResumenHistorial"
+                 style="display:none; background:#fefce8; border:1px solid #fef08a; padding:8px 12px; margin-bottom:10px; color:#713f12;">
+            </div>
 
-<div class="modal-backdrop-custom" id="modalLogPrecios" onclick="cerrarModalLog(event)">
-    <div class="modal-custom">
-        <div class="modal-head">
-            <h3 id="txtTituloModalLog">Centro de Auditoría de Precios </h3>
-            <button type="button" class="btn btn-sec" style="height:22px;" onclick="qs('#modalLogPrecios').classList.remove('show')">Cerrar</button>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 130px 100px 120px 110px; gap: 8px; margin-bottom: 10px; background: var(--panel-2); padding: 8px; border: 1px solid var(--line);">
-            <div>
-                <label style="color:#111;">Rastrear por código SKU</label>
-                <input type="text" id="inputBuscarSkuLog" placeholder="Ej. 2201" style="height: 25px;" onkeydown="siEsEnterBuscar(event)">
-            </div>
-            <div>
-                <label style="color:#111;">Mes (Opcional)</label>
-                <input type="month" id="inputMesLog" style="height: 25px;">
-            </div>
-            <div>
-                <label style="color:#111;">Planta</label>
-                <select id="inputPlantaLog" style="height: 25px;" onchange="abrirBitacoraGeneral()">
-                    <option value="TODAS">Ambas</option>
-                    <option value="TIF">TIF</option>
-                    <option value="P1">P1</option>
-                </select>
-            </div>
-            <div style="align-self: end;">
-                <button type="button" class="btn" style="width:100%; height:25px;" onclick="ejecutarRastreoProfundo()">Rastrear SKU</button>
-            </div>
-            <div style="align-self: end;">
-                <button type="button" class="btn btn-sec" style="width:100%; height:25px;" onclick="abrirBitacoraGeneral()">Log General</button>
-            </div>
-        </div>
-
-            <div id="bannerResumenHistorial" style="display: none; background: #fefce8; border: 1px solid #fef08a; padding: 8px 12px; margin-bottom: 10px; color: #713f12;"></div>
-
-            <div class="table-wrap" style="flex: 1; max-height: 56vh;">
+            <div class="modal-table-wrap">
                 <table style="margin:0; width:100%;">
-                <thead>
-                    <tr>
-                        <th style="width: 130px;">Fecha / Hora</th>
-                        <th style="width: 50px; text-align: center;">Planta</th>
-                        <th style="width: 65px;">SKU</th>
-                        <th>Usuario responsable</th>
-                        <th style="text-align: right; width: 85px;">Anterior</th>
-                        <th style="text-align: right; width: 85px;">Nuevo</th>
-                        <th style="text-align: center; width: 95px;">Impacto</th>
-                    </tr>
-                </thead>
+                    <thead>
+                        <tr>
+                            <th style="width:130px;">Fecha / Hora</th>
+                            <th style="width:50px; text-align:center;">Planta</th>
+                            <th style="width:65px;">SKU</th>
+                            <th>Usuario responsable</th>
+                            <th style="width:85px; text-align:right;">Anterior</th>
+                            <th style="width:85px; text-align:right;">Nuevo</th>
+                            <th style="width:95px; text-align:center;">Impacto</th>
+                        </tr>
+                    </thead>
                     <tbody id="modalLogBody"></tbody>
                 </table>
             </div>
         </div>
     </div>
-</div>
 
-<div class="toast" id="toast"></div>
+    <div class="modal-backdrop-custom" id="modalAlertasPrecios" onclick="cerrarModalAlertas(event)">
+        <div class="modal-custom" style="max-width:420px; overflow:hidden;">
+            <div class="modal-head">
+                <h3>Configurar alertas de precios</h3>
+                <button type="button" class="btn btn-sec" style="height:24px;" onclick="qs('#modalAlertasPrecios').classList.remove('show')">
+                    Cerrar
+                </button>
+            </div>
+
+            <div style="padding:15px; background:var(--sap-surface);">
+                <p style="color:var(--sap-muted); font-size:11px; margin:0 0 15px;">
+                    Defina cada cuándo deben actualizarse los precios y con cuántos días de anticipación debe mostrarse la advertencia.
+                </p>
+
+                <div style="margin-bottom:12px;">
+                    <label for="configFrecuenciaMeses">Frecuencia de actualización obligatoria</label>
+                    <select id="configFrecuenciaMeses">
+                        <option value="1">Mensual (cada mes)</option>
+                        <option value="2">Bimestral (cada 2 meses)</option>
+                        <option value="3">Trimestral (cada 3 meses)</option>
+                        <option value="6">Semestral (cada 6 meses)</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:20px;">
+                    <label for="configAnticipacionDias">Levantar alerta con anticipación de</label>
+                    <select id="configAnticipacionDias">
+                        <option value="3">3 días antes</option>
+                        <option value="7">1 semana antes (7 días)</option>
+                        <option value="15">15 días antes</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px dashed var(--sap-line); padding-top:15px;">
+                    <button type="button" class="btn btn-sec" onclick="qs('#modalAlertasPrecios').classList.remove('show')">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-green" onclick="guardarConfiguracionAlertas()">
+                        Guardar regla
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</div>
 
 @section Scripts {
     <script>
         const qs = s => document.querySelector(s);
         const qsa = s => Array.from(document.querySelectorAll(s));
+        // Ajusta únicamente el área de trabajo interna. No modifica ni limpia
+        // los contenedores heredados de _Layout2, por lo que conserva el mismo
+        // encuadre visual que el catálogo de proveedores.
+        function ajustarAltoAjustePrecios() {
+            const tabla = qs('#skuTableWrap');
+            const app = qs('#skuApp');
+            if (!tabla || !app) return;
+
+            if (window.matchMedia('(max-width: 1180px)').matches) {
+                app.style.removeProperty('--sku-work-height');
+                return;
+            }
+
+            const top = Math.max(0, tabla.getBoundingClientRect().top);
+            const alto = Math.max(360, window.innerHeight - top - 94);
+            app.style.setProperty('--sku-work-height', `${Math.floor(alto)}px`);
+        }
+
+        let skuResizeTimer = 0;
+        function programarAjusteVistaPrecios() {
+            window.clearTimeout(skuResizeTimer);
+            skuResizeTimer = window.setTimeout(ajustarAltoAjustePrecios, 70);
+        }
+
+        window.requestAnimationFrame(ajustarAltoAjustePrecios);
+        window.addEventListener('resize', programarAjusteVistaPrecios, { passive: true });
+        window.addEventListener('orientationchange', programarAjusteVistaPrecios, { passive: true });
+        window.visualViewport?.addEventListener('resize', programarAjusteVistaPrecios, { passive: true });
+
+        /*
+         * _Layout2 normalmente abre/cierra el sidebar cambiando el ancho de su
+         * contenedor sin disparar necesariamente el evento resize de la ventana.
+         * Este observador hace que Ajuste de Precios siga y se comprima junto con él.
+         */
+        if ('ResizeObserver' in window) {
+            const appAjuste = qs('#skuApp');
+            const padreAjuste = appAjuste?.parentElement;
+
+            if (padreAjuste) {
+                const skuLayoutObserver = new ResizeObserver(() => {
+                    programarAjusteVistaPrecios();
+                });
+                skuLayoutObserver.observe(padreAjuste);
+            }
+        }
 
         let catalogoOriginal = [];
         let inventarioTrabajo = [];
@@ -557,11 +1029,12 @@
         let paginaActual = 1;
         const itemsPorPagina = 100;
 
-                        async function descargarPreciosCommerciaNet() {
+        async function descargarPreciosCommerciaNet() {
             const tbody = qs('#tablaBody');
             const planta = qs('#selPlanta').value; // Leer planta activa
 
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Conectando con base ' + planta + '...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">Conectando con base ' + planta + '...</td></tr>';
+            const estado = qs('#skuRegistroEstado'); if (estado) estado.textContent = 'Consultando precios de ' + planta + '...';
 
             try {
                 const res = await fetch(`@Url.Action("ObtenerPreciosGuadalajara", "Comercial")?planta=${planta}`);
@@ -573,7 +1046,8 @@
                         Sku: x.Sku || x.sku || '',
                         Nombre: x.Nombre || x.nombre || '',
                         CategoriaMaster: x.CategoriaMaster || x.categoriaMaster || '(SIN MASTER)',
-                        Precio: Number(x.Precio || x.precio || 0)
+                        Precio: Number(x.Precio || x.precio || 0),
+                        Estatus: (x.Estatus != null || x.estatus != null) && String(x.Estatus || x.estatus).trim() !== '' ? String(x.Estatus || x.estatus).trim() : '1'
                     }));
 
                     const categoriasUnicas = [...new Set(catalogoOriginal.map(x => x.CategoriaMaster))].sort();
@@ -583,15 +1057,20 @@
 
                     inventarioTrabajo = JSON.parse(JSON.stringify(catalogoOriginal));
                     aplicarFiltrosTabla();
+                    window.requestAnimationFrame(ajustarAltoAjustePrecios);
+                    const estado = qs('#skuRegistroEstado');
+                    if (estado) estado.textContent = `Registro listo · ${catalogoOriginal.length.toLocaleString('es-MX')} SKU(s) en ${planta}`;
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">0 registros en planta ' + planta + '.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">0 registros en planta ' + planta + '.</td></tr>';
                 }
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#b30000;">Error SQL: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:20px; color:#b30000;">Error SQL: ${e.message}</td></tr>`;
+                const estado = qs('#skuRegistroEstado');
+                if (estado) estado.textContent = 'Error al consultar precios';
             }
         }
 
-                        function dibujarTabla() {
+        function dibujarTabla() {
             const body = qs('#tablaBody');
             const totalPaginas = Math.ceil(indicesFiltrados.length / itemsPorPagina) || 1;
             if(paginaActual > totalPaginas) paginaActual = totalPaginas;
@@ -599,7 +1078,7 @@
             const indicesBloque = indicesFiltrados.slice(inicio, inicio + itemsPorPagina);
 
             if(indicesBloque.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:15px; color:#666;">No hay coincidencias de búsqueda.</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:15px; color:#666;">No hay coincidencias de búsqueda.</td></tr>';
             } else {
                 body.innerHTML = indicesBloque.map(idx => {
                     const prod = inventarioTrabajo[idx];
@@ -611,6 +1090,9 @@
                     if (dif > 0) badge = `<span class="badge-dif b-up">+$${dif.toFixed(2)} (+${pct}%)</span>`;
                     if (dif < 0) badge = `<span class="badge-dif b-down">-$${Math.abs(dif).toFixed(2)} (${pct}%)</span>`;
                     const isChecked = skusSeleccionados.has(idx) ? 'checked' : '';
+                    const est = String(prod.Estatus || '1');
+                    const optEstatus = [['1','Activo'],['2','Pausado'],['0','Inactivo']]
+                        .map(o => `<option value="${o[0]}" ${est === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('');
 
                     return `
                         <tr class="fila-producto" data-idx="${idx}">
@@ -623,6 +1105,11 @@
                                 <input type="number" step="0.01" class="input-precio" value="${prod.Precio.toFixed(2)}" oninput="cambioManualVisual(${idx}, this.value)" />
                             </td>
                             <td style="text-align: center;" class="celda-dif">${badge}</td>
+                            <td style="text-align: center;">
+                                <select class="sel-estatus" data-idx="${idx}" onchange="cambioEstatusSku(${idx}, this.value)" style="height: 22px; font-size: 10px; padding: 0 2px; width: 82px;">
+                                    ${optEstatus}
+                                </select>
+                            </td>
                             <td style="text-align: center; white-space: nowrap;">
                                 <button type="button" class="btn btn-green" style="height:20px; padding:0 6px; font-size:10px;" onclick="guardarFilaIndividual(${idx})">Guardar</button>
                                 <button type="button" class="btn btn-sec" style="height:20px; padding:0 5px; font-size:10px;" onclick="restaurarFila(${idx})">Deshacer</button>
@@ -646,10 +1133,11 @@
             dibujarTabla();
         }
 
-                function aplicarFiltrosTabla() {
+        function aplicarFiltrosTabla() {
             const texto = qs('#filtroTexto').value.toLowerCase().trim();
             const estado = qs('#filtroEstado').value;
             const master = qs('#filtroMaster').value;
+            const estatus = qs('#filtroEstatus').value;
             indicesFiltrados = [];
 
             inventarioTrabajo.forEach((prod, idx) => {
@@ -663,12 +1151,13 @@
                 let pasaMaster = true;
                 if(master !== 'todas') pasaMaster = prod.CategoriaMaster === master;
 
-                // Deben cumplirse los tres filtros
-                if(pasaTexto && pasaEstado && pasaMaster) {
+                let pasaEstatus = true;
+                if(estatus !== '') pasaEstatus = String(prod.Estatus || '1') === estatus;
+
+                if(pasaTexto && pasaEstado && pasaMaster && pasaEstatus) {
                     indicesFiltrados.push(idx);
                 }
             });
-
             paginaActual = 1;
             dibujarTabla();
         }
@@ -715,7 +1204,7 @@
             dibujarTabla();
         }
 
-                function actualizarBandejaTagsUI() {
+        function actualizarBandejaTagsUI() {
             const cont = qs('#contenedorTags');
             qs('#kpiSeleccionados').textContent = `${skusSeleccionados.size} activos`;
 
@@ -735,7 +1224,7 @@
                 if (v > 0) {
                     if (operacion === 'sumar') precioSimulado = base + v;
                     else if (operacion === 'restar') precioSimulado = base - v;
-                    else if (operacion === 'fijar') precioSimulado = v; // LÓGICA DE PRECIO FIJO
+                    else if (operacion === 'fijar') precioSimulado = v;
 
                     precioSimulado = Math.round(precioSimulado * 100) / 100;
                     if (precioSimulado < 0) precioSimulado = 0;
@@ -771,7 +1260,7 @@
                 let calc = catalogoOriginal[idx].Precio;
                 if (operacion === 'sumar') calc = calc + v;
                 else if (operacion === 'restar') calc = calc - v;
-                else if (operacion === 'fijar') calc = v; // APLICACIÓN DE PRECIO FIJO
+                else if (operacion === 'fijar') calc = v;
 
                 calc = Math.round(calc * 100) / 100;
                 if(calc < 0) calc = 0;
@@ -789,10 +1278,81 @@
             mostrarToast("Selección revertida");
         }
 
+        function nombreEstatus(e) {
+            const map = { '1': 'Activo', '2': 'Pausado', '0': 'Inactivo' };
+            return map[String(e)] || String(e || '');
+        }
+
+        async function cambioEstatusSku(idx, nuevoEstatus) {
+            const prod = inventarioTrabajo[idx];
+            const anterior = String(prod.Estatus || '1');
+            if (anterior === String(nuevoEstatus)) return;
+
+            if (!confirm(`¿Cambiar estatus de ${prod.Sku} de ${nombreEstatus(anterior)} a ${nombreEstatus(nuevoEstatus)}?`)) {
+                const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                if (sel) sel.value = anterior;
+                return;
+            }
+
+            try {
+                const res = await fetch('@Url.Action("CambiarEstatusArticulos", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skus: [prod.Sku], estatus: nuevoEstatus, planta: qs('#selPlanta').value })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    prod.Estatus = String(nuevoEstatus);
+                    catalogoOriginal[idx].Estatus = String(nuevoEstatus);
+                    aplicarFiltrosTabla();
+                    mostrarToast(`Estatus de ${prod.Sku} actualizado a ${nombreEstatus(nuevoEstatus)}`);
+                } else {
+                    alert("Error: " + data.mensaje);
+                    const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                    if (sel) sel.value = anterior;
+                }
+            } catch (e) {
+                alert("Error de red al cambiar estatus");
+                const sel = qs(`.sel-estatus[data-idx="${idx}"]`);
+                if (sel) sel.value = anterior;
+            }
+        }
+
+        async function aplicarEstatusMasivo() {
+            if (skusSeleccionados.size === 0) { mostrarToast("Seleccione al menos un artículo"); return; }
+            const nuevoEstatus = qs('#opEstatus').value;
+            if (!confirm(`¿Cambiar estatus de ${skusSeleccionados.size} SKU(s) a ${nombreEstatus(nuevoEstatus)}?`)) return;
+
+            const skus = Array.from(skusSeleccionados).map(idx => inventarioTrabajo[idx].Sku);
+            try {
+                const res = await fetch('@Url.Action("CambiarEstatusArticulos", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skus: skus, estatus: nuevoEstatus, planta: qs('#selPlanta').value })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    skus.forEach(sku => {
+                        const i = inventarioTrabajo.findIndex(p => p.Sku === sku);
+                        if (i !== -1) {
+                            inventarioTrabajo[i].Estatus = String(nuevoEstatus);
+                            catalogoOriginal[i].Estatus = String(nuevoEstatus);
+                        }
+                    });
+                    aplicarFiltrosTabla();
+                    mostrarToast(`Estatus actualizado en ${data.actualizados} SKU(s)`);
+                } else {
+                    alert("Error: " + data.mensaje);
+                }
+            } catch (e) {
+                alert("Error de red al cambiar estatus");
+            }
+        }
+
 
         // --- LOGS SIGO ---
 
-                async function abrirBitacoraGeneral() {
+        async function abrirBitacoraGeneral() {
             qs('#txtTituloModalLog').textContent = "Tráfico General de Ajustes de Precios";
             qs('#bannerResumenHistorial').style.display = 'none';
             qs('#inputBuscarSkuLog').value = '';
@@ -811,7 +1371,7 @@
             }
         }
 
-                async function ejecutarRastreoProfundo(skuDirecto = null) {
+        async function ejecutarRastreoProfundo(skuDirecto = null) {
             const sku = skuDirecto || qs('#inputBuscarSkuLog').value.trim();
             if(!sku) { mostrarToast("Escriba un SKU para rastrear"); return; }
 
@@ -898,25 +1458,31 @@
 
         function siEsEnterBuscar(e) { if(e.key === 'Enter') { e.preventDefault(); ejecutarRastreoProfundo(); } }
 
-
-                async function guardarMasivoOficial() {
+        async function guardarMasivoOficial() {
             const listos = inventarioTrabajo.filter((prod, i) => prod.Precio !== catalogoOriginal[i].Precio).map(x => ({ Sku: x.Sku, Precio: x.Precio }));
             if (!listos.length) { mostrarToast("No hay precios alterados para enviar"); return; }
             const planta = qs('#selPlanta').value;
-            if (!confirm(`¿Impactar ${listos.length} precios en ${planta} y auditar en SIGO?`)) return;
+            const ambas = qs('#chkAmbas') && qs('#chkAmbas').checked;
+            const destino = ambas ? 'TIF y P1' : planta;
+            if (!confirm(`¿Impactar ${listos.length} precios en ${destino} y auditar en SIGO?`)) return;
 
             const btn = qs('#btnGuardarMasivo');
             if(btn) { btn.disabled = true; btn.textContent = "..."; }
 
             try {
                 // Enviar parametro planta en la URL
-                const res = await fetch(`@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`, {
+                let url = `@Url.Action("GuardarPreciosMasivo", "Comercial")?planta=${planta}`;
+                if (ambas) url += '&ambas=true';
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(listos)
                 });
                 const data = await res.json();
-                if (data.ok) { mostrarToast("Cambios guardados en " + planta); skusSeleccionados.clear(); descargarPreciosCommerciaNet(); } else { alert("Error: " + data.mensaje); }
+                if (data.ok) { mostrarToast("Cambios guardados en " + destino); skusSeleccionados.clear(); descargarPreciosCommerciaNet();
+                        localStorage.setItem('ultimaActualizacionPrecios', new Date().toISOString());
+        verificarAlertaPrecios();
+                } else { alert("Error: " + data.mensaje); }
             } catch(e) { alert("Error de red"); }
             finally { if(btn) { btn.disabled = false; btn.textContent = "Guardar masivo"; } }
         }
@@ -936,11 +1502,13 @@
                     mostrarToast("SKU guardado en " + planta);
                     skusSeleccionados.delete(idx);
                     descargarPreciosCommerciaNet();
+                            localStorage.setItem('ultimaActualizacionPrecios', new Date().toISOString());
+        verificarAlertaPrecios();
                 } else { alert(data.mensaje); }
             } catch(e) { mostrarToast("Error de conexión"); }
         }
 
-                function procesarArchivoCSV(e) {
+        function procesarArchivoCSV(e) {
             const archivo = e.target.files[0];
             if (!archivo) return;
 
@@ -953,8 +1521,8 @@
                 for (let i = 0; i < lineas.length; i++) {
                     const columnas = lineas[i].split(',');
                     if (columnas.length >= 2) {
-                        const skuFila = columnas[0].trim();
-                        const precioFila = parseFloat(columnas[1].trim());
+                        const skuFila = columnas[0].trim().replace(/^"|"$/g, '');
+                        const precioFila = parseFloat(columnas[1].trim().replace(/^"|"$/g, ''));
 
                         if (skuFila && !isNaN(precioFila) && precioFila >= 0) {
                             const idx = inventarioTrabajo.findIndex(p => p.Sku === skuFila);
@@ -969,18 +1537,20 @@
 
                 qs('#inputCargaMasiva').value = '';
                 dibujarTabla();
-                mostrarToast(`Precios cargados: ${aplicados}. Recuerde Guardar Masivo.`);
+                const ambas = qs('#chkAmbas') && qs('#chkAmbas').checked;
+                mostrarToast(`Precios cargados: ${aplicados}. Recuerde Guardar Masivo${ambas ? ' (aplicará en ambas plantas)' : ''}.`);
             };
 
             lector.readAsText(archivo);
         }
-                function cambiarPlanta() {
+
+        function cambiarPlanta() {
             skusSeleccionados.clear();
             descargarPreciosCommerciaNet();
             mostrarToast("Cambiando a planta: " + qs('#selPlanta').value);
         }
-        // --- UTILIDADES ---
 
+        // --- UTILIDADES ---
         function cerrarModalLog(e) { if(e.target.id === 'modalLogPrecios') qs('#modalLogPrecios').classList.remove('show'); }
         function actualizarMetricas() { qs('#kpiModificados').textContent = `${inventarioTrabajo.filter((p, i) => p.Precio !== catalogoOriginal[i].Precio).length} / ${inventarioTrabajo.length}`; }
         function restaurarFila(idx) { inventarioTrabajo[idx].Precio = catalogoOriginal[idx].Precio; dibujarTabla(); }
@@ -988,6 +1558,149 @@
 
         qs('#filtroTexto').addEventListener('input', aplicarFiltrosTabla);
 
+        // NUEVA FUNCIÓN PARA EXPORTAR CSV DIRECTAMENTE DE LA TABLA
+        // Formato re-cargable: col0 = SKU, col1 = Precio (igual que "Cargar CSV")
+        function descargarExcelPrecios() {
+            const escaparCsv = valor => `"${String(valor ?? '').replace(/"/g, '""')}"`;
+            let csv = "SKU,Precio,Descripción SAP,Categoría,Estatus\n";
+
+            const indices = indicesFiltrados.length
+                ? indicesFiltrados
+                : inventarioTrabajo.map((_, idx) => idx);
+
+            indices.forEach(idx => {
+                const prod = inventarioTrabajo[idx];
+                if (!prod) return;
+
+                csv += [
+                    escaparCsv(prod.Sku),
+                    Number(prod.Precio || 0).toFixed(2),
+                    escaparCsv(prod.Nombre),
+                    escaparCsv(prod.CategoriaMaster),
+                    escaparCsv(nombreEstatus(prod.Estatus))
+                ].join(',') + "\n";
+            });
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Lista_Precios_SIGO_${qs('#selPlanta')?.value || 'TIF'}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- LÓGICA DE ALERTAS DE PRECIOS CONECTADA A BD ---
+
+        let configAlertaDb = { meses: 3, dias: 7, ultimaAct: null };
+
+        async function verificarAlertaPrecios() {
+            try {
+                const res = await fetch('@Url.Action("ObtenerConfigAlertaPrecios", "Comercial")');
+                const data = await res.json();
+
+                if (data.ok) {
+                    configAlertaDb.meses = data.meses;
+                    configAlertaDb.dias = data.dias;
+                    configAlertaDb.ultimaAct = data.ultimaAct;
+
+                    mostrarBannerAlerta(data.meses, data.dias, data.ultimaAct);
+                }
+            } catch (e) {
+                console.error("Error al obtener configuración de alertas", e);
+            }
+        }
+
+        function mostrarBannerAlerta(freqMeses, antDias, ultimaActIso) {
+            const banner = qs('#alertaPreciosBanner');
+
+            if (!ultimaActIso) {
+                // Si la BD apenas se creó y la fecha es nula, no mostramos nada
+                banner.style.display = 'none';
+                return;
+            }
+
+            const ultimaAct = new Date(ultimaActIso);
+
+            // Calculamos la fecha límite y de advertencia
+            const fechaLimite = new Date(ultimaAct);
+            fechaLimite.setMonth(fechaLimite.getMonth() + freqMeses);
+
+            const fechaAlerta = new Date(fechaLimite);
+            fechaAlerta.setDate(fechaAlerta.getDate() - antDias);
+
+            const hoy = new Date();
+
+            // Lógica de colores y mensajes
+            if (hoy >= fechaAlerta && hoy < fechaLimite) {
+                const diasFaltantes = Math.ceil((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
+                banner.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⚠️</span> <span><b>Atención:</b> Faltan <b>${diasFaltantes} días</b> para el ciclo de ${freqMeses} mes(es) desde la última actualización de precios (${ultimaAct.toLocaleDateString('es-MX')}).</span></span>`;
+                banner.style.background = '#fefce8';
+                banner.style.color = '#854d0e';
+                banner.style.borderColor = '#fef08a';
+                banner.style.display = 'flex';
+            } else if (hoy >= fechaLimite) {
+                banner.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🛑</span> <span><b>¡Alerta Vencida!</b> Han pasado más de ${freqMeses} mes(es) desde la última actualización de precios (${ultimaAct.toLocaleDateString('es-MX')}). Se requiere un ajuste urgentemente.</span></span>`;
+                banner.style.background = '#fef2f2';
+                banner.style.color = '#991b1b';
+                banner.style.borderColor = '#fecaca';
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        function abrirModalAlertas() {
+            qs('#configFrecuenciaMeses').value = configAlertaDb.meses;
+            qs('#configAnticipacionDias').value = configAlertaDb.dias;
+            qs('#modalAlertasPrecios').classList.add('show');
+        }
+
+        function cerrarModalAlertas(e) {
+            if (e.target.id === 'modalAlertasPrecios') qs('#modalAlertasPrecios').classList.remove('show');
+        }
+
+        async function guardarConfiguracionAlertas() {
+            const freq = qs('#configFrecuenciaMeses').value;
+            const ant = qs('#configAnticipacionDias').value;
+
+            const payload = {
+                meses: parseInt(freq),
+                dias: parseInt(ant)
+            };
+
+            const btn = qs('#modalAlertasPrecios .btn-green');
+            btn.disabled = true;
+            btn.textContent = 'Guardando...';
+
+            try {
+                const res = await fetch('@Url.Action("GuardarConfigAlertaPrecios", "Comercial")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.ok) {
+                    qs('#modalAlertasPrecios').classList.remove('show');
+                    mostrarToast('Regla de alertas sincronizada con el servidor');
+                    verificarAlertaPrecios();
+                } else {
+                    mostrarToast('Error: ' + data.mensaje);
+                }
+            } catch (e) {
+                mostrarToast('Error de conexión al guardar configuración.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Guardar Regla';
+            }
+        }
+
+        // Arrancar la verificación al entrar a la pantalla
+        setTimeout(verificarAlertaPrecios, 500);
         descargarPreciosCommerciaNet();
+
     </script>
 }

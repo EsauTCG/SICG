@@ -1,0 +1,1317 @@
+﻿@model IEnumerable<Plataforma_CG.Models.ObjetivoViewModel>
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Gestión de Objetivos";
+}
+
+<style>
+    body, main {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .container-fluid {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .top-banner {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 100%) !important;
+        color: white;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+
+    .table-custom th {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 100%) !important;
+        color: white !important;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        vertical-align: middle;
+        border-bottom: none;
+    }
+
+    .table-custom td {
+        vertical-align: middle;
+        font-size: 0.85rem;
+    }
+
+    /* Renderizado eficiente con tablas muy grandes: evita repintados por fila */
+    #tbodyObjetivos {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 800px;
+    }
+
+    /* ===================== PAGINACION ===================== */
+    .pag-obj {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem 1rem;
+        padding: .6rem .9rem;
+        border-top: 1px solid var(--bs-border-color, #dee2e6);
+        background: var(--bs-tertiary-bg, #f8f9fa);
+        border-radius: 0 0 .375rem .375rem;
+    }
+
+    .pag-obj__info {
+        font-size: .8rem;
+        color: var(--bs-secondary-color, #6c757d);
+        white-space: nowrap;
+    }
+    .pag-obj__info strong { color: var(--bs-body-color, #212529); }
+
+    .pag-obj__controls {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    .pag-obj__pages { display: flex; gap: .2rem; list-style: none; margin: 0; padding: 0; }
+
+    .pag-obj__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 .35rem;
+        font-size: .8rem;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        border-radius: .3rem;
+        background: var(--bs-body-bg, #fff);
+        color: var(--bs-body-color, #212529);
+        cursor: pointer;
+        transition: background .12s ease, color .12s ease, border-color .12s ease;
+        user-select: none;
+    }
+    .pag-obj__btn:hover:not(:disabled):not(.is-active) {
+        background: #b30000;
+        border-color: #b30000;
+        color: #fff;
+    }
+    .pag-obj__btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .pag-obj__btn.is-active {
+        background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);
+        border-color: #8b0000;
+        color: #fff;
+        font-weight: 700;
+        box-shadow: 0 1px 4px rgba(179,0,0,.35);
+    }
+
+    .pag-obj__gap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.6rem;
+        height: 2rem;
+        font-size: .8rem;
+        color: var(--bs-secondary-color, #6c757d);
+    }
+
+    .pag-obj__size {
+        width: auto;
+        min-width: 4.2rem;
+        font-size: .8rem;
+        padding: .2rem 1.6rem .2rem .5rem;
+    }
+
+    .pag-obj__jump {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .8rem;
+        color: var(--bs-secondary-color, #6c757d);
+    }
+    .pag-obj__jump input {
+        width: 3.6rem;
+        height: 2rem;
+        text-align: center;
+        font-size: .8rem;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        border-radius: .3rem;
+        background: var(--bs-body-bg, #fff);
+        color: var(--bs-body-color, #212529);
+        padding: 0 .25rem;
+    }
+
+    body[data-theme="dark"] .pag-obj { background: #1f2429; border-top-color: #343a40; }
+    body[data-theme="dark"] .pag-obj__btn { background: #2b3138; border-color: #495057; color: #dee2e6; }
+    body[data-theme="dark"] .pag-obj__jump input { background: #2b3138; border-color: #495057; color: #dee2e6; }
+    body[data-theme="dark"] .pag-obj__info strong { color: #f8f9fa; }
+</style>
+
+<div class="container-fluid p-0">
+
+    <!-- Encabezado superior -->
+    <div class="top-banner d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="fw-bold mb-1">Gestión de Objetivos</h3>
+            <p class="mb-0" style="opacity: 0.9; font-size: 0.85rem;">Configuración y listado de metas operativas por área.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-outline-light fw-bold shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#modalBitacora">
+                Bitácora
+            </button>
+            <button type="button" id="btnVerVencimientos" class="btn btn-outline-light fw-bold shadow-sm me-2 position-relative" data-bs-toggle="modal" data-bs-target="#modalVencimientos">
+                <i class="bi bi-hourglass-split me-1"></i> Vencimientos
+                @{
+                    int _porVencer = Convert.ToInt32(ViewBag.ObjetivosPorVencer ?? 0);
+                    if (_porVencer > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="badgeVencimientos">@_porVencer</span>
+                    }
+                }
+            </button>
+            <button type="button" class="btn btn-outline-light fw-bold shadow-sm me-2" data-bs-toggle="modal" data-bs-target="#modalCargarExcel">
+                <i class="bi bi-file-earmark-excel me-1"></i> Cargar Excel
+            </button>
+            <a href="@Url.Action("Nuevo", "Objetivos")" class="btn btn-light fw-bold text-danger shadow-sm">
+                <i class="bi bi-plus-circle-fill me-1"></i> Crear Nuevo Objetivo
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ErrorObjetivos"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mx-3 shadow-sm mt-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorObjetivos"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["OkObjetivos"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show mx-3 shadow-sm mt-3">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["OkObjetivos"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Contenedor unificado: Filtros + Tabla -->
+    <div class="card border-0 shadow-sm mx-3 mt-3 mb-0" style="border-radius: 0.375rem;">
+
+        <!-- Barra de filtros integrada -->
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-2 px-3" style="border-top-left-radius: 0.375rem; border-top-right-radius: 0.375rem;">
+            <!-- Fila 1: Filtros principales -->
+            <div class="row g-2 mb-2">
+                <div class="col-lg-4 col-md-12">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">BUSCAR</label>
+                    <div class="input-group input-group-sm shadow-sm">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="filtroTexto" class="form-control border-start-0" placeholder="Folio, tipo, descripción, SKU, CC, proveedor..." value="@ViewBag.FiltroTexto" />
+                    </div>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">ÁREA</label>
+                    <select id="filtroArea" class="form-select form-select-sm shadow-sm">
+                        <option value="">Todas</option>
+                        @if (ViewBag.Perfiles != null)
+                        {
+                            var _areaSel = ViewBag.FiltroArea as string ?? "";
+                            foreach (var p in ViewBag.Perfiles)
+                            {
+                                if (_areaSel == p.Nombre)
+                                {
+                                    <option value="@p.Nombre" selected>@p.Nombre</option>
+                                }
+                                else
+                                {
+                                    <option value="@p.Nombre">@p.Nombre</option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">TIPO DE OBJETIVO</label>
+                    @{
+                        var _tipoSel = ViewBag.FiltroTipo as string ?? "";
+                    }
+                    <select id="filtroTipo" class="form-select form-select-sm shadow-sm">
+                        <option value="">Todos</option>
+                        @if (ViewBag.TiposFiltro != null)
+                        {
+                            foreach (var t in ViewBag.TiposFiltro)
+                            {
+                                if (_tipoSel == t.Nombre)
+                                {
+                                    <option value="@t.Nombre" selected>@t.Nombre</option>
+                                }
+                                else
+                                {
+                                    <option value="@t.Nombre">@t.Nombre</option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">ESTADO</label>
+                    @{
+                        var _estadoSel = ViewBag.FiltroEstado as string ?? "";
+                    }
+                    <select id="filtroEstado" class="form-select form-select-sm shadow-sm">
+                        <option value="" selected="@(_estadoSel == "")">Todos</option>
+                        <option value="Pendiente" selected="@(_estadoSel == "Pendiente")">Pendientes</option>
+                        <option value="Activo" selected="@(_estadoSel == "Activo")">Activos</option>
+                        <option value="Inactivo" selected="@(_estadoSel == "Inactivo")">Inactivos</option>
+                        <option value="Cancelado" selected="@(_estadoSel == "Cancelado")">Cancelados</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">VIGENCIA</label>
+                    @{
+                        var _vigSel = ViewBag.FiltroVigencia as string ?? "";
+                    }
+                    <select id="filtroVigencia" class="form-select form-select-sm shadow-sm">
+                        <option value="" selected="@(_vigSel == "")">Cualquiera</option>
+                        <option value="vigente" selected="@(_vigSel == "vigente")">Vigentes</option>
+                        <option value="porvencer" selected="@(_vigSel == "porvencer")">Vencen en 30 días</option>
+                        <option value="vencido" selected="@(_vigSel == "vencido")">Ya vencidos</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Fila 2: Filtros secundarios y botones -->
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">PERIODO</label>
+                    @{
+                        var _perSel = ViewBag.FiltroPeriodo as string ?? "";
+                    }
+                    <select id="filtroPeriodo" class="form-select form-select-sm shadow-sm">
+                        <option value="">Todos</option>
+                        @if (ViewBag.PeriodosFiltro != null)
+                        {
+                            foreach (var pe in ViewBag.PeriodosFiltro)
+                            {
+                                if (_perSel == pe)
+                                {
+                                    <option value="@pe" selected>@pe</option>
+                                }
+                                else
+                                {
+                                    <option value="@pe">@pe</option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">VENDEDOR</label>
+                    @{
+                        var _vendSel = ViewBag.FiltroVendedor as string ?? "";
+                    }
+                    <select id="filtroVendedor" class="form-select form-select-sm shadow-sm">
+                        <option value="">Todos</option>
+                        @if (ViewBag.VendedoresFiltro != null)
+                        {
+                            foreach (var v in ViewBag.VendedoresFiltro)
+                            {
+                                if (_vendSel == v.Id.ToString())
+                                {
+                                    <option value="@v.Id" selected>@v.Nombre</option>
+                                }
+                                else
+                                {
+                                    <option value="@v.Id">@v.Nombre</option>
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">VIGENTE DESDE</label>
+                    <input type="date" id="filtroDesde" class="form-control form-control-sm shadow-sm" value="@ViewBag.FiltroDesde" />
+                </div>
+
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">VIGENTE HASTA</label>
+                    <input type="date" id="filtroHasta" class="form-control form-control-sm shadow-sm" value="@ViewBag.FiltroHasta" />
+                </div>
+
+                <!-- Botones de Acción (Rangos y Limpiar) -->
+                <div class="col-lg-4 col-md-12 d-flex justify-content-between align-items-center mt-2 mt-lg-0">
+                    <div class="btn-group btn-group-sm shadow-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary py-1" onclick="setRangoFiltros(0, 0);" style="font-size: 0.75rem;">Hoy</button>
+                        <button type="button" class="btn btn-outline-secondary py-1" onclick="setRangoFiltros(-7, 0);" style="font-size: 0.75rem;">7d</button>
+                        <button type="button" class="btn btn-outline-secondary py-1" onclick="setRangoFiltros(-30, 0);" style="font-size: 0.75rem;">30d</button>
+                        <button type="button" class="btn btn-outline-secondary py-1" onclick="setRangoFiltros(-30, 30);" style="font-size: 0.75rem;">Mes</button>
+                    </div>
+                    <button type="button" id="btnLimpiarFiltros" class="btn btn-sm btn-light border text-muted fw-bold shadow-sm">
+                        Limpiar Filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla principal -->
+    <div class="card rounded-0 border-0 shadow-sm mx-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-custom mb-0" id="tablaObjetivos">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">ID</th>
+                            <th>Área / Perfil</th>
+                            <th>Tipo de Objetivo</th>
+                            <th>Periodo</th>
+                            <th>Vigencia</th>
+                            <th class="text-center">Métricas</th>
+                            <th>Estado</th>
+                            <th class="text-center pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyObjetivos">
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var item in Model)
+                            {
+                                <tr class="fila-objetivo">
+                                    <td class="ps-4 fw-bold text-muted">#@item.ID</td>
+                                    <td class="col-area"><span class="badge bg-secondary">@item.NombrePerfil</span></td>
+                                    <td class="fw-bold">@item.NombreTipoObjetivo</td>
+                                    <td><span class="badge border border-secondary text-secondary"><i class="bi bi-calendar-range me-1"></i>@item.Tipo_Periodo_Cumplimiento</span></td>
+                                    <td>
+                                        <small class="d-block text-muted">Desde: <strong>@item.Fecha_Desde.ToString("dd/MMM/yyyy")</strong></small>
+                                        <small class="d-block text-muted">Hasta: <strong>@(item.Fecha_Hasta?.ToString("dd/MMM/yyyy") ?? "Sin límite")</strong></small>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (item.ValoresConfigurados != null && item.ValoresConfigurados.Any())
+                                        {
+                                            <span class="badge border border-secondary text-secondary">@item.ValoresConfigurados.Count métrica(s)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted fst-italic" style="font-size: 0.75rem;">Sin valores</span>
+                                        }
+                                    </td>
+                                    <td class="col-estado">
+                                        @if (item.Estado == "Activo")
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else if (item.Estado == "Pendiente")
+                                        {
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">@item.Estado</span>
+                                        }
+                                    </td>
+                                    <td class="text-center pe-4">
+                                        <!-- Botón Modificado: Ahora llama a JS en vez de abrir un ID quemado -->
+                                        <button type="button" class="btn btn-sm btn-outline-primary shadow-sm" onclick="cargarDetalleObjetivo(@item.ID)" title="Ver Detalles">
+                                            <i class="bi bi-eye-fill"></i> Ver
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr id="filaVacia">
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    Aún no hay objetivos registrados.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @* ============ PAGINACION (integrada en la tarjeta de la tabla) ============ *@
+        @{
+            int _pagina = Convert.ToInt32(ViewBag.Pagina ?? 1);
+            int _totalPaginas = Convert.ToInt32(ViewBag.TotalPaginas ?? 1);
+            int _total = Convert.ToInt32(ViewBag.TotalRegistros ?? 0);
+            int _pageSize = Convert.ToInt32(ViewBag.PageSize ?? 50);
+            int _desde = _total == 0 ? 0 : ((_pagina - 1) * _pageSize) + 1;
+            int _hasta = Math.Min(_pagina * _pageSize, _total);
+            bool _sinAnterior = _pagina <= 1;
+            bool _sinSiguiente = _pagina >= _totalPaginas;
+
+            // 0 = elipsis (nunca es una pagina real, estas empiezan en 1)
+            var _items = new List<int>();
+            if (_totalPaginas <= 7)
+            {
+                for (int i = 1; i <= _totalPaginas; i++) { _items.Add(i); }
+            }
+            else
+            {
+                _items.Add(1);
+                int _ini = Math.Max(2, _pagina - 1);
+                int _fin = Math.Min(_totalPaginas - 1, _pagina + 1);
+                if (_ini > 2) { _items.Add(0); }
+                for (int i = _ini; i <= _fin; i++) { _items.Add(i); }
+                if (_fin < _totalPaginas - 1) { _items.Add(0); }
+                _items.Add(_totalPaginas);
+            }
+        }
+        @if (_total > 0)
+        {
+            <div class="pag-obj">
+                <div class="pag-obj__info">
+                    Mostrando <strong>@_desde</strong>&ndash;<strong>@_hasta</strong>
+                    de <strong>@_total.ToString("N0")</strong> objetivo(s)
+                </div>
+
+                <div class="pag-obj__controls">
+                    <div class="pag-obj__jump">
+                        <label class="mb-0" for="selPageSize">Filas</label>
+                        <select id="selPageSize" class="form-select form-select-sm pag-obj__size">
+                            @foreach (var opt in new[] { 25, 50, 100, 200 })
+                            {
+                                <option value="@opt" selected="@(_pageSize == opt)">@opt</option>
+                            }
+                        </select>
+                    </div>
+
+                    <ul class="pag-obj__pages" id="paginadorObjetivos">
+                        <li>
+                            <button type="button" class="pag-obj__btn" data-pag="1" title="Primera página" aria-label="Primera página" disabled="@_sinAnterior">
+                                <i class="bi bi-chevron-bar-left"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="pag-obj__btn" data-pag="@(_pagina - 1)" title="Anterior" aria-label="Anterior" disabled="@_sinAnterior">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+
+                        @foreach (var it in _items)
+                        {
+                            if (it == 0)
+                            {
+                                <li><span class="pag-obj__gap">&hellip;</span></li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <button type="button" class="pag-obj__btn @(it == _pagina ? "is-active" : "")"
+                                            data-pag="@it" title="Página @it"
+                                            aria-current="@(it == _pagina ? "page" : "false")">@it</button>
+                                </li>
+                            }
+                        }
+
+                        <li>
+                            <button type="button" class="pag-obj__btn" data-pag="@(_pagina + 1)" title="Siguiente" aria-label="Siguiente" disabled="@_sinSiguiente">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="pag-obj__btn" data-pag="@_totalPaginas" title="Última página" aria-label="Última página" disabled="@_sinSiguiente">
+                                <i class="bi bi-chevron-bar-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="pag-obj__jump">
+                        <label class="mb-0" for="txtIrPagina">Ir a</label>
+                        <input type="number" id="txtIrPagina" class="form-control form-control-sm" min="1" max="@_totalPaginas" value="@_pagina" />
+                        <span class="d-none d-md-inline">de @_totalPaginas.ToString("N0")</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL MAESTRO: Carga dinámica (Reemplaza los 5,000 modales del foreach) -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalMaestro" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg border-0" id="contenedorModalMaestro">
+            <!-- El contenido HTML (Detalle o Edición) se inyectará aquí mediante AJAX -->
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-danger" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-2 text-muted">Cargando información del objetivo...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Token antifalsificacion para las peticiones AJAX de esta pagina -->
+@Html.AntiForgeryToken()
+
+<!-- Modal Vencimientos -->
+<div class="modal fade" id="modalVencimientos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split me-2"></i>Objetivos por vencer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-3">
+
+                <!-- Formulario de renovacion: se muestra encima del listado, sin apilar modales -->
+                <div id="vencimientosForm" class="d-none">
+                    <div class="alert alert-primary small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Renovando el objetivo <strong>#<span id="renovarFolio"></span></strong>.
+                        Se creará uno <strong>nuevo</strong> en estado <strong>Pendiente</strong> con las metas copiadas;
+                        el objetivo vigente no se modifica.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted" style="font-size:0.8rem;">Fecha Desde</label>
+                            <input type="date" id="renovarDesde" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted" style="font-size:0.8rem;">Fecha Hasta</label>
+                            <input type="date" id="renovarHasta" class="form-control form-control-sm" />
+                        </div>
+                    </div>
+                    <div class="form-text" id="renovarSugerencia"></div>
+                    <div class="d-flex gap-2 justify-content-end mt-3">
+                        <button type="button" id="btnCancelarRenovar" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i> Volver al listado
+                        </button>
+                        <button type="button" id="btnConfirmarRenovar" class="btn btn-primary btn-sm fw-bold shadow-sm">
+                            <i class="bi bi-check-lg me-1"></i> Crear nuevo objetivo
+                        </button>
+                    </div>
+                    <hr class="my-3" />
+                </div>
+
+                <div id="vencimientosResultado">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-danger" role="status"><span class="visually-hidden">Cargando...</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Bitácora -->
+<div class="modal fade" id="modalBitacora" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Bitacora de Objetivos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-3">
+
+                @* ---------- FILTROS ---------- *@
+                <div class="row g-2 mb-2">
+                    <div class="col-xl-4 col-md-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="filtroLogTexto" class="form-control" placeholder="Folio, Ã¡rea, tipo, estado o usuario..." />
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-3">
+                        <select id="filtroLogEstado" class="form-select form-select-sm">
+                            <option value="">Todos los estados</option>
+                            <option value="Activo">Activo</option>
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Cancelado">Cancelado</option>
+                            <option value="Inactivo">Inactivo</option>
+                        </select>
+                    </div>
+                    <div class="col-xl-3 col-md-3">
+                        <select id="filtroLogPerfil" class="form-select form-select-sm">
+                            <option value="">Todas las Areas</option>
+                            @{
+                                var perfilesLog = ViewBag.Perfiles as IEnumerable<dynamic>;
+                                if (perfilesLog != null)
+                                {
+                                    foreach (var pr in perfilesLog)
+                                    {
+                                        <option value="@pr.Id">@pr.Nombre</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-xl-3 col-md-6">
+                        <select id="filtroLogTipo" class="form-select form-select-sm">
+                            <option value="">Todos los tipos de objetivo</option>
+                            @{
+                                var tiposLog = ViewBag.TiposObjetivoLog as IEnumerable<dynamic>;
+                                if (tiposLog != null)
+                                {
+                                    foreach (var tp in tiposLog)
+                                    {
+                                        <option value="@tp.ID">@tp.Nombre</option>
+                                    }
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3 align-items-center">
+                    <div class="col-xl-2 col-md-3">
+                        <select id="filtroLogCampoFecha" class="form-select form-select-sm" title="Campo de fecha a filtrar">
+                            <option value="creacion">Fecha de creacion</option>
+                            <option value="modificacion">Fecha de modificacion</option>
+                            <option value="aprobacion">Fecha de aprobacion</option>
+                        </select>
+                    </div>
+                    <div class="col-xl-2 col-md-3">
+                        <input type="date" id="filtroLogDesde" class="form-control form-control-sm" title="Desde" />
+                    </div>
+                    <div class="col-xl-2 col-md-3">
+                        <input type="date" id="filtroLogHasta" class="form-control form-control-sm" title="Hasta" />
+                    </div>
+                    <div class="col-xl-2 col-md-3">
+                        <select id="filtroLogActividad" class="form-select form-select-sm" title="Actividad">
+                            <option value="">Cualquier actividad</option>
+                            <option value="modificados">Con modificacion</option>
+                            <option value="sinmodificar">Sin modificar</option>
+                            <option value="autorizados">Con autorizacion</option>
+                            <option value="sinautorizar">Sin autorizar</option>
+                        </select>
+                    </div>
+                    <div class="col-xl-2 col-md-6">
+                        <div class="btn-group btn-group-sm w-100" role="group" aria-label="Rangos rÃ¡pidos">
+                            <button type="button" class="btn btn-outline-secondary btn-preset" data-dias="0">Hoy</button>
+                            <button type="button" class="btn btn-outline-secondary btn-preset" data-dias="7">7 dias</button>
+                            <button type="button" class="btn btn-outline-secondary btn-preset" data-dias="30">30 dias</button>
+                            <button type="button" class="btn btn-outline-secondary btn-preset" data-dias="90">90 dias</button>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-6 text-md-end">
+                        <button type="button" id="btnLimpiarLog" class="btn btn-sm btn-outline-secondary w-100">
+                            <i class="bi bi-x-circle me-1"></i> Limpiar filtros
+                        </button>
+                    </div>
+                </div>
+
+                @* ---------- RESULTADOS (AJAX) ---------- *@
+                <div id="bitacoraResultado">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-danger" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CARGA MASIVA DESDE EXCEL -->
+<div class="modal fade" id="modalCargarExcel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-excel me-2"></i>Carga Masiva de Objetivos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info small mb-3">
+                    <i class="bi bi-info-circle-fill me-1"></i>
+                    Descarga la plantilla, llénala <strong>una fila por meta</strong> y súbela.
+                    Al procesar: si el objetivo todavía está <strong>Pendiente</strong> se actualiza;
+                    si ya está <strong>Activo / cumplido</strong> <strong>NO se toca</strong> (se omite); y los nuevos se insertan.
+                    El archivo solo se acepta en formato <strong>.xlsx</strong>.
+                </div>
+                <div class="mb-3">
+                    <a href="@Url.Action("DescargarPlantillaObjetivos", "Objetivos")" class="btn btn-outline-danger btn-sm shadow-sm">
+                        <i class="bi bi-download me-1"></i> Descargar Plantilla (.xlsx)
+                    </a>
+                </div>
+                <form id="formCargaObjetivos" enctype="multipart/form-data" method="post">
+                    <div class="mb-3">
+                        <label for="archivoObjetivos" class="form-label fw-bold text-muted" style="font-size: 0.85rem;">Archivo Excel</label>
+                        <input type="file" class="form-control" id="archivoObjetivos" name="archivo" accept=".xlsx" />
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger fw-bold shadow-sm" id="btnCargarObjetivos">
+                            <i class="bi bi-upload me-1"></i> Cargar Objetivos
+                        </button>
+                    </div>
+                </form>
+                <div id="resultadoCargaObjetivos" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+<style>
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 31px !important;
+        border: 1px solid var(--border-color, #ced4da) !important;
+        border-radius: 0.25rem !important;
+        background-color: var(--input-bg, #fff) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-selection__rendered {
+        line-height: 25px !important;
+        font-size: 0.85rem !important;
+        padding-left: 0.75rem !important;
+        color: var(--text-main, #4a4a4a) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-dropdown {
+        font-size: 0.85rem !important;
+        background-color: var(--bg-card, #fff) !important;
+        border-color: var(--border-color, #ced4da) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-search__field {
+        background-color: var(--input-bg, #fff) !important;
+        color: var(--text-main, #4a4a4a) !important;
+        border: 1px solid var(--border-color, #ced4da) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option {
+        color: var(--text-main, #4a4a4a) !important;
+    }
+
+    .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+        background-color: #8b0000 !important;
+        color: white !important;
+    }
+
+    .select2-container, .select2-dropdown {
+        z-index: 99999 !important;
+    }
+</style>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        // Funciones Globales para Carga Dinámica de Modales
+        function cargarDetalleObjetivo(id) {
+            $('#contenedorModalMaestro').html('<div class="modal-body text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando detalle...</p></div>');
+            $('#modalMaestro').modal('show');
+
+            $.get('@Url.Action("VistaParcialDetalle", "Objetivos")/' + id, function (data) {
+                $('#contenedorModalMaestro').html(data);
+            }).fail(function () {
+                $('#contenedorModalMaestro').html('<div class="modal-body p-4 text-center"><i class="bi bi-exclamation-triangle text-danger fs-1"></i><h5 class="mt-3">Error</h5><p>No se pudo cargar la información del objetivo.</p><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div>');
+            });
+        }
+
+        function cargarEditarObjetivo(id) {
+            $('#contenedorModalMaestro').html('<div class="modal-body text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="mt-2 text-muted">Cargando formulario de edición...</p></div>');
+
+            $.get('@Url.Action("VistaParcialEditar", "Objetivos")/' + id, function (data) {
+                $('#contenedorModalMaestro').html(data);
+                // Al guardar se regresa a esta misma URL con sus filtros y pagina.
+                // Solo ruta + query: IsLocalUrl rechaza URLs absolutas.
+                $('#formEditarObjetivo input[name="URLRetorno"]')
+                    .val(window.location.pathname + window.location.search);
+                // Inicializar Select2 al inyectar el HTML de edición
+                iniciarSelect2();
+            }).fail(function () {
+                $('#contenedorModalMaestro').html('<div class="modal-body p-4 text-center"><i class="bi bi-exclamation-triangle text-danger fs-1"></i><h5 class="mt-3">Error</h5><p>No se pudo cargar el formulario.</p><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div>');
+            });
+        }
+
+        // Cierra el modal maestro y limpia su contenido
+        function cerrarModalMaestro() {
+            $('#modalMaestro').modal('hide');
+            $('#modalMaestro').on('hidden.bs.modal', function () {
+                $('#contenedorModalMaestro').html('');
+            });
+        }
+
+        // Esta función inicializa Select2 (se debe llamar tras cargar la vista parcial de Editar)
+        function iniciarSelect2() {
+            if (!$.fn.select2) return;
+            $('.select2-buscar').each(function () {
+                var $select = $(this);
+                if ($select.hasClass("select2-hidden-accessible")) return;
+                var $modal = $select.closest('.modal');
+                $select.select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    dropdownParent: $modal.length ? $modal : $(document.body)
+                });
+            });
+        }
+
+        $(document).ready(function () {
+
+            // Token antifalsificacion en las peticiones POST de esta pagina
+            var _tokenCsrf = $('input[name="__RequestVerificationToken"]').first().val();
+            if (_tokenCsrf) {
+                $.ajaxSetup({ headers: { 'RequestVerificationToken': _tokenCsrf } });
+            }
+
+            // 2. Filtros de la tabla principal: se resuelven en el servidor para que
+            // busquen en TODOS los registros (no solo la pagina actual) y no se pierdan al paginar.
+            function urlTablero(pagina) {
+                var params = new URLSearchParams();
+                params.set('pagina', pagina || 1);
+                params.set('pageSize', $('#selPageSize').val() || 50);
+                if ($('#filtroTexto').val()) params.set('qTexto', $('#filtroTexto').val());
+                if ($('#filtroArea').val()) params.set('qArea', $('#filtroArea').val());
+                if ($('#filtroEstado').val()) params.set('qEstado', $('#filtroEstado').val());
+                if ($('#filtroTipo').val()) params.set('qTipo', $('#filtroTipo').val());
+                if ($('#filtroPeriodo').val()) params.set('qPeriodo', $('#filtroPeriodo').val());
+                if ($('#filtroVendedor').val()) params.set('qVendedor', $('#filtroVendedor').val());
+                if ($('#filtroDesde').val()) params.set('qDesde', $('#filtroDesde').val());
+                if ($('#filtroHasta').val()) params.set('qHasta', $('#filtroHasta').val());
+                if ($('#filtroVigencia').val()) params.set('qVigencia', $('#filtroVigencia').val());
+                return '@Url.Action("Tablero", "Objetivos")?' + params.toString();
+            }
+
+            function aplicarFiltrosTablero() {
+                window.location.href = urlTablero(1);
+            }
+
+            // Rangos rapidos de fechas (dias hacia atras / hacia adelante)
+            function setRangoFiltros(diasAtras, diasAdelante) {
+                var hoy = new Date();
+                var fmt = function (d) {
+                    return d.getFullYear() + '-' +
+                        ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+                        ('0' + d.getDate()).slice(-2);
+                };
+                var d1 = new Date(hoy); d1.setDate(hoy.getDate() + (diasAtras || 0));
+                var d2 = new Date(hoy); d2.setDate(hoy.getDate() + (diasAdelante || 0));
+                $('#filtroDesde').val(fmt(d1));
+                $('#filtroHasta').val(fmt(d2));
+                aplicarFiltrosTablero();
+            }
+
+            $('#filtroTexto').on('input', function () {
+                clearTimeout(window._timerTablero);
+                window._timerTablero = setTimeout(aplicarFiltrosTablero, 400);
+            });
+
+            $('#filtroArea, #filtroEstado, #filtroTipo, #filtroPeriodo, #filtroVendedor, #filtroVigencia, #filtroDesde, #filtroHasta')
+                .on('change', aplicarFiltrosTablero);
+
+            $('#btnLimpiarFiltros').click(function () {
+                $('#filtroTexto').val('');
+                $('#filtroArea').val('');
+                $('#filtroEstado').val('');
+                $('#filtroTipo').val('');
+                $('#filtroPeriodo').val('');
+                $('#filtroVendedor').val('');
+                $('#filtroDesde').val('');
+                $('#filtroHasta').val('');
+                $('#filtroVigencia').val('');
+                window.location.href = urlTablero(1);
+            });
+
+            // 3. Bitácora: filtros y tabla se resuelven en el servidor
+            var urlBitacora = '@Url.Action("VistaParcialBitacora", "Objetivos")';
+            var bitacoraReq = null;
+
+            function paramsBitacora(pagina) {
+                var desde = $('#filtroLogDesde').val();
+                var hasta = $('#filtroLogHasta').val();
+
+                return {
+                    texto: $('#filtroLogTexto').val() || '',
+                    estado: $('#filtroLogEstado').val() || '',
+                    idPerfil: $('#filtroLogPerfil').val() || '',
+                    idTipo: $('#filtroLogTipo').val() || '',
+                    campoFecha: $('#filtroLogCampoFecha').val() || 'creacion',
+                    desde: desde || '',
+                    hasta: hasta || '',
+                    actividad: $('#filtroLogActividad').val() || '',
+                    pagina: pagina || 1,
+                    pageSize: 25
+                };
+            }
+
+            function cargarBitacora(pagina) {
+                var $destino = $('#bitacoraResultado');
+
+                // Se cancela la petición anterior para evitar respuestas fuera de orden
+                if (bitacoraReq) { bitacoraReq.abort(); }
+
+                $destino.html('<div class="text-center py-5"><div class="spinner-border text-danger" role="status"><span class="visually-hidden">Cargando...</span></div></div>');
+
+                bitacoraReq = $.ajax({
+                    url: urlBitacora,
+                    type: 'GET',
+                    data: paramsBitacora(pagina),
+                    dataType: 'html'
+                }).always(function (data, status) {
+                    if (status === 'abort') return;
+                    bitacoraReq = null;
+                    $destino.html(data);
+                });
+            }
+
+            // Se carga la primera vez que se abre el modal
+            $('#modalBitacora').on('show.bs.modal', function () {
+                if ($('#bitacoraResultado').data('cargada')) return;
+                $('#bitacoraResultado').data('cargada', true);
+                cargarBitacora(1);
+            });
+
+            $('#filtroLogTexto').on('input', function () {
+                clearTimeout(window._timerLog);
+                window._timerLog = setTimeout(function () { cargarBitacora(1); }, 350);
+            });
+
+            $('#filtroLogEstado, #filtroLogPerfil, #filtroLogTipo, #filtroLogCampoFecha, #filtroLogActividad, #filtroLogDesde, #filtroLogHasta')
+                .on('change', function () { cargarBitacora(1); });
+
+            // Rangos rápidos: hoy, últimos 7/30/90 días
+            $(document).on('click', '.btn-preset', function () {
+                var dias = parseInt($(this).data('dias'), 10) || 0;
+                var hoy = new Date();
+                var ini = new Date(hoy.getTime());
+                ini.setDate(ini.getDate() - dias);
+
+                $('#filtroLogDesde').val(formatoFechaLog(ini));
+                $('#filtroLogHasta').val(formatoFechaLog(hoy));
+                cargarBitacora(1);
+            });
+
+            function formatoFechaLog(d) {
+                var m = String(d.getMonth() + 1).padStart(2, '0');
+                var dd = String(d.getDate()).padStart(2, '0');
+                return d.getFullYear() + '-' + m + '-' + dd;
+            }
+
+            $('#btnLimpiarLog').click(function () {
+                $('#filtroLogTexto').val('');
+                $('#filtroLogEstado').val('');
+                $('#filtroLogPerfil').val('');
+                $('#filtroLogTipo').val('');
+                $('#filtroLogCampoFecha').val('creacion');
+                $('#filtroLogDesde').val('');
+                $('#filtroLogHasta').val('');
+                $('#filtroLogActividad').val('');
+                cargarBitacora(1);
+            });
+
+            // Paginación de la bitácora (el contenido se reemplaza en cada request)
+            $(document).on('click', '#paginadorBitacora .pag-obj__btn', function () {
+                if (this.disabled) return;
+                cargarBitacora($(this).data('pag'));
+            });
+
+            // ===================== VENCIMIENTOS =====================
+            var urlVencimientos = '@Url.Action("VistaParcialVencimientos", "Objetivos")';
+            var urlRenovar = '@Url.Action("RenovarObjetivo", "Objetivos")';
+            var urlInactivo = '@Url.Action("MarcarInactivo", "Objetivos")';
+            var objetivoARenovar = null;
+
+            function cargarVencimientos() {
+                $('#vencimientosResultado').html(
+                    '<div class="text-center py-5"><div class="spinner-border text-danger" role="status"><span class="visually-hidden">Cargando...</span></div></div>');
+
+                $.get(urlVencimientos)
+                    .done(function (html) {
+                        $('#vencimientosResultado').html(html);
+                        actualizarBadgeVencimientos($('#vencimientosResultado tr[id^="filaVenc_"]').length);
+                    })
+                    .fail(function () {
+                        $('#vencimientosResultado').html(
+                            '<div class="alert alert-danger py-2 small">No se pudieron cargar los vencimientos.</div>');
+                    });
+            }
+
+            // Mantiene el contador del encabezado al dia sin recargar la pagina
+            function actualizarBadgeVencimientos(total) {
+                var $badge = $('#badgeVencimientos');
+                if (total > 0) {
+                    if (!$badge.length) {
+                        $badge = $('<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="badgeVencimientos"></span>');
+                        $('#btnVerVencimientos').append($badge);
+                    }
+                    $badge.text(total);
+                } else {
+                    $badge.remove();
+                }
+            }
+
+            $('#modalVencimientos').on('show.bs.modal', function () {
+                cerrarFormRenovar();
+                cargarVencimientos();
+            });
+
+            // Botones del listado de vencimientos (el contenido llega por AJAX, asi que
+            // se delegan en document en lugar de usar onclick inline).
+            $(document).on('click', '#vencimientosResultado [data-accion="renovar"]', function () {
+                abrirRenovar($(this).data('id'), $(this).data('desde'), $(this).data('hasta'));
+            });
+
+            $(document).on('click', '#vencimientosResultado [data-accion="inactivo"]', function () {
+                marcarInactivoVencimiento($(this).data('id'), $(this).data('dias'));
+            });
+
+            // Abre el formulario con el siguiente periodo sugerido, sobre el mismo modal
+            function abrirRenovar(id, desde, hasta) {
+                objetivoARenovar = id;
+                $('#renovarFolio').text(id);
+                $('#renovarDesde').val(desde);
+                $('#renovarHasta').val(hasta);
+
+                var d1 = new Date(desde), d2 = new Date(hasta);
+                var duracion = Math.round((d2 - d1) / 86400000) + 1;
+                $('#renovarSugerencia').text('Periodo sugerido: ' + duracion + ' días (misma duración que el actual). Puedes ajustarlo.');
+
+                $('#vencimientosResultado').addClass('d-none');
+                $('#vencimientosForm').removeClass('d-none');
+                $('#vencimientosForm')[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            function cerrarFormRenovar() {
+                $('#vencimientosForm').addClass('d-none');
+                $('#vencimientosResultado').removeClass('d-none');
+                objetivoARenovar = null;
+            }
+
+            $('#btnCancelarRenovar').click(cerrarFormRenovar);
+
+            $('#btnConfirmarRenovar').click(function () {
+                var id = objetivoARenovar;
+                var desde = $('#renovarDesde').val();
+                var hasta = $('#renovarHasta').val();
+
+                if (!id) { alert('No se ha seleccionado ningún objetivo.'); return; }
+                if (!desde || !hasta) {
+                    alert('Indica las dos fechas.');
+                    return;
+                }
+                if (hasta < desde) {
+                    alert('La fecha final no puede ser anterior a la inicial.');
+                    return;
+                }
+
+                var $btn = $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Guardando...');
+
+                $.post(urlRenovar, { id: id, nuevaDesde: desde, nuevaHasta: hasta })
+                    .done(function (r) {
+                        if (r.success) {
+                            cerrarFormRenovar();
+                            alert(r.message);
+                            cargarVencimientos();
+                        } else {
+                            alert(r.message);
+                        }
+                    })
+                    .fail(function (xhr) {
+                        alert('No se pudo crear el nuevo objetivo.\n\n' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : ''));
+                    })
+                    .always(function () {
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Crear nuevo objetivo');
+                    });
+            });
+
+            function marcarInactivoVencimiento(id, dias) {
+
+                dias = parseInt(dias, 10);
+                if (isNaN(dias)) dias = 0;
+
+                if (dias < 0) {
+                    // El periodo ya concluyo: confirmacion simple
+                    var msgVencido = '¿Marcar el objetivo #' + id + ' como Inactivo?\n\n'
+                        + 'Su periodo ya vencio hace ' + Math.abs(dias) + ' dia(s).\n'
+                        + 'Se conservara todo su historial y sus metas.';
+                    if (!confirm(msgVencido)) return;
+                } else {
+                    // Aun le quedan dias: se advierte que el periodo termina de inmediato
+                    var plural = dias === 1 ? 'dia' : 'dias';
+                    var msgVigente = 'ATENCION: el objetivo #' + id + ' TODAVIA esta vigente.\n\n'
+                        + 'Le quedan ' + dias + ' ' + plural + ' para vencer.\n'
+                        + 'Si lo pasas a Inactivo ahora, su periodo termina de inmediato y '
+                        + 'dejara de contar para los KPI.\n\n'
+                        + '¿Seguro que quieres cerrarlo antes de tiempo?';
+                    if (!confirm(msgVigente)) return;
+                    if (!confirm('Ultima confirmacion: ¿pasar a Inactivo el objetivo #' + id + '?')) return;
+                }
+
+                $.post(urlInactivo, { id: id })
+                    .done(function (r) {
+                        if (r.success) {
+                            alert(r.message);
+                            cargarVencimientos();
+                        } else {
+                            alert(r.message);
+                        }
+                    })
+                    .fail(function (xhr) {
+                        alert('No se pudo marcar como Inactivo.\n\n' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : ''));
+                    });
+            }
+
+            // 4. Lógica dinámica para agregar y eliminar Metas (Delegada al body porque el modal es dinámico)
+            var contadorMetaGlobal = 1000;
+
+            $(document).on('click', '.btnAgregarMeta', function () {
+                var tbodyId = $(this).attr('data-tbody');
+                var $tbody = $('#' + tbodyId);
+                if (!$tbody.length) return;
+
+                var clave = 'n' + (++contadorMetaGlobal);
+
+                var tr = `<tr>
+                    <input type="hidden" name="ValoresConfigurados.Index" value="${clave}" />
+                    <input type="hidden" name="ValoresConfigurados[${clave}].ID" value="0" />
+
+                    <td class="align-middle text-start ps-3">
+                        <select name="ValoresConfigurados[${clave}].ID_Catalogo_ValorObjetivo" class="form-select form-select-sm catalogo-editar">
+                            <!-- Este HTML debe generarse desde C# o con JS inyectando opciones -->
+                            <option value="">Seleccione o guarde el objetivo primero</option>
+                        </select>
+                        <input type="hidden" name="ValoresConfigurados[${clave}].Tipo_Valor" class="tipo-valor-editar" value="" />
+                        <input type="hidden" name="ValoresConfigurados[${clave}].Unidad_Medida" class="unidad-medida-editar" value="" />
+                    </td>
+
+                    <td class="align-middle"><span class="unidad-visible-editar"></span></td>
+
+                    <td>
+                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Minimo" class="form-control form-control-sm text-center" placeholder="0.00" />
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Maximo" class="form-control form-control-sm text-center" placeholder="0.00" />
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" placeholder="0.00" />
+                    </td>
+                    <td class="align-middle">
+                        <button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+
+                $tbody.append(tr);
+            });
+
+            $(document).on('click', '.btnEliminarMeta', function () {
+
+                var $tbody = $(this).closest('tbody');
+
+                if ($tbody.find('tr').length <= 1) {
+                    return;
+                }
+
+                if (confirm('¿Eliminar esta meta?')) {
+                    $(this).closest('tr').remove();
+                }
+            });
+
+            // Auto-llenado de Unidad al cambiar métrica (Delegado)
+            $(document).on("change", ".catalogo-editar", function (e) {
+                const select = e.target;
+                const opcion = select.options[select.selectedIndex];
+                const fila = select.closest("tr");
+                if (!fila) return;
+
+                const tipoValor = fila.querySelector(".tipo-valor-editar");
+                const unidadMedida = fila.querySelector(".unidad-medida-editar");
+                const unidadVisible = fila.querySelector(".unidad-visible-editar");
+
+                if (!opcion || !opcion.value) {
+                    if (tipoValor) tipoValor.value = "";
+                    if (unidadMedida) unidadMedida.value = "";
+                    if (unidadVisible) unidadVisible.textContent = "";
+                    return;
+                }
+
+                const nombre = opcion.textContent.replace(/\s*\([^)]*\)\s*$/, "").trim();
+                const unidad = opcion.dataset.unidad || "";
+
+                if (tipoValor) tipoValor.value = nombre;
+                if (unidadMedida) unidadMedida.value = unidad;
+                if (unidadVisible) unidadVisible.textContent = unidad;
+            });
+
+            // 5. Paginacion (navegacion del servidor, conservando los filtros activos)
+            function irAPaginaObjetivos(pag) {
+                var totalPaginas = parseInt($('#txtIrPagina').attr('max'), 10) || 1;
+                pag = Math.min(Math.max(parseInt(pag, 10) || 1, 1), totalPaginas);
+                window.location.href = urlTablero(pag);
+            }
+
+            $('#selPageSize').on('change', function () {
+                irAPaginaObjetivos(1);
+            });
+
+            $('#paginadorObjetivos').on('click', '.pag-obj__btn', function () {
+                if (this.disabled) return;
+                irAPaginaObjetivos($(this).data('pag'));
+            });
+
+            $('#txtIrPagina').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    irAPaginaObjetivos($(this).val());
+                }
+            });
+
+            // ================================================================
+            // CARGA MASIVA DE OBJETIVOS DESDE EXCEL
+            // ================================================================
+            $('#formCargaObjetivos').on('submit', function (e) {
+                e.preventDefault();
+
+                var archivo = $('#archivoObjetivos')[0].files[0];
+                if (!archivo) {
+                    $('#resultadoCargaObjetivos').html('<div class="alert alert-warning py-2 mb-0">Selecciona un archivo .xlsx.</div>');
+                    return;
+                }
+                if (!/\.xlsx$/i.test(archivo.name)) {
+                    $('#resultadoCargaObjetivos').html('<div class="alert alert-danger py-2 mb-0">Solo se aceptan archivos .xlsx.</div>');
+                    return;
+                }
+
+                var btn = $('#btnCargarObjetivos');
+                var textoOriginal = btn.html();
+                btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Procesando...');
+                $('#resultadoCargaObjetivos').html('');
+
+                var fd = new FormData();
+                fd.append('archivo', archivo);
+
+                $.ajax({
+                    url: '@Url.Action("CargarMasivoObjetivos", "Objetivos")',
+                    type: 'POST',
+                    data: fd,
+                    processData: false,
+                    contentType: false,
+                    success: function (r) {
+                        btn.prop('disabled', false).html(textoOriginal);
+                        if (r.ok) {
+                            var mensaje = r.mensaje + ' <button type="button" class="btn btn-sm btn-primary ms-2" onclick="location.reload()">Recargar Tablero</button>';
+                            $('#resultadoCargaObjetivos').html('<div class="alert alert-success py-2 mb-0">' + mensaje + '</div>');
+                            if (r.errores && r.errores.length) {
+                                var lista = '<ul class="mb-0 ps-3" style="max-height:150px;overflow:auto;">';
+                                r.errores.forEach(function (err) { lista += '<li>' + err + '</li>'; });
+                                lista += '</ul>';
+                                $('#resultadoCargaObjetivos').append('<div class="alert alert-warning mt-2 py-2 mb-0"><strong>' + r.errores.length + ' fila(s) con error:</strong>' + lista + '</div>');
+                            }
+                            $('#archivoObjetivos').val('');
+                        } else {
+                            $('#resultadoCargaObjetivos').html('<div class="alert alert-danger py-2 mb-0">' + (r.mensaje || 'No se pudo procesar el archivo.') + '</div>');
+                        }
+                    },
+                    error: function () {
+                        btn.prop('disabled', false).html(textoOriginal);
+                        $('#resultadoCargaObjetivos').html('<div class="alert alert-danger py-2 mb-0">Error al comunicarse con el servidor.</div>');
+                    }
+                });
+            });
+        });
+    </script>
+}

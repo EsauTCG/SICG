@@ -1,0 +1,491 @@
+@model Plataforma_CG.ViewModels.SurtidoAlmacenVM
+
+@{
+    ViewData["Title"] = "Ubicar inventario";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<style>
+    :root {
+        --ub-bg:#f2f5f7;
+        --ub-card:#ffffff;
+        --ub-line:#d7e0e6;
+        --ub-text:#1f2b37;
+        --ub-muted:#667787;
+        --ub-wine:#7a2029;
+        --ub-wine-dark:#54151c;
+        --ub-blue:#0d6efd;
+        --ub-green:#198754;
+    }
+
+    html, body {
+        width:100% !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
+    }
+
+    body {
+        margin:0;
+        background:var(--ub-bg) !important;
+        color:var(--ub-text);
+        font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+    }
+
+    body:has(.ub-page) .layout-main-content,
+    body:has(.ub-page) .layout-container-fluid {
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        box-sizing:border-box !important;
+        overflow-x:hidden !important;
+    }
+
+    body:has(.ub-page) .layout-container-fluid {
+        padding:0 !important;
+        margin:0 !important;
+    }
+
+    .ub-page {
+        width:100%;
+        max-width:calc(100vw - 140px);
+        padding:10px 12px 16px;
+        box-sizing:border-box;
+    }
+
+    .ub-shell {
+        width:100%;
+        max-width:1500px;
+    }
+
+    .ub-top {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:10px;
+        margin-bottom:8px;
+    }
+
+    .ub-back {
+        min-height:38px;
+        display:inline-flex;
+        align-items:center;
+        padding:0 13px;
+        border-radius:10px;
+        border:1px solid var(--ub-line);
+        background:#fff;
+        color:#435466 !important;
+        text-decoration:none !important;
+        font-size:12px;
+        font-weight:850;
+    }
+
+    .ub-warehouse {
+        color:var(--ub-muted);
+        font-size:12px;
+        font-weight:850;
+    }
+
+    .ub-hero {
+        padding:14px 16px;
+        border-radius:16px;
+        background:linear-gradient(135deg,var(--ub-wine-dark),var(--ub-wine));
+        color:#fff;
+    }
+
+    .ub-hero h1 {
+        margin:3px 0 2px;
+        font-size:27px;
+        font-weight:950;
+    }
+
+    .ub-hero p {
+        margin:0;
+        font-size:12px;
+        font-weight:650;
+        opacity:.92;
+    }
+
+    .ub-steps {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:6px;
+        margin-top:10px;
+    }
+
+    .ub-step {
+        min-height:38px;
+        display:flex;
+        align-items:center;
+        gap:7px;
+        padding:6px 8px;
+        border-radius:10px;
+        background:rgba(255,255,255,.09);
+        border:1px solid rgba(255,255,255,.18);
+        font-size:10px;
+        font-weight:900;
+    }
+
+    .ub-step b {
+        width:24px;
+        height:24px;
+        min-width:24px;
+        display:grid;
+        place-items:center;
+        border-radius:999px;
+        background:#fff;
+        color:var(--ub-wine);
+    }
+
+    .ub-work {
+        display:grid;
+        grid-template-columns:minmax(0,1fr) minmax(330px,.85fr);
+        gap:8px;
+        margin-top:8px;
+        align-items:start;
+    }
+
+    .ub-left {
+        display:grid;
+        gap:7px;
+    }
+
+    .ub-card {
+        padding:12px;
+        border-radius:13px;
+        border:1px solid var(--ub-line);
+        background:#fff;
+        box-shadow:0 4px 14px rgba(20,35,48,.04);
+    }
+
+    .ub-card.disabled {
+        opacity:.48;
+        background:#f4f6f7;
+    }
+
+    .ub-label {
+        display:inline-flex;
+        min-height:24px;
+        align-items:center;
+        padding:0 8px;
+        border-radius:999px;
+        background:#e9f2ff;
+        color:var(--ub-blue);
+        font-size:8px;
+        font-weight:950;
+    }
+
+    .ub-card h2 {
+        margin:5px 0 0;
+        font-size:17px;
+        font-weight:950;
+    }
+
+    .ub-row {
+        display:grid;
+        grid-template-columns:minmax(0,1fr) 110px;
+        gap:6px;
+        margin-top:8px;
+    }
+
+    .ub-row input {
+        width:100%;
+        height:48px;
+        box-sizing:border-box;
+        padding:0 12px;
+        border:2px solid #c6d1d9;
+        border-radius:10px;
+        background:#fff;
+        color:#17232d;
+        font-size:16px;
+        font-weight:850;
+        outline:none;
+    }
+
+    .ub-row input:focus {
+        border-color:var(--ub-blue);
+        box-shadow:0 0 0 3px rgba(13,110,253,.10);
+    }
+
+    .ub-row button,
+    .ub-confirm {
+        min-height:48px;
+        border:0;
+        border-radius:10px;
+        background:var(--ub-blue);
+        color:#fff;
+        font-size:11px;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    .ub-confirm {
+        width:100%;
+        margin-top:8px;
+        background:var(--ub-green);
+        font-size:13px;
+    }
+
+    .ub-row button:disabled,
+    .ub-confirm:disabled,
+    .ub-row input:disabled {
+        opacity:.55;
+        cursor:not-allowed;
+    }
+
+    .ub-result {
+        margin-top:8px;
+        padding:10px;
+        border-radius:10px;
+        border:1px dashed #bcc8d0;
+        background:#f9fbfc;
+        min-height:44px;
+        font-size:11px;
+        line-height:1.4;
+        font-weight:700;
+    }
+
+    .ub-suggested {
+        margin-top:8px;
+        padding:10px;
+        border-radius:10px;
+        border:1px solid #d8e0e6;
+        background:#f8fafb;
+    }
+
+    .ub-suggested small {
+        display:block;
+        color:var(--ub-muted);
+        font-size:8px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .ub-suggested strong {
+        display:block;
+        margin-top:2px;
+        font-size:20px;
+        font-weight:950;
+    }
+
+    .ub-preview {
+        position:sticky;
+        top:10px;
+        overflow:hidden;
+        border-radius:13px;
+        border:1px solid var(--ub-line);
+        background:#fff;
+        box-shadow:0 4px 14px rgba(20,35,48,.04);
+    }
+
+    .ub-preview-head {
+        padding:10px;
+        border-bottom:1px solid var(--ub-line);
+        background:#f8fafb;
+    }
+
+    .ub-preview-head small {
+        display:block;
+        color:var(--ub-muted);
+        font-size:8px;
+        font-weight:900;
+    }
+
+    .ub-preview-head h2 {
+        margin:2px 0 0;
+        font-size:15px;
+        font-weight:950;
+    }
+
+    #putaway3d {
+        min-height:280px;
+    }
+
+    .preview-location {
+        width:calc(100% - 16px);
+        height:42px;
+        margin:8px;
+        box-sizing:border-box;
+        border:2px solid #cad5dd;
+        border-radius:9px;
+        background:#f8fafb;
+        color:var(--ub-wine);
+        text-align:center;
+        font-size:16px;
+        font-weight:950;
+    }
+
+    .ub-color {
+        display:none;
+        margin:0 8px 8px;
+        padding:8px 10px;
+        border-radius:10px;
+        border:1px solid #d8e0e6;
+        background:#fff;
+        font-size:10px;
+        font-weight:900;
+    }
+
+    @@media(max-width:900px) {
+        .ub-page { max-width:calc(100vw - 28px); }
+        .ub-work { grid-template-columns:1fr minmax(280px,.8fr); }
+    }
+
+    @@media(max-width:680px) {
+        .ub-page { max-width:calc(100vw - 12px); padding:5px; }
+        .ub-top { display:grid; grid-template-columns:1fr; }
+        .ub-steps, .ub-work { grid-template-columns:1fr; }
+        .ub-row { grid-template-columns:1fr; }
+        .ub-preview { position:static; }
+    }
+</style>
+
+<div id="putawayConfig"
+     data-almacen="@Model.Codigo"
+     hidden>
+</div>
+
+@Html.AntiForgeryToken()
+
+<div class="ub-page">
+    <main class="ub-shell">
+
+        <div class="ub-top">
+            <a class="ub-back"
+               href="@Url.Action("Surtido_cedis","Surtido",new { almacen = Model.Codigo })">
+                ← Regresar
+            </a>
+
+            <div class="ub-warehouse">
+                @Model.Codigo · @Model.Nombre
+            </div>
+        </div>
+
+        <section class="ub-hero">
+            <div>
+                <small>UBICACIÓN DE INVENTARIO</small>
+                <h1>Ubicar tarima o caja</h1>
+                <p>El sistema consulta la configuración vigente de este almacén.</p>
+            </div>
+
+            <div class="ub-steps">
+                <div class="ub-step"><b>1</b><span>Escanea producto</span></div>
+                <div class="ub-step"><b>2</b><span>Escanea destino</span></div>
+                <div class="ub-step"><b>3</b><span>Confirma</span></div>
+            </div>
+        </section>
+
+        <section class="ub-work">
+
+            <div class="ub-left">
+
+                <article class="ub-card">
+                    <div class="ub-label">1 · PRODUCTO</div>
+                    <h2>Escanea tarima o caja</h2>
+
+                    <div class="ub-row">
+                        <input id="scanInventory"
+                               placeholder="Escanea aquí"
+                               autocomplete="off" />
+
+                        <button id="btnBuscarInventory"
+                                type="button">
+                            BUSCAR
+                        </button>
+                    </div>
+
+                    <div id="inventoryResult"
+                         class="ub-result">
+                        Escanea para comenzar.
+                    </div>
+                </article>
+
+                <article id="stepDestination"
+                         class="ub-card disabled">
+
+                    <div class="ub-label">2 · DESTINO</div>
+                    <h2>Escanea la ubicación</h2>
+
+                    <div class="ub-suggested">
+                        <small>Ubicación sugerida</small>
+                        <strong id="suggestedLocationText">—</strong>
+                    </div>
+
+                    <div class="ub-row">
+                        <input id="scanDestination"
+                               placeholder="Escanea ubicación"
+                               autocomplete="off"
+                               disabled />
+
+                        <button id="btnValidateDestination"
+                                type="button"
+                                disabled>
+                            VALIDAR
+                        </button>
+                    </div>
+                </article>
+
+                <article id="stepConfirm"
+                         class="ub-card disabled">
+
+                    <div class="ub-label">3 · CONFIRMAR</div>
+                    <h2>Confirma el movimiento</h2>
+
+                    <div id="confirmHelp"
+                         class="ub-result">
+                        Valida primero la ubicación.
+                    </div>
+
+                    <button id="btnConfirmLocation"
+                            class="ub-confirm"
+                            type="button"
+                            disabled>
+                        ✓ CONFIRMAR UBICACIÓN
+                    </button>
+                </article>
+
+            </div>
+
+            <aside class="ub-preview">
+
+                <div class="ub-preview-head">
+                    <small>MAPA 3D</small>
+                    <h2>Destino</h2>
+                </div>
+
+                <div id="putaway3d"
+                     class="sigo-layout3d"
+                     data-endpoint="@Url.Action("DatosMapa3DOperativo","Surtido",new { almacen=Model.Codigo })"
+                     data-location=""
+                     data-info-target="#putaway3dInfo">
+                </div>
+
+                <div id="putaway3dInfo"
+                     class="wms-3d-info">
+                </div>
+
+                <input id="previewLocation"
+                       class="preview-location"
+                       value=""
+                       readonly />
+
+                <div id="colorResult"
+                     class="ub-color">
+                </div>
+
+            </aside>
+
+        </section>
+
+    </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-layout-3d.js"
+        asp-append-version="true"></script>
+<script src="~/js/surtido-ubicacion-inteligente-erp.js"
+        asp-append-version="true"></script>

@@ -1,0 +1,1034 @@
+@model Plataforma_CG.ViewModels.SurtidoModuloPedidosVM
+
+@{
+    ViewData["Title"] = "Coordinación";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var prioridadesPedido =
+        ViewBag.PrioridadesPedido as IDictionary<string, int>
+        ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    var plantaActiva =
+        ViewBag.PlantaActiva as string
+        ?? Model.Almacen.Planta;
+
+    var pedidosOrdenados =
+        Model.Pedidos
+            .OrderBy(x => x.AlmacenNombre)
+            .ThenBy(x =>
+            {
+                var clave =
+                    $"{(x.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{x.SolicitudSurtidoId}";
+
+                return prioridadesPedido.TryGetValue(
+                    clave,
+                    out var prioridad
+                )
+                    ? prioridad
+                    : int.MaxValue;
+            })
+            .ThenBy(x => x.FechaHora)
+            .ThenBy(x => x.SolicitudSurtidoId)
+            .ToList();
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-coordinacion-erp.css"
+      asp-append-version="true" />
+
+<style>
+    :root {
+        --co-bg:#f2f5f7;
+        --co-card:#ffffff;
+        --co-line:#d7e0e6;
+        --co-text:#1f2b37;
+        --co-muted:#667788;
+        --co-wine:#7a2029;
+        --co-wine-dark:#55151c;
+        --co-blue:#0d6efd;
+        --co-green:#198754;
+        --co-orange:#d98200;
+        --co-red:#b4232f;
+    }
+
+    html,
+    body {
+        width:100% !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
+    }
+
+    body {
+        margin:0;
+        background:var(--co-bg) !important;
+        color:var(--co-text);
+        font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+    }
+
+    body:has(.co-simple) .layout-main-content,
+    body:has(.co-simple) .layout-container-fluid {
+        min-width:0 !important;
+        max-width:100% !important;
+        box-sizing:border-box !important;
+        overflow-x:hidden !important;
+    }
+
+    body:has(.co-simple) .layout-container-fluid {
+        width:auto !important;
+        margin:0 !important;
+        padding:0 !important;
+    }
+
+    .co-simple {
+        width:100%;
+        max-width:calc(100vw - 140px);
+        padding:10px 12px 16px;
+        box-sizing:border-box;
+    }
+
+    .co-shell {
+        width:100%;
+        max-width:1550px;
+        margin:0;
+    }
+
+    /* =========================================================
+       CABECERA
+       ========================================================= */
+
+    .co-top {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        margin-bottom:8px;
+    }
+
+    .co-back {
+        min-height:38px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 13px;
+        border-radius:10px;
+        background:#fff;
+        border:1px solid var(--co-line);
+        color:#435466 !important;
+        text-decoration:none !important;
+        font-size:12px;
+        font-weight:850;
+    }
+
+    .co-top-actions {
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        justify-content:flex-end;
+    }
+
+    .co-top-action {
+        min-height:38px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:6px;
+        padding:0 11px;
+        border-radius:10px;
+        background:#fff;
+        border:1px solid var(--co-line);
+        color:#435466 !important;
+        text-decoration:none !important;
+        font-size:11px;
+        font-weight:850;
+    }
+
+    .co-hero {
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:12px;
+        align-items:center;
+        padding:14px 16px;
+        border-radius:16px;
+        background:linear-gradient(135deg,var(--co-wine-dark),var(--co-wine));
+        color:#fff;
+    }
+
+    .co-kicker {
+        font-size:10px;
+        font-weight:900;
+        letter-spacing:.06em;
+        text-transform:uppercase;
+        opacity:.84;
+    }
+
+    .co-title {
+        margin:3px 0 2px;
+        font-size:27px;
+        line-height:1.05;
+        font-weight:950;
+    }
+
+    .co-sub {
+        margin:0;
+        font-size:12px;
+        font-weight:650;
+        opacity:.92;
+    }
+
+    .co-hero-count {
+        min-width:110px;
+        padding:10px 13px;
+        text-align:center;
+        border-radius:13px;
+        background:rgba(255,255,255,.12);
+        border:1px solid rgba(255,255,255,.22);
+    }
+
+    .co-hero-count strong {
+        display:block;
+        font-size:29px;
+        line-height:1;
+        font-weight:950;
+    }
+
+    .co-hero-count span {
+        display:block;
+        margin-top:4px;
+        font-size:10px;
+        font-weight:850;
+    }
+
+    /* =========================================================
+       RESUMEN
+       ========================================================= */
+
+    .co-summary {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:7px;
+        margin-top:8px;
+    }
+
+    .co-summary-card {
+        min-height:58px;
+        display:flex;
+        align-items:center;
+        gap:9px;
+        padding:8px 10px;
+        border-radius:11px;
+        background:#fff;
+        border:1px solid var(--co-line);
+    }
+
+    .co-summary-icon {
+        width:34px;
+        height:34px;
+        min-width:34px;
+        display:grid;
+        place-items:center;
+        border-radius:9px;
+        font-size:15px;
+        font-weight:900;
+    }
+
+    .co-summary-card:nth-child(1) .co-summary-icon {
+        background:#fff1da;
+        color:var(--co-orange);
+    }
+
+    .co-summary-card:nth-child(2) .co-summary-icon {
+        background:#e9f2ff;
+        color:var(--co-blue);
+    }
+
+    .co-summary-card:nth-child(3) .co-summary-icon {
+        background:#e8f6ee;
+        color:var(--co-green);
+    }
+
+    .co-summary-card span {
+        display:block;
+        color:var(--co-muted);
+        font-size:8px;
+        font-weight:850;
+        text-transform:uppercase;
+    }
+
+    .co-summary-card strong {
+        display:block;
+        margin-top:1px;
+        color:var(--co-text);
+        font-size:17px;
+        line-height:1.1;
+        font-weight:950;
+        overflow-wrap:anywhere;
+    }
+
+    /* =========================================================
+       MENSAJES
+       ========================================================= */
+
+    .co-alert {
+        margin-top:7px;
+        padding:8px 10px;
+        border-radius:10px;
+        background:#fff0f1;
+        border:1px solid #efbfc4;
+        border-left:5px solid var(--co-red);
+        color:#7b1f28;
+        font-size:10px;
+        font-weight:750;
+    }
+
+    .co-alert.success {
+        background:#edf9f1;
+        border-color:#b9dfc8;
+        border-left-color:var(--co-green);
+        color:#17683f;
+    }
+
+    /* =========================================================
+       BARRA OPERATIVA
+       ========================================================= */
+
+    .co-toolbar {
+        margin-top:8px;
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:8px;
+        align-items:center;
+        padding:9px 10px;
+        border-radius:12px;
+        background:#fff;
+        border:1px solid var(--co-line);
+    }
+
+    .co-toolbar-copy strong {
+        display:block;
+        font-size:12px;
+        font-weight:950;
+        color:var(--co-text);
+    }
+
+    .co-toolbar-copy span {
+        display:block;
+        margin-top:2px;
+        color:var(--co-muted);
+        font-size:9px;
+        font-weight:650;
+    }
+
+    .co-refresh {
+        min-height:36px;
+        padding:0 12px;
+        border:1px solid var(--co-wine-dark);
+        border-radius:9px;
+        background:var(--co-wine);
+        color:#fff;
+        font-size:9px;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    /* =========================================================
+       ALMACENES
+       ========================================================= */
+
+    .co-warehouses {
+        display:flex;
+        flex-wrap:wrap;
+        gap:5px;
+        margin-top:7px;
+    }
+
+    .co-wh {
+        min-width:115px;
+        padding:6px 8px;
+        border:1px solid #d8e0e6;
+        border-radius:9px;
+        background:#fff;
+    }
+
+    .co-wh.has-orders {
+        background:#f1faf5;
+        border-color:#b8ddc7;
+    }
+
+    .co-wh strong {
+        display:block;
+        font-size:8px;
+        font-weight:950;
+        color:#263741;
+    }
+
+    .co-wh span {
+        display:block;
+        margin-top:1px;
+        max-width:180px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        color:#6c7b85;
+        font-size:7px;
+    }
+
+    .co-wh b {
+        display:block;
+        margin-top:3px;
+        color:#17683f;
+        font-size:7px;
+        font-weight:950;
+    }
+
+    /* =========================================================
+       COLA DE PEDIDOS
+       ========================================================= */
+
+    .co-orders {
+        margin-top:8px;
+        background:#fff;
+        border:1px solid var(--co-line);
+        border-radius:13px;
+        overflow:hidden;
+    }
+
+    .co-orders-head {
+        min-height:46px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        padding:8px 10px;
+        background:#f8fafb;
+        border-bottom:1px solid var(--co-line);
+    }
+
+    .co-orders-head h2 {
+        margin:0;
+        font-size:15px;
+        font-weight:950;
+    }
+
+    .co-orders-head span {
+        display:block;
+        margin-top:2px;
+        color:var(--co-muted);
+        font-size:8px;
+    }
+
+    .co-order-count {
+        min-width:34px;
+        min-height:27px;
+        display:grid;
+        place-items:center;
+        padding:0 7px;
+        border-radius:999px;
+        background:#fff3dc;
+        border:1px solid #efd59b;
+        color:#8d5b00;
+        font-size:9px;
+        font-weight:950;
+    }
+
+    .co-order-list {
+        display:grid;
+        gap:6px;
+        padding:8px;
+    }
+
+    .co-order {
+        display:grid;
+        grid-template-columns:58px minmax(0,1fr) minmax(390px,460px);
+        gap:9px;
+        align-items:center;
+        min-height:92px;
+        padding:8px 9px;
+        border:1px solid #d8e0e6;
+        border-left:5px solid #aeb8be;
+        border-radius:10px;
+        background:#fff;
+    }
+
+    .co-order.priority-one {
+        border-color:#a8d4ba;
+        border-left-color:var(--co-green);
+        background:#f7fcf9;
+    }
+
+    .co-priority-box {
+        width:52px;
+        min-height:52px;
+        display:grid;
+        place-items:center;
+        align-content:center;
+        border-radius:10px;
+        background:#eef1f3;
+        color:#586873;
+        text-align:center;
+    }
+
+    .priority-one .co-priority-box {
+        background:#dff3e7;
+        color:#17683f;
+    }
+
+    .co-priority-box small {
+        display:block;
+        font-size:6px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .co-priority-box strong {
+        display:block;
+        font-size:20px;
+        line-height:1;
+        font-weight:950;
+    }
+
+    .co-order-main {
+        min-width:0;
+    }
+
+    .co-order-line {
+        display:flex;
+        align-items:center;
+        gap:6px;
+        flex-wrap:wrap;
+    }
+
+    .co-order-number {
+        color:var(--co-wine);
+        font-size:17px;
+        font-weight:950;
+    }
+
+    .co-order-warehouse {
+        padding:3px 6px;
+        border-radius:999px;
+        background:#edf2f5;
+        border:1px solid #d7e0e6;
+        color:#455968;
+        font-size:7px;
+        font-weight:900;
+    }
+
+    .priority-one .co-order-warehouse {
+        background:#e7f5ed;
+        border-color:#b8ddc7;
+        color:#17683f;
+    }
+
+    .co-client {
+        margin-top:3px;
+        color:var(--co-text);
+        font-size:12px;
+        line-height:1.2;
+        font-weight:900;
+        overflow-wrap:anywhere;
+    }
+
+    .co-meta {
+        display:flex;
+        flex-wrap:wrap;
+        gap:3px 9px;
+        margin-top:4px;
+        color:var(--co-muted);
+        font-size:8px;
+        font-weight:650;
+    }
+
+    /* =========================================================
+       CAMBIO DE PRIORIDAD
+       ========================================================= */
+
+    .co-order-actions {
+        min-width:0;
+        width:100%;
+        display:grid;
+        grid-template-columns:minmax(205px,235px) minmax(150px,1fr);
+        gap:8px;
+        align-items:end;
+    }
+
+    .co-priority-form {
+        display:grid;
+        grid-template-columns:84px minmax(105px,1fr);
+        gap:6px;
+        margin:0;
+        min-width:0;
+        width:100%;
+    }
+
+    .co-priority-field label {
+        display:block;
+        margin-bottom:2px;
+        color:var(--co-muted);
+        font-size:6px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .co-priority-field input {
+        width:100%;
+        height:34px;
+        min-height:34px;
+        padding:0 5px;
+        box-sizing:border-box;
+        border:1px solid #bdc9d1;
+        border-radius:8px;
+        background:#fff;
+        color:var(--co-text);
+        text-align:center;
+        font-size:11px;
+        font-weight:950;
+    }
+
+    .co-save {
+        width:100%;
+        height:34px;
+        min-height:34px;
+        padding:0 10px;
+        border:1px solid var(--co-wine-dark);
+        border-radius:8px;
+        background:var(--co-wine);
+        color:#fff;
+        font-size:7px;
+        line-height:1.05;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    .co-open {
+        width:100%;
+        min-height:34px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 7px;
+        border-radius:8px;
+        background:var(--co-blue);
+        color:#fff !important;
+        text-decoration:none !important;
+        text-align:center;
+        font-size:7px;
+        font-weight:950;
+    }
+
+    .co-empty {
+        margin:8px;
+        padding:22px 12px;
+        border-radius:10px;
+        background:#edf8f1;
+        border:1px dashed #a9d4ba;
+        color:#17683f;
+        text-align:center;
+        font-size:11px;
+        font-weight:800;
+    }
+
+    .co-empty strong {
+        display:block;
+        margin-bottom:3px;
+        font-size:17px;
+    }
+
+    @@media(max-width:1200px) {
+        .co-simple {
+            max-width:calc(100vw - 115px);
+        }
+
+        .co-order {
+            grid-template-columns:52px minmax(0,1fr) minmax(350px,410px);
+        }
+
+        .co-order-actions {
+            grid-template-columns:minmax(190px,220px) minmax(140px,1fr);
+        }
+    }
+
+    @@media(max-width:900px) {
+        .co-simple {
+            max-width:calc(100vw - 28px);
+            padding:7px;
+        }
+
+        .co-order {
+            grid-template-columns:50px minmax(0,1fr);
+        }
+
+        .co-order-actions {
+            grid-column:1 / -1;
+            grid-template-columns:minmax(0,1fr) 110px;
+        }
+
+        .co-priority-form {
+            grid-template-columns:70px minmax(95px,130px);
+            justify-content:start;
+        }
+    }
+
+    @@media(max-width:680px) {
+        .co-simple {
+            max-width:calc(100vw - 12px);
+            padding:5px;
+        }
+
+        .co-top {
+            display:grid;
+            grid-template-columns:1fr;
+        }
+
+        .co-top-actions {
+            justify-content:flex-start;
+        }
+
+        .co-hero {
+            grid-template-columns:1fr auto;
+        }
+
+        .co-title {
+            font-size:22px;
+        }
+
+        .co-summary {
+            grid-template-columns:1fr;
+        }
+
+        .co-toolbar {
+            grid-template-columns:1fr;
+        }
+
+        .co-refresh {
+            width:100%;
+        }
+
+        .co-order-actions {
+            grid-template-columns:1fr;
+        }
+
+        .co-priority-form {
+            grid-template-columns:70px minmax(0,1fr);
+        }
+
+        .co-open {
+            width:100%;
+        }
+    }
+
+    @@media(max-width:460px) {
+        .co-hero {
+            grid-template-columns:1fr;
+        }
+
+        .co-hero-count {
+            display:none;
+        }
+
+        .co-order {
+            grid-template-columns:44px minmax(0,1fr);
+        }
+
+        .co-priority-box {
+            width:40px;
+            min-height:44px;
+        }
+
+        .co-priority-box strong {
+            font-size:16px;
+        }
+    }
+</style>
+
+<div class="co-simple">
+    <main class="co-shell">
+
+        <div class="co-top">
+            <a class="co-back"
+               href="@Url.Action(
+                    "Surtido_cedis",
+                    "Surtido",
+                    new { almacen = Model.Almacen.Codigo }
+               )">
+                ← Regresar
+            </a>
+
+            <div class="co-top-actions">
+                <a class="co-top-action"
+                   href="@Url.Action("ConfiguracionAlmacenes", "Surtido")">
+                    ⚙ Almacenes
+                </a>
+
+                <a class="co-top-action"
+                   href="@Url.Action(
+                        "Mapa3D",
+                        "Surtido",
+                        new { almacen = Model.Almacen.Codigo }
+                   )">
+                    ▦ Mapa 3D
+                </a>
+
+                <a class="co-top-action"
+                   href="@Url.Action(
+                        "GestionLayouts",
+                        "Surtido",
+                        new { almacen = Model.Almacen.Codigo }
+                   )">
+                    ⚙ Gestión de layouts
+                </a>
+            </div>
+        </div>
+
+        <section class="co-hero">
+            <div>
+                <div class="co-kicker">COORDINACIÓN DE SURTIDO</div>
+                <div class="co-title">Prioridad de pedidos</div>
+                <p class="co-sub">
+                    @plantaActiva · cambia el número para modificar el orden de surtido.
+                </p>
+            </div>
+
+            <div class="co-hero-count">
+                <strong>@Model.TotalPedidos</strong>
+                <span>Pedidos pendientes</span>
+            </div>
+        </section>
+
+        @if (TempData["Exito"] != null)
+        {
+            <div class="co-alert success">
+                ✓ @TempData["Exito"]
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="co-alert">
+                ⚠ @TempData["Error"]
+            </div>
+        }
+
+        <section class="co-summary">
+            <div class="co-summary-card">
+                <div class="co-summary-icon">☰</div>
+                <div>
+                    <span>Pedidos</span>
+                    <strong>@Model.TotalPedidos</strong>
+                </div>
+            </div>
+
+            <div class="co-summary-card">
+                <div class="co-summary-icon">▣</div>
+                <div>
+                    <span>Almacenes</span>
+                    <strong>@Model.Almacenes.Count</strong>
+                </div>
+            </div>
+
+            <div class="co-summary-card">
+                <div class="co-summary-icon">⌂</div>
+                <div>
+                    <span>Planta</span>
+                    <strong>@plantaActiva</strong>
+                </div>
+            </div>
+        </section>
+
+        <form class="co-toolbar"
+              method="get"
+              action="@Url.Action("Coordinador","Surtido")">
+
+            <input type="hidden"
+                   name="almacen"
+                   value="@Model.Almacen.Codigo" />
+
+            <div class="co-toolbar-copy">
+                <strong>Cola actual de surtido</strong>
+                <span>Prioridad 1 se trabaja primero en cada almacén.</span>
+            </div>
+
+            <button class="co-refresh"
+                    type="submit">
+                ACTUALIZAR
+            </button>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="co-alert">
+                No se pudieron cargar los pedidos. @Model.Error
+            </div>
+        }
+        else
+        {
+            @if (pedidosOrdenados.Any())
+            {
+                <div class="co-warehouses">
+                    @foreach (var almacenItem in Model.Almacenes.OrderBy(x => x.Nombre))
+                    {
+                        var pedidosAlmacen =
+                            pedidosOrdenados.Count(x =>
+                                string.Equals(
+                                    x.AlmacenCodigo,
+                                    almacenItem.Codigo,
+                                    StringComparison.OrdinalIgnoreCase
+                                )
+                            );
+
+                        <div class="co-wh @(pedidosAlmacen > 0 ? "has-orders" : "")">
+                            <strong>@almacenItem.Codigo</strong>
+                            <span>@almacenItem.Nombre</span>
+                            <b>@pedidosAlmacen pedido@(pedidosAlmacen == 1 ? "" : "s")</b>
+                        </div>
+                    }
+                </div>
+            }
+
+            <section class="co-orders">
+
+                <div class="co-orders-head">
+                    <div>
+                        <h2>Pedidos por surtir</h2>
+                        <span>Cambia la prioridad y guarda.</span>
+                    </div>
+
+                    <div class="co-order-count">
+                        @pedidosOrdenados.Count
+                    </div>
+                </div>
+
+                @if (pedidosOrdenados.Any())
+                {
+                    <div class="co-order-list">
+
+                        @foreach (var p in pedidosOrdenados)
+                        {
+                            var clavePrioridad =
+                                $"{(p.AlmacenCodigo ?? "").Trim().ToUpperInvariant()}|{p.SolicitudSurtidoId}";
+
+                            var prioridadActual =
+                                prioridadesPedido.TryGetValue(
+                                    clavePrioridad,
+                                    out var prioridadEncontrada
+                                )
+                                    ? prioridadEncontrada
+                                    : 1;
+
+                            var totalColaAlmacen =
+                                Math.Max(
+                                    1,
+                                    pedidosOrdenados.Count(x =>
+                                        string.Equals(
+                                            x.AlmacenCodigo,
+                                            p.AlmacenCodigo,
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
+                                );
+
+                            <article class="co-order @(prioridadActual == 1 ? "priority-one" : "")">
+
+                                <div class="co-priority-box">
+                                    <small>Prioridad</small>
+                                    <strong>@prioridadActual</strong>
+                                </div>
+
+                                <div class="co-order-main">
+
+                                    <div class="co-order-line">
+                                        <span class="co-order-number">
+                                            @p.Pedido
+                                        </span>
+
+                                        <span class="co-order-warehouse">
+                                            @p.AlmacenCodigo
+                                            @(prioridadActual == 1 ? " · SURTIR AHORA" : "")
+                                        </span>
+                                    </div>
+
+                                    <div class="co-client">
+                                        @p.Cliente
+                                    </div>
+
+                                    <div class="co-meta">
+                                        <span>Solicitud @p.SolicitudSurtidoId</span>
+                                        <span>@p.FechaHora.ToString("dd/MM/yyyy HH:mm")</span>
+                                        <span>@p.AlmacenSucursal</span>
+                                    </div>
+
+                                </div>
+
+                                <div class="co-order-actions">
+
+                                    <form class="co-priority-form"
+                                          method="post"
+                                          action="@Url.Action("AsignarPrioridadPedido", "Surtido")">
+
+                                        @Html.AntiForgeryToken()
+
+                                        <input type="hidden"
+                                               name="Almacen"
+                                               value="@p.AlmacenCodigo" />
+
+                                        <input type="hidden"
+                                               name="SolicitudSurtidoId"
+                                               value="@p.SolicitudSurtidoId" />
+
+                                        <input type="hidden"
+                                               name="FechaInicio"
+                                               value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
+
+                                        <input type="hidden"
+                                               name="FechaFin"
+                                               value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
+
+                                        <div class="co-priority-field">
+                                            <label>Prioridad</label>
+                                            <input type="number"
+                                                   name="Prioridad"
+                                                   min="1"
+                                                   max="@totalColaAlmacen"
+                                                   value="@prioridadActual"
+                                                   required />
+                                        </div>
+
+                                        <button class="co-save"
+                                                type="submit">
+                                            GUARDAR
+                                        </button>
+
+                                    </form>
+
+                                    <a class="co-open"
+                                       href="@Url.Action(
+                                            "PedidoDetalle",
+                                            "Surtido",
+                                            new
+                                            {
+                                                almacen = p.AlmacenCodigo,
+                                                solicitudSurtidoId = p.SolicitudSurtidoId
+                                            }
+                                       )">
+                                        VER PRODUCTOS
+                                    </a>
+
+                                </div>
+
+                            </article>
+                        }
+
+                    </div>
+                }
+                else
+                {
+                    <div class="co-empty">
+                        <strong>✓ Sin pendientes</strong>
+                        No hay pedidos pendientes en @plantaActiva.
+                    </div>
+                }
+
+            </section>
+        }
+
+    </main>
+</div>

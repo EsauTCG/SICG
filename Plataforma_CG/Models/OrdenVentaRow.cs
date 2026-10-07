@@ -19,6 +19,7 @@
 
         public string Serie { get; set; } = "";
 
+        public string? UsuarioRegistro { get; set; }
         public string? AutorizacionPendiente { get; set; }
     }
 }

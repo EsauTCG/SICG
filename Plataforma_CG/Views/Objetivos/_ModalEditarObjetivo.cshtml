@@ -1,0 +1,208 @@
+@model Plataforma_CG.Models.ObjetivoViewModel
+
+<form asp-action="Editar" asp-controller="Objetivos" method="post" id="formEditarObjetivo">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="ID" />
+    <input type="hidden" asp-for="ID_Perfil" />
+    <input type="hidden" asp-for="ID_Tipo_Objetivo" />
+    @* Se rellena desde el navegador con window.location.href (esta vista se carga por AJAX,
+   asi que Context.Request.Path seria el del endpoint parcial, no el del tablero). *@
+    <input type="hidden" asp-for="URLRetorno" value="" />
+
+    <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+        <h5 class="modal-title fw-bold">
+            <i class="bi bi-pencil-square me-2"></i>Editar Objetivo #@Model.ID
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
+        <div class="alert alert-info py-2 small">
+            <strong>@Model.NombreTipoObjetivo</strong> &bull; @Model.NombrePerfil
+            <br />
+            <small>El area y el tipo de objetivo no se modifican. Si cambias el estatus a <strong>Activo</strong> se registra la aprobacion; si lo dejas o pasas a otro estado, se conserva el que tenga.</small>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="Estado" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Estatus</label>
+                <select asp-for="Estado" class="form-select form-select-sm">
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                    <option value="Cancelado">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Tipo_Periodo_Cumplimiento" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Periodo de cumplimiento</label>
+                <select asp-for="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm">
+                    <option value="">Seleccione un periodo</option>
+                    <option value="Diario">Diario</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Mensual">Mensual</option>
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Anual">Anual</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Fecha_Desde" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Fecha Desde</label>
+                <input asp-for="Fecha_Desde" type="date" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Fecha_Hasta" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Fecha Hasta</label>
+                <input asp-for="Fecha_Hasta" type="date" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="ID_Cliente" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Cliente</label>
+                <select asp-for="ID_Cliente" class="form-select form-select-sm select2-buscar">
+                    <option value="">-- Selecciona un Cliente --</option>
+                    @if (ViewBag.Clientes != null)
+                    {
+                        foreach (var c in ViewBag.Clientes)
+                        {
+                            <option value="@c.Cliente">@c.Nombrecliente</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="UsuarioID_Vendedor" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Vendedor</label>
+                <select asp-for="UsuarioID_Vendedor" class="form-select form-select-sm select2-buscar">
+                    <option value="">-- Selecciona un Vendedor --</option>
+                    @if (ViewBag.Vendedores != null)
+                    {
+                        foreach (var v in ViewBag.Vendedores)
+                        {
+                            <option value="@v.Id">@v.Nombre</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="Proveedor" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Proveedor</label>
+                <input asp-for="Proveedor" type="text" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="SKU" class="form-label fw-bold text-muted" style="font-size:0.8rem;">SKU / Articulo</label>
+                <select asp-for="SKU" class="form-select form-select-sm select2-buscar">
+                    <option value="">-- Selecciona un Articulo --</option>
+                    @if (ViewBag.Articulos != null)
+                    {
+                        foreach (var a in ViewBag.Articulos)
+                        {
+                            <option value="@a.ProductoCodigo">@a.ProductoCodigo - @a.ProductoNombre</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CC" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Cuenta Contable</label>
+                <input asp-for="CC" type="text" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Linea" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Linea</label>
+                <input asp-for="Linea" type="text" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-12">
+                <label asp-for="Descripcion_Objetivo" class="form-label fw-bold text-muted" style="font-size:0.8rem;">Descripcion</label>
+                <textarea asp-for="Descripcion_Objetivo" rows="2" class="form-control form-control-sm"></textarea>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-header bg-light fw-bold py-2 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bullseye me-1"></i>Metas (minimo, maximo y meta)</span>
+                <button type="button" class="btn btn-sm btn-outline-danger shadow-sm btnAgregarMeta"
+                        data-tbody="tbodyMetasEditar" style="font-size:0.70rem;">
+                    <i class="bi bi-plus-lg"></i> Agregar Meta
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0 text-center align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width:200px;">Metrica</th>
+                                <th style="min-width:90px;">Unidad</th>
+                                <th style="min-width:90px;">Minimo</th>
+                                <th style="min-width:90px;">Maximo</th>
+                                <th style="min-width:90px;">Meta</th>
+                                <th style="width:40px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyMetasEditar">
+                            @{
+                                int idx = 0;
+                            }
+                            @if (Model.ValoresConfigurados != null)
+                            {
+                                foreach (var val in Model.ValoresConfigurados)
+                                {
+                                    <tr class="fila-meta">
+                                        <input type="hidden" name="ValoresConfigurados.Index" value="@idx" />
+                                        <input type="hidden" name="ValoresConfigurados[@idx].ID" value="@val.ID" />
+                                        <td class="align-middle text-start ps-3">
+                                            <select name="ValoresConfigurados[@idx].ID_Catalogo_ValorObjetivo"
+                                                    class="form-select form-select-sm catalogo-editar">
+                                                <option value="">-- Metrica --</option>
+                                                @if (ViewBag.CatalogoValores != null)
+                                                {
+                                                    foreach (var item in ViewBag.CatalogoValores)
+                                                    {
+                                                        if (val.ID_Catalogo_ValorObjetivo.HasValue && val.ID_Catalogo_ValorObjetivo.Value == Convert.ToInt32(item.ID))
+                                                        {
+                                                            <option value="@item.ID" data-unidad="@item.Unidad_Medida" selected>@item.Nombre (@item.Unidad_Medida)</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@item.ID" data-unidad="@item.Unidad_Medida">@item.Nombre (@item.Unidad_Medida)</option>
+                                                        }
+                                                    }
+                                                }
+                                            </select>
+                                            <input type="hidden" name="ValoresConfigurados[@idx].Tipo_Valor"
+                                                   class="tipo-valor-editar" value="@val.Tipo_Valor" />
+                                            <input type="hidden" name="ValoresConfigurados[@idx].Unidad_Medida"
+                                                   class="unidad-medida-editar" value="@val.Unidad_Medida" />
+                                        </td>
+                                        <td class="align-middle"><span class="unidad-visible-editar">@val.Unidad_Medida</span></td>
+                                        <td>
+                                            <input type="number" step="0.01" name="ValoresConfigurados[@idx].Valor_Minimo"
+                                                   value="@val.Valor_Minimo" class="form-control form-control-sm text-center" placeholder="0.00" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="ValoresConfigurados[@idx].Valor_Maximo"
+                                                   value="@val.Valor_Maximo" class="form-control form-control-sm text-center" placeholder="0.00" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="ValoresConfigurados[@idx].Valor_Objetivo"
+                                                   value="@val.Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" placeholder="0.00" />
+                                        </td>
+                                        <td class="align-middle">
+                                            <button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    idx++;
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary" onclick="cargarDetalleObjetivo(@Model.ID)">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Detalles
+        </button>
+        <button type="submit" class="btn btn-danger fw-bold shadow-sm">
+            <i class="bi bi-save me-1"></i> Guardar Cambios
+        </button>
+    </div>
+</form>

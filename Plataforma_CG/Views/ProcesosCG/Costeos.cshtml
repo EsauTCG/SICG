@@ -15,6 +15,8 @@
 }
 
 <style>
+    @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
     :root {
         --bg: #f0dede;
         --panel: #f8eeee;
@@ -245,6 +247,48 @@
         font-weight: 700;
     }
 
+    .auto-status-panel {
+        margin: 0 10px 10px 10px;
+        padding: 8px 10px;
+        border: 1px solid #c79d9d;
+        background: #fffafa;
+        font-size: 12px;
+        color: #4a1111;
+    }
+
+    .auto-status-title {
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .auto-status-list {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .auto-status-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 8px;
+        border: 1px solid #caa0a0;
+        background: #f7e7e7;
+        font-weight: 700;
+    }
+
+    .auto-status-item.active {
+        border-color: #198754;
+        background: #e2f4e9;
+        color: #135c39;
+    }
+
+    .auto-status-item.inactive {
+        border-color: #b48787;
+        background: #f1e4e4;
+        color: #6a3a3a;
+    }
+
     .table-wrap {
         overflow: auto;
         max-height: 65vh;
@@ -306,6 +350,68 @@
     .table-wrap tbody tr:nth-child(even) td { background: #f9eded !important; }
     .table-wrap tbody tr:hover td { background: #f4dddd !important; }
 
+    .tbl-comparativa {
+        width: max-content !important;
+        min-width: 100%;
+        table-layout: auto !important;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+    .tbl-comparativa th,
+    .tbl-comparativa td{
+        padding:5px 8px;
+        white-space:nowrap;
+    }
+
+    .col-producto{
+    min-width:280px;
+    }
+
+    .col-costo{
+        min-width:120px;
+        text-align:right;
+    }
+
+    .col-peso{
+        min-width:110px;
+        text-align:right;
+    }
+
+    .col-id{
+        min-width:80px;
+        text-align:center;
+    }
+
+    .col-estado{
+        min-width:130px;
+        text-align:center;
+    }
+
+    .comparativa-resumen{
+        display:flex;
+        flex-wrap:wrap;
+        gap:20px;
+
+        margin-botton:15px;
+        padding:10px 15px;
+
+        border:1px solid #dee2e6;
+        border-radius:6px;
+
+        background: #f8f9fa;
+    }
+
+    .comparativa-resumen span{
+        white-space:nowrap;
+        font-size:.92rem;
+    }
+
+    .comparativa-resumen strong{
+        color:#555;
+    }
+
     .tbl-costeo th:nth-child(1),  .tbl-costeo td:nth-child(1)  { width: 60px; }
     .tbl-costeo th:nth-child(2),  .tbl-costeo td:nth-child(2)  { width: 150px; }
     .tbl-costeo th:nth-child(3),  .tbl-costeo td:nth-child(3)  { width: 90px; }
@@ -364,13 +470,13 @@
         flex-wrap: wrap;
     }
 
-    .mode-dia .mode-rango,
-    .mode-dia .mode-lote { display: none; }
-
-    .mode-rango .mode-dia-only,
-    .mode-rango .mode-lote { display: none; }
-
-    .mode-lote .mode-dia-only,
+    /* Visibilidad de campos según el modo seleccionado. */
+    .mode-dia .mode-rango-only,
+    .mode-dia .mode-lote-only,
+    .mode-mes .mode-rango-only,
+    .mode-mes .mode-lote-only,
+    .mode-rango .mode-lote-only,
+    .mode-lote .mode-date-only,
     .mode-lote .mode-rango-only { display: none; }
 
     @@media(max-width: 1200px) {
@@ -422,12 +528,1329 @@
         border-color: #0a58ca;
         background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 55%, #084298 100%);
     }
+
+/*==============================
+    LOADING COMPARATIVA
+==============================*/
+
+.loading-comparativa{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:420px;
+}
+
+.loading-card{
+    width:420px;
+    background:#fff;
+    border:1px solid #d4b0b0;
+    border-radius:6px;
+    padding:28px;
+    text-algin:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+.loading-card h5{
+    color:#7b0000;
+    font-weight:700;
+    margin-bottom:10px;
+}
+.loading-card p{
+    color:#666;
+    font-size:.92rem;
+    margin-bottom:18px;
+}
+.loading-card .progress{
+    background:#ececec;
+
+    border-radius:12px;
+
+    overflow:hidden;
+}
+
+
+    /* ==========================================================
+       BARRA VISIBLE PARA CUADRAR LA COMPARATIVA
+    ========================================================== */
+    .ajuste-comparativa-bar {
+        display: flex !important;
+        visibility: visible !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 8px 0 10px 0;
+        padding: 9px 10px;
+        border: 1px solid #d2a3a3;
+        background: #fff7dc;
+        color: #4a1111;
+        font-size: 12px;
+    }
+
+    .ajuste-comparativa-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .ajuste-comparativa-info strong {
+        color: #7b0000;
+    }
+
+    #btnCuadrarComparativa {
+        display: inline-flex !important;
+        visibility: visible !important;
+        min-width: 200px;
+    }
+
+    #btnCuadrarComparativa:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+    }
+
+
+    /* ==========================================================
+       PAGINACIÓN DE COMPARATIVA
+       La pantalla solo renderiza una página; el total permanece
+       en SQL para evitar decenas de miles de filas en el navegador.
+    ========================================================== */
+    .comparativa-paginacion {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 8px 10px;
+        border: 1px solid #d9b8b8;
+        border-top: 0;
+        background: #fffafa;
+        font-size: 12px;
+        color: #4a1111;
+    }
+
+    .comparativa-paginacion-controles {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .comparativa-paginacion select {
+        width: 90px !important;
+        min-width: 90px;
+    }
+
+    .comparativa-resumen {
+        gap: 8px !important;
+    }
+
+    .comparativa-resumen .resumen-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 8px;
+        border: 1px solid #d8bcbc;
+        background: #fff;
+        white-space: nowrap;
+    }
+
+    .comparativa-resumen .resumen-chip.alerta {
+        border-color: #e1a23a;
+        background: #fff7dc;
+    }
+
+
+    /* ============================================================
+       GRID COMPACTO FINAL — COSTEO
+       Conserva Razor, IDs, endpoints, monitoreo, histórico,
+       comparativa, paginación y JavaScript existentes.
+       ============================================================ */
+
+    .costeo-app {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        align-self: stretch !important;
+        container-type: inline-size;
+        container-name: costeo-grid;
+    }
+
+    .costeo-app,
+    .costeo-app .content,
+    .costeo-app .workspace,
+    .costeo-app .section,
+    .costeo-app .filters,
+    .costeo-app .checks-row,
+    .costeo-app .auto-status-panel {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .costeo-app .content {
+        width: 100% !important;
+        padding: 4px !important;
+    }
+
+    /* Botones superiores */
+    .costeo-app .tabs {
+        display: grid !important;
+        grid-template-columns: repeat(2, max-content) !important;
+        justify-content: end !important;
+        align-items: center !important;
+        gap: 3px !important;
+        margin: 0 0 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .costeo-app .tabs .pm-btn,
+    .costeo-app .btn-historico-tab {
+        min-width: 0 !important;
+        width: auto !important;
+        height: 25px !important;
+        min-height: 25px !important;
+        padding: 0 7px !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        font-size: 8px !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+    }
+
+    .costeo-app .workspace {
+        width: 100% !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .costeo-app .section {
+        width: 100% !important;
+        margin: 0 0 4px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .costeo-app .section-title {
+        min-height: 24px !important;
+        padding: 4px 6px !important;
+        font-size: 8.5px !important;
+        line-height: 1 !important;
+    }
+
+    /* ============================================================
+       FILTROS — 18 columnas.
+       Los campos visibles se acomodan automáticamente según Modo.
+       Cada campo ocupa 2 columnas y acciones 6.
+       ============================================================ */
+    .costeo-app .filters {
+        display: grid !important;
+        grid-template-columns: repeat(18, minmax(0, 1fr)) !important;
+        column-gap: 4px !important;
+        row-gap: 3px !important;
+        padding: 5px !important;
+        align-items: end !important;
+    }
+
+    .costeo-app .filters > .filter-group {
+        min-width: 0 !important;
+        grid-column: span 2 !important;
+    }
+
+    .costeo-app .filters > .filter-group:last-child {
+        grid-column: span 6 !important;
+    }
+
+    .costeo-app .filter-group label {
+        margin: 0 0 2px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+        letter-spacing: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .costeo-app input,
+    .costeo-app select,
+    .costeo-app .form-control,
+    .costeo-app .form-select {
+        min-width: 0 !important;
+        width: 100% !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 2px 5px !important;
+        border-radius: 0 !important;
+        font-size: 8.5px !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+    }
+
+    .costeo-app input[type="checkbox"],
+    .costeo-app input[type="checkbox"].ck {
+        width: 12px !important;
+        min-width: 12px !important;
+        max-width: 12px !important;
+        height: 12px !important;
+        min-height: 12px !important;
+        max-height: 12px !important;
+        padding: 0 !important;
+    }
+
+    .costeo-app .filters .pm-actions {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 3px !important;
+        width: 100% !important;
+        align-items: end !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .costeo-app .filters .pm-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 5px !important;
+        gap: 3px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+        white-space: nowrap !important;
+    }
+
+    /* Opciones debajo del filtro */
+    .costeo-app .checks-row {
+        display: grid !important;
+        grid-template-columns: max-content max-content max-content minmax(180px, 1fr) !important;
+        gap: 4px 10px !important;
+        align-items: center !important;
+        padding: 4px 5px !important;
+    }
+
+    .costeo-app .check-inline {
+        gap: 3px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    .costeo-app .checks-row > span.check-inline {
+        justify-self: end !important;
+        font-size: 7px !important;
+        white-space: normal !important;
+        text-align: right !important;
+    }
+
+    /* Estado de automatización */
+    .costeo-app .auto-status-panel {
+        margin: 0 5px 5px !important;
+        padding: 4px 5px !important;
+        font-size: 7.5px !important;
+    }
+
+    .costeo-app .auto-status-title {
+        margin-bottom: 3px !important;
+        font-size: 8px !important;
+        line-height: 1 !important;
+    }
+
+    .costeo-app .auto-status-list {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)) !important;
+        gap: 3px !important;
+    }
+
+    .costeo-app .auto-status-item {
+        min-height: 22px !important;
+        padding: 3px 4px !important;
+        gap: 3px !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+    }
+
+    /* Log y barra inferior */
+    .costeo-app #logBox {
+        margin-top: 3px !important;
+    }
+
+    .costeo-app .log-inner {
+        padding: 4px 6px !important;
+        font-size: 8px !important;
+        line-height: 1.1 !important;
+    }
+
+    .costeo-app .statusbar {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 4px 6px !important;
+        gap: 5px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    /* ============================================================
+       MODAL HISTÓRICO — GRID compacto.
+       ============================================================ */
+    #modalHistorico .modal-dialog {
+        width: min(1380px, 96vw) !important;
+        max-width: min(1380px, 96vw) !important;
+        margin: .45rem auto !important;
+    }
+
+    #modalHistorico .modal-content {
+        border-radius: 0 !important;
+    }
+
+    #modalHistorico .modal-header {
+        min-height: 38px !important;
+        padding: 5px 7px !important;
+    }
+
+    #modalHistorico .modal-title {
+        font-size: 10px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistorico .modal-body {
+        padding: 5px !important;
+    }
+
+    #modalHistorico .filters-historico {
+        display: grid !important;
+        grid-template-columns:
+            minmax(105px, 1fr)
+            minmax(105px, 1fr)
+            minmax(105px, 1fr)
+            minmax(120px, 1fr)
+            minmax(360px, 2.2fr) !important;
+        gap: 4px !important;
+        padding: 5px !important;
+        align-items: end !important;
+    }
+
+    #modalHistorico .filter-group {
+        min-width: 0 !important;
+    }
+
+    #modalHistorico .filter-group label {
+        margin: 0 0 2px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    #modalHistorico .form-control,
+    #modalHistorico .form-select,
+    #modalHistorico input,
+    #modalHistorico select {
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 2px 5px !important;
+        border-radius: 0 !important;
+        font-size: 8.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistorico input[type="checkbox"] {
+        width: 12px !important;
+        min-width: 12px !important;
+        max-width: 12px !important;
+        height: 12px !important;
+        min-height: 12px !important;
+        max-height: 12px !important;
+        padding: 0 !important;
+    }
+
+    #modalHistorico .filters-historico .pm-actions {
+        display: grid !important;
+        grid-template-columns: max-content max-content minmax(85px, 1fr) !important;
+        gap: 4px !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+
+    #modalHistorico .check-inline {
+        gap: 3px !important;
+        font-size: 7.5px !important;
+        white-space: nowrap !important;
+    }
+
+    #modalHistorico .pm-btn {
+        min-width: 0 !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 6px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalHistorico .table-wrap {
+        width: 100% !important;
+        max-height: 72vh !important;
+        overflow: auto !important;
+        scrollbar-gutter: stable;
+    }
+
+    #modalHistorico .tbl-costeo {
+        width: 100% !important;
+        min-width: 1360px !important;
+        table-layout: fixed !important;
+        font-size: 8px !important;
+    }
+
+    #modalHistorico .table-wrap thead th {
+        padding: 4px 3px !important;
+        font-size: 7px !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+    }
+
+    #modalHistorico .table-wrap tbody td {
+        padding: 3px !important;
+        font-size: 8px !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalHistorico .tbl-costeo th:nth-child(1),
+    #modalHistorico .tbl-costeo td:nth-child(1) { width: 48px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(2),
+    #modalHistorico .tbl-costeo td:nth-child(2) { width: 125px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(3),
+    #modalHistorico .tbl-costeo td:nth-child(3) { width: 70px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(4),
+    #modalHistorico .tbl-costeo td:nth-child(4) { width: 90px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(5),
+    #modalHistorico .tbl-costeo td:nth-child(5) { width: 145px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(6),
+    #modalHistorico .tbl-costeo td:nth-child(6),
+    #modalHistorico .tbl-costeo th:nth-child(7),
+    #modalHistorico .tbl-costeo td:nth-child(7) { width: 92px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(8),
+    #modalHistorico .tbl-costeo td:nth-child(8) { width: 55px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(9),
+    #modalHistorico .tbl-costeo td:nth-child(9),
+    #modalHistorico .tbl-costeo th:nth-child(10),
+    #modalHistorico .tbl-costeo td:nth-child(10),
+    #modalHistorico .tbl-costeo th:nth-child(11),
+    #modalHistorico .tbl-costeo td:nth-child(11),
+    #modalHistorico .tbl-costeo th:nth-child(12),
+    #modalHistorico .tbl-costeo td:nth-child(12) { width: 62px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(13),
+    #modalHistorico .tbl-costeo td:nth-child(13) { width: 100px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(14),
+    #modalHistorico .tbl-costeo td:nth-child(14) { width: 75px !important; }
+
+    #modalHistorico .tbl-costeo th:nth-child(15),
+    #modalHistorico .tbl-costeo td:nth-child(15) { width: 255px !important; }
+
+    #modalHistorico .modal-footer {
+        padding: 5px 6px !important;
+    }
+
+    /* ============================================================
+       MODAL COMPARATIVA — filtros, ajuste, resumen, tabla y paginación.
+       ============================================================ */
+    #modalComparativa .modal-dialog {
+        width: min(1500px, 97vw) !important;
+        max-width: min(1500px, 97vw) !important;
+        margin: .4rem auto !important;
+    }
+
+    #modalComparativa .modal-content {
+        border-radius: 0 !important;
+    }
+
+    #modalComparativa .modal-header {
+        min-height: 38px !important;
+        padding: 5px 7px !important;
+    }
+
+    #modalComparativa .modal-title {
+        font-size: 10px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa .modal-body {
+        padding: 5px !important;
+    }
+
+    #modalComparativa .filters {
+        display: grid !important;
+        grid-template-columns:
+            minmax(100px, .8fr)
+            minmax(115px, .9fr)
+            minmax(90px, .7fr)
+            minmax(220px, 1.65fr)
+            minmax(185px, 1.2fr) !important;
+        gap: 4px !important;
+        padding: 5px !important;
+        align-items: end !important;
+    }
+
+    #modalComparativa .filter-group {
+        min-width: 0 !important;
+    }
+
+    #modalComparativa .filter-group label {
+        margin: 0 0 2px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa .form-control,
+    #modalComparativa .form-select,
+    #modalComparativa input,
+    #modalComparativa select {
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 2px 5px !important;
+        border-radius: 0 !important;
+        font-size: 8.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa .filters > .mt-3.text-end {
+        margin: 0 !important;
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 3px !important;
+    }
+
+    #modalComparativa .pm-btn {
+        min-width: 0 !important;
+        min-height: 25px !important;
+        height: 25px !important;
+        padding: 0 6px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa .filters > .mt-3.text-end .pm-btn {
+        width: 100% !important;
+    }
+
+    #modalComparativa .ajuste-comparativa-bar {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) max-content !important;
+        gap: 4px !important;
+        margin: 4px 0 !important;
+        padding: 4px 5px !important;
+        font-size: 7.5px !important;
+        line-height: 1.1 !important;
+    }
+
+    #modalComparativa .ajuste-comparativa-info {
+        gap: 4px !important;
+        font-size: 7.5px !important;
+    }
+
+    #modalComparativa #btnCuadrarComparativa {
+        min-width: 125px !important;
+        width: auto !important;
+    }
+
+    #modalComparativa hr {
+        margin: 4px 0 !important;
+    }
+
+    #modalComparativa .loading-comparativa {
+        min-height: 220px !important;
+    }
+
+    #modalComparativa .loading-card {
+        width: min(330px, 90%) !important;
+        padding: 12px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        text-align: center !important;
+    }
+
+    #modalComparativa .loading-card h5 {
+        margin-bottom: 4px !important;
+        font-size: 10px !important;
+    }
+
+    #modalComparativa .loading-card p {
+        margin-bottom: 6px !important;
+        font-size: 8px !important;
+    }
+
+    #modalComparativa .loading-card .progress {
+        height: 12px !important;
+        border-radius: 0 !important;
+    }
+
+    #modalComparativa .comparativa-resumen {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)) !important;
+        gap: 3px !important;
+        margin: 4px 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    #modalComparativa .comparativa-resumen .resumen-chip {
+        min-height: 24px !important;
+        padding: 3px 5px !important;
+        gap: 2px !important;
+        border-radius: 0 !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa #tablaComparativa {
+        width: 100% !important;
+        margin-bottom: 0 !important;
+        max-height: 62vh !important;
+        overflow: auto !important;
+        scrollbar-gutter: stable;
+    }
+
+    #modalComparativa .tbl-comparativa {
+        min-width: 930px !important;
+        font-size: 8px !important;
+    }
+
+    #modalComparativa .tbl-comparativa th,
+    #modalComparativa .tbl-comparativa td {
+        padding: 3px 4px !important;
+        font-size: 8px !important;
+        line-height: 1.05 !important;
+    }
+
+    #modalComparativa .col-producto {
+        min-width: 190px !important;
+    }
+
+    #modalComparativa .col-costo {
+        min-width: 90px !important;
+    }
+
+    #modalComparativa .col-peso {
+        min-width: 85px !important;
+    }
+
+    #modalComparativa .col-id {
+        min-width: 60px !important;
+    }
+
+    #modalComparativa .col-estado {
+        min-width: 105px !important;
+    }
+
+    #modalComparativa .comparativa-paginacion {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 4px !important;
+        padding: 4px 5px !important;
+        font-size: 7.5px !important;
+        line-height: 1 !important;
+    }
+
+    #modalComparativa .comparativa-paginacion-controles {
+        display: grid !important;
+        grid-template-columns: auto 58px 65px 86px 65px !important;
+        gap: 3px !important;
+        align-items: center !important;
+    }
+
+    #modalComparativa .comparativa-paginacion select {
+        width: 58px !important;
+        min-width: 58px !important;
+    }
+
+    #modalComparativa #cmpNumeroPagina {
+        min-width: 86px !important;
+        font-size: 7.5px !important;
+    }
+
+    #modalComparativa .modal-footer {
+        padding: 5px 6px !important;
+    }
+
+    /* ============================================================
+       RESPUESTA AL ANCHO REAL QUE DEJA EL SIDEBAR
+       ============================================================ */
+    @@container costeo-grid (max-width: 1250px) {
+        .costeo-app .filters {
+            grid-template-columns: repeat(10, minmax(0, 1fr)) !important;
+        }
+
+        .costeo-app .filters > .filter-group {
+            grid-column: span 2 !important;
+        }
+
+        .costeo-app .filters > .filter-group:last-child {
+            grid-column: span 4 !important;
+        }
+
+        .costeo-app .checks-row {
+            grid-template-columns: repeat(3, max-content) minmax(140px, 1fr) !important;
+        }
+    }
+
+    @@container costeo-grid (max-width: 900px) {
+        .costeo-app .filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .costeo-app .filters > .filter-group {
+            grid-column: span 1 !important;
+        }
+
+        .costeo-app .filters > .filter-group:last-child {
+            grid-column: 1 / -1 !important;
+        }
+
+        .costeo-app .checks-row {
+            grid-template-columns: repeat(3, max-content) !important;
+        }
+
+        .costeo-app .checks-row > span.check-inline {
+            grid-column: 1 / -1 !important;
+            justify-self: start !important;
+            text-align: left !important;
+        }
+    }
+
+    @@container costeo-grid (max-width: 620px) {
+        .costeo-app .content {
+            padding: 0 !important;
+        }
+
+        .costeo-app .tabs {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        .costeo-app .tabs .pm-btn {
+            width: 100% !important;
+        }
+
+        .costeo-app .filters {
+            grid-template-columns: 1fr !important;
+        }
+
+        .costeo-app .filters > .filter-group,
+        .costeo-app .filters > .filter-group:last-child {
+            grid-column: auto !important;
+        }
+
+        .costeo-app .checks-row {
+            grid-template-columns: 1fr !important;
+        }
+
+        .costeo-app .checks-row > span.check-inline {
+            grid-column: auto !important;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        #modalHistorico .filters-historico,
+        #modalComparativa .filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #modalHistorico .filters-historico > .filter-group:last-child,
+        #modalComparativa .filters > .mt-3.text-end {
+            grid-column: 1 / -1 !important;
+        }
+
+        #modalComparativa .ajuste-comparativa-bar,
+        #modalComparativa .comparativa-paginacion {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modalComparativa .comparativa-paginacion-controles {
+            grid-template-columns: auto 58px 1fr 65px 65px !important;
+        }
+    }
+
+    @@media (max-width: 560px) {
+        #modalHistorico .filters-historico,
+        #modalComparativa .filters {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modalHistorico .filters-historico > .filter-group:last-child,
+        #modalComparativa .filters > .mt-3.text-end {
+            grid-column: auto !important;
+        }
+
+        #modalHistorico .filters-historico .pm-actions,
+        #modalComparativa .filters > .mt-3.text-end {
+            grid-template-columns: 1fr !important;
+        }
+
+        #modalComparativa .comparativa-paginacion-controles {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        #modalComparativa #cmpNumeroPagina {
+            min-width: 0 !important;
+            text-align: left !important;
+        }
+    }
+
+
+    /* ============================================================
+       AJUSTE FINAL — COSTEO
+       POPPINS + UN SOLO SCROLL VERTICAL + FOOTER COMPACTO
+       Solo aplica mientras esta vista está cargada.
+       ============================================================ */
+
+    :root {
+        --costeo-font-final: "Poppins", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    }
+
+    /* ============================================================
+       1. TIPOGRAFÍA POPPINS
+       ============================================================ */
+
+    .costeo-app,
+    .costeo-app *,
+    #modalHistorico,
+    #modalHistorico *,
+    #modalComparativa,
+    #modalComparativa * {
+        font-family: var(--costeo-font-final) !important;
+    }
+
+    .costeo-app {
+        font-size: 11px !important;
+        line-height: 1.22 !important;
+        font-weight: 400 !important;
+    }
+
+    .costeo-app .section-title {
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        line-height: 1.05 !important;
+    }
+
+    .costeo-app .filter-group label {
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        line-height: 1.05 !important;
+        margin-bottom: 2px !important;
+    }
+
+    .costeo-app input,
+    .costeo-app select,
+    .costeo-app textarea,
+    .costeo-app .form-control,
+    .costeo-app .form-select {
+        font-family: var(--costeo-font-final) !important;
+        font-size: 10px !important;
+        font-weight: 400 !important;
+        line-height: 1.1 !important;
+    }
+
+    .costeo-app .pm-btn,
+    .costeo-app .btn,
+    .costeo-app button {
+        font-family: var(--costeo-font-final) !important;
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+    }
+
+    .costeo-app .check-inline,
+    .costeo-app .auto-status-panel,
+    .costeo-app .auto-status-item {
+        font-family: var(--costeo-font-final) !important;
+    }
+
+    .costeo-app .check-inline {
+        font-size: 8.5px !important;
+        font-weight: 500 !important;
+    }
+
+    .costeo-app .auto-status-title {
+        font-size: 9px !important;
+        font-weight: 600 !important;
+    }
+
+    .costeo-app .auto-status-item {
+        font-size: 8.5px !important;
+        font-weight: 500 !important;
+    }
+
+    .costeo-app .log-inner {
+        font-family: var(--costeo-font-final) !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
+    }
+
+    .costeo-app .statusbar,
+    .statusbar {
+        font-family: var(--costeo-font-final) !important;
+        font-size: 9px !important;
+        line-height: 1.1 !important;
+    }
+
+    /* ============================================================
+       2. UN SOLO SCROLL VERTICAL EN LA PÁGINA
+       ============================================================ */
+
+    html {
+        width: 100% !important;
+        min-height: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    body.layout-body,
+    body {
+        width: 100% !important;
+        min-height: 100dvh !important;
+        height: auto !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+    }
+
+    /*
+       _Layout2 usa min-height:100vh en el main.
+       Al sumarle footer puede generar altura extra.
+       Aquí se anula únicamente para Costeo.
+    */
+    .layout-main-content {
+        /*
+           El sidebar de _Layout2 conserva su margin-left.
+           width:auto hace que esta vista use solamente el espacio
+           restante y se comprima, en lugar de desplazarse a la derecha.
+        */
+        flex: 1 1 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+
+        padding-bottom: 5px !important;
+        box-sizing: border-box !important;
+    }
+
+    .layout-main-content > .layout-container-fluid,
+    .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+
+        box-sizing: border-box !important;
+    }
+
+    .costeo-app {
+        width: 100% !important;
+        max-width: 100% !important;
+
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+
+        margin-bottom: 0 !important;
+        padding-bottom: 3px !important;
+
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+
+        box-sizing: border-box !important;
+    }
+
+    .costeo-app .content,
+    .costeo-app .workspace,
+    .costeo-app .section {
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+
+    /* ============================================================
+       3. TABLAS PRINCIPALES DE COSTEO
+       QUITAMOS EL SEGUNDO SCROLL VERTICAL.
+       La tabla crece y el BODY controla el desplazamiento vertical.
+       Se conserva scroll horizontal.
+       ============================================================ */
+
+    .costeo-app .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+
+        scrollbar-gutter: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+
+    /* ============================================================
+       4. FOOTER DEL LAYOUT
+       ============================================================ */
+
+    .layout-footer {
+        flex: 0 0 auto !important;
+
+        position: static !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+
+        width: 100% !important;
+        height: auto !important;
+        min-height: 29px !important;
+
+        margin: 0 !important;
+        padding: 4px 0 !important;
+
+        font-family: var(--costeo-font-final) !important;
+        font-size: 11px !important;
+        font-weight: 400 !important;
+        line-height: 1.15 !important;
+
+        text-align: center !important;
+        box-sizing: border-box !important;
+    }
+
+    .layout-footer .container,
+    .layout-footer .container-fluid {
+        width: 100% !important;
+        min-height: 20px !important;
+        height: auto !important;
+
+        margin: 0 auto !important;
+        padding: 0 8px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        background: transparent !important;
+        box-shadow: none !important;
+
+        box-sizing: border-box !important;
+    }
+
+    .layout-footer p {
+        margin: 0 !important;
+        padding: 0 !important;
+
+        font-family: var(--costeo-font-final) !important;
+        font-size: 11px !important;
+        font-weight: 400 !important;
+        line-height: 20px !important;
+    }
+
+
+    /* ============================================================
+       5. MODALES
+       Los modales sí conservan su scroll interno.
+       ============================================================ */
+
+    #modalHistorico,
+    #modalHistorico *,
+    #modalComparativa,
+    #modalComparativa * {
+        font-family: var(--costeo-font-final) !important;
+    }
+
+    #modalHistorico .modal-title,
+    #modalComparativa .modal-title {
+        font-size: 10.5px !important;
+        font-weight: 600 !important;
+        line-height: 1.1 !important;
+    }
+
+    #modalHistorico .filter-group label,
+    #modalComparativa .filter-group label {
+        font-size: 8.5px !important;
+        font-weight: 600 !important;
+    }
+
+    #modalHistorico input,
+    #modalHistorico select,
+    #modalHistorico .form-control,
+    #modalHistorico .form-select,
+    #modalComparativa input,
+    #modalComparativa select,
+    #modalComparativa .form-control,
+    #modalComparativa .form-select {
+        font-size: 9.5px !important;
+        font-weight: 400 !important;
+    }
+
+    #modalHistorico .pm-btn,
+    #modalComparativa .pm-btn {
+        font-size: 8.5px !important;
+        font-weight: 600 !important;
+    }
+
+    #modalHistorico .table-wrap,
+    #modalComparativa #tablaComparativa {
+        overflow: auto !important;
+    }
+
+    #modalHistorico .table-wrap thead th,
+    #modalComparativa .tbl-comparativa th {
+        font-size: 8px !important;
+        font-weight: 600 !important;
+    }
+
+    #modalHistorico .table-wrap tbody td,
+    #modalComparativa .tbl-comparativa td {
+        font-size: 9px !important;
+        font-weight: 400 !important;
+        line-height: 1.1 !important;
+    }
+
+    #modalComparativa .comparativa-resumen,
+    #modalComparativa .comparativa-paginacion,
+    #modalComparativa .ajuste-comparativa-bar {
+        font-family: var(--costeo-font-final) !important;
+    }
+
+    body.modal-open {
+        overflow: hidden !important;
+    }
+
+
+    /* ============================================================
+       6. DARK MODE
+       ============================================================ */
+
+    body[data-theme="dark"] .costeo-app,
+    body[data-theme="dark"] .costeo-app *,
+    body[data-theme="dark"] #modalHistorico *,
+    body[data-theme="dark"] #modalComparativa *,
+    body[data-theme="dark"] .layout-footer,
+    body[data-theme="dark"] .layout-footer * {
+        font-family: var(--costeo-font-final) !important;
+    }
+
+
+    /* ============================================================
+       7. RESPONSIVO
+       ============================================================ */
+
+    @@media (max-width: 768px) {
+
+        body.layout-body,
+        body {
+            min-height: 100dvh !important;
+            height: auto !important;
+            overflow-y: visible !important;
+        }
+
+        .layout-main-content {
+            width: auto !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+
+            overflow-x: hidden !important;
+            overflow-y: visible !important;
+
+            padding-bottom: 3px !important;
+            box-sizing: border-box !important;
+        }
+
+        .layout-main-content .layout-container-fluid {
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow-y: visible !important;
+        }
+
+        .costeo-app {
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            padding-bottom: 2px !important;
+            overflow-y: visible !important;
+        }
+
+        .costeo-app .table-wrap {
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+        }
+
+        .costeo-app input,
+        .costeo-app select,
+        .costeo-app textarea,
+        .costeo-app .form-control,
+        .costeo-app .form-select {
+            font-size: 10px !important;
+        }
+
+        .layout-footer {
+            min-height: 26px !important;
+            padding: 3px 0 !important;
+            font-size: 10px !important;
+        }
+
+        .layout-footer p {
+            font-size: 10px !important;
+            line-height: 19px !important;
+        }
+    }
+
+
 </style>
 
-<div class="window">
+<link rel="stylesheet" href="~/css/costeo-erp-final.css" asp-append-version="true" />
+
+<div class="window costeo-app">
 
   <div class="titlebar">
-    <div>Costeo</div>
+    <div class="costeo-main-title"><i class="bi bi-calculator"></i> Costeo :: SIGO</div>
 
     <div class="actions">
         <div class="win-btn"></div>
@@ -445,14 +1868,22 @@
                 data-bs-toggle="modal"
                 data-bs-target="#modalHistorico"
                 onclick="recargarBitacora()">
-            Ver histórico
+            <i class="bi bi-clock-history"></i> Ver histórico
         </button>
+
+        <button class="pm-btn pm-btn-secondary"
+                    type="button"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modalComparativa">
+            <i class="bi bi-bar-chart-line"></i> Comparativa de costeo
+        </button>
+
     </div>
 
     <div class="workspace">
 
             <div class="section">
-                <div class="section-title">Parámetros de ejecución</div>
+                <div class="section-title"><i class="bi bi-sliders"></i> Parámetros de ejecución</div>
 
                 <form id="frmFiltros" method="get" action="@Url.Action("Costeo", "ProcesosCG")">
                     <div id="filterPanel" class="filters">
@@ -468,9 +1899,10 @@
                         <div class="filter-group">
                             <label>Tipo proceso</label>
                             <select name="TipoProceso" id="TipoProceso" class="form-select">
+                                <option value="CANALES" @(tipoProceso == "CANALES" ? "selected" : "")>Canales</option>
                                 <option value="CAJAS" @(tipoProceso == "CAJAS" ? "selected" : "")>Cajas</option>
                                 <option value="RETRABAJO" @(tipoProceso == "RETRABAJO" ? "selected" : "")>Retrabajo</option>
-                                <option value="AMBOS" @(tipoProceso == "AMBOS" ? "selected" : "")>Ambos</option>
+                                <option value="AMBOS" @(tipoProceso == "AMBOS" ? "selected" : "")>Cajas + Retrabajo</option>
                             </select>
                         </div>
 
@@ -479,21 +1911,22 @@
                             <select name="Modo" id="Modo" class="form-select">
                                 <option value="DIA" @(modo == "DIA" ? "selected" : "")>Día</option>
                                 <option value="RANGO" @(modo == "RANGO" ? "selected" : "")>Rango</option>
+                                <option value="MES" @(modo == "MES" ? "selected" : "")>Mes · día por día</option>
                                 <option value="LOTE" @(modo == "LOTE" ? "selected" : "")>Lote</option>
                             </select>
                         </div>
 
-                        <div class="filter-group mode-dia mode-rango">
-                            <label>Fecha inicial</label>
+                        <div class="filter-group mode-date-only">
+                            <label id="lblFechaInicial">Fecha inicial</label>
                             <input type="date" id="FechaInicial" name="FechaInicial" class="form-control" value="@fechaInicial.ToString("yyyy-MM-dd")" />
                         </div>
 
-                        <div class="filter-group mode-rango">
+                        <div class="filter-group mode-rango-only">
                             <label>Fecha final</label>
                             <input type="date" id="FechaFinal" name="FechaFinal" class="form-control" value="@fechaFinal.ToString("yyyy-MM-dd")" />
                         </div>
 
-                        <div class="filter-group mode-lote">
+                        <div class="filter-group mode-lote-only">
                             <label>Lote</label>
                             <input type="number" id="LoteId" name="LoteId" class="form-control" value="@(Model?.LoteId?.ToString() ?? "")" placeholder="LoteId..." />
                         </div>
@@ -508,9 +1941,9 @@
                        <div class="filter-group">
     <label>&nbsp;</label>
     <div class="pm-actions">
-        <button class="pm-btn pm-btn-primary" type="submit">Buscar</button>
-        <button class="pm-btn pm-btn-success" type="button" onclick="ejecutarCosteo()">Ejecutar</button>
-        <button class="pm-btn pm-btn-warning" type="button" onclick="guardarAuto()">Guardar auto</button>
+        <button class="pm-btn pm-btn-primary" type="submit"><i class="bi bi-search"></i> Buscar</button>
+        <button class="pm-btn pm-btn-success" type="button" onclick="ejecutarCosteo()"><i class="bi bi-play-fill"></i> Ejecutar</button>
+        <button class="pm-btn pm-btn-warning" type="button" onclick="guardarAuto()"><i class="bi bi-clock"></i> Guardar auto</button>
     </div>
 </div>
                     </div>
@@ -530,6 +1963,17 @@
                             <input type="checkbox" id="Automatico" name="Automatico" value="true" @(Model?.Automatico == true ? "checked" : "") />
                             Programación activa
                         </label>
+
+                        <span class="check-inline" style="font-weight:400; color:#6a3a3a;">
+                            Secuencia automática por bloque: Canales → Cajas → Retrabajo.
+                        </span>
+                    </div>
+
+                    <div id="autoStatusPanel" class="auto-status-panel" aria-live="polite">
+                        <div class="auto-status-title">Horario de costeos automáticos</div>
+                        <div id="autoStatusContent" class="auto-status-list">
+                            <span class="auto-status-item inactive">Consultando configuración...</span>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -581,7 +2025,8 @@
                     <div class="filter-group">
                         <label>Proceso histórico</label>
                         <select id="HistTipoProceso" class="form-select">
-                            <option value="AMBOS">Ambos</option>
+                            <option value="AMBOS">Todos</option>
+                            <option value="CANALES">Canales</option>
                             <option value="CAJAS">Cajas</option>
                             <option value="RETRABAJO">Retrabajo</option>
                         </select>
@@ -640,6 +2085,569 @@
     </div>
 </div>
 
+@* Modal para Comparativa *@
+
+<div class="modal fade" id="modalComparativa" tabindex="-1" aria-labelledby="modalComparativaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" style="max-width: 96vw;">
+        <div class="modal-content" style="border-radius:0; border:1px solid #7e4a4a;">
+            <div class="modal-header" style="background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%); color:#fff; border-bottom:1px solid #6b1f1f; padding:8px 12px;">
+
+                <h5 class="modal-title" id="modalComparativaLabel" style="font-size:13px; font-weight:bold; margin:0;">Comparativa de Costeo TIF & P1</h5>
+
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body" style="background:#f8eeee; padding:10px;">
+                <div class="filters">
+
+                    <div class="filter-group">
+                        <label>Periodo</label>
+                        <select id="cmpPeriodo" class="form-select">
+                            <option value="DIA">Día</option>
+                            <option value="SEMANA">Semana</option>
+                            <option value="MES" selected>Mes</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Fecha</label>
+                        <input id="cmpFecha"
+                               type="date"
+                               class="form-control"
+                               value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Tolerancia</label>
+                        <input id="cmpTolerancia"
+                            type="number"
+                            class="form-control"
+                            value="1"
+                            step="0.01" />
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Estado</label>
+                        <select id="cmpEstado" class="form-select">
+                            <option value="PENDIENTES" selected>Solo diferencias / sin costo</option>
+                            <option value="">Todos (paginado)</option>
+                            <option value="100% MISMO COSTO">100% MISMO COSTO</option>
+                            <option value="COSTO DIFERENTE">COSTO DIFERENTE</option>
+                            <option value="SIN COSTO EN TIF">SIN COSTO EN TIF</option>
+                            <option value="SIN COSTO EN P1">SIN COSTO EN P1</option>
+                            <option value="SIN COSTO EN TIF Y P1">SIN COSTO EN TIF Y P1</option>
+                        </select>
+                    </div>
+
+                    <div class="mt-3 text-end">
+
+                        <button id="btnConsultarComparativa"
+                                class="pm-btn pm-btn-primary"
+                                type="button"
+                                onclick="consultarComparativa()">
+                            
+                            Consultar
+
+                        </button>
+
+                        <button id="btnExportarComparativa"
+                                class="pm-btn pm-btn-success"
+                                type="button"
+                                onclick="exportarComparativaExcel()">
+                            Descargar Excel
+                        </button>
+                    </div>
+
+                </div>
+
+                <div id="barraCuadrarComparativa"
+                     class="ajuste-comparativa-bar"
+                     aria-live="polite">
+                    <div class="ajuste-comparativa-info">
+                        <strong>Ajuste de diferencias:</strong>
+                        <span id="txtPendientesComparativa">
+                            Consulta la comparativa para identificar diferencias o registros sin costo.
+                        </span>
+                    </div>
+
+                    <button id="btnCuadrarComparativa"
+                            class="pm-btn pm-btn-warning"
+                            type="button"
+                            disabled
+                            onclick="cuadrarComparativa()">
+                        Cuadrar comparativa (0)
+                    </button>
+                </div>
+
+                <hr />
+                
+                <div  id="loadingComparativa" class="loading-comparativa d-none">
+
+                    <div class="loading-card">
+
+                        <div class="spinner-border text-danger mb-3" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+
+                        <h5 id="loadingTitulo">
+                            Consultando información...
+                        </h5>
+
+                        <p id="loadingMensaje">
+                            Obteniendo registros...
+                        </p>
+
+                        <div class="progress mt-3" style="height:20px;">
+
+                            <div id="loadingBarra"
+                                class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                                style="width:0%">
+
+                                0%
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div id="resultadoComparativa">
+
+                    <div id="resumenComparativa">
+                            
+                    </div>
+
+                    
+                    <div id="tablaComparativa" class="table-wrap mb-3">
+                       
+                        <table id="tblComparativa"
+                                class="tbl-comparativa">
+
+                            <thead id="theadComparativa">
+
+                                 
+                            </thead>
+
+
+                            <tbody id="tbodyComparativaCosteo">
+
+                            </tbody>
+                        </table>
+
+                    </div>
+
+                    <div id="paginacionComparativa"
+                         class="comparativa-paginacion d-none"
+                         aria-live="polite">
+                        <div id="cmpInfoPagina">
+                            Sin resultados.
+                        </div>
+
+                        <div class="comparativa-paginacion-controles">
+                            <label for="cmpTamanoPagina" style="margin:0; font-weight:bold;">
+                                Filas:
+                            </label>
+
+                            <select id="cmpTamanoPagina"
+                                    class="form-select"
+                                    onchange="cambiarTamanoPaginaComparativa()">
+                                <option value="100">100</option>
+                                <option value="200" selected>200</option>
+                                <option value="500">500</option>
+                                <option value="1000">1,000</option>
+                            </select>
+
+                            <button id="btnPaginaAnterior"
+                                    class="pm-btn pm-btn-secondary"
+                                    type="button"
+                                    onclick="cambiarPaginaComparativa(-1)">
+                                Anterior
+                            </button>
+
+                            <span id="cmpNumeroPagina" style="min-width:120px; text-align:center; font-weight:bold;">
+                                Página 0 de 0
+                            </span>
+
+                            <button id="btnPaginaSiguiente"
+                                    class="pm-btn pm-btn-secondary"
+                                    type="button"
+                                    onclick="cambiarPaginaComparativa(1)">
+                                Siguiente
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div class="modal-footer" style="background:#f1dede; border-top:1px solid #d9b8b8; padding:8px 10px;">
+                <button type="button" class="pm-btn pm-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    // También se carga aquí como respaldo. Para recibir el aviso al navegar por
+    // cualquier módulo, incluye _CosteoAjusteMonitor.cshtml en _Layout2.cshtml.
+    window.CosteoAjusteConfig = {
+        estadoUrl: '@Url.Action("EstadoAjusteComparativaCosteo", "ProcesosCG")',
+        costeoUrl: '@Url.Action("Costeo", "ProcesosCG")'
+    };
+</script>
+<script src="@Url.Content("~/js/costeo-ajuste-monitor.js?v=20260806-2")"></script>
+
+<!-- Respaldo integrado: evita que el ajuste falle si el archivo JS externo no fue publicado o quedó en caché. -->
+<script>
+(function () {
+    'use strict';
+
+    if (window.CosteoAjusteMonitor) return;
+
+    const ACTIVE_KEY = 'cg.costeo.ajusteComparativa.activo';
+    const LAST_KEY = 'cg.costeo.ajusteComparativa.ultimoResultado';
+    const POLL_MS = 3000;
+    const channel = ('BroadcastChannel' in window)
+        ? new BroadcastChannel('cg-costeo-ajuste-comparativa')
+        : null;
+
+    let timer = null;
+    let consultando = false;
+
+    function getConfig() {
+        return window.CosteoAjusteConfig || {};
+    }
+
+    function leerJson(key) {
+        try {
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    function guardarJson(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch { }
+    }
+
+    function eliminar(key) {
+        try { localStorage.removeItem(key); } catch { }
+    }
+
+    function getActive() {
+        return leerJson(ACTIVE_KEY);
+    }
+
+    function ensureToastHost() {
+        let host = document.getElementById('cgCosteoToastHost');
+        if (host) return host;
+
+        host = document.createElement('div');
+        host.id = 'cgCosteoToastHost';
+        host.style.cssText = [
+            'position:fixed',
+            'top:18px',
+            'right:18px',
+            'z-index:2147483647',
+            'display:flex',
+            'flex-direction:column',
+            'gap:10px',
+            'width:min(420px,calc(100vw - 36px))',
+            'pointer-events:none'
+        ].join(';');
+
+        document.body.appendChild(host);
+        return host;
+    }
+
+    function toast(tipo, titulo, mensaje, duracionMs) {
+        if (!document.body) return;
+
+        const host = ensureToastHost();
+        const item = document.createElement('div');
+        const paleta = {
+            success: { bg: '#e3f5e9', border: '#198754', text: '#124d31' },
+            danger:  { bg: '#fde8e8', border: '#b02a37', text: '#721c24' },
+            warning: { bg: '#fff4d6', border: '#c87800', text: '#604000' },
+            info:    { bg: '#e8f2ff', border: '#0d6efd', text: '#083b80' }
+        };
+        const p = paleta[tipo] || paleta.info;
+
+        item.style.cssText = [
+            'pointer-events:auto',
+            'background:' + p.bg,
+            'border:1px solid ' + p.border,
+            'border-left:6px solid ' + p.border,
+            'color:' + p.text,
+            'box-shadow:0 8px 24px rgba(0,0,0,.22)',
+            'padding:12px 42px 12px 14px',
+            'font-family:Tahoma,Verdana,Arial,sans-serif',
+            'font-size:13px',
+            'line-height:1.45',
+            'position:relative',
+            'opacity:0',
+            'transform:translateY(-8px)',
+            'transition:opacity .2s ease,transform .2s ease'
+        ].join(';');
+
+        const title = document.createElement('div');
+        title.style.cssText = 'font-weight:700;margin-bottom:4px;';
+        title.textContent = titulo || 'Costeo';
+
+        const body = document.createElement('div');
+        body.textContent = mensaje || '';
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Cerrar');
+        close.textContent = '×';
+        close.style.cssText = [
+            'position:absolute',
+            'right:10px',
+            'top:7px',
+            'border:0',
+            'background:transparent',
+            'font-size:24px',
+            'line-height:1',
+            'cursor:pointer',
+            'color:inherit'
+        ].join(';');
+
+        const remove = function () {
+            item.style.opacity = '0';
+            item.style.transform = 'translateY(-8px)';
+            setTimeout(function () { item.remove(); }, 220);
+        };
+
+        close.addEventListener('click', remove);
+        item.append(title, body, close);
+        host.appendChild(item);
+
+        requestAnimationFrame(function () {
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0)';
+        });
+
+        const tiempo = Number.isFinite(duracionMs) ? duracionMs : 12000;
+        if (tiempo > 0) setTimeout(remove, tiempo);
+    }
+
+    async function requestNotificationPermission() {
+        if (!('Notification' in window)) return 'unsupported';
+        if (Notification.permission !== 'default') return Notification.permission;
+
+        try {
+            return await Notification.requestPermission();
+        } catch {
+            return Notification.permission;
+        }
+    }
+
+    function systemNotification(job) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+        const marker = 'cg.costeo.ajusteComparativa.notificado.' + job.jobId;
+        if (localStorage.getItem(marker)) return;
+
+        localStorage.setItem(marker, new Date().toISOString());
+
+        try {
+            const titulo = job.exito
+                ? 'Comparativa de costeo terminada'
+                : 'Error al cuadrar la comparativa';
+
+            const n = new Notification(titulo, {
+                body: job.exito
+                    ? `${job.codigosSolicitados || 0} etiqueta(s) procesada(s) correctamente.`
+                    : (job.mensaje || 'El ajuste terminó con error.'),
+                tag: 'cg-costeo-ajuste-' + job.jobId,
+                requireInteraction: !job.exito
+            });
+
+            n.onclick = function () {
+                window.focus();
+                const url = getConfig().costeoUrl;
+                if (url && !String(location.pathname).toLowerCase().includes('/procesoscg/costeo')) {
+                    location.href = url;
+                }
+                n.close();
+            };
+        } catch { }
+    }
+
+    function dispatch(nombre, detail) {
+        try {
+            window.dispatchEvent(new CustomEvent(nombre, { detail: detail }));
+        } catch { }
+    }
+
+    function showCompletion(job) {
+        const sessionKey = 'cg.costeo.ajusteComparativa.mostrado.' + job.jobId;
+        if (!sessionStorage.getItem(sessionKey)) {
+            sessionStorage.setItem(sessionKey, '1');
+
+            if (job.exito) {
+                toast(
+                    'success',
+                    'Comparativa cuadrada',
+                    `${job.mensaje || 'El procedimiento terminó correctamente.'} Etiquetas: ${Number(job.codigosSolicitados || 0).toLocaleString('es-MX')}.`,
+                    18000
+                );
+            } else {
+                toast(
+                    'danger',
+                    'No se pudo cuadrar la comparativa',
+                    [job.mensaje, job.detalle].filter(Boolean).join(' Detalle: '),
+                    0
+                );
+            }
+        }
+
+        systemNotification(job);
+        dispatch('costeo-ajuste-finalizado', job);
+    }
+
+    function stopTimer() {
+        if (timer) clearInterval(timer);
+        timer = null;
+    }
+
+    function startTimer() {
+        stopTimer();
+        timer = setInterval(pollNow, POLL_MS);
+    }
+
+    async function pollNow() {
+        if (consultando) return;
+
+        const active = getActive();
+        if (!active || !active.jobId) {
+            stopTimer();
+            return;
+        }
+
+        const estadoUrl = getConfig().estadoUrl;
+        if (!estadoUrl) return;
+
+        consultando = true;
+
+        try {
+            const sep = estadoUrl.includes('?') ? '&' : '?';
+            const response = await fetch(
+                estadoUrl + sep + 'jobId=' + encodeURIComponent(active.jobId),
+                {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'application/json' }
+                }
+            );
+
+            const text = await response.text();
+            let data = {};
+
+            try { data = text ? JSON.parse(text) : {}; }
+            catch { data = { ok: false, mensaje: text || 'Respuesta no válida.' }; }
+
+            if (!response.ok || !data?.ok) {
+                if (response.status === 404) {
+                    eliminar(ACTIVE_KEY);
+                    stopTimer();
+                    toast(
+                        'warning',
+                        'No se pudo recuperar el ajuste',
+                        data?.mensaje || 'La aplicación pudo haberse reiniciado.',
+                        0
+                    );
+                    dispatch('costeo-ajuste-finalizado', {
+                        jobId: active.jobId,
+                        exito: false,
+                        estado: 'DESCONOCIDO',
+                        mensaje: data?.mensaje || 'No se encontró el trabajo.'
+                    });
+                }
+                return;
+            }
+
+            const job = Object.assign({}, active, data);
+            guardarJson(ACTIVE_KEY, job);
+            dispatch('costeo-ajuste-estado', job);
+
+            if (data.terminado === true) {
+                eliminar(ACTIVE_KEY);
+                guardarJson(LAST_KEY, job);
+                stopTimer();
+                showCompletion(job);
+                if (channel) channel.postMessage({ type: 'completed', job: job });
+            }
+        } catch (error) {
+            dispatch('costeo-ajuste-conexion', {
+                jobId: active.jobId,
+                mensaje: error?.message || String(error)
+            });
+        } finally {
+            consultando = false;
+        }
+    }
+
+    async function track(jobId, meta) {
+        const active = Object.assign({
+            jobId: jobId,
+            estado: 'PENDIENTE',
+            iniciadoCliente: new Date().toISOString()
+        }, meta || {});
+
+        guardarJson(ACTIVE_KEY, active);
+        dispatch('costeo-ajuste-estado', active);
+        startTimer();
+        await pollNow();
+    }
+
+    function resume() {
+        const active = getActive();
+        if (!active?.jobId) return;
+        dispatch('costeo-ajuste-estado', active);
+        startTimer();
+        pollNow();
+    }
+
+    if (channel) {
+        channel.onmessage = function (event) {
+            const msg = event?.data;
+            if (msg?.type === 'completed' && msg.job) {
+                eliminar(ACTIVE_KEY);
+                stopTimer();
+                showCompletion(msg.job);
+            }
+        };
+    }
+
+    window.addEventListener('storage', function (event) {
+        if (event.key === ACTIVE_KEY) resume();
+    });
+
+    window.CosteoAjusteMonitor = {
+        track: track,
+        resume: resume,
+        pollNow: pollNow,
+        getActive: getActive,
+        toast: toast,
+        requestNotificationPermission: requestNotificationPermission
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', resume, { once: true });
+    } else {
+        resume();
+    }
+})();
+</script>
+
 <script>
     function showLog(type, text) {
         const box = document.getElementById('logBox');
@@ -659,7 +2667,7 @@
             TipoProceso: document.getElementById('TipoProceso')?.value || 'CAJAS',
             Modo: modo,
             FechaInicial: document.getElementById('FechaInicial')?.value || null,
-            FechaFinal: (modo === 'DIA'
+            FechaFinal: (modo === 'DIA' || modo === 'MES'
                 ? (document.getElementById('FechaInicial')?.value || null)
                 : (document.getElementById('FechaFinal')?.value || null)),
             TipoCosteoId: parseInt(document.getElementById('TipoCosteoId')?.value || '1'),
@@ -671,6 +2679,108 @@
             Automatico: document.getElementById('Automatico')?.checked === true,
             HoraProgramada: document.getElementById('HoraProgramada')?.value || '18:00'
         };
+    }
+
+    function getFechaLocalISO(fecha = new Date()) {
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function formatearFechaISO(fechaIso) {
+        if (!fechaIso) return '-';
+
+        const partes = fechaIso.split('-');
+        if (partes.length !== 3) return fechaIso;
+
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    function formatearMesISO(fechaIso) {
+        if (!fechaIso) return '-';
+
+        const partes = fechaIso.split('-').map(Number);
+        if (partes.length < 2 || !partes[0] || !partes[1]) return fechaIso;
+
+        const fecha = new Date(partes[0], partes[1] - 1, 1);
+        return new Intl.DateTimeFormat('es-MX', {
+            month: 'long',
+            year: 'numeric'
+        }).format(fecha);
+    }
+
+    function confirmarPeriodoCosteo(payload) {
+        // En costeo por lote la fecha visible no controla el periodo de ejecución.
+        if (!payload || payload.Modo === 'LOTE') return true;
+
+        const hoy = getFechaLocalISO();
+        const mesActual = hoy.substring(0, 7);
+        const fechaInicial = payload.FechaInicial;
+        const fechaFinal = payload.Modo === 'RANGO'
+            ? payload.FechaFinal
+            : payload.FechaInicial;
+
+        if (!fechaInicial) return true;
+
+        const fueraDelMesActual = [fechaInicial, fechaFinal]
+            .filter(Boolean)
+            .some(fecha => fecha.substring(0, 7) !== mesActual);
+
+        let requiereConfirmacion = false;
+        let nivel = 'PRECAUCIÓN';
+        let motivo = '';
+        let periodo = '';
+
+        if (payload.Modo === 'MES') {
+            // En modo MES solamente importa el mes elegido, no el día del selector.
+            requiereConfirmacion = fechaInicial.substring(0, 7) !== mesActual;
+            nivel = 'ADVERTENCIA CRÍTICA';
+            motivo = 'El mes seleccionado no corresponde al mes actual.';
+            periodo = `Mes seleccionado: ${formatearMesISO(fechaInicial)}`;
+        } else if (payload.Modo === 'RANGO') {
+            requiereConfirmacion = fechaInicial !== hoy || fechaFinal !== hoy;
+            nivel = fueraDelMesActual ? 'ADVERTENCIA CRÍTICA' : 'PRECAUCIÓN';
+            motivo = fueraDelMesActual
+                ? 'El rango incluye fechas fuera del mes actual.'
+                : 'El rango seleccionado no corresponde únicamente al día de hoy.';
+            periodo = `Rango seleccionado: ${formatearFechaISO(fechaInicial)} al ${formatearFechaISO(fechaFinal)}`;
+        } else {
+            requiereConfirmacion = fechaInicial !== hoy;
+            nivel = fueraDelMesActual ? 'ADVERTENCIA CRÍTICA' : 'PRECAUCIÓN';
+            motivo = fueraDelMesActual
+                ? 'La fecha seleccionada pertenece a un mes distinto del actual.'
+                : 'La fecha seleccionada no corresponde al día de hoy.';
+            periodo = `Fecha seleccionada: ${formatearFechaISO(fechaInicial)}`;
+        }
+
+        if (!requiereConfirmacion) return true;
+
+        const mensaje =
+`${nivel} DE COSTEO
+
+${motivo}
+
+Fecha actual: ${formatearFechaISO(hoy)}
+${periodo}
+Origen: ${payload.Source}
+Proceso: ${payload.TipoProceso}
+Programación automática: ${payload.Automatico ? `ACTIVA a las ${payload.HoraProgramada || '--:--'}` : `INACTIVA · hora configurada ${payload.HoraProgramada || '--:--'}`}
+
+Ejecutar este proceso puede recalcular y afectar costos previamente registrados.
+
+¿Está seguro de que desea continuar con el costeo?`;
+
+        const confirmado = window.confirm(mensaje);
+
+        if (!confirmado) {
+            showLog(
+                'warning',
+                'Ejecución cancelada. No se realizó ningún costeo porque el periodo seleccionado requiere confirmación.'
+            );
+        }
+
+        return confirmado;
     }
 
     function getHistoricoPayload() {
@@ -690,42 +2800,114 @@
 
         const modo = (document.getElementById('Modo')?.value || 'DIA').toUpperCase();
 
-        panel.classList.remove('mode-dia', 'mode-rango', 'mode-lote');
+        panel.classList.remove('mode-dia', 'mode-rango', 'mode-mes', 'mode-lote');
 
         if (modo === 'RANGO') panel.classList.add('mode-rango');
+        else if (modo === 'MES') panel.classList.add('mode-mes');
         else if (modo === 'LOTE') panel.classList.add('mode-lote');
         else panel.classList.add('mode-dia');
+
+        const lblFecha = document.getElementById('lblFechaInicial');
+        if (lblFecha) {
+            lblFecha.textContent = modo === 'MES'
+                ? 'Mes a costear (elige cualquier fecha)'
+                : 'Fecha inicial';
+        }
+    }
+
+    function autoValue(row, camelName, pascalName) {
+        return row?.[camelName] ?? row?.[pascalName];
+    }
+
+    function nombreOrigenAuto(source) {
+        const valor = (source || '').toUpperCase();
+        if (valor === 'P1') return 'Planta 1';
+        if (valor === 'TIF') return 'Planta TIF';
+        return valor || '-';
+    }
+
+    function renderAutoStatus(rows) {
+        const content = document.getElementById('autoStatusContent');
+        if (!content) return;
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            content.innerHTML = '<span class="auto-status-item inactive">No existe una programación guardada para esta selección.</span>';
+            return;
+        }
+
+        content.innerHTML = rows.map(row => {
+            const source = autoValue(row, 'source', 'Source') || '-';
+            const proceso = autoValue(row, 'tipoProceso', 'TipoProceso') || '-';
+            const hora = autoValue(row, 'horaProgramada', 'HoraProgramada') || '--:--';
+            const activo = autoValue(row, 'activo', 'Activo') === true;
+            const clase = activo ? 'active' : 'inactive';
+            const estado = activo ? 'ACTIVO' : 'INACTIVO';
+
+            return `<span class="auto-status-item ${clase}">
+                ${activo ? '●' : '○'} ${safe(nombreOrigenAuto(source))} · ${safe(proceso)} · ${safe(hora)} · ${estado}
+            </span>`;
+        }).join('');
     }
 
     async function loadAutoStatus() {
-    try {
-        const res = await fetch('@Url.Action("CosteoAutoStatus", "ProcesosCG")', {
-            credentials: 'same-origin'
-        });
+        try {
+            const res = await fetch('@Url.Action("CosteoAutoStatus", "ProcesosCG")', {
+                credentials: 'same-origin'
+            });
 
-        const data = await res.json();
-        if (!res.ok || !data?.ok || !Array.isArray(data.rows)) return;
+            const data = await res.json();
+            if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+                renderAutoStatus([]);
+                return;
+            }
 
-        const source = (document.getElementById('Source')?.value || 'P1').toUpperCase();
-        const tipoProceso = (document.getElementById('TipoProceso')?.value || 'CAJAS').toUpperCase();
+            const source = (document.getElementById('Source')?.value || 'P1').toUpperCase();
+            const tipoProceso = (document.getElementById('TipoProceso')?.value || 'CAJAS').toUpperCase();
+            const procesosPermitidos = tipoProceso === 'AMBOS'
+                ? ['CAJAS', 'RETRABAJO']
+                : [tipoProceso];
 
-        const rows = data.rows.filter(x =>
-            (x.source || '').toUpperCase() === source &&
-            (x.tipoProceso || '').toUpperCase() === (tipoProceso === 'AMBOS' ? 'CAJAS' : tipoProceso)
-        );
+            const candidatas = data.rows.filter(row => {
+                const rowSource = String(autoValue(row, 'source', 'Source') || '').toUpperCase();
+                const rowProceso = String(autoValue(row, 'tipoProceso', 'TipoProceso') || '').toUpperCase();
+                const sourceCoincide = source === 'ALL' || rowSource === source;
+                return sourceCoincide && procesosPermitidos.includes(rowProceso);
+            });
 
-        if (!rows.length) return;
+            // La consulta viene ordenada por fecha descendente; conserva solamente
+            // la configuración más reciente por planta y proceso.
+            const vistas = [];
+            const vistos = new Set();
 
-        const row = rows[0];
+            for (const row of candidatas) {
+                const key = `${String(autoValue(row, 'source', 'Source') || '').toUpperCase()}|${String(autoValue(row, 'tipoProceso', 'TipoProceso') || '').toUpperCase()}`;
+                if (vistos.has(key)) continue;
+                vistos.add(key);
+                vistas.push(row);
+            }
 
-        document.getElementById('HoraProgramada').value = row.horaProgramada || '18:00';
-        document.getElementById('Automatico').checked = row.activo === true;
-        document.getElementById('BrincarSinCosto').checked = row.brincarSinCosto === true;
-        document.getElementById('ContinuarConError').checked = row.continuarConError === true;
-    } catch (e) {
-        console.warn('CosteoAutoStatus error:', e);
+            renderAutoStatus(vistas);
+
+            // Solo se cargan controles cuando la selección representa una configuración única.
+            if (source !== 'ALL' && tipoProceso !== 'AMBOS') {
+                if (vistas.length > 0) {
+                    const row = vistas[0];
+                    document.getElementById('HoraProgramada').value = autoValue(row, 'horaProgramada', 'HoraProgramada') || '18:00';
+                    document.getElementById('Automatico').checked = autoValue(row, 'activo', 'Activo') === true;
+                    document.getElementById('BrincarSinCosto').checked = autoValue(row, 'brincarSinCosto', 'BrincarSinCosto') === true;
+                    document.getElementById('ContinuarConError').checked = autoValue(row, 'continuarConError', 'ContinuarConError') === true;
+                } else {
+                    document.getElementById('HoraProgramada').value = '18:00';
+                    document.getElementById('Automatico').checked = false;
+                    document.getElementById('BrincarSinCosto').checked = false;
+                    document.getElementById('ContinuarConError').checked = false;
+                }
+            }
+        } catch (e) {
+            renderAutoStatus([]);
+            console.warn('CosteoAutoStatus error:', e);
+        }
     }
-}
 
   async function guardarAuto(silent = false) {
     const payload = getPayload();
@@ -851,13 +3033,28 @@
             return;
         }
 
+        if (payload.Modo === 'RANGO' && payload.FechaFinal < payload.FechaInicial) {
+            showLog('warning', 'La fecha final no puede ser menor que la fecha inicial.');
+            return;
+        }
+
         if (payload.Modo === 'LOTE' && !payload.LoteId) {
             showLog('warning', 'Captura el lote.');
             return;
         }
 
+        if (!confirmarPeriodoCosteo(payload)) {
+            return;
+        }
+
+        const descripcion = payload.Modo === 'MES'
+            ? 'Ejecutando el mes por bloques diarios: Canales → Cajas → Retrabajo...'
+            : payload.Modo === 'LOTE'
+                ? 'Ejecutando costeo por lote. En este modo no se ejecuta canales...'
+                : 'Ejecutando costeo: Canales → Cajas → Retrabajo...';
+
         try {
-            showLog('info', 'Ejecutando costeo...');
+            showLog('info', descripcion);
 
             const res = await fetch('@Url.Action("EjecutarCosteo", "ProcesosCG")', {
                 method: 'POST',
@@ -867,9 +3064,25 @@
             });
 
             const data = await res.json();
+            const resultados = Array.isArray(data?.results) ? data.results : [];
+            const errores = resultados.filter(x => (x?.ok ?? x?.Ok) === false);
+            const correctos = resultados.length - errores.length;
 
-            if (res.ok && data?.ok) {
-                showLog('success', 'Proceso terminado correctamente.');
+            if (res.ok && resultados.length > 0) {
+                if (errores.length === 0) {
+                    showLog(
+                        'success',
+                        `Proceso terminado correctamente. ${correctos} bloque(s)/etapa(s) ejecutados.`
+                    );
+                } else {
+                    const primerError = errores[0]?.msg ?? errores[0]?.Msg ?? 'Consulta la bitácora.';
+                    showLog(
+                        payload.ContinuarConError ? 'warning' : 'danger',
+                        `Proceso terminado con ${errores.length} error(es) y ${correctos} ejecución(es) correctas. ` +
+                        `Primer error: ${primerError}`
+                    );
+                }
+
                 await recargarBitacora();
 
                 const modalEl = document.getElementById('modalHistorico');
@@ -877,9 +3090,15 @@
                     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
                     modal.show();
                 }
-            } else {
-                showLog('danger', data?.msg || 'No se pudo ejecutar el costeo.');
+                return;
             }
+
+            if (res.ok && resultados.length === 0) {
+                showLog('warning', 'La ejecución no generó etapas de costeo. Revisa los filtros.');
+                return;
+            }
+
+            showLog('danger', data?.msg || 'No se pudo ejecutar el costeo.');
         } catch (e) {
             showLog('danger', 'Error de red: ' + (e?.message || e));
         }
@@ -931,4 +3150,929 @@
 
     syncModeUI();
     loadAutoStatus();
+
+    //SCRIPT para Comparativa-costeo
+
+    //Control del render Activo
+    let TokenActivo = 0;
+    let datosComparativaActuales = [];
+    let paginaComparativaActual = 1;
+    let totalPaginasComparativa = 0;
+    let totalFiltradoComparativa = 0;
+    let comparativaConsultada = false;
+    let resumenComparativaActual = {};
+    let codigosAjustablesComparativa = [];
+    let limiteAjustablesComparativaExcedido = false;
+
+    const TAMANO_LOTE_AJUSTE_COMPARATIVA = 2000;
+
+    actualizarEstadoCuadreComparativa();
+
+    function cancelarRenderActivo(){
+        TokenActivo++;
+
+            document.getElementById("tbodyComparativaCosteo").innerHTML = "";
+
+    }
+
+    function limpiarComparativa(){
+        cancelarRenderActivo();
+
+        ocultarLoading();
+
+        document.getElementById("theadComparativa").innerHTML = "";
+        document.getElementById("tbodyComparativaCosteo").innerHTML = "";
+        document.getElementById("resumenComparativa").innerHTML = "";
+
+        datosComparativaActuales = [];
+        paginaComparativaActual = 1;
+        totalPaginasComparativa = 0;
+        totalFiltradoComparativa = 0;
+        comparativaConsultada = false;
+        resumenComparativaActual = {};
+        codigosAjustablesComparativa = [];
+        limiteAjustablesComparativaExcedido = false;
+
+        actualizarEstadoCuadreComparativa();
+        renderPaginacionComparativa({
+            pagina: 0,
+            totalPaginas: 0,
+            tamanoPagina: obtenerTamanoPaginaComparativa(),
+            total: 0,
+            datos: []
+        });
+
+        desbloquearConsulta();
+    }
+
+    function mostrarLoading(titulo, mensaje){
+        document.getElementById("resultadoComparativa").classList.add("d-none");
+        document.getElementById("loadingComparativa").classList.remove("d-none");
+
+        document.getElementById("loadingTitulo").textContent = titulo;
+        document.getElementById("loadingMensaje").textContent = mensaje;
+
+        const barra = document.getElementById("loadingBarra");
+        barra.style.width = "0%";
+        barra.textContent = "0%";
+    }
+
+    function actualizarLoading(titulo, mensaje, porcentaje){
+        document.getElementById("loadingTitulo").textContent = titulo;
+        document.getElementById("loadingMensaje").textContent = mensaje;
+
+        const barra = document.getElementById("loadingBarra");
+        barra.style.width = `${porcentaje}%`;
+        barra.textContent = `${porcentaje}%`;
+
+    }
+
+    function ocultarLoading() {
+        document.getElementById("loadingComparativa").classList.add("d-none");
+        document.getElementById("resultadoComparativa").classList.remove("d-none");
+    }
+
+    function bloquearConsulta(){
+        const btn = document.getElementById("btnConsultarComparativa");
+
+        btn.disabled = true;
+        btn.style.backgroundColor = "red";
+        btn.style.opacity = "0.5";
+    }
+
+    function desbloquearConsulta() {
+        const btn = document.getElementById("btnConsultarComparativa");
+
+        btn.disabled = false;
+        btn.style.backgroundColor = "";
+        btn.style.opacity = "";
+    }
+
+    function obtenerTamanoPaginaComparativa() {
+        const valor = Number(
+            document.getElementById('cmpTamanoPagina')?.value || 200
+        );
+
+        if (!Number.isFinite(valor)) return 200;
+
+        return Math.min(1000, Math.max(50, Math.trunc(valor)));
+    }
+
+    function renderPaginacionComparativa(resultado) {
+        const contenedor = document.getElementById('paginacionComparativa');
+        const info = document.getElementById('cmpInfoPagina');
+        const numeroPagina = document.getElementById('cmpNumeroPagina');
+        const anterior = document.getElementById('btnPaginaAnterior');
+        const siguiente = document.getElementById('btnPaginaSiguiente');
+        const selectorTamano = document.getElementById('cmpTamanoPagina');
+
+        if (!contenedor || !info || !numeroPagina || !anterior || !siguiente) {
+            return;
+        }
+
+        const pagina = Math.max(0, Number(resultado?.pagina) || 0);
+        const totalPaginas = Math.max(
+            0,
+            Number(resultado?.totalPaginas) || 0
+        );
+        const tamanoPagina = Math.max(
+            1,
+            Number(resultado?.tamanoPagina) ||
+            obtenerTamanoPaginaComparativa()
+        );
+        const total = Math.max(
+            0,
+            Number(resultado?.total ?? resultado?.resumen?.totalFiltrado) || 0
+        );
+        const cantidadVisible = Array.isArray(resultado?.datos)
+            ? resultado.datos.length
+            : 0;
+
+        if (selectorTamano) {
+            selectorTamano.value = String(tamanoPagina);
+        }
+
+        if (!comparativaConsultada && total === 0) {
+            contenedor.classList.add('d-none');
+            info.textContent = 'Sin resultados.';
+            numeroPagina.textContent = 'Página 0 de 0';
+            anterior.disabled = true;
+            siguiente.disabled = true;
+            return;
+        }
+
+        contenedor.classList.remove('d-none');
+
+        const inicio = total > 0
+            ? ((Math.max(1, pagina) - 1) * tamanoPagina) + 1
+            : 0;
+        const fin = total > 0
+            ? Math.min(total, inicio + cantidadVisible - 1)
+            : 0;
+
+        info.textContent =
+            `Mostrando ${inicio.toLocaleString('es-MX')}–${fin.toLocaleString('es-MX')} ` +
+            `de ${total.toLocaleString('es-MX')} registro(s) filtrado(s).`;
+
+        numeroPagina.textContent =
+            `Página ${pagina.toLocaleString('es-MX')} de ${totalPaginas.toLocaleString('es-MX')}`;
+
+        anterior.disabled = pagina <= 1;
+        siguiente.disabled = totalPaginas === 0 || pagina >= totalPaginas;
+    }
+
+    function cambiarPaginaComparativa(direccion) {
+        const nuevaPagina = paginaComparativaActual + Number(direccion || 0);
+
+        if (
+            nuevaPagina < 1 ||
+            nuevaPagina > totalPaginasComparativa ||
+            nuevaPagina === paginaComparativaActual
+        ) {
+            return;
+        }
+
+        consultarComparativa(nuevaPagina);
+    }
+
+    function cambiarTamanoPaginaComparativa() {
+        paginaComparativaActual = 1;
+
+        if (comparativaConsultada) {
+            consultarComparativa(1);
+        }
+    }
+
+
+    function getComparativaFiltro(pagina = paginaComparativaActual) {
+        return {
+            tipoPeriodo: document.getElementById("cmpPeriodo")?.value || 'MES',
+            fechaBase: document.getElementById("cmpFecha")?.value || null,
+            tolerancia: parseFloat(document.getElementById("cmpTolerancia")?.value || '0'),
+            estadoCosto: document.getElementById("cmpEstado")?.value || 'PENDIENTES',
+            pagina: Math.max(1, Number(pagina) || 1),
+            tamanoPagina: obtenerTamanoPaginaComparativa()
+        };
+    }
+
+    function obtenerNombreArchivo(disposition) {
+        if (!disposition) return null;
+
+        const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8?.[1]) return decodeURIComponent(utf8[1].replace(/["']/g, ''));
+
+        const normal = disposition.match(/filename="?([^";]+)"?/i);
+        return normal?.[1] || null;
+    }
+
+    async function exportarComparativaExcel() {
+        const btn = document.getElementById('btnExportarComparativa');
+        const filtro = getComparativaFiltro();
+
+        if (!filtro.fechaBase) {
+            alert('Captura la fecha de la comparativa.');
+            return;
+        }
+
+        if (!Number.isFinite(filtro.tolerancia) || filtro.tolerancia < 0) {
+            alert('La tolerancia debe ser un número mayor o igual a cero.');
+            return;
+        }
+
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Generando Excel...';
+            }
+
+            const response = await fetch('@Url.Action("ExportarComparativaCosteoExcel", "ProcesosCG")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(filtro)
+            });
+
+            if (!response.ok) {
+                let mensaje = 'No se pudo generar el archivo de Excel.';
+                try {
+                    const error = await response.json();
+                    mensaje = error?.mensaje || error?.msg || mensaje;
+                } catch { }
+                throw new Error(mensaje);
+            }
+
+            const blob = await response.blob();
+            const nombre = obtenerNombreArchivo(response.headers.get('Content-Disposition'))
+                || `Comparativa_Costeo_${filtro.tipoPeriodo}_${String(filtro.fechaBase).replaceAll('-', '')}.xlsx`;
+
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = nombre;
+            document.body.appendChild(enlace);
+            enlace.click();
+            enlace.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert(e?.message || 'No se pudo descargar la comparativa.');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Descargar Excel';
+            }
+        }
+    }
+
+    async function consultarComparativa(paginaSolicitada = 1) {
+        cancelarRenderActivo();
+
+        const pagina = Math.max(1, Number(paginaSolicitada) || 1);
+        paginaComparativaActual = pagina;
+
+        document.getElementById("theadComparativa").innerHTML = "";
+        document.getElementById("tbodyComparativaCosteo").innerHTML = "";
+
+        const consultaActual = TokenActivo;
+
+        mostrarLoading(
+            "Consultando información...",
+            "SQL está calculando la comparativa y devolverá solamente la página solicitada."
+        );
+
+        bloquearConsulta();
+
+        try {
+            const filtro = getComparativaFiltro(pagina);
+
+            if (!filtro.fechaBase) {
+                throw new Error('Captura la fecha de la comparativa.');
+            }
+
+            if (!Number.isFinite(filtro.tolerancia) || filtro.tolerancia < 0) {
+                throw new Error('La tolerancia debe ser un número mayor o igual a cero.');
+            }
+
+            const response = await fetch(
+                '@Url.Action("ConsultarComparativaCosteo", "ProcesosCG")',
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(filtro)
+                }
+            );
+
+            const textoRespuesta = await response.text();
+            let resultado = {};
+
+            try {
+                resultado = textoRespuesta ? JSON.parse(textoRespuesta) : {};
+            } catch {
+                resultado = {
+                    ok: false,
+                    mensaje: 'El servidor devolvió una respuesta no válida.',
+                    detalle: textoRespuesta
+                };
+            }
+
+            if (!response.ok || !resultado?.ok) {
+                const mensaje =
+                    resultado?.mensaje ||
+                    resultado?.msg ||
+                    'No se pudo consultar la comparativa.';
+
+                const detalle =
+                    resultado?.detalle ||
+                    resultado?.error ||
+                    '';
+
+                throw new Error(
+                    detalle
+                        ? `${mensaje}\n\nDetalle técnico:\n${detalle}`
+                        : mensaje
+                );
+            }
+
+            if (consultaActual !== TokenActivo) return;
+
+            const datos = Array.isArray(resultado.datos)
+                ? resultado.datos
+                : [];
+
+            datosComparativaActuales = datos;
+            paginaComparativaActual = Math.max(1, Number(resultado.pagina) || pagina);
+            totalPaginasComparativa = Math.max(0, Number(resultado.totalPaginas) || 0);
+            totalFiltradoComparativa = Math.max(0, Number(resultado.total) || 0);
+            resumenComparativaActual = resultado.resumen || {};
+            codigosAjustablesComparativa = Array.isArray(resultado.codigosAjustables)
+                ? resultado.codigosAjustables
+                    .map(x => String(x || '').trim())
+                    .filter(Boolean)
+                : [];
+            limiteAjustablesComparativaExcedido =
+                resultado.limiteAjustablesExcedido === true;
+            comparativaConsultada = true;
+
+            actualizarLoading(
+                "Mostrando resultados...",
+                `Preparando ${datos.length.toLocaleString("es-MX")} registro(s) de la página ${paginaComparativaActual.toLocaleString("es-MX")}.`,
+                100
+            );
+
+            renderResumen(resultado);
+            renderEncabezado(datos);
+            renderFilas(datos);
+            renderPaginacionComparativa(resultado);
+            actualizarEstadoCuadreComparativa();
+
+            ocultarLoading();
+        }
+        catch (e) {
+            if (consultaActual === TokenActivo) {
+                ocultarLoading();
+                alert(e?.message || 'Error al consultar la comparativa.');
+            }
+        }
+        finally {
+            if (consultaActual === TokenActivo) {
+                desbloquearConsulta();
+            }
+        }
+    }
+
+    
+    
+
+    
+
+    /*
+        El procedimiento dbo.meat_CostoTIF copia costos desde TIF hacia Meat P1.
+        Por seguridad solamente se envían etiquetas cuando TIF tiene un costo
+        positivo. Si TIF está en cero, el procedimiento no puede inventar el
+        costo y la incidencia debe permanecer visible.
+    */
+    
+
+    
+
+    function obtenerProgresoAjuste(job) {
+        const solicitados = Math.max(0, Number(job?.codigosSolicitados) || 0);
+        const procesados = Math.min(
+            solicitados,
+            Math.max(0, Number(job?.codigosProcesados) || 0)
+        );
+        const tamanoLote = Math.max(
+            1,
+            Number(job?.tamanoLote) || TAMANO_LOTE_AJUSTE_COMPARATIVA
+        );
+        const totalLotes = Math.max(
+            0,
+            Number(job?.totalLotes) ||
+            (solicitados > 0 ? Math.ceil(solicitados / tamanoLote) : 0)
+        );
+        const loteActual = Math.min(
+            totalLotes,
+            Math.max(0, Number(job?.loteActual) || 0)
+        );
+        const porcentaje = solicitados > 0
+            ? Math.min(100, Math.round((procesados * 10000) / solicitados) / 100)
+            : 0;
+
+        return { solicitados, procesados, tamanoLote, totalLotes, loteActual, porcentaje };
+    }
+
+    function actualizarEstadoCuadreComparativa() {
+        const btn = document.getElementById('btnCuadrarComparativa');
+        const texto = document.getElementById('txtPendientesComparativa');
+
+        if (!btn || !texto) {
+            console.error('No se encontró la barra de Cuadrar comparativa en el DOM.');
+            return;
+        }
+
+        const totalAjustables = Math.max(
+            0,
+            Number(resumenComparativaActual?.totalAjustables) || 0
+        );
+        const totalSinCostoTif = Math.max(
+            0,
+            Number(resumenComparativaActual?.totalSinCostoTIF) || 0
+        );
+        const codigosDisponibles = codigosAjustablesComparativa.length;
+        const respuestaIncompleta =
+            limiteAjustablesComparativaExcedido ||
+            codigosDisponibles < totalAjustables;
+        const trabajoActivo = window.CosteoAjusteMonitor?.getActive?.();
+
+        if (trabajoActivo?.jobId) {
+            const progreso = obtenerProgresoAjuste(trabajoActivo);
+
+            btn.disabled = true;
+            btn.textContent = progreso.solicitados > 0
+                ? `Ajustando ${progreso.procesados.toLocaleString('es-MX')}/${progreso.solicitados.toLocaleString('es-MX')}`
+                : 'Ajuste en segundo plano';
+
+            texto.textContent =
+                trabajoActivo.mensaje ||
+                (
+                    progreso.totalLotes > 0
+                        ? `Procesando lote ${progreso.loteActual.toLocaleString('es-MX')} de ${progreso.totalLotes.toLocaleString('es-MX')} · ${progreso.porcentaje.toLocaleString('es-MX')}%.`
+                        : 'El procedimiento dbo.meat_CostoTIF se está ejecutando en segundo plano.'
+                );
+            return;
+        }
+
+        btn.textContent =
+            `Cuadrar comparativa (${totalAjustables.toLocaleString('es-MX')})`;
+
+        btn.disabled =
+            !comparativaConsultada ||
+            totalAjustables === 0 ||
+            respuestaIncompleta;
+
+        if (!comparativaConsultada) {
+            texto.textContent =
+                'Consulta la comparativa para identificar diferencias o registros sin costo.';
+            return;
+        }
+
+        const partes = [];
+
+        if (totalAjustables > 0) {
+            const totalLotes = Math.ceil(
+                totalAjustables / TAMANO_LOTE_AJUSTE_COMPARATIVA
+            );
+
+            partes.push(
+                `${totalAjustables.toLocaleString('es-MX')} etiqueta(s) ajustable(s) en P1`
+            );
+            partes.push(
+                `${totalLotes.toLocaleString('es-MX')} lote(s) secuencial(es) de hasta ${TAMANO_LOTE_AJUSTE_COMPARATIVA.toLocaleString('es-MX')}`
+            );
+        } else {
+            partes.push('No hay etiquetas ajustables en P1');
+        }
+
+        if (totalSinCostoTif > 0) {
+            partes.push(
+                `${totalSinCostoTif.toLocaleString('es-MX')} etiqueta(s) sin costo válido en TIF; primero deben costearse en TIF`
+            );
+        }
+
+        if (respuestaIncompleta) {
+            partes.push(
+                `el servidor devolvió ${codigosDisponibles.toLocaleString('es-MX')} de ${totalAjustables.toLocaleString('es-MX')} códigos; instala también el controlador ajustado`
+            );
+        }
+
+        texto.textContent = partes.join(' · ') + '.';
+    }
+
+    async function cuadrarComparativa() {
+        const btn = document.getElementById('btnCuadrarComparativa');
+        const totalAjustables = Math.max(
+            0,
+            Number(resumenComparativaActual?.totalAjustables) || 0
+        );
+        const totalSinCostoTif = Math.max(
+            0,
+            Number(resumenComparativaActual?.totalSinCostoTIF) || 0
+        );
+        const codigos = [...codigosAjustablesComparativa];
+        const totalLotes = Math.ceil(
+            codigos.length / TAMANO_LOTE_AJUSTE_COMPARATIVA
+        );
+
+        if (!btn) {
+            alert('No se encontró el botón para cuadrar la comparativa.');
+            return;
+        }
+
+        const trabajoActivo = window.CosteoAjusteMonitor?.getActive?.();
+        if (trabajoActivo?.jobId) {
+            window.CosteoAjusteMonitor.toast(
+                'info',
+                'Ajuste en proceso',
+                'Ya existe un ajuste ejecutándose en segundo plano.',
+                8000
+            );
+            return;
+        }
+
+        if (
+            limiteAjustablesComparativaExcedido ||
+            codigos.length < totalAjustables
+        ) {
+            alert(
+                'La vista recibió una lista incompleta de códigos ajustables.\n\n' +
+                `Servidor: ${codigos.length.toLocaleString('es-MX')} código(s).\n` +
+                `Resumen: ${totalAjustables.toLocaleString('es-MX')} etiqueta(s).\n\n` +
+                'Reemplaza también ProcesosCgController.cs por la versión ajustada para procesamiento por lotes.'
+            );
+            return;
+        }
+
+        if (totalAjustables === 0 || codigos.length === 0) {
+            const mensaje = totalSinCostoTif > 0
+                ? `No hay etiquetas ajustables desde P1.\n\n` +
+                  `${totalSinCostoTif.toLocaleString('es-MX')} etiqueta(s) no tienen costo válido en TIF. ` +
+                  'Primero deben costearse en TIF; dbo.meat_CostoTIF no puede inventar ese costo.'
+                : 'No hay diferencias ajustables en P1.';
+
+            alert(mensaje);
+            actualizarEstadoCuadreComparativa();
+            return;
+        }
+
+        const muestra = codigos.slice(0, 8).join(', ');
+        const adicionales = codigos.length > 8
+            ? `\n... y ${codigos.length - 8} etiqueta(s) adicional(es).`
+            : '';
+
+        const confirmado = window.confirm(
+            'ATENCIÓN: esta operación modificará costos en la base Meat de P1.\n\n' +
+            `Se ajustarán ${codigos.length.toLocaleString('es-MX')} etiqueta(s) con costo positivo en TIF.\n\n` +
+            `El servidor las procesará secuencialmente en ${totalLotes.toLocaleString('es-MX')} lote(s) de hasta ${TAMANO_LOTE_AJUSTE_COMPARATIVA.toLocaleString('es-MX')} etiqueta(s).\n` +
+            'Nunca se ejecutarán dos lotes al mismo tiempo.\n\n' +
+            'Los códigos corresponden a todo el filtro consultado, no solamente a la página visible.\n\n' +
+            `Ejemplos: ${muestra}${adicionales}\n\n` +
+            'El proceso continuará en el servidor aunque cierres el modal o cambies de pestaña.\n\n' +
+            '¿Confirmas que deseas cuadrar la comparativa?'
+        );
+
+        if (!confirmado) return;
+
+        try {
+            btn.disabled = true;
+            btn.textContent = 'Iniciando ajuste por lotes...';
+
+            await window.CosteoAjusteMonitor?.requestNotificationPermission?.();
+
+            const response = await fetch(
+                '@Url.Action("IniciarAjusteComparativaCosteo", "ProcesosCG")',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        CodigosEtiqueta: codigos,
+                        TamanoLote: TAMANO_LOTE_AJUSTE_COMPARATIVA
+                    })
+                }
+            );
+
+            const textoRespuesta = await response.text();
+            let resultado = {};
+
+            try {
+                resultado = textoRespuesta ? JSON.parse(textoRespuesta) : {};
+            } catch {
+                resultado = {
+                    ok: false,
+                    mensaje: 'El servidor devolvió una respuesta no válida.',
+                    detalle: textoRespuesta
+                };
+            }
+
+            const puedeAdjuntarTrabajo =
+                response.status === 409 &&
+                resultado?.yaExiste === true &&
+                resultado?.jobId;
+
+            if ((!response.ok || !resultado?.ok) && !puedeAdjuntarTrabajo) {
+                const mensaje =
+                    resultado?.mensaje ||
+                    resultado?.msg ||
+                    'No se pudo iniciar el ajuste de la comparativa.';
+
+                const detalle = resultado?.detalle || resultado?.error || '';
+
+                throw new Error(
+                    detalle
+                        ? `${mensaje}\n\nDetalle técnico:\n${detalle}`
+                        : mensaje
+                );
+            }
+
+            const jobId = resultado.jobId;
+
+            if (!jobId) {
+                throw new Error(
+                    'El servidor no devolvió el identificador del trabajo.'
+                );
+            }
+
+            if (!window.CosteoAjusteMonitor?.track) {
+                throw new Error(
+                    'No se cargó el monitor de ajustes de costeo. Recarga la página con Ctrl+F5 e inténtalo nuevamente.'
+                );
+            }
+
+            await window.CosteoAjusteMonitor.track(jobId, {
+                codigosSolicitados:
+                    resultado?.codigosSolicitados ?? codigos.length,
+                codigosProcesados:
+                    resultado?.codigosProcesados ?? 0,
+                tamanoLote:
+                    resultado?.tamanoLote ?? TAMANO_LOTE_AJUSTE_COMPARATIVA,
+                loteActual:
+                    resultado?.loteActual ?? 0,
+                totalLotes:
+                    resultado?.totalLotes ?? totalLotes,
+                mensaje:
+                    resultado?.mensaje ||
+                    'Ajuste por lotes iniciado en segundo plano.'
+            });
+
+            btn.disabled = true;
+            btn.textContent =
+                `Ajustando 0/${(resultado?.codigosSolicitados ?? codigos.length).toLocaleString('es-MX')}`;
+
+            window.CosteoAjusteMonitor.toast(
+                'info',
+                puedeAdjuntarTrabajo
+                    ? 'Ajuste ya en proceso'
+                    : 'Ajuste por lotes iniciado',
+                `Se procesarán ${(resultado?.totalLotes ?? totalLotes).toLocaleString('es-MX')} lote(s) secuenciales de hasta ${(resultado?.tamanoLote ?? TAMANO_LOTE_AJUSTE_COMPARATIVA).toLocaleString('es-MX')} etiquetas. Puedes navegar por la aplicación.`,
+                14000
+            );
+        }
+        catch (e) {
+            actualizarEstadoCuadreComparativa();
+            alert(
+                e?.message ||
+                'Ocurrió un error al iniciar el ajuste de la comparativa.'
+            );
+        }
+    }
+
+    window.addEventListener('costeo-ajuste-estado', function (event) {
+        const job = event?.detail || {};
+        const btn = document.getElementById('btnCuadrarComparativa');
+        const texto = document.getElementById('txtPendientesComparativa');
+        if (!btn) return;
+
+        if (job.estado === 'PENDIENTE' || job.estado === 'EJECUTANDO') {
+            const progreso = obtenerProgresoAjuste(job);
+
+            btn.disabled = true;
+            btn.textContent = progreso.solicitados > 0
+                ? `Ajustando ${progreso.procesados.toLocaleString('es-MX')}/${progreso.solicitados.toLocaleString('es-MX')}`
+                : 'Ajuste en segundo plano';
+
+            if (texto) {
+                texto.textContent =
+                    job.mensaje ||
+                    (
+                        progreso.totalLotes > 0
+                            ? `Lote ${progreso.loteActual.toLocaleString('es-MX')} de ${progreso.totalLotes.toLocaleString('es-MX')} · ${progreso.porcentaje.toLocaleString('es-MX')}%.`
+                            : 'El procedimiento dbo.meat_CostoTIF se está ejecutando en segundo plano.'
+                    );
+            }
+        }
+    });
+
+    window.addEventListener('costeo-ajuste-finalizado', async function (event) {
+        const job = event?.detail || {};
+        const btn = document.getElementById('btnCuadrarComparativa');
+
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Cuadrar comparativa';
+        }
+
+        // Solo actualiza automáticamente la tabla cuando la comparativa está abierta.
+        const modal = document.getElementById('modalComparativa');
+        if (job.exito === true && modal?.classList.contains('show')) {
+            try {
+                await consultarComparativa(1);
+            } catch (e) {
+                console.warn('No se pudo refrescar automáticamente la comparativa:', e);
+            }
+        } else {
+            actualizarEstadoCuadreComparativa();
+        }
+    });
+
+    function renderEncabezado(datos) {
+
+       
+        
+        const thead = document.getElementById("theadComparativa");
+
+        thead.innerHTML = "";
+
+        if (!datos || datos.length === 0)
+            return;
+        
+        const columnas = Object.keys(datos[0]);
+
+        let html = "<tr>";
+
+        for (const columna of columnas) {
+            html += `<th class="${obtenerClaseColumna(columna)}">${columna}</th>`;
+        }
+
+        html += "</tr>";
+
+        thead.innerHTML = html;
+
+        
+    }
+
+
+    function renderFilas(datos) {
+        const tbody = document.getElementById("tbodyComparativaCosteo");
+
+        if (!tbody) return;
+
+        if (!Array.isArray(datos) || datos.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="17" class="text-center" style="padding:18px !important;">
+                        No hay registros para el filtro seleccionado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const columnas = Object.keys(datos[0]);
+
+        tbody.innerHTML = datos.map(fila => {
+            const celdas = columnas.map(columna => `
+                <td class="${obtenerClaseColumna(columna)}">
+                    ${formatearCelda(columna, fila[columna])}
+                </td>
+            `).join('');
+
+            return `<tr>${celdas}</tr>`;
+        }).join('');
+    }
+
+
+
+
+    function formatearCelda(columna, valor){
+
+        if (columna === "estadoCosto" || columna === "EstadoCosto"){
+            switch (valor) {
+                 case "100% MISMO COSTO":
+            return `<span class="badge bg-success">${valor}</span>`;
+
+        case "COSTO DIFERENTE":
+            return `<span class="badge bg-danger">${valor}</span>`;
+
+        case "SIN COSTO EN TIF":
+            return `<span class="badge bg-warning text-dark">${valor}</span>`;
+
+        case "SIN COSTO EN P1":
+            return `<span class="badge text-white"
+                        style="background:#fd7e14;">
+                        ${valor}
+                    </span>`;
+
+        case "SIN COSTO EN TIF Y P1":
+            return `<span class="badge bg-secondary">${valor}</span>`;
+            }
+        }
+
+        if (typeof valor === "string" && valor.includes("T")){
+            const fecha = new Date(valor);
+
+            if (!isNaN(fecha)) {
+                return fecha.toLocaleDateString("es-MX");
+            }
+        }
+
+        return valor;
+    }
+
+    function obtenerClaseColumna(nombre){
+
+        if(nombre.includes("Producto"))
+            return "col-producto";
+
+        if(nombre.includes("Costo"))
+            return "col-costo";
+
+        if(nombre.includes("Peso"))
+            return "col-peso";
+
+        if(nombre.includes("Estado"))
+            return "col-estado";
+
+        if(nombre.includes("Id"))
+            return "col-id";
+
+        return "";
+    }
+
+    function renderResumen(resultado) {
+        const contenedor = document.getElementById("resumenComparativa");
+
+        if (!contenedor) return;
+
+        const resumen = resultado?.resumen || {};
+        const totalGeneral = Number(resumen.totalGeneral || 0);
+        const totalFiltrado = Number(resumen.totalFiltrado ?? resultado?.total ?? 0);
+        const mismoCosto = Number(resumen.mismoCosto || 0);
+        const costoDiferente = Number(resumen.costoDiferente || 0);
+        const sinCostoTIF = Number(resumen.sinCostoTIF || 0);
+        const sinCostoP1 = Number(resumen.sinCostoP1 || 0);
+        const sinCostoAmbos = Number(resumen.sinCostoAmbos || 0);
+
+        contenedor.innerHTML = `
+            <div class="comparativa-resumen">
+                <span class="resumen-chip">
+                    <strong>Total periodo:</strong>
+                    ${totalGeneral.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip">
+                    <strong>Según filtro:</strong>
+                    ${totalFiltrado.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip">
+                    <strong>Mismo costo:</strong>
+                    ${mismoCosto.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip alerta">
+                    <strong>Diferente:</strong>
+                    ${costoDiferente.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip alerta">
+                    <strong>Sin costo TIF:</strong>
+                    ${sinCostoTIF.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip alerta">
+                    <strong>Sin costo P1:</strong>
+                    ${sinCostoP1.toLocaleString("es-MX")}
+                </span>
+
+                <span class="resumen-chip alerta">
+                    <strong>Sin costo en ambas:</strong>
+                    ${sinCostoAmbos.toLocaleString("es-MX")}
+                </span>
+            </div>
+        `;
+    }
+
+        const ajusteActivoAlCargar = window.CosteoAjusteMonitor?.getActive?.();
+        if (ajusteActivoAlCargar?.jobId) {
+            window.dispatchEvent(new CustomEvent('costeo-ajuste-estado', {
+                detail: ajusteActivoAlCargar
+            }));
+        }
+
+        const modalComparativa = document.getElementById("modalComparativa");
+
+        modalComparativa.addEventListener("hidden.bs.modal", () => {
+            limpiarComparativa();
+        })
+   
 </script>

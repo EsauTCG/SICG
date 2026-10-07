@@ -59,6 +59,8 @@ namespace Plataforma_CG.ViewModels
         // ✅ NUEVO: el modo viaja en el POST
         public string? ModoPresupuesto { get; set; } // "VENDEDOR" | "CLIENTE"
 
+        public List<CompromisoPagoFacturaViewModel> CompromisosPago { get; set; } = new();
+
         public List<PedidoProductoViewModel> Productos { get; set; } = new List<PedidoProductoViewModel>();
     }
 
