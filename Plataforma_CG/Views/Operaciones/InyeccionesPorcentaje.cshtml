@@ -1,0 +1,1156 @@
+﻿@model IEnumerable<Plataforma_CG.Models.InyeccionSkuViewModel>
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Control de Inyección por SKU";
+
+    // Permisos efectivos del módulo (los pone el controller en Index).
+    bool puedeEscribir = ViewBag.PuedeEscribir as bool? ?? false;
+    bool puedeEliminar = ViewBag.PuedeEliminar as bool? ?? false;
+}
+
+<style>
+    /* =========================================================
+       VARIABLES Y BASE
+       ========================================================= */
+    :root {
+        --inj-brand: #781823;
+        --inj-brand-dark: #521018;
+        --inj-brand-soft: #f7e9eb;
+        --inj-bg: #eef2f5;
+        --inj-card: #ffffff;
+        --inj-line: #d8e1e8;
+        --inj-text: #203142;
+        --inj-muted: #63788b;
+        --inj-blue: #1875e8;
+        --inj-green: #20a95b;
+        --inj-shadow: 0 5px 18px rgba(27, 43, 58, .08);
+    }
+
+    body, main {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    body:has(.op-inj-v3) {
+        background: var(--inj-bg) !important;
+        color: var(--inj-text);
+    }
+
+    .op-inj-v3, .op-inj-v3 * {
+        box-sizing: border-box;
+        font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+    }
+
+    .op-inj-v3 {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        padding: 7px 10px !important;
+        overflow: hidden !important;
+    }
+
+    .op-inj-v3 .inj-page {
+        display: grid;
+        gap: 10px;
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .op-inj-v3 .inj-card {
+        background: var(--inj-card);
+        border: 1px solid var(--inj-line);
+        border-radius: 16px !important;
+        box-shadow: var(--inj-shadow);
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    /* =========================================================
+       CABECERA
+       ========================================================= */
+    .op-inj-v3 .inj-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 14px !important;
+        background: linear-gradient(135deg, #521018, #781823) !important;
+        color: #fff !important;
+        border-radius: 12px !important;
+    }
+
+    .op-inj-v3 .inj-kicker {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .05em;
+    }
+
+    .op-inj-v3 .inj-title-row {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .op-inj-v3 .inj-title-row h1 {
+        margin: 2px 0;
+        white-space: nowrap;
+        font-size: clamp(21px, 2vw, 30px) !important;
+        line-height: 1;
+        font-weight: 800;
+    }
+
+    .op-inj-v3 .inj-header-main > p {
+        margin: 4px 0 0;
+        font-size: 11px !important;
+        color: #f4dfe2;
+    }
+
+    .op-inj-v3 .inj-flow {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .op-inj-v3 .inj-flow span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 7px !important;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 9px;
+        background: rgba(255,255,255,.08);
+        font-size: 8px !important;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .op-inj-v3 .inj-flow span b {
+        display: inline-grid;
+        place-items: center;
+        width: 18px !important;
+        height: 18px !important;
+        border-radius: 999px;
+        background: #fff;
+        color: #000 !important;
+        font-size: 8px !important;
+    }
+
+    .op-inj-v3 .inj-flow span.finish {
+        background: rgba(240, 160, 60, .28);
+    }
+
+    .op-inj-v3 .inj-flow i {
+        opacity: .65;
+        font-style: normal;
+        font-size: 9px;
+    }
+
+    /* =========================================================
+       TABLERO Y FILTROS
+       ========================================================= */
+    .op-inj-v3 .inj-dashboard {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px !important;
+    }
+
+    .op-inj-v3 .inj-main {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 10px !important;
+        align-content: start !important;
+    }
+
+    .op-inj-v3 .inj-setup {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 220px);
+        gap: 10px !important;
+    }
+
+    .op-inj-v3 .inj-lot, .op-inj-v3 .inj-capture {
+        padding: 10px 11px !important;
+    }
+
+    .op-inj-v3 .inj-card label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 6px !important;
+        font-size: 10px !important;
+        font-weight: 800;
+        color: #526f88;
+    }
+
+    .op-inj-v3 .inj-card label b {
+        display: inline-grid;
+        place-items: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: #eaf2fb;
+        color: var(--inj-blue);
+        font-size: 9px;
+    }
+
+    .op-inj-v3 .inj-lot input,
+    .op-inj-v3 .inj-lot select {
+        width: 100%;
+        height: 38px !important;
+        border: 1px solid var(--inj-line);
+        border-radius: 9px !important;
+        background: #fff;
+        color: var(--inj-text);
+        padding: 0 9px;
+        font-size: 11px !important;
+    }
+
+    /* =========================================================
+       TABLAS
+       ========================================================= */
+    .op-inj-v3 .inj-table-scroll {
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 0 0 16px 16px;
+    }
+
+    .op-inj-v3 .tabla-reporte {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .op-inj-v3 .tabla-reporte th,
+    .op-inj-v3 .tabla-reporte td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--inj-line);
+        text-align: center;
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    .op-inj-v3 .tabla-reporte thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #243c51;
+        color: #fff;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .op-inj-v3 .tabla-reporte tbody tr:hover td {
+        background: #f7f9fb;
+    }
+
+    .op-inj-v3 .inj-section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--inj-line);
+    }
+
+    .op-inj-v3 .inj-section-head span {
+        display: block;
+        color: var(--inj-muted);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }
+
+    .op-inj-v3 .inj-section-head strong {
+        display: block;
+        color: var(--inj-text);
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    /* =========================================================
+       BOTONES Y BADGES
+       ========================================================= */
+    .btn {
+        border: 0;
+        border-radius: 9px;
+        padding: 9px 12px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .btn.primary {
+        background: linear-gradient(180deg, #2cbb6b, #1c9f57);
+        color: #fff;
+    }
+
+    .btn.primary2 {
+        background: var(--inj-brand);
+        color: #fff;
+    }
+
+    .badge-estado-activo {
+        background-color: #e8f7ee;
+        color: #178344;
+        font-weight: 800;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 9px;
+    }
+
+    .badge-estado-inactivo {
+        background-color: #f1f3f5;
+        color: #6c757d;
+        font-weight: 800;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 9px;
+    }
+
+    /* =========================================================
+       MODALES
+       ========================================================= */
+    .overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        background: rgba(0,0,0,.45);
+        z-index: 1000;
+    }
+
+    .modal-Confi {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translate(-50%, -50%) !important;
+        width: min(92vw, 650px) !important;
+        max-width: 650px !important;
+        height: auto !important;
+        max-height: calc(100dvh - 70px) !important;
+        margin: 0 !important;
+        padding: 18px 20px !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        border-radius: 16px !important;
+        background: var(--inj-card) !important;
+        box-shadow: 0 20px 48px rgba(0,0,0,.25) !important;
+        z-index: 1005 !important;
+        box-sizing: border-box !important;
+    }
+
+    .modal-Confi .modal-header {
+        margin: 0 0 14px !important;
+        padding: 0 0 10px !important;
+        border-bottom: 1px solid var(--inj-line) !important;
+        color: var(--inj-brand-dark) !important;
+        font-size: 18px !important;
+        font-weight: 800 !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-Confi .modal-body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .modal-Confi label {
+        display: block !important;
+        margin: 0 0 5px !important;
+        color: var(--inj-muted) !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+
+    .modal-Confi input,
+    .modal-Confi select,
+    .modal-Confi textarea {
+        width: 100% !important;
+        min-height: 42px !important;
+        padding: 8px 11px !important;
+        border: 1px solid var(--inj-line) !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        color: var(--inj-text) !important;
+        font-size: 12px !important;
+    }
+
+    .modal-Confi input:focus,
+    .modal-Confi select:focus {
+        border-color: var(--inj-brand) !important;
+        outline: none !important;
+    }
+
+    .modal-Confi .modal-footer {
+        margin: 14px 0 0 !important;
+        padding: 12px 0 0 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        border-top: 1px solid var(--inj-line) !important;
+    }
+
+    .btn-editar {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--inj-line);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--inj-brand, #d8394b);
+        font-size: 14px;
+        cursor: pointer;
+        transition: background .15s ease, border-color .15s ease;
+    }
+
+    .btn-editar:hover {
+        background: var(--inj-brand, #d8394b);
+        border-color: var(--inj-brand, #d8394b);
+        color: #fff;
+    }
+
+    .btn-eliminar {
+        height: 36px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--inj-brand, #d8394b);
+        border-radius: 9px;
+        background: transparent;
+        color: var(--inj-brand, #d8394b);
+        font-size: 12px;
+        font-weight: 700;
+        transition: background .15s ease, color .15s ease;
+    }
+
+    .btn-eliminar:hover {
+        background: var(--inj-brand, #d8394b);
+        color: #fff;
+    }
+
+    .toast-msg {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 2000;
+        max-width: min(90vw, 420px);
+        padding: 13px 20px;
+        border-radius: 10px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: 0 12px 30px rgba(0,0,0,.28);
+        opacity: 0;
+        transform: translateY(-10px);
+        transition: opacity .25s ease, transform .25s ease;
+        pointer-events: none;
+    }
+
+    .toast-msg.show {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .toast-msg.toast-ok { background: #1f9d55; }
+    .toast-msg.toast-err { background: var(--inj-brand, #d8394b); }
+
+    .modal-Confi .param-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .modal-Confi .param-full {
+        grid-column: 1 / -1;
+    }
+
+    .modal-Confi input[readonly] {
+        color: var(--inj-muted) !important;
+        cursor: default;
+    }
+
+    /* =========================================================
+       MODO OSCURO (DARK MODE)
+       ========================================================= */
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 {
+        --inj-bg: #0b1220;
+        --inj-card: #111923;
+        --inj-line: #344253;
+        --inj-text: #edf3f8;
+        --inj-muted: #9cadbd;
+        color: var(--inj-text) !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .inj-card {
+        background: #111923 !important;
+        border-color: #344253 !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .inj-lot input,
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .inj-lot select {
+        background: #0d1520 !important;
+        color: #edf3f8 !important;
+        border-color: #465568 !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .tabla-reporte tbody td {
+        background: #111923 !important;
+        color: #dce6ee !important;
+        border-color: #344253 !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .tabla-reporte tbody tr:hover td {
+        background: #182432 !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .modal-Confi {
+        background: #111923 !important;
+        border: 1px solid #39495b !important;
+    }
+
+    :is(html[data-theme="dark"], html[data-bs-theme="dark"], body[data-theme="dark"]) .op-inj-v3 .modal-Confi .modal-header {
+        color: #f1f5f8 !important;
+        border-bottom-color: #39495b !important;
+    }
+
+    .modal-Confi.modal-Ancho {
+        width: min(96vw, 1000px) !important;
+        max-width: 1000px !important;
+    }
+
+    .bit-filtros {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 170px) auto auto;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 12px;
+    }
+
+    .bit-filtros .btn {
+        height: 42px;
+        font-size: 11px;
+        border-radius: 9px;
+        border: 1px solid var(--inj-line);
+        background: transparent;
+        color: var(--inj-text);
+        font-weight: 700;
+    }
+
+    .bit-filtros .btn:hover {
+        border-color: var(--inj-brand);
+        color: var(--inj-brand);
+    }
+
+    .tabla-bitacora {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .tabla-bitacora th,
+    .tabla-bitacora td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--inj-line);
+        text-align: left;
+        vertical-align: top;
+        color: var(--inj-text);
+    }
+
+    .tabla-bitacora th {
+        color: var(--inj-muted);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        background: rgba(0,0,0,.03);
+        white-space: nowrap;
+    }
+
+    .tabla-bitacora tbody tr {
+        cursor: pointer;
+    }
+
+    .tabla-bitacora tbody tr:hover {
+        background: rgba(0,0,0,.04);
+    }
+
+    .tabla-bitacora tbody tr.fila-activa {
+        background: rgba(216,57,75,.10);
+    }
+
+    .tabla-bitacora tbody td {
+        white-space: nowrap;
+    }
+
+    .bit-acciones {
+        font-weight: 800;
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 20px;
+        white-space: nowrap;
+    }
+
+    .bit-crear { background: rgba(31,157,85,.15); color: #1f9d55; }
+    .bit-modificar { background: rgba(13,110,253,.15); color: #0d6efd; }
+    .bit-eliminar { background: rgba(216,57,75,.15); color: var(--inj-brand, #d8394b); }
+
+    .bit-detalle {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px dashed var(--inj-line);
+        border-radius: 10px;
+        background: rgba(0,0,0,.03);
+        max-height: 210px;
+        overflow: auto;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--inj-text);
+        display: none;
+    }
+</style>
+
+<div class="inyecciones-app op-inj-v3">
+    <main class="inj-page">
+
+        <!-- CABECERA OPERATIVA COMPACTA -->
+        <section class="inj-header">
+            <div class="inj-header-main">
+                <div class="inj-kicker">CONFIGURACIÓN · INYECCIONES</div>
+                <div class="inj-title-row">
+                    <h1>Control % Inyección</h1>
+                    
+                </div>
+            </div>
+
+            <!-- Botón de Acción Principal -->
+            <div class="inj-program text-end d-flex align-items-center justify-content-end" style="background: transparent; border: none; padding-right: 0;">
+                <button type="button" class="btn px-4 me-2" style="height: 44px; font-size: 12px; border-radius: 10px; background: transparent; border: 1px solid var(--inj-line); color: var(--inj-text); font-weight: 700;" onclick="abrirBitacora()">
+                    <i class="bi bi-clock-history me-1"></i> BITÁCORA
+                </button>
+                @if (puedeEscribir)
+                {
+                    <button type="button" class="btn primary px-4 me-2" style="height: 44px; font-size: 13px; border-radius: 10px;" onclick="abrirModalNuevoSku()">
+                        <i class="bi bi-plus-circle me-1"></i> NUEVO SKU
+                    </button>
+                }
+                <a href="/Operaciones/Inyecciones" class="btn primary2" style="height: 44px; font-size: 12px; border-radius: 10px; display: inline-flex; align-items: center; text-decoration: none;">
+                    <i class="bi bi-arrow-left-circle me-1"></i> REGRESAR A CAPTURA
+                </a>
+            </div>
+        </section>
+
+        <!-- TABLERO COMPLETO -->
+        <section class="inj-dashboard">
+            <div class="inj-main">
+                
+                <!-- BÚSQUEDA Y FILTROS -->
+                <section class="inj-setup">
+                    <article class="inj-card inj-lot">
+                        <label><b>🔍</b> BUSCAR ARTÍCULO</label>
+                        <input type="text" id="buscarSku" placeholder="Buscar por SKU..." oninput="filtrarSku()" />
+                    </article>
+
+                    <article class="inj-card inj-capture d-flex align-items-end">
+                        <button class="btn w-100" style="height: 38px; font-size: 11px; background: transparent; border: 1px solid var(--inj-line); color: var(--inj-text);" type="button" onclick="limpiarFiltroSku()">
+                            Limpiar Filtros
+                        </button>
+                    </article>
+                </section>
+
+                <!-- TABLA DE RESULTADOS -->
+                <section class="inj-card panel" style="min-height: 55vh; display: flex; flex-direction: column;">
+                    <div class="inj-section-head">
+                        <div>
+                            <span>MONITOREO DE PARÁMETROS</span>
+                            <strong>Listado de SKU Configurados</strong>
+                        </div>
+                    </div>
+
+                    <div class="inj-table-scroll" style="flex: 1;">
+                        <table class="tabla-reporte">
+                            <thead>
+                                <tr>
+                                    <th style="width: 55px;">Id</th>
+                                    <th style="width: 90px;">SKU</th>
+                                    <th>Inyectora</th>
+                                    <th style="color: #ffb8c1;">%</th>
+                                    <th>Modo</th>
+                                    <th>Presión</th>
+                                    <th>Velocidad</th>
+                                    <th>Altura</th>
+                                    <th style="width: 70px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model != null && Model.Any())
+                                {
+                                    foreach (var item in Model)
+                                    {
+                                        <tr>
+                                            <td class="text-muted">@item.Id</td>
+                                            <td class="fw-bold">@item.SKU</td>
+                                            <td>@item.fk_Inyectora</td>
+                                            <td class="fw-bold text-danger" style="font-size: 13px;">@item.Porcentaje</td>
+                                            <td>@item.ModoInyeccion</td>
+                                            <td>@item.Presion</td>
+                                            <td>@item.Velocidad</td>
+                                            <td>@item.Altura</td>
+                                            <td class="text-center">
+                                                @if (puedeEscribir)
+                                                {
+                                                    <button type="button" class="btn-editar" title="Editar parámetros"
+                                                            onclick="abrirModalParametro(this)"
+                                                            data-id="@item.Id"
+                                                            data-sku="@item.SKU"
+                                                            data-iny="@item.fk_Inyectora"
+                                                            data-por="@item.Porcentaje"
+                                                            data-modo="@item.ModoInyeccion"
+                                                            data-pres="@item.Presion"
+                                                            data-vel="@item.Velocidad"
+                                                            data-alt="@item.Altura"
+                                                            data-av="@item.Avance">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">—</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="9" class="text-center py-4" style="color: var(--inj-muted);">
+                                            @if (ViewData.ModelState.ErrorCount > 0)
+                                            {
+                                                @string.Join(" ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
+                                            }
+                                            else
+                                            {
+                                                <text>No hay SKU configurados.</text>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+      
+
+    </main>
+</div>
+
+<div class="overlay" id="overlayModal" onclick="cerrarModales()"></div>
+
+<div id="toastMsg" class="toast-msg"></div>
+
+<div class="modal-Confi" id="modalParametro" tabindex="-1" aria-hidden="true" style="display:none;">
+    <div class="modal-header">
+        <span>Editar Parámetros</span>
+        <button type="button" class="btn-editar" onclick="cerrarModales()" title="Cerrar">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="modal-body">
+        <div class="param-grid">
+            <div class="param-full">
+                <label>REFERENCIA</label>
+                <input type="text" id="pmRef" readonly />
+            </div>
+            <div class="param-full">
+                <label>PORCENTAJE %</label>
+                <input type="number" id="pmPor" min="0" max="100" />
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        @if (puedeEliminar)
+        {
+            <button type="button" class="btn btn-eliminar" onclick="eliminarSku()"
+                    style="margin-right: auto;">
+                <i class="bi bi-trash3 me-1"></i> Eliminar SKU
+            </button>
+        }
+        <button type="button" class="btn" onclick="cerrarModales()"
+                style="background: transparent; border: 1px solid var(--inj-line); color: var(--inj-text);">Cancelar</button>
+        @if (puedeEscribir)
+        {
+            <button type="button" class="btn primary2" onclick="guardarPorcentaje()">Guardar Parámetros</button>
+        }
+    </div>
+</div>
+
+<div class="modal-Confi" id="modalNuevoSku" tabindex="-1" aria-hidden="true" style="display:none;">
+    <div class="modal-header">
+        <span>Nuevo SKU</span>
+        <button type="button" class="btn-editar" onclick="cerrarModales()" title="Cerrar">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="modal-body">
+        <div class="param-grid">
+            <div>
+                <label>ID</label>
+                <input type="text" value="Automático" readonly />
+            </div>
+            <div>
+                <label>SKU *</label>
+                <input type="text" id="nvSku" maxlength="20" placeholder="Ej. F003" />
+            </div>
+            <div>
+                <label>INYECTORA</label>
+                <input type="number" id="nvIny" placeholder="ID de inyectora" />
+            </div>
+            <div>
+                <label>PORCENTAJE % *</label>
+                <input type="number" id="nvPor" min="0" max="100" placeholder="Ej. 30" />
+            </div>
+            <div>
+                <label>MODO INYECCIÓN</label>
+                <input type="number" id="nvModo" placeholder="Ej. 2" />
+            </div>
+            <div>
+                <label>PRESIÓN</label>
+                <input type="number" id="nvPres" step="0.0001" placeholder="Ej. 3.2" />
+            </div>
+            <div>
+                <label>VELOCIDAD</label>
+                <input type="number" id="nvVel" placeholder="Ej. 30" />
+            </div>
+            <div>
+                <label>ALTURA</label>
+                <input type="number" id="nvAlt" placeholder="Ej. 180" />
+            </div>
+            <div class="param-full">
+                <label>AVANCE</label>
+                <input type="text" id="nvAv" maxlength="10" placeholder="Ej. e" />
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModales()"
+                style="background: transparent; border: 1px solid var(--inj-line); color: var(--inj-text);">Cancelar</button>
+        @if (puedeEscribir)
+        {
+            <button type="button" class="btn primary2" onclick="guardarNuevoSku()">Guardar SKU</button>
+        }
+    </div>
+</div>
+
+<div class="modal-Confi modal-Ancho" id="modalBitacora" tabindex="-1" aria-hidden="true" style="display:none;">
+    <div class="modal-header">
+        <span>Bitácora de Cambios</span>
+        <button type="button" class="btn-editar" onclick="cerrarModales()" title="Cerrar">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="modal-body">
+        <div class="bit-filtros">
+            <div>
+                <label>FILTRAR POR SKU</label>
+                <input type="text" id="bitSku" placeholder="Ej. 12345"
+                       onkeydown="if (event.key === 'Enter') cargarBitacora();" />
+            </div>
+            <div>
+                <label>ACCIÓN</label>
+                <select id="bitAccion">
+                    <option value="">TODAS</option>
+                    <option value="CREAR">CREAR</option>
+                    <option value="MODIFICAR">MODIFICAR</option>
+                    <option value="ELIMINAR">ELIMINAR</option>
+                </select>
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button type="button" class="btn" onclick="cargarBitacora()">Buscar</button>
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button type="button" class="btn" onclick="limpiarBitacora()">Limpiar</button>
+            </div>
+        </div>
+
+        <div style="max-height: 44vh; overflow: auto; border: 1px solid var(--inj-line); border-radius: 10px;">
+            <table class="tabla-bitacora">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>SKU</th>
+                        <th>ID</th>
+                        <th>Cambio</th>
+                    </tr>
+                </thead>
+                <tbody id="bitCuerpo">
+                    <tr>
+                        <td colspan="6" class="text-center py-4" style="color: var(--inj-muted);">
+                            Pulsa «Actualizar» para cargar la bitácora.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bit-detalle" id="bitDetalle"></div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModales()"
+                style="background: transparent; border: 1px solid var(--inj-line); color: var(--inj-text); margin-right: auto;">Cerrar</button>
+        <button type="button" class="btn primary2" onclick="cargarBitacora()">Actualizar</button>
+    </div>
+</div>
+
+<script>
+    var editandoId = 0;
+    var editandoSku = '';
+
+    function cerrarModales() {
+        document.getElementById('overlayModal').style.display = 'none';
+        var abiertos = document.querySelectorAll('.modal-Confi');
+        for (var i = 0; i < abiertos.length; i++) abiertos[i].style.display = 'none';
+    }
+
+    function mostrarModal(id) {
+        cerrarModales();
+        document.getElementById('overlayModal').style.display = 'block';
+        document.getElementById(id).style.display = 'block';
+    }
+
+    function abrirModalParametro(btn) {
+        var d = btn.dataset;
+        editandoId = parseInt(d.id, 10) || 0;
+        editandoSku = d.sku || '';
+        document.getElementById('pmRef').value = 'SKU ' + (d.sku || '') + ' · ID ' + (d.id || '');
+        document.getElementById('pmPor').value = d.por || '';
+        mostrarModal('modalParametro');
+    }
+
+    function abrirModalNuevoSku() {
+        var ids = ['nvSku', 'nvIny', 'nvPor', 'nvModo', 'nvPres', 'nvVel', 'nvAlt', 'nvAv'];
+        for (var i = 0; i < ids.length; i++) document.getElementById(ids[i]).value = '';
+        mostrarModal('modalNuevoSku');
+    }
+
+    function mostrarMensaje(texto, tipo) {
+        var t = document.getElementById('toastMsg');
+        t.textContent = texto || '';
+        t.className = 'toast-msg ' + (tipo === 'ok' ? 'toast-ok' : 'toast-err') + ' show';
+        clearTimeout(t._h);
+        t._h = setTimeout(function () { t.classList.remove('show'); }, 3500);
+    }
+
+    function enviar(url, datos) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: new URLSearchParams(datos).toString()
+        }).then(function (r) {
+            return r.text().then(function (t) {
+                var j = {};
+                try { j = JSON.parse(t); }
+                catch (e) {
+                    j = {
+                        ok: false,
+                        mensaje: r.status === 403
+                            ? 'Acceso denegado. Permisos insuficientes.'
+                            : 'Error del servidor (' + r.status + ').'
+                    };
+                }
+                if (r.status === 403 && !j.mensaje) j.mensaje = 'Acceso denegado. Permisos insuficientes.';
+                if (r.status === 403) j.ok = false;
+                return j;
+            });
+        });
+    }
+
+    function trasExito(j) {
+        mostrarMensaje((j && j.mensaje) || 'Operacion completada.', 'ok');
+        cerrarModales();
+        setTimeout(function () { location.reload(); }, 700);
+    }
+
+    function trasFallo(j) {
+        mostrarMensaje((j && j.mensaje) || 'No se pudo completar la operacion.', 'err');
+    }
+
+    function guardarPorcentaje() {
+        if (!editandoId) return;
+        var por = document.getElementById('pmPor').value;
+        if (por === '') { mostrarMensaje('Captura el porcentaje.', 'err'); return; }
+        enviar('/Operaciones/Inyecciones%25%25/Actualizar', { id: editandoId, porcentaje: por })
+            .then(function (j) { j.ok ? trasExito(j) : trasFallo(j); })
+            .catch(function () { mostrarMensaje('Error de conexion.', 'err'); });
+    }
+
+    function eliminarSku() {
+        if (!editandoId) return;
+        if (!confirm('¿Eliminar el SKU ' + editandoSku + '? Esta accion no se puede deshacer.')) return;
+        enviar('/Operaciones/Inyecciones%25%25/Eliminar', { id: editandoId })
+            .then(function (j) { j.ok ? trasExito(j) : trasFallo(j); })
+            .catch(function () { mostrarMensaje('Error de conexion.', 'err'); });
+    }
+
+    function guardarNuevoSku() {
+        var sku = (document.getElementById('nvSku').value || '').trim();
+        var por = document.getElementById('nvPor').value;
+        if (!sku) { mostrarMensaje('El SKU es obligatorio.', 'err'); return; }
+        if (por === '') { mostrarMensaje('Captura el porcentaje.', 'err'); return; }
+
+        enviar('/Operaciones/Inyecciones%25%25/Nuevo', {
+            sku: sku,
+            porcentaje: por,
+            fkInyectora: document.getElementById('nvIny').value,
+            modoInyeccion: document.getElementById('nvModo').value,
+            presion: document.getElementById('nvPres').value,
+            velocidad: document.getElementById('nvVel').value,
+            altura: document.getElementById('nvAlt').value,
+            avance: document.getElementById('nvAv').value
+        }).then(function (j) { j.ok ? trasExito(j) : trasFallo(j); })
+          .catch(function () { mostrarMensaje('Error de conexion.', 'err'); });
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') cerrarModales();
+    });
+
+    function abrirBitacora() {
+        mostrarModal('modalBitacora');
+        cargarBitacora();
+    }
+
+    function limpiarBitacora() {
+        document.getElementById('bitSku').value = '';
+        document.getElementById('bitAccion').value = '';
+        cargarBitacora();
+    }
+
+    function cargarBitacora() {
+        var cuerpo = document.getElementById('bitCuerpo');
+        cuerpo.innerHTML = '<tr><td colspan="6" class="text-center py-4" style="color: var(--inj-muted);">Cargando...</td></tr>';
+        document.getElementById('bitDetalle').style.display = 'none';
+
+        var params = new URLSearchParams();
+        var sku = (document.getElementById('bitSku').value || '').trim();
+        var accion = document.getElementById('bitAccion').value;
+        if (sku) params.set('sku', sku);
+        if (accion) params.set('accion', accion);
+
+        fetch('/Operaciones/Inyecciones%25%25/Bitacora?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        }).then(function (r) {
+            return r.text().then(function (t) {
+                var j = {};
+                try { j = JSON.parse(t); }
+                catch (e) {
+                    j = { ok: false, mensaje: r.status === 403 ? 'Acceso denegado. Permisos insuficientes.' : 'Error del servidor (' + r.status + ').' };
+                }
+                return j;
+            });
+        }).then(function (j) {
+            if (!j.ok) {
+                cuerpo.innerHTML = '<tr><td colspan="6" class="text-center py-4" style="color: #d8394b;">'
+                    + escHtml(j.mensaje || 'No se pudo cargar la bitacora.') + '</td></tr>';
+                return;
+            }
+            pintarBitacora(j.items || []);
+        }).catch(function () {
+            cuerpo.innerHTML = '<tr><td colspan="6" class="text-center py-4" style="color: #d8394b;">Error de conexion.</td></tr>';
+        });
+    }
+
+    var bitacoraFilas = [];
+
+    function pintarBitacora(items) {
+        var cuerpo = document.getElementById('bitCuerpo');
+        bitacoraFilas = items;
+
+        if (!items.length) {
+            cuerpo.innerHTML = '<tr><td colspan="6" class="text-center py-4" style="color: var(--inj-muted);">No hay registros.</td></tr>';
+            return;
+        }
+
+        var html = '';
+        items.forEach(function (it, i) {
+            var fecha = it.fecha ? new Date(it.fecha) : null;
+            var fechaTxt = (fecha && !isNaN(fecha.getTime())) ? fecha.toLocaleString() : (it.fecha || '');
+            var clase = it.accion === 'CREAR' ? 'bit-crear' : (it.accion === 'ELIMINAR' ? 'bit-eliminar' : 'bit-modificar');
+            var id = it.idReceta != null ? it.idReceta : it.id;
+            var tieneCambio = it.antes || it.despues;
+
+            html += '<tr onclick="verDetalleBitacora(' + i + ', this)">'
+                + '<td>' + escHtml(fechaTxt) + '</td>'
+                + '<td>' + escHtml(it.usuario) + '</td>'
+                + '<td><span class="bit-acciones ' + clase + '">' + escHtml(it.accion) + '</span></td>'
+                + '<td class="fw-bold">' + escHtml(it.sku) + '</td>'
+                + '<td>' + escHtml(id) + '</td>'
+                + '<td>' + (tieneCambio ? 'Ver detalle' : '&mdash;') + '</td>'
+                + '</tr>';
+        });
+
+        cuerpo.innerHTML = html;
+    }
+
+    function verDetalleBitacora(i, tr) {
+        var it = bitacoraFilas[i];
+        var detalle = document.getElementById('bitDetalle');
+        if (!it) return;
+
+        var previas = document.querySelectorAll('.tabla-bitacora tbody tr.fila-activa');
+        previas.forEach(function (x) { x.classList.remove('fila-activa'); });
+        if (tr) tr.classList.add('fila-activa');
+
+        detalle.textContent = 'SKU: ' + (it.sku || '-') + '\n\n'
+            + 'ANTES\n' + formatearJson(it.antes) + '\n\n'
+            + 'DESPUES\n' + formatearJson(it.despues);
+        detalle.style.display = 'block';
+    }
+
+    function formatearJson(s) {
+        if (!s) return '(sin datos)';
+        try { return JSON.stringify(JSON.parse(s), null, 2); }
+        catch (e) { return s; }
+    }
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function filtrarSku() {
+        var texto = (document.getElementById('buscarSku').value || '').trim().toLowerCase();
+        var filas = document.querySelectorAll('.tabla-reporte tbody tr');
+        filas.forEach(function (fila) {
+            if (fila.querySelector('td[colspan]')) return;
+            var sku = (fila.cells[1] ? fila.cells[1].textContent : '').toLowerCase();
+            fila.style.display = sku.indexOf(texto) !== -1 ? '' : 'none';
+        });
+    }
+
+    function limpiarFiltroSku() {
+        document.getElementById('buscarSku').value = '';
+        filtrarSku();
+    }
+</script>
