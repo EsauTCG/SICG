@@ -57,35 +57,38 @@
         color: #6c757d;
 
     }
-/* 
-    body {
-        background-color: var(--bg-page) !important;
+
+    /* Acordeon y controles del modal Configurar Tipos en rojo corporativo */
+    #accordionTipos .accordion-button:not(.collapsed) {
+        background-color: #fdecec;
+        color: #8b0000;
+        box-shadow: inset 0 -1px 0 rgba(0,0,0,.125);
     }
 
-    .top-banner {
-        background: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%) !important;
-        color: white;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 12px rgba(70,12,12,.15);
+        #accordionTipos .accordion-button:not(.collapsed)::after {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238b0000'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+        }
+
+    #accordionTipos .accordion-button:focus,
+    #accordionTipos .form-check-input:focus,
+    #buscarTipoConfig:focus {
+        border-color: #b30000;
+        box-shadow: 0 0 0 .2rem rgba(139,0,0,.25);
     }
 
-    .section-title {
-        font-size: 0.85rem;
-        font-weight: 800;
-        color: var(--brand-main);
-        text-transform: uppercase;
-        border-bottom: 2px solid #f1dede;
-        padding-bottom: 8px;
-        margin-bottom: 1rem;
+    #accordionTipos .form-check-input:checked {
+        background-color: #8b0000;
+        border-color: #8b0000;
     }
 
-    .form-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #4a4a4a;
-    } */
+        #accordionTipos .form-check-input:checked[type="checkbox"]:disabled {
+            background-color: #8b0000;
+            border-color: #8b0000;
+        }
+
+    #accordionTipos .form-switch .form-check-input:focus:not(:checked) {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23b30000'/%3e%3c/svg%3e");
+    }
 </style>
 
 <div class="container-fluid p-0">
@@ -114,16 +117,25 @@
         <div class="section-title d-flex justify-content-between align-items-center">
             <span><i class="bi bi-clipboard-data me-1"></i>Datos del objetivo</span>
 
-            @if (ViewBag.PuedeEliminarObjetivos == true)
-            {
-                <button type="button"
-                        class="btn btn-sm btn-outline-light shadow-sm"
-                        data-bs-toggle="modal"
-                        data-bs-target="#modalNuevoKpi"
-                        style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
-                    <i class="bi bi-plus-lg"></i> Crear Nuevo Tipo de Objetivo
-                </button>
-            }
+                    @if (ViewBag.PuedeEliminarObjetivos == true)
+                    {
+                        <div class="d-flex gap-2">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-light shadow-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalConfigTipos"
+                                    style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
+                                <i class="bi bi-gear"></i> Configurar Tipos
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-light shadow-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalNuevoKpi"
+                                    style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
+                                <i class="bi bi-plus-lg"></i> Crear Nuevo Tipo de Objetivo
+                            </button>
+                        </div>
+                    }
         </div>
 
         <div class="row g-3">
@@ -201,7 +213,7 @@
             </div>
 
             <!-- CLIENTE -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="Cliente">
                 <label asp-for="ID_Cliente" class="form-label">Cliente</label>
                 <select asp-for="ID_Cliente" class="form-select form-select-sm select2-buscar" id="cliente">
                     <option value="">-- Selecciona un Cliente --</option>
@@ -216,7 +228,7 @@
             </div>
 
             <!-- VENDEDOR -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="Vendedor">
                 <label asp-for="UsuarioID_Vendedor" class="form-label">Vendedor</label>
                 <select asp-for="UsuarioID_Vendedor" class="form-select form-select-sm select2-buscar" id="vendedor">
                     <option value="">-- Selecciona un Vendedor --</option>
@@ -238,13 +250,13 @@
             </div>
 
             <!-- PROVEEDOR -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="Proveedor">
                 <label asp-for="Proveedor" class="form-label">Proveedor</label>
                 <input asp-for="Proveedor" class="form-control form-control-sm" placeholder="Proveedor" />
             </div>
 
             <!-- SKU -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="SKU">
                 <label asp-for="SKU" class="form-label">SKU</label>
                 <select asp-for="SKU" class="form-select form-select-sm select2-buscar" id="sku">
                     <option value="">-- Selecciona un SKU --</option>
@@ -259,13 +271,13 @@
             </div>
 
             <!-- CUENTA CONTABLE -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="CC">
                 <label asp-for="CC" class="form-label">Cuenta Contable</label>
                 <input asp-for="CC" class="form-control form-control-sm" placeholder="Cuenta Contable" />
             </div>
 
             <!-- LINEA -->
-            <div class="col-md-6">
+            <div class="col-md-6 campo-tipo" data-campo="Linea">
                 <label asp-for="Linea" class="form-label">Línea</label>
                 <select asp-for="Linea" class="form-select form-select-sm">
                     <option value="">Sin línea / No aplica</option>
@@ -442,7 +454,7 @@
     </form>
 </div>
 </div>
-
+    </div>
 
 <!-- Modal para Crear Nuevo KPI -->
 <div class="modal fade" id="modalNuevoKpi" tabindex="-1" aria-hidden="true">
@@ -494,6 +506,26 @@
                 <button type="button" class="btn btn-danger btn-sm fw-bold" id="btnGuardarKpi">
                     <i class="bi bi-save me-1"></i> Guardar y Usar
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para configurar Tipos de Objetivo -->
+<div class="modal fade" id="modalConfigTipos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h6 class="modal-title fw-bold"><i class="bi bi-gear me-2"></i>Configurar Tipos de Objetivo</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light">
+                <input type="text" id="buscarTipoConfig" class="form-control form-control-sm mb-3" placeholder="Buscar tipo o perfil..." />
+                <div id="msgConfigTipos" class="alert alert-danger py-2 small d-none"></div>
+                <div class="accordion" id="accordionTipos"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -589,6 +621,20 @@
     </script>
     <script>
         $(document).ready(function () {
+            function aplicarCamposTipo(){
+                var campos = ($('#tipoObjetivo option:selected').attr('data-campos') || '').trim();
+                var lista = campos ? campos.split(',').map(function (s) {return s.trim(); }) : [];
+
+                $('.campo-tipo').each(function () {
+                    var $c = $(this);
+                    var visible = lista.length === 0 || lista.indexOf($c.data('campo')) !== -1;
+                    $c.toggle(visible);
+                    $c.find('input, select, textarea').prop('disabled', !visible);
+                })
+            }
+
+            $('#tipoObjetivo').on('change', aplicarCamposTipo);
+
             // Carga de KPIs segun el Area seleccionada
             $('#comboArea').change(function () {
                 var areaId = $(this).val();
@@ -596,12 +642,14 @@
 
                 $comboKpi.empty().append('<option value="">-- Selecciona el Tipo --</option>').prop('disabled', true);
 
+                aplicarCamposTipo();
+
                 if (areaId) {
                     $.getJSON('@Url.Action("ObtenerKpisPorArea", "Objetivos")', { idPerfil: areaId }, function (data) {
                         if (data && data.length > 0) {
                             $.each(data, function (index, item) {
                                 // Usamos item.Valor y item.Texto segun retorna el controlador
-                                $comboKpi.append($('<option/>', { value: item.Valor, text: item.Texto }));
+                                $comboKpi.append($('<option/>', { value: item.Valor, text: item.Texto ,'data-campos': item.Campos || '' }));
                             });
                             $comboKpi.prop('disabled', false);
                         } else {
@@ -643,7 +691,7 @@
 
                         // Si el area en la que se creo es la misma que la del formulario principal, lo agregamos
                         if ($('#comboArea').val() == idPerfil) {
-                            $('#tipoObjetivo').append($('<option/>', { value: response.id, text: response.nombre }));$('#tipoObjetivo').val(response.id).prop('disabled', false);
+                            $('#tipoObjetivo').append($('<option/>', { value: response.id, text: response.nombre }));$('#tipoObjetivo').val(response.id).prop('disabled', false).trigger('change');
                         } else {
                             alert("KPI creado exitosamente.");
                         }
@@ -745,6 +793,179 @@
             if ($('#vendedor').val()) {
                 $('#vendedor').trigger('change');
             }
+
+            // ===== Configurar Tipos de Objetivo (solo lectura) =====
+            var camposConfig = [
+                { clave: 'Cliente', texto: 'Cliente' },
+                { clave: 'Vendedor', texto: 'Vendedor' },
+                { clave: 'Proveedor', texto: 'Proveedor' },
+                { clave: 'SKU', texto: 'SKU' },
+                { clave: 'CC', texto: 'Cuenta Contable' },
+                { clave: 'Linea', texto: 'Línea' }
+            ];
+
+            function esc(t) {
+            return $('<div/>').text(t == null ? '' : t).html();
+            }
+
+            function escAttr(t) {
+                return esc(t).replace(/"/g, '&quot;');
+            }
+
+            function cargarTiposConfiguracion() {
+                var $acc = $('#accordionTipos');
+                var $msg = $('#msgConfigTipos');
+
+                $msg.addClass('d-none').text('');
+                $acc.html('<div class="text-center text-muted py-3"><span class="spinner-border spinner-border-sm"></span> Cargando tipos...</div>');
+
+                $.getJSON('@Url.Action("ObtenerTiposConfiguracion", "Objetivos")', function (data) {
+                    if (!Array.isArray(data)) {
+                        $acc.empty();
+                        $msg.removeClass('d-none').text('No se pudieron cargar los tipos' + (data && data.error ? ': ' + data.error : '.'));
+                        return;
+                    }
+
+                    if (data.length === 0) {
+                        $acc.html('<div class="text-center text-muted py-3">No hay tipos de objetivo.</div>');
+                        return;
+                    }
+
+                    var html = '';
+                    $.each(data, function (i, t) {
+                        var lista = t.Campos ? t.Campos.split(',').map(function (s) { return s.trim(); }) : null;
+
+                        var checks = '';
+                        $.each(camposConfig, function (j, c) {
+                            var marcado = (lista === null || lista.indexOf(c.clave) !== -1) ? ' checked' : '';
+                            var idChk = 'chk_' + t.ID + '_' + c.clave;
+                            checks += '<div class="form-check form-check-inline">' +
+                                '<input class="form-check-input chk-campo-tipo" type="checkbox" id="' + idChk + '" data-campo="' + c.clave + '"' + marcado + ' />' +
+                                '<label class="form-check-label small" for="' + idChk + '">' + c.texto + '</label></div>';
+                        });
+
+                        var badgeEstado = '<span class="badge ' + (t.Activo ? 'bg-success' : 'bg-secondary') + ' ms-2 cfg-badge-estado">' + (t.Activo ? 'Activo' : 'Inactivo') + '</span>';
+
+                        html += '<div class="accordion-item">' +
+                            '<h2 class="accordion-header">' +
+                            '<button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#tipoCfg_' + t.ID + '">' +
+                            '<span class="fw-bold cfg-titulo-nombre">' + esc(t.Nombre) + '</span>' +
+                            '<span class="badge bg-light text-dark border ms-2">' + esc(t.NombrePerfil || 'Sin perfil') + '</span>' + badgeEstado +
+                            '</button></h2>' +
+                            '<div id="tipoCfg_' + t.ID + '" class="accordion-collapse collapse" data-bs-parent="#accordionTipos">' +
+                            '<div class="accordion-body">' +
+
+                            '<div class="row g-2 mb-3">' +
+                            '<div class="col-md-8"><label class="form-label small fw-bold text-muted mb-1">Nombre</label>' +
+                            '<input type="text" class="form-control form-control-sm cfg-nombre" maxlength="150" value="' + escAttr(t.Nombre) + '" /></div>' +
+                            '<div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-1">' +
+                            '<input class="form-check-input cfg-activo" type="checkbox" role="switch" id="act_' + t.ID + '"' + (t.Activo ? ' checked' : '') + ' />' +
+                            '<label class="form-check-label small fw-bold" for="act_' + t.ID + '">Activo</label></div></div>' +
+                            '<div class="col-12"><label class="form-label small fw-bold text-muted mb-1">Descripción</label>' +
+                            '<textarea class="form-control form-control-sm cfg-desc" rows="2" maxlength="500">' + esc(t.Descripcion) + '</textarea></div>' +
+                            '</div>' +
+
+                            '<div class="small fw-bold text-muted mb-1">Campos que muestra el formulario</div>' +
+                            checks +
+                            '<div class="small text-muted mt-2 cfg-nota-sin-config' + (lista === null ? '' : ' d-none') + '">Sin configurar: se muestran todos los campos.</div>' +
+
+                            '<div class="d-flex justify-content-end align-items-center gap-2 mt-3">' +
+                            '<span class="small cfg-resultado"></span>' +
+                            '<button type="button" class="btn btn-danger btn-sm fw-bold btn-guardar-tipo" data-id="' + t.ID + '"><i class="bi bi-save me-1"></i> Guardar</button>' +
+                            '</div>' +
+
+                            '</div></div></div>';
+                    });
+
+                    $acc.html(html);
+                }).fail(function () {
+                    $acc.empty();
+                    $msg.removeClass('d-none').text('Error de comunicación al cargar los tipos.');
+                });
+            }
+
+            $('#modalConfigTipos').on('show.bs.modal', function () {
+                $('#buscarTipoConfig').val('');
+                cargarTiposConfiguracion();
+            });
+
+            $('#buscarTipoConfig').on('input', function () {
+                var q = $(this).val().toLowerCase();
+                $('#accordionTipos .accordion-item').each(function () {
+                    $(this).toggle($(this).find('.accordion-header').text().toLowerCase().indexOf(q) !== -1);
+                });
+            });
+
+            $(document).on('click', '.btn-guardar-tipo', function () {
+                var $btn = $(this);
+                var $item = $btn.closest('.accordion-item');
+                var $res = $item.find('.cfg-resultado');
+                var id = $btn.data('id');
+
+                var nombre = $item.find('.cfg-nombre').val().trim();
+                var descripcion = $item.find('.cfg-desc').val().trim();
+                var activo = $item.find('.cfg-activo').is(':checked');
+                var campos = $item.find('.chk-campo-tipo:checked').map(function () {
+                    return $(this).data('campo');
+                }).get().join(',');
+
+                function mostrar(texto, ok) {
+                    $res.removeClass('text-danger text-success').addClass(ok ? 'text-success' : 'text-danger').text(texto);
+                }
+
+                if (!nombre) {
+                    mostrar('El nombre es obligatorio.', false);
+                    return;
+                }
+
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Guardando...');
+                $res.text('');
+
+                $.post('@Url.Action("GuardarConfiguracionTipo", "Objetivos")', {
+                    id: id,
+                    nombre: nombre,
+                    descripcion: descripcion,
+                    activo: activo,
+                    campos: campos
+                }, function (response) {
+                    if (!response.success) {
+                        mostrar(response.message || 'No se pudo guardar.', false);
+                        return;
+                    }
+
+                    // Actualiza el encabezado del desplegable
+                    $item.find('.cfg-titulo-nombre').text(response.nombre);
+                    $item.find('.cfg-badge-estado')
+                        .toggleClass('bg-success', response.activo)
+                        .toggleClass('bg-secondary', !response.activo)
+                        .text(response.activo ? 'Activo' : 'Inactivo');
+                    $item.find('.cfg-nota-sin-config').toggleClass('d-none', response.campos !== null);
+
+                    // Sincroniza el combo "Tipo de Objetivo" del formulario si ese tipo esta cargado
+                    var $combo = $('#tipoObjetivo');
+                    var $opt = $combo.find('option[value="' + id + '"]');
+                    if ($opt.length) {
+                        if (!response.activo) {
+                            var estabaSeleccionado = String($combo.val()) === String(id);
+                            $opt.remove();
+                            if (estabaSeleccionado) {
+                                $combo.val('').trigger('change');
+                            }
+                        } else {
+                            $opt.text(response.nombre).attr('data-campos', response.campos || '');
+                            if (String($combo.val()) === String(id)) {
+                                aplicarCamposTipo();
+                            }
+                        }
+                    }
+
+                    mostrar('Guardado correctamente.', true);
+                }).fail(function () {
+                    mostrar('Error de comunicación al guardar.', false);
+                }).always(function () {
+                    $btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Guardar');
+                });
+            });
         });
 
         // Logica de Filas Dinamicas

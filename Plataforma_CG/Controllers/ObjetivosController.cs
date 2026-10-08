@@ -500,6 +500,10 @@ namespace Plataforma_CG.Controllers
                 await CargarVendedoresYClientesAsync(conn);
                 ViewBag.Articulos = await conn.QueryAsync("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
                 ViewBag.CatalogoValores = await conn.QueryAsync("SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo WHERE Activo = 1 ORDER BY Nombre");
+
+                ViewBag.CamposVisibles = await conn.ExecuteScalarAsync<string>(
+                    "SELECT Campos_Visibles FROM dbo.Tipo_Objetivo WHERE ID = @IdTipo",
+                    new { IdTipo = objetivo.ID_Tipo_Objetivo });
             }
 
             return PartialView("_ModalEditarObjetivo", objetivo);
@@ -1174,13 +1178,13 @@ namespace Plataforma_CG.Controllers
                     // Validar si es admin
                     if (idPerfil == 1)
                     {
-                        sql = "SELECT ID as Valor, Nombre as Texto FROM dbo.Tipo_Objetivo WHERE Activo = 1";
+                        sql = "SELECT ID as Valor, Nombre as Texto, Campos_Visibles as Campos FROM dbo.Tipo_Objetivo WHERE Activo = 1";
                         var kpisTodos = await conn.QueryAsync(sql);
                         return Json(kpisTodos);
                     }
                     else
                     {
-                        sql = "SELECT ID as Valor, Nombre as Texto FROM dbo.Tipo_Objetivo WHERE Activo = 1 AND ID_Perfil = @IdPerfil";
+                        sql = "SELECT ID as Valor, Nombre as Texto, Campos_Visibles as Campos FROM dbo.Tipo_Objetivo WHERE Activo = 1 AND ID_Perfil = @IdPerfil";
                         var kpisFiltrados = await conn.QueryAsync(sql, new { IdPerfil = idPerfil });
                         return Json(kpisFiltrados);
                     }
@@ -1192,13 +1196,138 @@ namespace Plataforma_CG.Controllers
             }
         }
 
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
+        public async Task<JsonResult> ObtenerTiposConfiguracion()
+        {
+            try
+            {
+                bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("sistemas");
+                int.TryParse(User.FindFirst("PerfilId")?.Value, out int miPerfilId);
+
+                string sql = @"
+                    SELECT t.ID, t.Nombre, t.Descripcion, t.Activo, t.ID_Perfil,
+                        p.Nombre AS NombrePerfil,
+                        t.Campos_Visibles AS Campos
+                    FROM dbo.Tipo_Objetivo t
+                    LEFT JOIN dbo.Perfiles p ON p.Id = t.ID_Perfil";
+
+                if (!esAdmin)
+                    sql += " WHERE t.ID_Perfil = @IdPerfil";
+
+                sql += " ORDER BY p.Nombre, t.Nombre";
+
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    var tipos = await conn.QueryAsync(sql, new { IdPerfil = miPerfilId });
+                    return Json(tipos);
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+
+        }
+
+        //Controlador para guardar la configuración de campos visibles por tipo de objetivo
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
+        public async Task<JsonResult> GuardarConfiguracionTipo(
+            int id,
+            string nombre,
+            string descripcion,
+            bool activo,
+            string campos)
+        {
+            try
+            {
+                nombre = (nombre ?? "").Trim();
+                descripcion = (descripcion ?? "").Trim();
+
+                if (id <= 0)
+                    return Json(new { success = false, message = "No se identificó el tipo de objetivo." });
+                if (nombre.Length == 0 || nombre.Length > 150)
+                    return Json(new { success = false, message = "El nombre es obligatorio (máximo 150 caracteres)." });
+                if (descripcion.Length > 500)
+                    return Json(new { success = false, message = "La descripcion no puede pasar de 500 caracteres." });
+
+                // Solo se aceptan los campos conocidos
+                var permitidos = new[] { "Cliente", "Vendedor", "Proveedor", "SKU", "CC", "Linea" };
+                var seleccion = (campos ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+                var validos = permitidos.Where(p => seleccion.Contains(p)).ToList();
+
+                //Todos marcados = sin configurar (NULL). Ninguno marcado = "NINGUNO"
+                string camposGuardar =
+                    validos.Count == permitidos.Length ? null :
+                    validos.Count == 0 ? "NINGUNO" :
+                    string.Join(",", validos);
+
+                bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+                int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
+
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    var tipo = await conn.QueryFirstOrDefaultAsync(
+                        "SELECT ID_Perfil FROM dbo.Tipo_Objetivo WHERE Id = @id",
+                    new { Id = id });
+
+                    if (tipo == null)
+                        return Json(new { success = false, message = "El tipo de objetivo no existe." });
+
+                    int? idPerfilTipo = tipo.ID_Perfil;
+
+                    if (!esAdmin && idPerfilTipo != miPerfilId)
+                        return Json(new { success = false, message = "No puedes modificar tipos de otro perfil." });
+
+                    int duplicados = await conn.ExecuteScalarAsync<int>(@"
+                        SELECT COUNT(1) FROM dbo.Tipo_Objetivo
+                        WHERE Nombre = @Nombre
+                            AND ISNULL(ID_Perfil, 0) = ISNULL(@IdPerfil, 0)
+                            AND ID <> @Id",
+                        new { Nombre = nombre, IdPerfil = idPerfilTipo, Id = id });
+
+                    if (duplicados > 0)
+                        return Json(new { success = false, message = "Ya existe un tipo con ese nombre en el mismo perfil" });
+
+                    await conn.ExecuteAsync(@"
+                        UPDATE dbo.Tipo_Objetivo
+                        SET Nombre = @Nombre,
+                            Descripcion = @Descripcion,
+                            Activo = @Activo,
+                            Campos_Visibles = @Campos
+                        WHERE ID = @Id",
+                        new
+                        {
+                            Nombre = nombre,
+                            Descripcion = descripcion.Length == 0 ? null : descripcion,
+                            Activo = activo,
+                            Campos = camposGuardar,
+                            Id = id
+                        });
+
+                    return Json(new { success = true, nombre = nombre, activo = activo, campos = camposGuardar });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
 
 
 
         [HttpPost]
         [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
        
- public async Task<IActionResult> Editar(ObjetivoViewModel modelo)
+        public async Task<IActionResult> Editar(ObjetivoViewModel modelo)
         {
             // Marca el paso actual para saber que operacion fallo si hay error
             string paso = "inicio";
