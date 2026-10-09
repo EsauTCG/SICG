@@ -89,6 +89,9 @@
     #accordionTipos .form-switch .form-check-input:focus:not(:checked) {
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23b30000'/%3e%3c/svg%3e");
     }
+
+    /* Modal de SKU por encima del modal de configuracion de tipos (modales apilados) */
+    #modalSkuObjetivo { z-index: 1085; }
 </style>
 
 <div class="container-fluid p-0">
@@ -531,6 +534,54 @@
     </div>
 </div>
 
+<!-- Modal para elegir los SKU que apareceran como seleccionables en un tipo de objetivo -->
+<div class="modal fade" id="modalSkuObjetivo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(180deg,#b30000 0%,#8b0000 100%);">
+                <h6 class="modal-title fw-bold"><i class="bi bi-upc-scan me-2"></i>SKU aplicables al objetivo</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light">
+                <div class="small text-muted mb-2">Tipo: <span class="fw-bold text-dark" id="skuTipoNombre"></span></div>
+
+                <div class="alert alert-warning py-2 small mb-2">
+                    Si no seleccionas ninguno, el formulario mostrará <b>todos</b> los SKU.
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <input type="text" id="buscarSkuObjetivo" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Buscar SKU o descripción..." />
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSkuTodos">Todos</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSkuNinguno">Ninguno</button>
+                    <span class="ms-auto small fw-bold text-dark"><span id="skuContador">0</span> seleccionados</span>
+                </div>
+
+                <div id="msgSkuObjetivo" class="alert alert-danger py-2 small d-none"></div>
+
+                <div id="listaSkuObjetivo" class="border rounded bg-white p-2" style="max-height: 45vh; overflow: auto;">
+                    @if (ViewBag.Articulos != null)
+                    {
+                        foreach (var a in ViewBag.Articulos)
+                        {
+                            <label class="form-check sku-obj-item mb-1" data-texto="@a.ProductoCodigo @a.ProductoNombre">
+                                <input class="form-check-input chk-sku-obj" type="checkbox" value="@a.ProductoCodigo" />
+                                <span class="form-check-label small ms-1">@a.ProductoCodigo - @a.ProductoNombre</span>
+                            </label>
+                        }
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="small text-success fw-bold me-auto" id="skuGuardadoOk"></span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm fw-bold" id="btnGuardarSkuObjetivo">
+                    <i class="bi bi-save me-1"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalNuevoValorObjetivo" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -570,11 +621,89 @@
                         Unidad de medida *
                     </label>
 
-                    <input type="text"
-                            id="valorObjetivoUnidad"
-                            class="form-control form-control-sm"
-                            placeholder="Ej. KG"
-                            required />
+                    <select id="valorObjetivoUnidad"
+                            class="form-select form-select-sm"
+                            required>
+                        <option value="">-- Selecciona una unidad --</option>
+
+                        <optgroup label="Porcentaje y proporción">
+                            <option value="%">%</option>
+                            <option value="Puntos %">Puntos %</option>
+                            <option value="Índice">Índice (OEE, ERI...)</option>
+                            <option value="PPM">PPM (partes por millón)</option>
+                        </optgroup>
+
+                        <optgroup label="Cantidad / Conteo">
+                            <option value="Unidades">Unidades o #</option>
+                            <option value="Piezas">Piezas</option>
+                            <option value="Cajas">Cajas</option>
+                            <option value="Paquetes">Paquetes</option>
+                            <option value="Tarimas">Tarimas / Pallets</option>
+                            <option value="Canales">Canales</option>
+                            <option value="Lotes">Lotes</option>
+                            <option value="Rollos">Rollos</option>
+                            <option value="Viajes">Viajes</option>
+                            <option value="Embarques">Embarques</option>
+                            <option value="Entregas">Entregas</option>
+                            <option value="Pedidos">Pedidos</option>
+                            <option value="Clientes">Clientes</option>
+                            <option value="SKU">SKU</option>
+                        </optgroup>
+
+                        <optgroup label="Peso / Masa">
+                            <option value="KG">KG</option>
+                            <option value="G">G</option>
+                            <option value="MG">MG</option>
+                            <option value="TON">TON</option>
+                            <option value="LB">LB</option>
+                            <option value="OZ">OZ</option>
+                        </optgroup>
+
+                        <optgroup label="Volumen">
+                            <option value="L">L</option>
+                            <option value="ML">ML</option>
+                            <option value="M3">M3</option>
+                        </optgroup>
+
+                        <optgroup label="Longitud">
+                            <option value="MM">MM</option>
+                            <option value="CM">CM</option>
+                            <option value="M">M</option>
+                            <option value="KM">KM</option>
+                        </optgroup>
+
+                        <optgroup label="Dinero">
+                            <option value="$">$ (MXN)</option>
+                            <option value="$USD">$USD</option>
+                            <option value="$/KG">$/KG</option>
+                            <option value="$/Pieza">$/Pieza</option>
+                            <option value="$/Caja">$/Caja</option>
+                            <option value="$/Hora">$/Hora</option>
+                        </optgroup>
+
+                        <optgroup label="Tiempo">
+                            <option value="Días">Días</option>
+                            <option value="Horas">Horas</option>
+                            <option value="Minutos">Minutos</option>
+                            <option value="Segundos">Segundos</option>
+                            <option value="Semanas">Semanas</option>
+                            <option value="Meses">Meses</option>
+                        </optgroup>
+
+                        <optgroup label="Productividad / Velocidad">
+                            <option value="Kg/Hora">Kg/Hora</option>
+                            <option value="Piezas/Hora">Piezas/Hora</option>
+                            <option value="Cajas/Hora">Cajas/Hora</option>
+                            <option value="Unidades/Hora">Unidades/Hora</option>
+                            <option value="Kg/Día">Kg/Día</option>
+                            <option value="Cajas/Día">Cajas/Día</option>
+                        </optgroup>
+
+                        <optgroup label="Temperatura">
+                            <option value="°C">°C</option>
+                            <option value="°F">°F</option>
+                        </optgroup>
+                    </select>
                 </div>
 
                 <div class="mb-3">
@@ -621,6 +750,12 @@
     </script>
     <script>
         $(document).ready(function () {
+            // Lista maestra de SKU del combo (se captura una sola vez, antes de filtrar)
+            var skuOpcionesTodas = [];
+            $('#sku option').each(function () {
+                if (this.value) { skuOpcionesTodas.push({ value: this.value, text: this.text }); }
+            });
+
             function aplicarCamposTipo(){
                 var campos = ($('#tipoObjetivo option:selected').attr('data-campos') || '').trim();
                 var lista = campos ? campos.split(',').map(function (s) {return s.trim(); }) : [];
@@ -631,6 +766,14 @@
                     $c.toggle(visible);
                     $c.find('input, select, textarea').prop('disabled', !visible);
                 })
+
+                // Restringe el combo de SKU a los configurados para el tipo seleccionado
+                var skuVisible = lista.length === 0 || lista.indexOf('SKU') !== -1;
+                if (skuVisible) {
+                    filtrarSkuPorTipo($('#tipoObjetivo').val());
+                } else {
+                    aplicarRestriccionSku(null);
+                }
             }
 
             $('#tipoObjetivo').on('change', aplicarCamposTipo);
@@ -687,7 +830,7 @@
                     if (response.success) {
                         $('#kpiNombre').val('');
                         $('#kpiDesc').val('');
-                        $('#modalNuevoKpi').modal('hide');
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNuevoKpi')).hide();
 
                         // Si el area en la que se creo es la misma que la del formulario principal, lo agregamos
                         if ($('#comboArea').val() == idPerfil) {
@@ -729,20 +872,21 @@
 
                     if (response.success) {
 
-                        // Agregar el nuevo valor al catálogo del formulario
+                        // Registrar la métrica en la lista maestra compartida
+                        if (window.catalogoOpciones) {
+                            window.catalogoOpciones.push({
+                                value: response.id,
+                                text: response.nombre + ' (' + response.unidad + ')',
+                                unidad: response.unidad
+                            });
+                        }
+
+                        // Repoblar TODOS los combos (incluye filas agregadas después de crear la métrica)
                         $('.catalogo-sm').each(function () {
-
-                            $(this).append(
-                                $('<option/>', {
-                                    value: response.id,
-                                    text: response.nombre + '(' + response.unidad + ')',
-                                    'data-unidad': response.unidad
-                                })
-                            );
-
+                            llenarSelectCatalogo(this, $(this).val());
                         });
 
-                        // Seleccionar automáticamente el nuevo valor
+                        // Seleccionar automáticamente el nuevo valor en la última fila
                         var $ultimaFila = $('.valor-row').last();
                         var $select = $ultimaFila.find('.catalogo-sm');
 
@@ -754,7 +898,7 @@
                         $('#valorObjetivoDescripcion').val('');
 
                         // Cerrar modal
-                        $('#modalNuevoValorObjetivo').modal('hide');
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNuevoValorObjetivo')).hide();
 
                     } else {
 
@@ -845,6 +989,7 @@
                         });
 
                         var badgeEstado = '<span class="badge ' + (t.Activo ? 'bg-success' : 'bg-secondary') + ' ms-2 cfg-badge-estado">' + (t.Activo ? 'Activo' : 'Inactivo') + '</span>';
+                        var skusCount = Number(t.SkusConfigurados || 0);
 
                         html += '<div class="accordion-item">' +
                             '<h2 class="accordion-header">' +
@@ -868,6 +1013,14 @@
                             '<div class="small fw-bold text-muted mb-1">Campos que muestra el formulario</div>' +
                             checks +
                             '<div class="small text-muted mt-2 cfg-nota-sin-config' + (lista === null ? '' : ' d-none') + '">Sin configurar: se muestran todos los campos.</div>' +
+
+                            '<div class="btn-sku-wrap mt-2' + ((lista === null || lista.indexOf('SKU') !== -1) ? '' : ' d-none') + '">' +
+                            '<button type="button" class="btn btn-outline-danger btn-sm fw-bold btn-config-sku" data-id="' + t.ID + '">' +
+                            '<i class="bi bi-upc-scan me-1"></i> SKU aplicables' +
+                            ' <span class="badge bg-danger cfg-sku-badge' + (skusCount > 0 ? '' : ' d-none') + '">' + skusCount + '</span>' +
+                            '</button>' +
+                            '<span class="small text-muted ms-2 cfg-sku-info">' + (skusCount > 0 ? '' : 'Sin restricción: se muestran todos los SKU') + '</span>' +
+                            '</div>' +
 
                             '<div class="d-flex justify-content-end align-items-center gap-2 mt-3">' +
                             '<span class="small cfg-resultado"></span>' +
@@ -966,10 +1119,223 @@
                     $btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Guardar');
                 });
             });
+
+            // ===== SKU aplicables por tipo de objetivo =====
+            var skusRelevantesCache = {};
+
+            // Reconstruye el combo SKU con la lista permitida (null = todos)
+            function aplicarRestriccionSku(listaPermitida) {
+                var permitidos = (listaPermitida && listaPermitida.length) ? listaPermitida : null;
+                var $sel = $('#sku');
+                var actual = $sel.val();
+
+                var permitido = {};
+                if (permitidos) {
+                    permitidos.forEach(function (s) { permitido[String(s)] = true; });
+                }
+
+                $sel.empty();
+                $sel.append($('<option/>', { value: '', text: '-- Selecciona un SKU --' }));
+
+                $.each(skuOpcionesTodas, function (i, o) {
+                    if (!permitidos || permitido[String(o.value)]) {
+                        $sel.append($('<option/>', { value: o.value, text: o.text }));
+                    }
+                });
+
+                // Conserva el valor actual si sigue disponible en la lista
+                var existe = false;
+                $sel.find('option').each(function () { if (this.value === actual) { existe = true; } });
+                var valorFinal = existe ? actual : '';
+
+                if ($sel.hasClass('select2-hidden-accessible')) {
+                    $sel.select2('destroy');
+                    $sel.val(valorFinal);
+                    $sel.select2({ width: '100%' });
+                } else {
+                    $sel.val(valorFinal);
+                }
+            }
+
+            function filtrarSkuPorTipo(tipoId) {
+                tipoId = (tipoId || '').toString();
+
+                if (!tipoId) {
+                    aplicarRestriccionSku(null);
+                    return;
+                }
+
+                if (Object.prototype.hasOwnProperty.call(skusRelevantesCache, tipoId)) {
+                    aplicarRestriccionSku(skusRelevantesCache[tipoId]);
+                    return;
+                }
+
+                $.getJSON('@Url.Action("ObtenerArticulosRelevantes", "Objetivos")', { idTipo: tipoId }, function (r) {
+                    var lista = (r && r.success && r.skus && r.skus.length) ? r.skus : null;
+                    skusRelevantesCache[tipoId] = lista;
+                    if (String($('#tipoObjetivo').val()) === String(tipoId)) {
+                        aplicarRestriccionSku(lista);
+                    }
+                }).fail(function () {
+                    aplicarRestriccionSku(null);
+                });
+            }
+
+            // ===== Modal: seleccionar SKU aplicables de un tipo =====
+            var skuTipoActual = null;
+            var $skuItemActual = null;
+
+            function skuModal() {
+                return bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSkuObjetivo'));
+            }
+
+            function actualizarContadorSku() {
+                $('#skuContador').text($('#listaSkuObjetivo .chk-sku-obj:checked').length);
+            }
+
+            function pintarInfoSkuBoton($item, total) {
+                $item.find('.cfg-sku-badge')
+                    .toggleClass('d-none', total <= 0)
+                    .text(total);
+                $item.find('.cfg-sku-info').text(total > 0 ? '' : 'Sin restricción: se muestran todos los SKU');
+            }
+
+            // Muestra/oculta el boton al marcar o desmarcar el campo SKU
+            $(document).on('change', '.chk-campo-tipo', function () {
+                var $item = $(this).closest('.accordion-item');
+                var on = $item.find('.chk-campo-tipo[data-campo="SKU"]').is(':checked');
+                $item.find('.btn-sku-wrap').toggleClass('d-none', !on);
+            });
+
+            $(document).on('click', '.btn-config-sku', function () {
+                var $item = $(this).closest('.accordion-item');
+                skuTipoActual = $(this).data('id');
+                $skuItemActual = $item;
+
+                $('#skuTipoNombre').text($item.find('.cfg-nombre').val() || $item.find('.cfg-titulo-nombre').text());
+                $('#buscarSkuObjetivo').val('');
+                $('#msgSkuObjetivo').addClass('d-none').text('');
+                $('#skuGuardadoOk').text('');
+                $('#listaSkuObjetivo .sku-obj-item').removeClass('d-none');
+                $('#listaSkuObjetivo .chk-sku-obj').prop('checked', false);
+                actualizarContadorSku();
+
+                skuModal().show();
+
+                $.getJSON('@Url.Action("ObtenerArticulosRelevantes", "Objetivos")', { idTipo: skuTipoActual }, function (r) {
+                    if (r && r.success && Array.isArray(r.skus)) {
+                        var set = {};
+                        r.skus.forEach(function (s) { set[String(s)] = true; });
+                        $('#listaSkuObjetivo .chk-sku-obj').each(function () {
+                            $(this).prop('checked', !!set[String($(this).val())]);
+                        });
+                        actualizarContadorSku();
+                    } else if (r && r.message) {
+                        $('#msgSkuObjetivo').removeClass('d-none').text(r.message);
+                    }
+                }).fail(function () {
+                    $('#msgSkuObjetivo').removeClass('d-none').text('No se pudieron cargar los SKU configurados.');
+                });
+            });
+
+            $(document).on('change', '#listaSkuObjetivo .chk-sku-obj', actualizarContadorSku);
+
+            $('#buscarSkuObjetivo').on('input', function () {
+                var q = $(this).val().toLowerCase();
+                $('#listaSkuObjetivo .sku-obj-item').each(function () {
+                    var t = ($(this).data('texto') || '').toString().toLowerCase();
+                    $(this).toggle(t.indexOf(q) !== -1);
+                });
+            });
+
+            $('#btnSkuTodos').on('click', function () {
+                $('#listaSkuObjetivo .sku-obj-item').not('.d-none').find('.chk-sku-obj').prop('checked', true);
+                actualizarContadorSku();
+            });
+
+            $('#btnSkuNinguno').on('click', function () {
+                $('#listaSkuObjetivo .sku-obj-item').not('.d-none').find('.chk-sku-obj').prop('checked', false);
+                actualizarContadorSku();
+            });
+
+            $('#btnGuardarSkuObjetivo').on('click', function () {
+                if (!skuTipoActual) { return; }
+
+                var $btn = $(this);
+                var skus = $('#listaSkuObjetivo .chk-sku-obj:checked').map(function () {
+                    return $(this).val();
+                }).get().join(',');
+
+                $('#msgSkuObjetivo').addClass('d-none').text('');
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Guardando...');
+
+                $.post('@Url.Action("GuardarArticulosRelevantes", "Objetivos")', {
+                    idTipo: skuTipoActual,
+                    skus: skus
+                }, function (r) {
+                    if (!r || !r.success) {
+                        $('#msgSkuObjetivo').removeClass('d-none').text((r && r.message) || 'No se pudo guardar.');
+                        return;
+                    }
+
+                    var total = Number(r.total || 0);
+                    if ($skuItemActual) { pintarInfoSkuBoton($skuItemActual, total); }
+
+                    delete skusRelevantesCache[skuTipoActual];
+                    if (String($('#tipoObjetivo').val()) === String(skuTipoActual)) {
+                        filtrarSkuPorTipo(skuTipoActual);
+                    }
+
+                    skuModal().hide();
+                }).fail(function () {
+                    $('#msgSkuObjetivo').removeClass('d-none').text('Error de comunicación al guardar.');
+                }).always(function () {
+                    $btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Guardar');
+                });
+            });
         });
 
         // Logica de Filas Dinamicas
         let indiceValor = 1;
+
+        // Catalogo de metricas compartido: se mantiene aunque se agreguen filas
+        // o se creen metricas nuevas desde el modal. Evita que una fila nueva
+        // quede sin las metricas recien creadas.
+        window.catalogoOpciones = (function () {
+            var opciones = [];
+            var sel = document.querySelector('.catalogo-sm');
+            if (sel) {
+                Array.prototype.forEach.call(sel.options, function (o) {
+                    if (o.value) {
+                        opciones.push({ value: o.value, text: o.textContent.trim(), unidad: o.dataset.unidad || '' });
+                    }
+                });
+            }
+            return opciones;
+        })();
+
+        function llenarSelectCatalogo(select, seleccionado) {
+            if (!select) return;
+
+            var opciones = window.catalogoOpciones || [];
+
+            select.innerHTML = '';
+            var vacio = document.createElement('option');
+            vacio.value = '';
+            vacio.textContent = 'Seleccione una métrica';
+            select.appendChild(vacio);
+
+            opciones.forEach(function (o) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.text;
+                opt.dataset.unidad = o.unidad;
+                if (seleccionado != null && String(o.value) === String(seleccionado)) {
+                    opt.selected = true;
+                }
+                select.appendChild(opt);
+            });
+        }
 
         function renumerarValores() {
 
@@ -1010,6 +1376,11 @@
     });
 
     container.appendChild(nuevaFila);
+
+    // Rellena el combo de la fila nueva con el catalogo vigente
+    const filas = container.querySelectorAll(".valor-row");
+    const ultima = filas[filas.length - 1];
+    if (ultima) { llenarSelectCatalogo(ultima.querySelector(".catalogo-sm")); }
 
     indiceValor++;
 });

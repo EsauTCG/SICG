@@ -1208,7 +1208,9 @@ namespace Plataforma_CG.Controllers
                 string sql = @"
                     SELECT t.ID, t.Nombre, t.Descripcion, t.Activo, t.ID_Perfil,
                         p.Nombre AS NombrePerfil,
-                        t.Campos_Visibles AS Campos
+                        t.Campos_Visibles AS Campos,
+                        (SELECT COUNT(1) FROM dbo.ArticuloRelevanteParaObjetivo r
+                         WHERE r.ID_TipoObjetivo = t.ID) AS SkusConfigurados
                     FROM dbo.Tipo_Objetivo t
                     LEFT JOIN dbo.Perfiles p ON p.Id = t.ID_Perfil";
 
@@ -1217,7 +1219,7 @@ namespace Plataforma_CG.Controllers
 
                 sql += " ORDER BY p.Nombre, t.Nombre";
 
-                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var tipos = await conn.QueryAsync(sql, new { IdPerfil = miPerfilId });
@@ -1313,6 +1315,99 @@ namespace Plataforma_CG.Controllers
                         });
 
                     return Json(new { success = true, nombre = nombre, activo = activo, campos = camposGuardar });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        // Lee los SKU configurados como relevantes para un tipo de objetivo
+        [HttpGet]
+        [RevisarPermiso("OBJETIVOS", "LEER")]
+        public async Task<JsonResult> ObtenerArticulosRelevantes(int idTipo)
+        {
+            try
+            {
+                if (idTipo <= 0)
+                    return Json(new { success = false, message = "No se identificó el tipo de objetivo." });
+
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    var skus = (await conn.QueryAsync<string>(@"
+                        SELECT ProductoCodigo
+                        FROM dbo.ArticuloRelevanteParaObjetivo
+                        WHERE ID_TipoObjetivo = @idTipo
+                        ORDER BY ProductoCodigo",
+                        new { idTipo })).ToList();
+
+                    return Json(new { success = true, skus });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        // Guarda (reemplaza) la selección de SKU relevantes de un tipo de objetivo.
+        // Lista vacía = sin restricción (se muestran todos los SKU).
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ELIMINAR")]
+        public async Task<JsonResult> GuardarArticulosRelevantes(int idTipo, string skus)
+        {
+            try
+            {
+                if (idTipo <= 0)
+                    return Json(new { success = false, message = "No se identificó el tipo de objetivo." });
+
+                var lista = (skus ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(s => s.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
+                int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
+
+                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    var tipo = await conn.QueryFirstOrDefaultAsync(
+                        "SELECT ID_Perfil FROM dbo.Tipo_Objetivo WHERE ID = @idTipo",
+                        new { idTipo });
+
+                    if (tipo == null)
+                        return Json(new { success = false, message = "El tipo de objetivo no existe." });
+
+                    int? idPerfilTipo = tipo.ID_Perfil;
+                    if (!esAdmin && idPerfilTipo != miPerfilId)
+                        return Json(new { success = false, message = "No puedes modificar tipos de otro perfil." });
+
+                    using (var trx = conn.BeginTransaction())
+                    {
+                        await conn.ExecuteAsync(
+                            "DELETE FROM dbo.ArticuloRelevanteParaObjetivo WHERE ID_TipoObjetivo = @idTipo",
+                            new { idTipo }, trx);
+
+                        int insertados = 0;
+                        if (lista.Count > 0)
+                        {
+                            insertados = await conn.ExecuteAsync(@"
+                                INSERT INTO dbo.ArticuloRelevanteParaObjetivo (ID_TipoObjetivo, ProductoCodigo)
+                                SELECT @idTipo, a.ProductoCodigo
+                                FROM dbo.ArticuloSap a
+                                WHERE a.ProductoCodigo IN @skus",
+                                new { idTipo, skus = lista }, trx);
+                        }
+
+                        trx.Commit();
+                        return Json(new { success = true, total = insertados });
+                    }
                 }
             }
             catch (Exception ex)
