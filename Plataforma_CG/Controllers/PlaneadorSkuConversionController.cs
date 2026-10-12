@@ -58,8 +58,8 @@ public sealed class PlaneadorSkuConversionController(PlaneadorSkuConversionServi
         catch (SkuConversionValidacionException ex) { return BadRequest(new { mensaje = ex.Message }); }
         catch (SkuConversionConflictoException ex) { return Conflict(new { mensaje = ex.Message }); }
         catch (KeyNotFoundException ex) { return NotFound(new { mensaje = ex.Message }); }
-        catch (InvalidOperationException ex) { logger.LogWarning(ex, "Configuración no disponible para Sku Conversión."); return StatusCode(503, new { mensaje = "El catálogo requiere CadenaSQLSIGO del SIGO local de Pruebas Esau y su tabla de historial." }); }
+        catch (InvalidOperationException ex) { logger.LogWarning(ex, "Configuración no disponible para Sku Conversión."); return StatusCode(503, new { mensaje = "El catálogo requiere una CadenaSQLSIGO válida y su tabla de historial en la base configurada." }); }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested) { return StatusCode(499); }
-        catch (Exception ex) { logger.LogError(ex, "Error en el catálogo Sku Conversión del Planeador."); return StatusCode(503, new { mensaje = "No se pudo completar la operación en el SIGO local. Intenta nuevamente; si continúa, revisa la conexión y la instalación del historial." }); }
+        catch (Exception ex) { logger.LogError(ex, "Error en el catálogo Sku Conversión del Planeador."); return StatusCode(503, new { mensaje = "No se pudo completar la operación en la base configurada en CadenaSQLSIGO. Intenta nuevamente; si continúa, revisa la conexión y la instalación del historial." }); }
     }
 }

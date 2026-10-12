@@ -41,6 +41,6 @@ public sealed class PlaneadorParticipacionController(PlaneadorParticipacionServi
         catch (ParticipacionConflictoException ex) { return Conflict(new { mensaje = ex.Message }); }
         catch (KeyNotFoundException ex) { return NotFound(new { mensaje = ex.Message }); }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested) { return StatusCode(499); }
-        catch (Exception ex) { logger.LogError(ex, "Error en el catálogo de participación del Planeador."); return StatusCode(503, new { mensaje = "No se pudo completar la operación. Revisa CadenaSQLSIGO de Pruebas Esau y la instalación del historial de participación." }); }
+        catch (Exception ex) { logger.LogError(ex, "Error en el catálogo de participación del Planeador."); return StatusCode(503, new { mensaje = "No se pudo completar la operación. Revisa CadenaSQLSIGO y la instalación del historial de participación en la base configurada." }); }
     }
 }

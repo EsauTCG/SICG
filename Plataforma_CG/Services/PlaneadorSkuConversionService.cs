@@ -11,10 +11,9 @@ namespace Plataforma_CG.Services;
 public sealed class SkuConversionValidacionException(string message) : Exception(message);
 public sealed class SkuConversionConflictoException(string message) : Exception(message);
 
-/// <summary>Catálogo del Planeador, limitado al SIGO local de Pruebas Esau.</summary>
+/// <summary>Catálogo del Planeador en la base configurada en CadenaSQLSIGO.</summary>
 public sealed class PlaneadorSkuConversionService(IConfiguration configuration)
 {
-    public const string ServidorPruebas = @"DESKTOP-UB7IMQF\SQL2026";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const string Columnas = "s.Id,s.SkuOrigen,s.SkuDestino,s.Factor,s.Prioridad,s.Motivo,s.Activo,s.FechaAlta,s.UsuarioAlta,s.CreatedAt,s.UpdatedAt";
     private const string JoinsArticulos = "LEFT JOIN dbo.ArticuloSap o ON o.ProductoCodigo=s.SkuOrigen LEFT JOIN dbo.ArticuloSap d ON d.ProductoCodigo=s.SkuDestino";
@@ -22,11 +21,10 @@ public sealed class PlaneadorSkuConversionService(IConfiguration configuration)
     public static void ValidarDestino(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException("Falta configurar CadenaSQLSIGO para Pruebas Esau.");
+            throw new InvalidOperationException("Falta configurar CadenaSQLSIGO.");
         var builder = new SqlConnectionStringBuilder(connectionString);
-        if (!string.Equals(builder.DataSource, ServidorPruebas, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(builder.InitialCatalog, "SIGO", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Sku Conversión está habilitado únicamente para el SIGO local de Pruebas Esau. Revisa CadenaSQLSIGO.");
+        if (string.IsNullOrWhiteSpace(builder.DataSource) || string.IsNullOrWhiteSpace(builder.InitialCatalog))
+            throw new InvalidOperationException("CadenaSQLSIGO debe indicar el servidor y la base de datos.");
     }
 
     private async Task<SqlConnection> AbrirAsync(CancellationToken ct)
