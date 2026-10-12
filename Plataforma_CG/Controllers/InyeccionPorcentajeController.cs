@@ -28,7 +28,7 @@ namespace Plataforma_CG.Controllers
 
         private string UsuarioActual => (User?.Identity?.Name ?? "").Trim();
 
-        [HttpGet("/Operaciones/Inyecciones%%")]
+        [HttpGet("/Operaciones/InyeccionesPorcentaje")]
         [RevisarPermiso("INYECCIONES%%", "LEER")]
         public async Task<IActionResult> Index()
         {
@@ -50,7 +50,7 @@ namespace Plataforma_CG.Controllers
             return View("~/Views/Operaciones/InyeccionesPorcentaje.cshtml", listaInyecciones);
         }
 
-        [HttpPost("/Operaciones/Inyecciones%%/Actualizar")]
+        [HttpPost("/Operaciones/InyeccionesPorcentaje/Actualizar")]
         [RevisarPermiso("INYECCIONES%%", "ESCRIBIR")]
         public async Task<IActionResult> ActualizarPorcentaje(int id, int porcentaje)
         {
@@ -105,7 +105,7 @@ namespace Plataforma_CG.Controllers
             }
         }
 
-        [HttpPost("/Operaciones/Inyecciones%%/Nuevo")]
+        [HttpPost("/Operaciones/InyeccionesPorcentaje/Nuevo")]
         [RevisarPermiso("INYECCIONES%%", "ESCRIBIR")]
         public async Task<IActionResult> NuevoSku(
             string sku,
@@ -199,7 +199,7 @@ namespace Plataforma_CG.Controllers
             return Ok(new { ok = true, mensaje = mensajeOk });
         }
 
-        [HttpPost("/Operaciones/Inyecciones%%/Eliminar")]
+        [HttpPost("/Operaciones/InyeccionesPorcentaje/Eliminar")]
         [RevisarPermiso("INYECCIONES%%", "ELIMINAR")]
         public async Task<IActionResult> Eliminar(int id)
         {
@@ -237,7 +237,7 @@ namespace Plataforma_CG.Controllers
             return Ok(new { ok = true, mensaje = mensaje });
         }
 
-        [HttpGet("/Operaciones/Inyecciones%%/Bitacora")]
+        [HttpGet("/Operaciones/InyeccionesPorcentaje/Bitacora")]
         [RevisarPermiso("INYECCIONES%%", "LEER")]
         public async Task<IActionResult> Bitacora(string? sku, string? accion)
         {
