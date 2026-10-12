@@ -114,7 +114,8 @@ async function cargarCatalogoConversiones() {
         );
 
         const resp = await fetch(
-            `/Operaciones/ObtenerConversiones?sku=${skuOriginal}`
+            `/Operaciones/ObtenerConversiones?sku=${encodeURIComponent(skuOriginal)}&soloActivas=true`,
+            { cache: "no-store" }
         );
 
         console.log(
@@ -130,47 +131,43 @@ async function cargarCatalogoConversiones() {
             conversiones
         );
 
-        select.innerHTML = `
-            <option value="${skuOriginal}">
-                ${skuOriginal}
-            </option>
-        `;
-
+        select.replaceChildren();
+        select.removeAttribute("title");
+        const opciones = new Set();
+        const agregarOpcion = (sku, texto = sku) => {
+            const option = document.createElement("option");
+            option.value = sku;
+            option.textContent = texto;
+            select.append(option);
+            opciones.add(sku);
+            return option;
+        };
+        // El SKU original representa dejar el producto sin convertir.
+        agregarOpcion(skuOriginal);
         conversiones.forEach(c => {
-
-            select.insertAdjacentHTML(
-                "beforeend",
-                `
-                <option value="${c.skuDestino}">
-                    ${c.skuDestino}
-                </option>
-                `
-            );
-
+            if (!opciones.has(c.skuDestino)) agregarOpcion(c.skuDestino);
         });
 
         // Seleccionar el SKU guardado en PlanDiario
         if (skuConvertidoGuardado) {
 
-            const existe =
-                [...select.options]
-                    .some(o =>
-                        o.value === skuConvertidoGuardado
-                    );
+            if (!opciones.has(skuConvertidoGuardado)) {
+                // Conservar el valor histórico sin ofrecerlo para nuevas selecciones.
+                const historica = agregarOpcion(skuConvertidoGuardado, `${skuConvertidoGuardado} (inactiva)`);
+                historica.disabled = true;
+                historica.dataset.conversionInactiva = "true";
+                select.title = "La conversión guardada está inactiva o ya no está disponible. Se conserva hasta que elijas otra opción.";
+            }
 
-            if (existe) {
+            select.value =
+                skuConvertidoGuardado;
 
-                select.value =
+            const fila =
+                select.closest(".fila-producto");
+
+            if (fila) {
+                fila.dataset.skuConversion =
                     skuConvertidoGuardado;
-
-                const fila =
-                    select.closest(".fila-producto");
-
-                if (fila) {
-
-                    fila.dataset.skuConversion =
-                        skuConvertidoGuardado;
-                }
             }
         }
     }
@@ -181,6 +178,11 @@ document.addEventListener(
         if (!e.target.classList.contains("select-conversion"))
             return;
         const select = e.target;
+        const historica = select.querySelector('option[data-conversion-inactiva="true"]');
+        if (historica && select.value !== historica.value) {
+            historica.remove();
+            select.removeAttribute("title");
+        }
         const fila =
             select.closest(".fila-producto");
         fila.dataset.skuConversion =

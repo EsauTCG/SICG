@@ -1,81 +1,36 @@
-﻿ @using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
+ @using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 @using Plataforma_CG.Models.Operaciones.Planeacion.Semanal;
 @using Plataforma_CG.Models.Operaciones.Planeacion;
 @model TotalSemanalModel
 
-<style>
-    #buscadorWrapper {
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-        background: white;
-        padding: 10px;
-        border-bottom: 1px solid #ddd;
-    }
-
-    .fila-derivado {
-        background-color: #d6ecff !important;
-    }
-
-        .fila-derivado td.td-codigo {
-            padding-left: 35px !important;
-            position: relative;
-        }
-
-            .fila-derivado td.td-codigo::before {
-                content: "↳";
-                position: absolute;
-                left: 10px;
-                color: #2e86c1;
-                font-weight: bold;
-            }
-
-    .td-0 {
-        background-color: #f8b26a !important;
-    }
-
-    .td-parcial {
-        background-color: #5dade2 !important;
-        color: #fff;
-    }
-
-    .td-1 {
-        background-color: #58d68d !important;
-    }
-
-    .td-codigo {
-        background-color: #fdf2d0 !important;
-    }
-</style>
-
-
-
-<h3 class="mb-3">
-    Plan Semanal: @Model.FechaIn - @Model.FechaFin
-</h3>
-
-<div class="d-flex gap-2 mb-3">
-
-    <select id="comboTipoPlan" class="form-select form-select-sm" style="width:180px">
-        <option value="VG" selected="@(Model.TipoPlan == "VG")">Vaca Gorda</option>
-        <option value="NOV" selected="@(Model.TipoPlan == "NOV")">NOVILLO</option>
-    </select>
-
-    <button class="btn btn-primary btn-sm"
-            onclick="actualizarPlaneacionSemanal(this)">
-        Actualizar
-    </button>
-
+<div class="pp-sigo pp-workspace pp-weekly">
+<div class="pp-workspace-heading">
+    <div>
+        <span class="pp-eyebrow">Planeación de producción</span>
+        <h3>Plan Semanal: @Model.FechaIn - @Model.FechaFin</h3>
+    </div>
+    <div class="pp-actions">
+        <button class="btn btn-success btn-sm" onclick="exportarExcelSemanal()">
+            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Exportar a Excel
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="guardarPlanSemanal()">
+            <i class="bi bi-save" aria-hidden="true"></i> Guardar
+        </button>
+    </div>
 </div>
-<div class="mb-2 text-end">
-    <button class="btn btn-success btn-sm" onclick="exportarExcelSemanal()">
-        Exportar a Excel
-    </button>
-</div>
-<div class="mb-2 text-end">
-    <button class="btn btn-success btn-sm" onclick="guardarPlanSemanal()">
-        Guardar
-    </button>
+<div class="pp-toolbar">
+    <div class="pp-plan-filter">
+        <div>
+            <label for="comboTipoPlan" class="form-label">Tipo de plan</label>
+            <select id="comboTipoPlan" class="form-select form-select-sm">
+                <option value="VG" selected="@(Model.TipoPlan == "VG")">Vaca Gorda</option>
+                <option value="NOV" selected="@(Model.TipoPlan == "NOV")">NOVILLO</option>
+            </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="actualizarPlaneacionSemanal(this)">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Actualizar
+        </button>
+    </div>
 </div>
 
 @{
@@ -84,10 +39,20 @@
         .Clasificaciones ?? new List<DetalleClasificacionSemana>();
 }
 <div id="buscadorWrapper">
+    <div class="pp-search">
+    <i class="bi bi-search" aria-hidden="true"></i>
     <input id="buscadorProductos"
            class="form-control form-control-sm"
+           aria-label="Buscar productos"
            placeholder="Buscar código o producto... (Enter / F3 / ↑ ↓)">
+    </div>
 </div>
+<div class="pp-legend" aria-label="Estados de participación">
+    <span><i class="pp-zero" aria-hidden="true"></i>Sin participación</span>
+    <span><i class="pp-partial" aria-hidden="true"></i>Participación parcial</span>
+    <span><i class="pp-complete" aria-hidden="true"></i>Participación completa</span>
+</div>
+
 <div class="table-responsive">
     <table class="table table-bordered table-sm text-center tabla-plan" id="tablaPlanSemanal">
 
@@ -178,4 +143,5 @@
         </tbody>
 
     </table>
+</div>
 </div>

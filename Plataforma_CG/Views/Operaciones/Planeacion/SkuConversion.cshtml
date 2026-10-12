@@ -1,0 +1,100 @@
+@model Plataforma_CG.Models.Operaciones.Planeacion.Catalogos.SkuConversionPagina
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+<link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/planeador-sku-conversion.css" asp-append-version="true" />
+
+<div class="container-principal pp-sigo pp-page pp-sku-catalog" id="skuCatalogo"
+     data-listado="@Url.Action("Listado", "PlaneadorSkuConversion")"
+     data-articulos="@Url.Action("Articulos", "PlaneadorSkuConversion")"
+     data-guardar="@Url.Action("Guardar", "PlaneadorSkuConversion")"
+     data-estado="@Url.Action("Estado", "PlaneadorSkuConversion")"
+     data-historial="@Url.Action("Historial", "PlaneadorSkuConversion")"
+     data-usuario="@Model.UsuarioActual">
+    <header class="pp-titlebar">
+        <div>
+            <span class="pp-eyebrow">Planeador de Producción · Catálogo</span>
+            <h1>Sku Conversión</h1>
+            <p>Administra los SKU de origen y destino y consulta sus cambios.</p>
+        </div>
+        <div class="pp-actions">
+            <a class="btn btn-outline-light" asp-controller="Operaciones" asp-action="PlaneadorProduccion"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al Planeador</a>
+            <button class="btn btn-primary" type="button" id="skuNueva"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nueva conversión</button>
+        </div>
+    </header>
+
+    <section class="pp-workspace" aria-label="Catálogo de conversiones">
+        <div class="sku-summary">
+            <div class="sku-counts" aria-live="polite">
+                <span><b id="skuTotal">—</b> Conversiones</span>
+                <span><b id="skuActivas">—</b> Activas</span>
+                <span><b id="skuInactivas">—</b> Inactivas</span>
+            </div>
+            <span class="sku-session"><i class="bi bi-person-circle" aria-hidden="true"></i> Usuario actual: <strong>@Model.UsuarioActual</strong></span>
+        </div>
+        <div class="alert d-none" id="skuMensaje" role="status"></div>
+        <form class="pp-toolbar sku-filters" id="skuFiltros">
+            <div class="sku-search-field">
+                <label class="form-label" for="skuBusqueda">Buscar conversión</label>
+                <input class="form-control" type="search" id="skuBusqueda" maxlength="100" placeholder="SKU, nombre del producto o motivo" />
+            </div>
+            <div>
+                <label class="form-label" for="skuFiltroEstado">Estado</label>
+                <select class="form-select" id="skuFiltroEstado"><option value="todos">Todas</option><option value="activos">Activas</option><option value="inactivos">Inactivas</option></select>
+            </div>
+            <button class="btn btn-outline-danger" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Buscar</button>
+            <button class="btn btn-outline-secondary" type="button" id="skuActualizar"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Actualizar</button>
+        </form>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm sku-table">
+                <caption class="visually-hidden">Conversiones de SKU: origen, destino, factor, prioridad, estado y usuarios.</caption>
+                <thead><tr><th scope="col">SKU origen</th><th scope="col">SKU destino</th><th scope="col">Factor</th><th scope="col">Prioridad</th><th scope="col">Estado</th><th scope="col">Alta</th><th scope="col">Último cambio</th><th scope="col">Acciones</th></tr></thead>
+                <tbody id="skuRegistros"><tr><td colspan="8" class="sku-empty">Cargando conversiones…</td></tr></tbody>
+            </table>
+        </div>
+        <div class="sku-pagination">
+            <span id="skuPaginaTexto" aria-live="polite"></span>
+            <div class="pp-actions"><button class="btn btn-outline-secondary" type="button" id="skuAnterior" disabled>Anterior</button><button class="btn btn-outline-secondary" type="button" id="skuSiguiente" disabled>Siguiente</button></div>
+        </div>
+    </section>
+</div>
+
+<div class="modal fade pp-sigo pp-sku-modal" id="skuEditor" tabindex="-1" aria-labelledby="skuEditorTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title" id="skuEditorTitulo">Nueva conversión</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <form id="skuFormulario">
+            @Html.AntiForgeryToken()
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" id="skuEditorError" role="alert"></div>
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label" for="skuOrigen">SKU origen <span aria-hidden="true">*</span></label><input class="form-control" id="skuOrigen" list="skuOpcionesOrigen" autocomplete="off" maxlength="50" required aria-describedby="skuOrigenNombre" /><datalist id="skuOpcionesOrigen"></datalist><div class="sku-help" id="skuOrigenNombre">Escribe al menos 2 caracteres para buscar por SKU o nombre.</div></div>
+                    <div class="col-md-6"><label class="form-label" for="skuDestino">SKU destino <span aria-hidden="true">*</span></label><input class="form-control" id="skuDestino" list="skuOpcionesDestino" autocomplete="off" maxlength="50" required aria-describedby="skuDestinoNombre" /><datalist id="skuOpcionesDestino"></datalist><div class="sku-help" id="skuDestinoNombre">Selecciona un artículo del catálogo de SIGO.</div></div>
+                    <div class="col-md-6"><label class="form-label" for="skuFactor">Factor</label><input class="form-control" type="number" inputmode="decimal" id="skuFactor" min="0.000001" max="999999999999.999999" step="0.000001" placeholder="NULL" readonly aria-describedby="skuFactorAyuda" /><div class="sku-help" id="skuFactorAyuda">Las nuevas conversiones se guardan sin factor (NULL).</div></div>
+                    <div class="col-md-6"><label class="form-label" for="skuPrioridad">Prioridad</label><input class="form-control" type="number" id="skuPrioridad" value="1" min="0" max="2147483647" step="1" readonly aria-describedby="skuPrioridadAyuda" /><div class="sku-help" id="skuPrioridadAyuda">La prioridad de las nuevas conversiones es siempre 1.</div></div>
+                    <div class="col-12"><label class="form-label" for="skuMotivo">Motivo</label><textarea class="form-control" id="skuMotivo" maxlength="150" rows="2" placeholder="Describe el propósito de esta conversión"></textarea></div>
+                    <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="skuActivo" checked /><label class="form-check-label" for="skuActivo">Conversión activa</label></div></div>
+                </div>
+                <div class="sku-audit-info"><div><span>Usuario de alta</span><strong id="skuUsuarioAlta">@Model.UsuarioActual</strong></div><div><span>Este cambio lo registra</span><strong>@Model.UsuarioActual</strong></div><div><span>Fecha de alta</span><strong id="skuFechaAlta">Se asignará al guardar</strong></div></div>
+                <p class="sku-help mb-0">El usuario y las fechas se registran automáticamente. Al editar se conserva quién dio el alta.</p>
+            </div>
+            <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit" id="skuGuardar">Guardar conversión</button></div>
+        </form>
+    </div></div>
+</div>
+
+<div class="modal fade pp-sigo pp-sku-modal" id="skuEstadoModal" tabindex="-1" aria-labelledby="skuEstadoTitulo" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="skuEstadoTitulo">Cambiar estado</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><div class="alert alert-danger d-none" id="skuEstadoError" role="alert"></div><p id="skuEstadoTexto"></p><p class="sku-help mb-0">El cambio queda registrado con tu usuario. Puedes volver a activar o desactivar esta conversión.</p></div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="button" id="skuConfirmarEstado">Confirmar</button></div>
+</div></div></div>
+
+<div class="modal fade pp-sigo pp-sku-modal" id="skuHistorialModal" tabindex="-1" aria-labelledby="skuHistorialTitulo" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="skuHistorialTitulo">Historial de cambios</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body" id="skuHistorialContenido" aria-live="polite"></div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cerrar</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/planeador-sku-conversion.js" asp-append-version="true"></script>
+}

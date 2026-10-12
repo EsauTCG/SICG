@@ -1,4 +1,4 @@
-﻿@model IEnumerable<dynamic>
+@model IEnumerable<dynamic>
 @using System.Globalization
 @using System.Text.Json
 
@@ -6,78 +6,43 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
 }
 
-<style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
+<link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
 
-    body {
-        font-family: "Segoe UI", Arial, sans-serif;
-        background: #f4f6f9;
-        color: #333;
-    }
-
-    .containers {
-        display: none;
-        padding: 20px;
-    }
-
-        .containers.active {
-            display: block;
-        }
-
-    .container-principal {
-        max-width: 1800px;
-        margin: 20px auto;
-        background: #fff;
-        border-radius: 10px;
-        border: 1.5px solid #8B0000;
-    }
-
-    .dia-card {
-        cursor: pointer;
-        transition: .2s;
-        border: 2px solid transparent;
-    }
-
-        .dia-card:hover {
-            transform: scale(1.05);
-            border-color: #8B0000;
-        }
-
-        .dia-card.selected {
-            background: #8B0000;
-            color: #fff;
-        }
-
-        .dia-card.fuera-mes {
-            opacity: .3;
-            pointer-events: none;
-        }
-
-    .registro {
-        background: #fff;
-        padding: 15px;
-        border: 1px solid #8B0000;
-        border-radius: 8px;
-        margin-bottom: 15px;
-    }
-</style>
-
-<div class="container-principal">
+<div class="container-principal pp-sigo pp-page">
+    <header class="pp-titlebar">
+        <div>
+            <span class="pp-eyebrow">Operaciones · SIGO</span>
+            <h1>Planeador de Producción</h1>
+            <p>Planeación mensual, distribución semanal y plan diario.</p>
+        </div>
+    <div class="pp-actions pp-catalog-actions">
+    <a class="btn btn-primary" asp-controller="PlaneadorSkuConversion" asp-action="Index">
+        <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+        Sku Conversión
+    </a>
+    <a class="btn btn-primary" asp-controller="PlaneadorParticipacion" asp-action="Index">
+        <i class="bi bi-sliders" aria-hidden="true"></i>
+        Participación
+    </a>
     <button type="button"
             class="btn btn-primary"
             onclick="abrirResumenPlaneacion()">
         <i class="bi bi-bar-chart-line"></i>
         Resumen de Planeación
     </button>
+    </div>
+    </header>
     <!-- ================= MESES ================= -->
     <div id="vista-meses" class="containers active">
-        <div class="p-3">
-            <h4 class="text-danger fw-bold mb-3">Selecciona un mes</h4>
-            <div class="row g-4">
+        <div class="pp-view-content">
+            <div class="pp-section-heading">
+                <div>
+                    <h2>Selecciona un mes</h2>
+                    <p>Abre el periodo para consultar y distribuir la producción.</p>
+                </div>
+                <span class="pp-period">@DateTime.Now.Year</span>
+            </div>
+            <div class="row g-4 pp-month-grid">
                 @{
                     var meses = new[] {
                                 "Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -88,11 +53,16 @@
                 @for (int i = 0; i < 12; i++)
                 {
                     <div class="col-md-4">
-                        <div class="card shadow-sm text-center"
+                        <div class="card shadow-sm text-center pp-month-card"
                              style="cursor:pointer"
                              onclick="mostrarMes(@(i + 1), '@meses[i]', @anio)">
                             <div class="card-body">
-                                <h5>@meses[i] @anio</h5>
+                                <span class="pp-month-number">@((i + 1).ToString("00"))</span>
+                                <div>
+                                    <h5>@meses[i]</h5>
+                                    <small>@anio</small>
+                                </div>
+                                <i class="bi bi-arrow-right pp-month-arrow" aria-hidden="true"></i>
                             </div>
                         </div>
                     </div>
@@ -104,7 +74,7 @@
     <!-- ================= SEMANAL / PLANEADOR ================= -->
     <div id="vista-semanal" class="containers">
 
-        <div class="p-3">
+        <div class="pp-view-content">
 
             <div id="panel-mes" style="display:none;">
                 <!-- Header -->
@@ -150,7 +120,7 @@
 
 </div>
 
-<div class="modal fade" id="modalDistribucion" tabindex="-1">
+<div class="modal fade pp-sigo" id="modalDistribucion" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
 
@@ -168,7 +138,7 @@
         </div>
     </div>
 </div>
-<div class="modal fade" id="modalSubclas" tabindex="-1">
+<div class="modal fade pp-sigo" id="modalSubclas" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
 
@@ -213,7 +183,7 @@
 
 
 
-<div class="modal fade" id="modalPlantillaSemanal" tabindex="-1">
+<div class="modal fade pp-sigo" id="modalPlantillaSemanal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width:95%;">
         <div class="modal-content" style="height:90vh;">
 
@@ -232,7 +202,7 @@
     </div>
 </div>
 
-<div class="modal fade"
+<div class="modal fade pp-sigo"
      id="modalResumenPlaneacion"
      tabindex="-1"
      aria-labelledby="modalResumenPlaneacionLabel"

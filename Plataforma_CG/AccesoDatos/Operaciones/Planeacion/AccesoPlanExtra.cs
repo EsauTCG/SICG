@@ -268,15 +268,17 @@ group by a.ProductoCodigo,b.ProductoNombre,a.Porcentaje";
             _conn.Close();
             return lista;
         }
-        public object ObtenerCatalogoConversion(string sku)
+        public object ObtenerCatalogoConversion(string sku, bool soloActivas = false)
         {
-            _conn = new SqlConnection(_cadena);
-            string productocodigo = "", nombre = "", porcentaje = "";
-            string query = $@"select a.SkuOrigen,a.SkuDestino,b.ProductoNombre from SkuConversion a 
-inner join ArticuloSap b on b.ProductoCodigo=a.SkuDestino and 
-SkuOrigen='{sku}'";
-            SqlCommand cmd = new SqlCommand(query, _conn);
-            _conn.Open();
+            using var connection = new SqlConnection(_cadena);
+            const string query = @"SELECT a.SkuOrigen,a.SkuDestino,b.ProductoNombre
+FROM dbo.SkuConversion a
+INNER JOIN dbo.ArticuloSap b ON b.ProductoCodigo=a.SkuDestino
+WHERE a.SkuOrigen=@Sku AND (@SoloActivas=0 OR a.Activo=1);";
+            using var cmd = new SqlCommand(query, connection);
+            cmd.Parameters.Add("@Sku", System.Data.SqlDbType.NVarChar, 50).Value = sku ?? "";
+            cmd.Parameters.Add("@SoloActivas", System.Data.SqlDbType.Bit).Value = soloActivas;
+            connection.Open();
             var lista = new List<object>();
             using (var dr = cmd.ExecuteReader())
             {
@@ -291,7 +293,6 @@ SkuOrigen='{sku}'";
 
                 }
             }
-            _conn.Close();
             return lista;
         }
         public object ObtenerSolicitudes(string fecha)

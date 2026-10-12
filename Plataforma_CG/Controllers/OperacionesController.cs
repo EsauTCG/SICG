@@ -529,10 +529,10 @@ namespace Plataforma_CG.Controllers
             return Json(resultado);
         }
         [HttpGet]
-        public IActionResult ObtenerConversiones(string sku)
+        public IActionResult ObtenerConversiones(string sku, bool soloActivas = false)
         {
 
-            var resultado =ape.ObtenerCatalogoConversion(sku);
+            var resultado =ape.ObtenerCatalogoConversion(sku, soloActivas);
 
             return Json(resultado);
         }

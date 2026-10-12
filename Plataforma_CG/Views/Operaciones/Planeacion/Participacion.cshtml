@@ -1,0 +1,60 @@
+@model Plataforma_CG.Models.Operaciones.Planeacion.Catalogos.ParticipacionCatalogoPagina
+@{ Layout = "~/Views/Shared/_Layout2.cshtml"; }
+<link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/planeador-participacion.css" asp-append-version="true" />
+
+<div class="container-principal pp-sigo pp-page pp-part-catalog" id="partCatalogo"
+     data-listado="@Url.Action("Listado", "PlaneadorParticipacion")"
+     data-guardar="@Url.Action("Guardar", "PlaneadorParticipacion")"
+     data-historial="@Url.Action("Historial", "PlaneadorParticipacion")">
+    <header class="pp-titlebar">
+        <div><span class="pp-eyebrow">Planeador de Producción · Catálogo</span><h1>Participación</h1><p>Edita el porcentaje de cada SKU por tipo de plan.</p></div>
+        <div class="pp-actions"><a class="btn btn-outline-light" asp-controller="Operaciones" asp-action="PlaneadorProduccion"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al Planeador</a></div>
+    </header>
+    <section class="pp-workspace" aria-label="Catálogo de porcentajes de participación">
+        <div class="part-summary">
+            <div class="part-counts" aria-live="polite"><span><b id="partSkus">—</b> SKU</span><span><b id="partGrupos">—</b> SKU por tipo de plan</span><span><b id="partRegistros">—</b> Registros</span></div>
+            <span class="part-session"><i class="bi bi-person-circle" aria-hidden="true"></i> Usuario actual: <strong>@Model.UsuarioActual</strong></span>
+        </div>
+        <p class="part-help part-scope">Los cambios actualizan el catálogo de participación. Los planes que lo consultan tomarán el nuevo porcentaje al volver a cargarlos.</p>
+        <div class="alert d-none" id="partMensaje" role="status"></div>
+        <form class="pp-toolbar part-filters" id="partFiltros">
+            <div class="part-search"><label class="form-label" for="partBusqueda">Buscar SKU</label><input class="form-control" type="search" id="partBusqueda" maxlength="100" placeholder="Código o nombre del producto" /></div>
+            <div><label class="form-label" for="partClasificacion">Tipo de plan</label><select class="form-select" id="partClasificacion"><option value="">Todos</option></select></div>
+            <button class="btn btn-outline-danger" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Buscar</button>
+            <button class="btn btn-outline-secondary" type="button" id="partActualizar"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Actualizar</button>
+        </form>
+        <div class="table-responsive"><table class="table table-bordered table-sm part-table">
+            <caption class="visually-hidden">Porcentaje de participación por SKU y tipo de plan.</caption>
+            <thead><tr><th scope="col">SKU / Producto</th><th scope="col">Máster</th><th scope="col">Tipo de plan</th><th scope="col">Participación %</th><th scope="col">Subclasificaciones</th><th scope="col">Último cambio</th><th scope="col">Acciones</th></tr></thead>
+            <tbody id="partFilas"><tr><td colspan="7" class="part-empty">Cargando participaciones…</td></tr></tbody>
+        </table></div>
+        <div class="part-pagination"><span id="partPaginaTexto" aria-live="polite"></span><div class="pp-actions"><button class="btn btn-outline-secondary" type="button" id="partAnterior" disabled>Anterior</button><button class="btn btn-outline-secondary" type="button" id="partSiguiente" disabled>Siguiente</button></div></div>
+    </section>
+</div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="partEditor" tabindex="-1" aria-labelledby="partEditorTitulo" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="partEditorTitulo">Editar participación</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <form id="partFormulario">
+        @Html.AntiForgeryToken()
+        <div class="modal-body">
+            <div class="alert alert-danger d-none" id="partEditorError" role="alert"></div>
+            <div class="part-product-info"><strong id="partEditorSku"></strong><span id="partEditorNombre"></span><span id="partEditorPlan"></span></div>
+            <div class="part-current"><span>Porcentaje actual</span><strong id="partActual"></strong></div>
+            <label class="form-label" for="partPorcentaje">Nuevo porcentaje de participación</label>
+            <div class="input-group"><input class="form-control" type="number" inputmode="decimal" id="partPorcentaje" min="0" max="100" step="0.01" required aria-describedby="partPorcentajeAyuda" /><span class="input-group-text">%</span></div>
+            <p class="part-help" id="partPorcentajeAyuda">De 0 a 100, con hasta 2 decimales.</p>
+            <p class="part-help part-impact" id="partAlcance"></p>
+            <p class="part-help mb-0">El cambio quedará registrado por <strong>@Model.UsuarioActual</strong>.</p>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Guardar porcentaje</button></div>
+    </form>
+</div></div></div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="partHistorial" tabindex="-1" aria-labelledby="partHistorialTitulo" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="partHistorialTitulo">Historial de participación</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body" id="partHistorialContenido" aria-live="polite"></div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cerrar</button></div>
+</div></div></div>
+
+@section Scripts { <script src="~/js/planeador-participacion.js" asp-append-version="true"></script> }
