@@ -1206,11 +1206,11 @@ namespace Plataforma_CG.Controllers
                 int.TryParse(User.FindFirst("PerfilId")?.Value, out int miPerfilId);
 
                 string sql = @"
-                    SELECT t.ID, t.Nombre, t.Descripcion, t.Activo, t.ID_Perfil,
-                        p.Nombre AS NombrePerfil,
-                        t.Campos_Visibles AS Campos
-                    FROM dbo.Tipo_Objetivo t
-                    LEFT JOIN dbo.Perfiles p ON p.Id = t.ID_Perfil";
+            SELECT t.ID, t.Nombre, t.Descripcion, t.Activo, t.ID_Perfil,
+                p.Nombre AS NombrePerfil,
+                t.Campos_Visibles AS Campos
+            FROM dbo.Tipo_Objetivo t
+            LEFT JOIN dbo.Perfiles p ON p.Id = t.ID_Perfil";
 
                 if (!esAdmin)
                     sql += " WHERE t.ID_Perfil = @IdPerfil";
@@ -1218,6 +1218,7 @@ namespace Plataforma_CG.Controllers
                 sql += " ORDER BY p.Nombre, t.Nombre";
 
                 string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
+
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var tipos = await conn.QueryAsync(sql, new { IdPerfil = miPerfilId });
@@ -1228,7 +1229,6 @@ namespace Plataforma_CG.Controllers
             {
                 return Json(new { error = ex.Message });
             }
-
         }
 
         //Controlador para guardar la configuración de campos visibles por tipo de objetivo
