@@ -1,0 +1,2110 @@
+@model Plataforma_CG.ViewModels.SurtidoLayoutAdminVM
+
+@{
+    ViewData["Title"] = "Gestión de layouts";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var coloresActivos =
+        Model.Colores
+            .Where(x => x.Activo)
+            .OrderBy(x => x.Orden)
+            .ThenBy(x => x.NombreColor)
+            .ToList();
+
+    var racksActivos =
+        Model.Racks
+            .Where(x => x.Activo)
+            .OrderBy(x => x.Orden)
+            .ThenBy(x => x.CodigoRack)
+            .ToList();
+
+    var layoutActual = Model.LayoutActual;
+
+    var ubicacionPreview =
+        Model.Ubicaciones
+            .Where(x => x.Activo)
+            .OrderBy(x => x.OrdenFisico)
+            .ThenBy(x => x.Id)
+            .FirstOrDefault();
+
+    var ubicacionPreviewCodigo =
+        ubicacionPreview?.CodigoUbicacion ??
+        ubicacionPreview?.CodigoMapa3D ??
+        "";
+}
+
+<style>
+    :root{
+        --la-bg:#f2f5f7;
+        --la-card:#fff;
+        --la-line:#d8e0e6;
+        --la-text:#1f2b37;
+        --la-muted:#667787;
+        --la-wine:#7a2029;
+        --la-wine-dark:#54151c;
+        --la-blue:#0d6efd;
+        --la-green:#198754;
+        --la-orange:#d98200;
+        --la-red:#b4232f;
+    }
+
+    html,body{
+        width:100%!important;
+        max-width:100%!important;
+        overflow-x:hidden!important;
+    }
+
+    body{
+        margin:0;
+        background:var(--la-bg)!important;
+        color:var(--la-text);
+        font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+    }
+
+    body:has(.layout-admin) .layout-main-content,
+    body:has(.layout-admin) .layout-container-fluid{
+        width:100%!important;
+        max-width:100%!important;
+        min-width:0!important;
+        box-sizing:border-box!important;
+        overflow-x:hidden!important;
+    }
+
+    body:has(.layout-admin) .layout-container-fluid{
+        padding:0!important;
+        margin:0!important;
+    }
+
+    .layout-admin{
+        width:100%;
+        max-width:calc(100vw - 140px);
+        padding:10px 12px 18px;
+        box-sizing:border-box;
+    }
+
+    .la-shell{
+        width:100%;
+        max-width:1550px;
+    }
+
+    .la-top{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        margin-bottom:8px;
+    }
+
+    .la-back,
+    .la-top-link{
+        min-height:38px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 12px;
+        border-radius:10px;
+        border:1px solid var(--la-line);
+        background:#fff;
+        color:#435466!important;
+        text-decoration:none!important;
+        font-size:11px;
+        font-weight:850;
+    }
+
+    .la-top-actions{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        justify-content:flex-end;
+    }
+
+    .la-hero{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        gap:12px;
+        align-items:center;
+        padding:14px 16px;
+        border-radius:16px;
+        background:linear-gradient(135deg,var(--la-wine-dark),var(--la-wine));
+        color:#fff;
+    }
+
+    .la-kicker{
+        font-size:10px;
+        font-weight:900;
+        letter-spacing:.06em;
+        text-transform:uppercase;
+        opacity:.84;
+    }
+
+    .la-title{
+        margin:3px 0 2px;
+        font-size:28px;
+        line-height:1.05;
+        font-weight:950;
+    }
+
+    .la-sub{
+        margin:0;
+        font-size:12px;
+        opacity:.92;
+        font-weight:650;
+    }
+
+    .la-warehouse-select{
+        min-width:270px;
+        padding:9px;
+        border-radius:12px;
+        border:1px solid rgba(255,255,255,.2);
+        background:rgba(255,255,255,.1);
+    }
+
+    .la-warehouse-select label{
+        display:block;
+        margin-bottom:4px;
+        font-size:8px;
+        font-weight:900;
+        text-transform:uppercase;
+        opacity:.8;
+    }
+
+    .la-warehouse-select select{
+        width:100%;
+        min-height:38px;
+        padding:0 9px;
+        border:0;
+        border-radius:8px;
+        background:#fff;
+        color:#24323c;
+        font-size:11px;
+        font-weight:850;
+    }
+
+    .la-alert{
+        margin-top:8px;
+        padding:9px 11px;
+        border-radius:10px;
+        border:1px solid #b9dfc8;
+        border-left:5px solid var(--la-green);
+        background:#edf9f1;
+        color:#17683f;
+        font-size:10px;
+        font-weight:800;
+    }
+
+    .la-alert.bad{
+        border-color:#efbfc4;
+        border-left-color:var(--la-red);
+        background:#fff0f1;
+        color:#7b1f28;
+    }
+
+    .la-summary{
+        display:grid;
+        grid-template-columns:repeat(5,minmax(0,1fr));
+        gap:7px;
+        margin-top:8px;
+    }
+
+    .la-summary-card{
+        min-height:58px;
+        display:flex;
+        align-items:center;
+        gap:9px;
+        padding:8px 10px;
+        border-radius:11px;
+        background:#fff;
+        border:1px solid var(--la-line);
+    }
+
+    .la-summary-card i{
+        width:34px;
+        height:34px;
+        min-width:34px;
+        display:grid;
+        place-items:center;
+        border-radius:9px;
+        background:#edf3f7;
+        color:#516777;
+        font-style:normal;
+        font-size:14px;
+        font-weight:900;
+    }
+
+    .la-summary-card span{
+        display:block;
+        color:var(--la-muted);
+        font-size:8px;
+        font-weight:850;
+        text-transform:uppercase;
+    }
+
+    .la-summary-card strong{
+        display:block;
+        margin-top:1px;
+        font-size:18px;
+        line-height:1.1;
+        font-weight:950;
+    }
+
+    .la-nav{
+        display:flex;
+        flex-wrap:wrap;
+        gap:6px;
+        margin-top:8px;
+        padding:7px;
+        border:1px solid var(--la-line);
+        border-radius:12px;
+        background:#fff;
+        position:sticky;
+        top:5px;
+        z-index:20;
+    }
+
+    .la-nav a{
+        min-height:34px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 10px;
+        border-radius:8px;
+        background:#f3f6f8;
+        color:#40525f!important;
+        text-decoration:none!important;
+        font-size:9px;
+        font-weight:900;
+    }
+
+    .la-section{
+        margin-top:8px;
+        border:1px solid var(--la-line);
+        border-radius:13px;
+        background:#fff;
+        overflow:hidden;
+        scroll-margin-top:65px;
+    }
+
+    .la-section-head{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        padding:10px 12px;
+        background:#f8fafb;
+        border-bottom:1px solid var(--la-line);
+    }
+
+    .la-section-head h2{
+        margin:0;
+        font-size:16px;
+        font-weight:950;
+    }
+
+    .la-section-head p{
+        margin:2px 0 0;
+        color:var(--la-muted);
+        font-size:9px;
+        font-weight:650;
+    }
+
+    .la-grid{
+        display:grid;
+        grid-template-columns:minmax(300px,.72fr) minmax(0,1.28fr);
+        gap:8px;
+        padding:8px;
+    }
+
+    .la-form{
+        padding:10px;
+        border:1px solid #dce4e9;
+        border-radius:11px;
+        background:#fbfcfd;
+    }
+
+    .la-form h3{
+        margin:0 0 8px;
+        font-size:13px;
+        font-weight:950;
+    }
+
+    .la-fields{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:7px;
+    }
+
+    .la-field.full{
+        grid-column:1 / -1;
+    }
+
+    .la-field label{
+        display:block;
+        margin-bottom:3px;
+        color:var(--la-muted);
+        font-size:7px;
+        font-weight:900;
+        text-transform:uppercase;
+    }
+
+    .la-field input,
+    .la-field select{
+        width:100%;
+        height:36px;
+        box-sizing:border-box;
+        padding:0 8px;
+        border:1px solid #c6d1d9;
+        border-radius:8px;
+        background:#fff;
+        color:#253540;
+        font-size:10px;
+        font-weight:800;
+        outline:none;
+    }
+
+    .la-field input:focus,
+    .la-field select:focus{
+        border-color:var(--la-blue);
+        box-shadow:0 0 0 2px rgba(13,110,253,.08);
+    }
+
+    .la-check{
+        min-height:36px;
+        display:flex;
+        align-items:center;
+        gap:7px;
+        padding:0 8px;
+        border:1px solid #d7e0e6;
+        border-radius:8px;
+        background:#fff;
+        color:#40525f;
+        font-size:9px;
+        font-weight:850;
+    }
+
+    .la-check input{
+        width:auto;
+        height:auto;
+    }
+
+    .la-form-actions{
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:6px;
+        margin-top:8px;
+    }
+
+    .la-save,
+    .la-clear{
+        min-height:38px;
+        border:0;
+        border-radius:9px;
+        font-size:9px;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    .la-save{
+        background:var(--la-wine);
+        color:#fff;
+    }
+
+    .la-clear{
+        min-width:80px;
+        background:#e9eef2;
+        color:#435466;
+    }
+
+    .la-table-wrap{
+        overflow:auto;
+        border:1px solid #dce4e9;
+        border-radius:11px;
+        background:#fff;
+    }
+
+    .la-table{
+        width:100%;
+        border-collapse:collapse;
+        min-width:650px;
+    }
+
+    .la-table th,
+    .la-table td{
+        padding:7px 8px;
+        border-bottom:1px solid #e5ebef;
+        text-align:left;
+        vertical-align:middle;
+        font-size:8px;
+    }
+
+    .la-table th{
+        position:sticky;
+        top:0;
+        background:#f8fafb;
+        color:#5d6f7b;
+        font-weight:950;
+        text-transform:uppercase;
+        z-index:2;
+    }
+
+    .la-table td{
+        color:#2b3b46;
+        font-weight:700;
+    }
+
+    .la-table tr:last-child td{
+        border-bottom:0;
+    }
+
+    .la-chip{
+        display:inline-flex;
+        align-items:center;
+        gap:5px;
+        min-height:23px;
+        padding:0 7px;
+        border-radius:999px;
+        border:1px solid #d8e0e6;
+        background:#f7f9fa;
+        font-size:7px;
+        font-weight:900;
+    }
+
+    .la-dot{
+        width:8px;
+        height:8px;
+        border-radius:999px;
+        background:#bbb;
+    }
+
+    .la-status{
+        display:inline-flex;
+        min-height:22px;
+        align-items:center;
+        padding:0 7px;
+        border-radius:999px;
+        background:#e8f6ee;
+        color:#17683f;
+        font-size:7px;
+        font-weight:900;
+    }
+
+    .la-status.off{
+        background:#eef1f3;
+        color:#6a7881;
+    }
+
+    .la-status.busy{
+        background:#fff0d9;
+        color:#8c5b00;
+    }
+
+    .la-edit{
+        min-height:28px;
+        padding:0 8px;
+        border:1px solid #cbd7df;
+        border-radius:7px;
+        background:#fff;
+        color:#3f5260;
+        font-size:7px;
+        font-weight:950;
+        cursor:pointer;
+    }
+
+    .la-preview-grid{
+        display:grid;
+        grid-template-columns:minmax(0,1fr) 300px;
+        gap:8px;
+        padding:8px;
+    }
+
+    .la-3d-card{
+        overflow:hidden;
+        border:1px solid #dce4e9;
+        border-radius:11px;
+        background:#fff;
+    }
+
+    .la-3d-head{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:8px;
+        padding:8px 10px;
+        border-bottom:1px solid #dce4e9;
+        background:#f8fafb;
+    }
+
+    .la-3d-head h3{
+        margin:0;
+        font-size:13px;
+        font-weight:950;
+    }
+
+    .la-3d-head span{
+        color:var(--la-muted);
+        font-size:8px;
+        font-weight:700;
+    }
+
+    #layoutAdmin3d{
+        min-height:470px;
+        background:#eef2f4;
+    }
+
+    #layoutAdminOperational3d{
+        width:100%;
+        min-height:470px;
+        height:clamp(470px,62vh,720px);
+        margin:0 !important;
+        border:0 !important;
+        border-radius:0 !important;
+        background:#eef2f4;
+        box-sizing:border-box;
+    }
+
+    #layoutAdminOperational3d canvas{
+        display:block;
+        width:100% !important;
+        height:100% !important;
+    }
+
+    #layoutAdminOperational3dInfo{
+        margin:7px !important;
+    }
+
+    .la-preview-location{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        margin-left:auto;
+        padding:5px 7px;
+        border:1px solid #d4dde3;
+        border-radius:8px;
+        background:#fff;
+    }
+
+    .la-preview-location small{
+        color:#7a878e;
+        font-size:7px;
+        font-weight:900;
+    }
+
+    .la-preview-location strong{
+        color:#7a2029;
+        font-size:11px;
+        font-weight:950;
+    }
+
+    .la-preview-location a{
+        display:inline-flex;
+        align-items:center;
+        min-height:27px;
+        padding:0 8px;
+        border-radius:7px;
+        background:#7a2029;
+        color:#fff !important;
+        text-decoration:none !important;
+        font-size:7px;
+        font-weight:950;
+    }
+
+    .la-preview-empty{
+        min-height:430px;
+        display:grid;
+        place-items:center;
+        padding:20px;
+        background:#eef2f4;
+        color:#66747c;
+        text-align:center;
+        box-sizing:border-box;
+    }
+
+    .la-preview-empty strong{
+        display:block;
+        margin-bottom:5px;
+        color:#7a2029;
+        font-size:14px;
+        font-weight:950;
+    }
+
+    .la-preview-empty span{
+        display:block;
+        font-size:10px;
+        font-weight:700;
+    }
+
+    .la-3d-card > .wms-3d-legend{
+        margin:0 7px 7px !important;
+    }
+
+    .la-side{
+        display:grid;
+        gap:7px;
+        align-content:start;
+    }
+
+    .la-side-card{
+        padding:10px;
+        border:1px solid #dce4e9;
+        border-radius:11px;
+        background:#fff;
+    }
+
+    .la-side-card h3{
+        margin:0 0 7px;
+        font-size:12px;
+        font-weight:950;
+    }
+
+    .la-color-summary{
+        display:grid;
+        gap:5px;
+    }
+
+    .la-color-row{
+        display:grid;
+        grid-template-columns:12px minmax(0,1fr) auto;
+        gap:7px;
+        align-items:center;
+        padding:7px;
+        border-radius:8px;
+        background:#f8fafb;
+        border:1px solid #e1e7eb;
+    }
+
+    .la-color-row i{
+        width:12px;
+        height:12px;
+        border-radius:3px;
+        background:#bbb;
+    }
+
+    .la-color-row strong{
+        display:block;
+        font-size:9px;
+        font-weight:900;
+    }
+
+    .la-color-row span{
+        display:block;
+        margin-top:1px;
+        color:var(--la-muted);
+        font-size:7px;
+    }
+
+    .la-color-row b{
+        font-size:8px;
+        font-weight:950;
+    }
+
+    .la-selected-rack{
+        min-height:82px;
+        padding:8px;
+        border-radius:8px;
+        background:#f8fafb;
+        border:1px solid #e1e7eb;
+        color:#40515d;
+        font-size:9px;
+        line-height:1.45;
+    }
+
+    @@media(max-width:1200px){
+        .layout-admin{max-width:calc(100vw - 115px);}
+        .la-summary{grid-template-columns:repeat(3,minmax(0,1fr));}
+    }
+
+    @@media(max-width:900px){
+        .layout-admin{max-width:calc(100vw - 28px);padding:7px;}
+        .la-grid,.la-preview-grid{grid-template-columns:1fr;}
+        .la-side{grid-template-columns:1fr 1fr;}
+    }
+
+    @@media(max-width:680px){
+        .layout-admin{max-width:calc(100vw - 12px);padding:5px;}
+        .la-top,.la-hero{grid-template-columns:1fr;display:grid;}
+        .la-top-actions{justify-content:flex-start;}
+        .la-warehouse-select{min-width:0;}
+        .la-summary{grid-template-columns:1fr 1fr;}
+        .la-fields{grid-template-columns:1fr;}
+        .la-field.full{grid-column:auto;}
+        .la-side{grid-template-columns:1fr;}
+        #layoutAdmin3d{min-height:330px;}
+        #layoutAdminOperational3d{min-height:330px;height:430px;}
+    }
+
+    .la-layout-bar{
+        margin-top:8px;
+        display:grid;
+        grid-template-columns:minmax(260px,420px) minmax(0,1fr) auto;
+        gap:8px;
+        align-items:center;
+        padding:9px 10px;
+        border:1px solid var(--la-line);
+        border-radius:12px;
+        background:#fff;
+    }
+    .la-layout-select label{display:block;margin-bottom:3px;color:var(--la-muted);font-size:8px;font-weight:900;text-transform:uppercase;}
+    .la-layout-select select{width:100%;height:38px;border:1px solid #c8d2d9;border-radius:9px;background:#fff;padding:0 9px;font-weight:850;}
+    .la-layout-current strong{display:block;font-size:13px;font-weight:950;}
+    .la-layout-current span{display:block;margin-top:2px;color:var(--la-muted);font-size:9px;font-weight:700;}
+    .la-operativo{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;background:#e4f5eb;color:#17683f;border:1px solid #b9dfc8;font-size:8px;font-weight:950;}
+    .la-layout-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+    .la-layout-actions a{min-height:34px;display:inline-flex;align-items:center;padding:0 10px;border-radius:8px;background:var(--la-wine);color:#fff!important;text-decoration:none!important;font-size:8px;font-weight:950;}
+    .sigo-layout3d{position:relative;width:100%;height:clamp(470px,62vh,720px);min-height:470px;background:#eef2f4;overflow:hidden;}
+    .sigo-layout3d canvas{display:block;width:100%!important;height:100%!important;}
+    @@media(max-width:800px){.la-layout-bar{grid-template-columns:1fr}.la-layout-actions{justify-content:flex-start}.sigo-layout3d{height:430px;min-height:330px;}}
+</style>
+
+<div class="layout-admin">
+    <main class="la-shell">
+
+        <div class="la-top">
+            <a class="la-back"
+               href="@Url.Action(
+                    "Coordinador",
+                    "Surtido",
+                    new { almacen = Model.Almacen.Codigo }
+               )">
+                ← Regresar a coordinación
+            </a>
+
+            <div class="la-top-actions">
+                <a class="la-top-link"
+                   href="@Url.Action(
+                        "Mapa3D",
+                        "Surtido",
+                        new { almacen = Model.Almacen.Codigo }
+                   )">
+                    ▦ Mapa 3D operativo
+                </a>
+
+                <a class="la-top-link"
+                   href="@Url.Action("ConfiguracionAlmacenes","Surtido")">
+                    ⚙ Configuración de almacenes
+                </a>
+            </div>
+        </div>
+
+        <section class="la-hero">
+            <div>
+                <div class="la-kicker">ADMINISTRACIÓN DE ALMACENES</div>
+                <div class="la-title">Gestión de layouts</div>
+                <p class="la-sub">
+                    Racks, colores, MASTER, rotación, ubicaciones y vista previa 3D.
+                </p>
+            </div>
+
+            <form class="la-warehouse-select"
+                  method="get"
+                  action="@Url.Action("GestionLayouts","Surtido")">
+                <label>Almacén a administrar</label>
+                <select name="almacen"
+                        onchange="this.form.submit()">
+                    @foreach (var a in Model.Almacenes.OrderBy(x => x.Planta).ThenBy(x => x.Nombre))
+                    {
+                        if (string.Equals(
+                            a.Codigo,
+                            Model.Almacen.Codigo,
+                            StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@a.Codigo" selected>
+                                @a.Codigo · @a.Nombre
+                            </option>
+                        }
+                        else
+                        {
+                            <option value="@a.Codigo">
+                                @a.Codigo · @a.Nombre
+                            </option>
+                        }
+                    }
+                </select>
+            </form>
+        </section>
+
+        <section class="la-layout-bar">
+            <form class="la-layout-select" method="get" action="@Url.Action("GestionLayouts","Surtido")">
+                <input type="hidden" name="almacen" value="@Model.Almacen.Codigo" />
+                <label>Layout a administrar</label>
+                <select name="layoutId" onchange="this.form.submit()">
+                    @if (!Model.Layouts.Any())
+                    {
+                        <option value="">Sin layouts</option>
+                    }
+                    else
+                    {
+                        @foreach (var l in Model.Layouts.OrderByDescending(x => x.EsOperativo).ThenBy(x => x.Orden).ThenBy(x => x.NombreLayout))
+                        {
+                            if (Model.LayoutId == l.Id)
+                            {
+                                <option value="@l.Id" selected>@l.CodigoLayout · @l.NombreLayout @(l.EsOperativo ? "· OPERATIVO" : "")</option>
+                            }
+                            else
+                            {
+                                <option value="@l.Id">@l.CodigoLayout · @l.NombreLayout @(l.EsOperativo ? "· OPERATIVO" : "")</option>
+                            }
+                        }
+                    }
+                </select>
+            </form>
+
+            <div class="la-layout-current">
+                @if (layoutActual != null)
+                {
+                    <strong>@layoutActual.NombreLayout</strong>
+                    <span>@layoutActual.CodigoLayout · @Model.Almacen.Codigo · @layoutActual.Racks racks · @layoutActual.Ubicaciones ubicaciones</span>
+                }
+                else
+                {
+                    <strong>Sin layout configurado</strong>
+                    <span>Crea el primer layout para este almacén.</span>
+                }
+            </div>
+
+            <div class="la-layout-actions">
+                @if (layoutActual?.EsOperativo == true)
+                {
+                    <span class="la-operativo">✓ OPERATIVO</span>
+                }
+                <a href="#layouts">+ GESTIONAR LAYOUTS</a>
+            </div>
+        </section>
+
+        @if (TempData["Exito"] != null)
+        {
+            <div class="la-alert">
+                ✓ @TempData["Exito"]
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="la-alert bad">
+                ⚠ @TempData["Error"]
+            </div>
+        }
+
+        <section class="la-summary">
+            <div class="la-summary-card">
+                <i>▦</i>
+                <div>
+                    <span>Racks</span>
+                    <strong>@Model.Racks.Count(x => x.Activo)</strong>
+                </div>
+            </div>
+
+            <div class="la-summary-card">
+                <i>●</i>
+                <div>
+                    <span>Colores</span>
+                    <strong>@Model.Colores.Count(x => x.Activo)</strong>
+                </div>
+            </div>
+
+            <div class="la-summary-card">
+                <i>⌂</i>
+                <div>
+                    <span>Ubicaciones</span>
+                    <strong>@Model.TotalUbicaciones</strong>
+                </div>
+            </div>
+
+            <div class="la-summary-card">
+                <i>✓</i>
+                <div>
+                    <span>Libres</span>
+                    <strong>@Model.UbicacionesLibres</strong>
+                </div>
+            </div>
+
+            <div class="la-summary-card">
+                <i>■</i>
+                <div>
+                    <span>Ocupadas</span>
+                    <strong>@Model.UbicacionesOcupadas</strong>
+                </div>
+            </div>
+        </section>
+
+        <nav class="la-nav">
+            <a href="#layouts">Layouts</a>
+            <a href="#layout3d">Vista 3D</a>
+            <a href="#racks">Racks</a>
+            <a href="#ubicaciones">Ubicaciones</a>
+            <a href="#colores">Colores</a>
+            <a href="#masters">MASTER / Color</a>
+            <a href="#rotacion">Rotación</a>
+        </nav>
+
+        <section id="layouts" class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Layouts del almacén</h2>
+                    <p>Crea propuestas, expansiones o layouts futuros. Sólo uno puede ser operativo.</p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="layoutForm" class="la-form" method="post" action="@Url.Action("GuardarLayoutAlmacen","Surtido")">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="layoutIdForm" name="Id" value="0" />
+                    <input type="hidden" name="CodigoAlmacen" value="@Model.Almacen.Codigo" />
+                    <h3>Agregar / editar layout</h3>
+                    <div class="la-fields">
+                        <div class="la-field"><label>Código</label><input id="layoutCodigo" name="CodigoLayout" placeholder="EXP-TIF" required /></div>
+                        <div class="la-field"><label>Orden</label><input id="layoutOrden" name="Orden" type="number" min="1" value="1" required /></div>
+                        <div class="la-field full"><label>Nombre</label><input id="layoutNombre" name="NombreLayout" placeholder="EXPANSIÓN TIF" required /></div>
+                        <div class="la-field full"><label>Descripción</label><input id="layoutDescripcion" name="Descripcion" placeholder="Expansión del almacén TIF" /></div>
+                        <div class="la-field"><label>Operativo</label><div class="la-check"><input id="layoutOperativo" name="EsOperativo" type="checkbox" value="true" /><input type="hidden" name="EsOperativo" value="false" />Usar en Picking / Ubicar</div></div>
+                        <div class="la-field"><label>Estado</label><div class="la-check"><input id="layoutActivo" name="Activo" type="checkbox" value="true" checked /><input type="hidden" name="Activo" value="false" />Activo</div></div>
+                    </div>
+                    <div class="la-form-actions">
+                        <button class="la-save" type="submit">GUARDAR LAYOUT</button>
+                        <button class="la-clear" type="button" data-clear-form="layoutForm">LIMPIAR</button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead><tr><th>Layout</th><th>Racks</th><th>Ubicaciones</th><th>Estado</th><th></th></tr></thead>
+                        <tbody>
+                        @foreach (var l in Model.Layouts)
+                        {
+                            <tr>
+                                <td><strong>@l.CodigoLayout · @l.NombreLayout</strong><br /><small>@l.Descripcion</small></td>
+                                <td>@l.Racks</td>
+                                <td>@l.Ubicaciones (@l.Ocupadas ocup.)</td>
+                                <td><span class="la-status @(!l.Activo ? "off" : "")">@(l.EsOperativo ? "OPERATIVO" : l.Activo ? "ACTIVO" : "INACTIVO")</span></td>
+                                <td>
+                                    <button type="button" class="la-edit" data-edit-layout data-id="@l.Id" data-codigo="@l.CodigoLayout" data-nombre="@l.NombreLayout" data-descripcion="@l.Descripcion" data-operativo="@l.EsOperativo.ToString().ToLowerInvariant()" data-orden="@l.Orden" data-activo="@l.Activo.ToString().ToLowerInvariant()">EDITAR</button>
+                                    @if (l.Activo && !l.EsOperativo)
+                                    {
+                                        <form method="post" action="@Url.Action("ActivarLayoutOperativo","Surtido")" style="display:inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="CodigoAlmacen" value="@Model.Almacen.Codigo" />
+                                            <input type="hidden" name="LayoutId" value="@l.Id" />
+                                            <button type="submit" class="la-edit">HACER OPERATIVO</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="layout3d"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Vista previa del layout</h2>
+                    <p>
+                        @if (Model.Almacen.TieneLayout3D)
+                        {
+                            <text>Este almacén usa el mismo layout 3D confirmado que el mapa operativo.</text>
+                        }
+                        else
+                        {
+                            <text>El dibujo usa las coordenadas y dimensiones configuradas en cada rack.</text>
+                        }
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-preview-grid">
+                <div class="la-3d-card">
+                    <div class="la-3d-head">
+                        <div>
+                            <h3>@Model.Almacen.Codigo · @(layoutActual?.NombreLayout ?? "SIN LAYOUT")</h3>
+                            <span>Los colores se toman de las ubicaciones configuradas en este layout.</span>
+                        </div>
+                    </div>
+
+                    @if (layoutActual != null)
+                    {
+                        <div id="layoutAdmin3d"
+                             class="sigo-layout3d"
+                             data-endpoint="@Url.Action("DatosLayout3D","Surtido",new { almacen=Model.Almacen.Codigo, layoutId=layoutActual.Id })"
+                             data-location="@ubicacionPreviewCodigo"
+                             data-info-target="#layoutAdmin3dInfo"
+                             data-selected-target="#layoutSelectedRack">
+                        </div>
+                        <div id="layoutAdmin3dInfo" class="wms-3d-info"></div>
+                    }
+                    else
+                    {
+                        <div class="la-preview-empty"><div><strong>Sin layout</strong><span>Crea un layout en la pestaña Layouts.</span></div></div>
+                    }
+                </div>
+
+                <aside class="la-side">
+                    <div class="la-side-card">
+                        <h3>Ocupación por color</h3>
+
+                        <div class="la-color-summary">
+                            @if (Model.ResumenColores.Any())
+                            {
+                                @foreach (var c in Model.ResumenColores)
+                                {
+                                    <div class="la-color-row">
+                                        <i style="background:@(string.IsNullOrWhiteSpace(c.HexColor) ? "#aeb8be" : c.HexColor)"></i>
+
+                                        <div>
+                                            <strong>@c.CodigoColor · @c.NombreColor</strong>
+                                            <span>@c.Libres libres / @c.Total totales</span>
+                                        </div>
+
+                                        <b>@c.Ocupadas ocup.</b>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="la-selected-rack">
+                                    Aún no hay colores o ubicaciones configuradas.
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="la-side-card">
+                        <h3>Rack seleccionado</h3>
+                        <div id="layoutSelectedRack"
+                             class="la-selected-rack">
+                            Haz clic en un rack del mapa.
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <section id="racks"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Racks del almacén</h2>
+                    <p>
+                        Define posición y dimensiones para formar el layout 3D.
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="rackForm"
+                      class="la-form"
+                      method="post"
+                      action="@Url.Action("GuardarRackLayout","Surtido")">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           id="rackId"
+                           name="Id"
+                           value="0" />
+
+                    <input type="hidden"
+                           name="CodigoAlmacen"
+                           value="@Model.Almacen.Codigo" />
+
+                    <input type="hidden" name="LayoutId" value="@Model.LayoutId" />
+
+                    <h3>Agregar / editar rack</h3>
+
+                    <div class="la-fields">
+                        <div class="la-field">
+                            <label>Código rack</label>
+                            <input id="rackCodigo"
+                                   name="CodigoRack"
+                                   placeholder="R2"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Nombre</label>
+                            <input id="rackNombre"
+                                   name="NombreRack"
+                                   placeholder="Rack 2" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Posición X</label>
+                            <input id="rackPosX"
+                                   name="PosX"
+                                   type="number"
+                                   step="0.1"
+                                   value="0"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Posición Z</label>
+                            <input id="rackPosZ"
+                                   name="PosZ"
+                                   type="number"
+                                   step="0.1"
+                                   value="0"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Ancho</label>
+                            <input id="rackAncho"
+                                   name="Ancho"
+                                   type="number"
+                                   step="0.1"
+                                   value="10"
+                                   min="0.1"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Alto</label>
+                            <input id="rackAlto"
+                                   name="Alto"
+                                   type="number"
+                                   step="0.1"
+                                   value="6"
+                                   min="0.1"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Profundidad</label>
+                            <input id="rackProfundidad"
+                                   name="Profundidad"
+                                   type="number"
+                                   step="0.1"
+                                   value="2"
+                                   min="0.1"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Rotación Y °</label>
+                            <input id="rackRotacion"
+                                   name="RotacionY"
+                                   type="number"
+                                   step="1"
+                                   value="0" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Niveles</label>
+                            <input id="rackNiveles"
+                                   name="Niveles"
+                                   type="number"
+                                   min="1"
+                                   value="4"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Posiciones / nivel</label>
+                            <input id="rackPosiciones"
+                                   name="PosicionesPorNivel"
+                                   type="number"
+                                   min="1"
+                                   value="10"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Color visual 3D</label>
+                            <input id="rackHex"
+                                   name="HexColor"
+                                   placeholder="#7A2029" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Orden</label>
+                            <input id="rackOrden"
+                                   name="Orden"
+                                   type="number"
+                                   min="1"
+                                   value="1"
+                                   required />
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Estado</label>
+                            <div class="la-check">
+                                <input id="rackActivo"
+                                       name="Activo"
+                                       type="checkbox"
+                                       value="true"
+                                       checked />
+                                <input type="hidden"
+                                       name="Activo"
+                                       value="false" />
+                                Activo
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="la-form-actions">
+                        <button class="la-save"
+                                type="submit">
+                            GUARDAR RACK
+                        </button>
+
+                        <button class="la-clear"
+                                type="button"
+                                data-clear-form="rackForm">
+                            LIMPIAR
+                        </button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead>
+                            <tr>
+                                <th>Rack</th>
+                                <th>X / Z</th>
+                                <th>Medidas</th>
+                                <th>Niveles</th>
+                                <th>Ubicaciones</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in Model.Racks)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@r.CodigoRack</strong><br />
+                                        <span>@r.NombreRack</span>
+                                    </td>
+
+                                    <td>
+                                        @r.PosX.ToString("0.##") /
+                                        @r.PosZ.ToString("0.##")
+                                    </td>
+
+                                    <td>
+                                        @r.Ancho.ToString("0.##") ×
+                                        @r.Alto.ToString("0.##") ×
+                                        @r.Profundidad.ToString("0.##")
+                                    </td>
+
+                                    <td>
+                                        @r.Niveles × @r.PosicionesPorNivel
+                                    </td>
+
+                                    <td>
+                                        @r.UbicacionesOcupadas ocup. /
+                                        @r.TotalUbicaciones
+                                    </td>
+
+                                    <td>
+                                        <span class="la-status @(r.Activo ? "" : "off")">
+                                            @(r.Activo ? "ACTIVO" : "INACTIVO")
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <button type="button"
+                                                class="la-edit"
+                                                data-edit-rack
+                                                data-id="@r.Id"
+                                                data-codigo="@r.CodigoRack"
+                                                data-nombre="@r.NombreRack"
+                                                data-posx="@r.PosX.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-posz="@r.PosZ.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-ancho="@r.Ancho.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-alto="@r.Alto.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-profundidad="@r.Profundidad.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-rotacion="@r.RotacionY.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-niveles="@r.Niveles"
+                                                data-posiciones="@r.PosicionesPorNivel"
+                                                data-hex="@r.HexColor"
+                                                data-orden="@r.Orden"
+                                                data-activo="@r.Activo.ToString().ToLowerInvariant()">
+                                            EDITAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="ubicaciones"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Ubicaciones</h2>
+                    <p>
+                        Asigna color, rack, posición, altura, código escaneable y orden físico.
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="ubicacionForm"
+                      class="la-form"
+                      method="post"
+                      action="@Url.Action("GuardarUbicacionLayout","Surtido")">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           id="ubicacionId"
+                           name="Id"
+                           value="0" />
+
+                    <input type="hidden"
+                           name="CodigoAlmacen"
+                           value="@Model.Almacen.Codigo" />
+
+                    <input type="hidden" name="LayoutId" value="@Model.LayoutId" />
+
+                    <h3>Agregar / editar ubicación</h3>
+
+                    <div class="la-fields">
+                        <div class="la-field">
+                            <label>Color</label>
+                            <select id="ubicacionColor"
+                                    name="ColorAlmacenId"
+                                    required>
+                                <option value="">Selecciona</option>
+                                @foreach (var c in coloresActivos)
+                                {
+                                    <option value="@c.Id">
+                                        @c.CodigoColor · @c.NombreColor
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="la-field">
+                            <label>Rack</label>
+                            <select id="ubicacionRack"
+                                    name="RackId">
+                                <option value="">Sin rack ligado</option>
+                                @foreach (var r in racksActivos)
+                                {
+                                    <option value="@r.Id">
+                                        @r.CodigoRack · @r.NombreRack
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="la-field">
+                            <label>Posición</label>
+                            <input id="ubicacionPosicion"
+                                   name="Posicion"
+                                   placeholder="05" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Altura</label>
+                            <input id="ubicacionAltura"
+                                   name="Altura"
+                                   placeholder="E" />
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Código ubicación</label>
+                            <input id="ubicacionCodigo"
+                                   name="CodigoUbicacion"
+                                   placeholder="V-R2-05E"
+                                   required />
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Código para mapa 3D</label>
+                            <input id="ubicacionMapa"
+                                   name="CodigoMapa3D"
+                                   placeholder="R2-05E" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Orden físico</label>
+                            <input id="ubicacionOrden"
+                                   name="OrdenFisico"
+                                   type="number"
+                                   min="1"
+                                   value="1"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Estado</label>
+                            <div class="la-check">
+                                <input id="ubicacionActivo"
+                                       name="Activo"
+                                       type="checkbox"
+                                       value="true"
+                                       checked />
+                                <input type="hidden"
+                                       name="Activo"
+                                       value="false" />
+                                Activa
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="la-form-actions">
+                        <button class="la-save"
+                                type="submit">
+                            GUARDAR UBICACIÓN
+                        </button>
+
+                        <button class="la-clear"
+                                type="button"
+                                data-clear-form="ubicacionForm">
+                            LIMPIAR
+                        </button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead>
+                            <tr>
+                                <th>Ubicación</th>
+                                <th>Color</th>
+                                <th>Rack</th>
+                                <th>Pos. / Alt.</th>
+                                <th>Orden</th>
+                                <th>Ocupación</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in Model.Ubicaciones)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@u.CodigoUbicacion</strong><br />
+                                        <span>@u.CodigoMapa3D</span>
+                                    </td>
+
+                                    <td>
+                                        <span class="la-chip">
+                                            <i class="la-dot"
+                                               style="background:@(string.IsNullOrWhiteSpace(u.HexColor) ? "#aaa" : u.HexColor)"></i>
+                                            @u.CodigoColor
+                                        </span>
+                                    </td>
+
+                                    <td>@(string.IsNullOrWhiteSpace(u.CodigoRack) ? u.Rack : u.CodigoRack)</td>
+
+                                    <td>@u.Posicion / @u.Altura</td>
+
+                                    <td>@u.OrdenFisico</td>
+
+                                    <td>
+                                        <span class="la-status @(u.Ocupada ? "busy" : "")">
+                                            @(u.Ocupada ? $"OCUPADA · {u.UnidadCodigo}" : "LIBRE")
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="la-status @(u.Activo ? "" : "off")">
+                                            @(u.Activo ? "ACTIVA" : "INACTIVA")
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <button type="button"
+                                                class="la-edit"
+                                                data-edit-ubicacion
+                                                data-id="@u.Id"
+                                                data-color="@u.ColorAlmacenId"
+                                                data-rack="@u.RackId"
+                                                data-posicion="@u.Posicion"
+                                                data-altura="@u.Altura"
+                                                data-codigo="@u.CodigoUbicacion"
+                                                data-mapa="@u.CodigoMapa3D"
+                                                data-orden="@u.OrdenFisico"
+                                                data-activo="@u.Activo.ToString().ToLowerInvariant()">
+                                            EDITAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="colores"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Colores por almacén</h2>
+                    <p>
+                        Cada almacén administra sus propios códigos y nombres.
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="colorForm"
+                      class="la-form"
+                      method="post"
+                      action="@Url.Action("GuardarColorLayout","Surtido")">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           id="colorId"
+                           name="Id"
+                           value="0" />
+
+                    <input type="hidden"
+                           name="CodigoAlmacen"
+                           value="@Model.Almacen.Codigo" />
+
+                    <input type="hidden" name="LayoutId" value="@Model.LayoutId" />
+
+                    <h3>Agregar / editar color</h3>
+
+                    <div class="la-fields">
+                        <div class="la-field">
+                            <label>Código</label>
+                            <input id="colorCodigo"
+                                   name="CodigoColor"
+                                   placeholder="V"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Nombre</label>
+                            <input id="colorNombre"
+                                   name="NombreColor"
+                                   placeholder="Verde"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Color visual</label>
+                            <input id="colorHex"
+                                   name="HexColor"
+                                   placeholder="#198754" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Orden</label>
+                            <input id="colorOrden"
+                                   name="Orden"
+                                   type="number"
+                                   min="1"
+                                   value="1"
+                                   required />
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Estado</label>
+                            <div class="la-check">
+                                <input id="colorActivo"
+                                       name="Activo"
+                                       type="checkbox"
+                                       value="true"
+                                       checked />
+                                <input type="hidden"
+                                       name="Activo"
+                                       value="false" />
+                                Activo
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="la-form-actions">
+                        <button class="la-save"
+                                type="submit">
+                            GUARDAR COLOR
+                        </button>
+
+                        <button class="la-clear"
+                                type="button"
+                                data-clear-form="colorForm">
+                            LIMPIAR
+                        </button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead>
+                            <tr>
+                                <th>Color</th>
+                                <th>Código</th>
+                                <th>Orden</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in Model.Colores)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="la-chip">
+                                            <i class="la-dot"
+                                               style="background:@(string.IsNullOrWhiteSpace(c.HexColor) ? "#aaa" : c.HexColor)"></i>
+                                            @c.NombreColor
+                                        </span>
+                                    </td>
+                                    <td>@c.CodigoColor</td>
+                                    <td>@c.Orden</td>
+                                    <td>
+                                        <span class="la-status @(c.Activo ? "" : "off")">
+                                            @(c.Activo ? "ACTIVO" : "INACTIVO")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button type="button"
+                                                class="la-edit"
+                                                data-edit-color
+                                                data-id="@c.Id"
+                                                data-codigo="@c.CodigoColor"
+                                                data-nombre="@c.NombreColor"
+                                                data-hex="@c.HexColor"
+                                                data-orden="@c.Orden"
+                                                data-activo="@c.Activo.ToString().ToLowerInvariant()">
+                                            EDITAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="masters"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>MASTER → Color</h2>
+                    <p>
+                        Define a qué zona pertenece cada U_MASTER dentro de este almacén.
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="masterForm"
+                      class="la-form"
+                      method="post"
+                      action="@Url.Action("GuardarMasterColorLayout","Surtido")">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           id="masterId"
+                           name="Id"
+                           value="0" />
+
+                    <input type="hidden"
+                           name="CodigoAlmacen"
+                           value="@Model.Almacen.Codigo" />
+
+                    <input type="hidden" name="LayoutId" value="@Model.LayoutId" />
+
+                    <h3>Asignar MASTER</h3>
+
+                    <div class="la-fields">
+                        <div class="la-field full">
+                            <label>MASTER</label>
+                            <input id="masterNombre"
+                                   name="Master"
+                                   placeholder="HIGADO"
+                                   required />
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Color</label>
+                            <select id="masterColor"
+                                    name="ColorAlmacenId"
+                                    required>
+                                <option value="">Selecciona</option>
+                                @foreach (var c in coloresActivos)
+                                {
+                                    <option value="@c.Id">
+                                        @c.CodigoColor · @c.NombreColor
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="la-field full">
+                            <label>Estado</label>
+                            <div class="la-check">
+                                <input id="masterActivo"
+                                       name="Activo"
+                                       type="checkbox"
+                                       value="true"
+                                       checked />
+                                <input type="hidden"
+                                       name="Activo"
+                                       value="false" />
+                                Activo
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="la-form-actions">
+                        <button class="la-save"
+                                type="submit">
+                            GUARDAR ASIGNACIÓN
+                        </button>
+
+                        <button class="la-clear"
+                                type="button"
+                                data-clear-form="masterForm">
+                            LIMPIAR
+                        </button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead>
+                            <tr>
+                                <th>MASTER</th>
+                                <th>Color</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in Model.Masters)
+                            {
+                                <tr>
+                                    <td><strong>@m.Master</strong></td>
+                                    <td>
+                                        <span class="la-chip">
+                                            <i class="la-dot"
+                                               style="background:@(string.IsNullOrWhiteSpace(m.HexColor) ? "#aaa" : m.HexColor)"></i>
+                                            @m.CodigoColor · @m.NombreColor
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="la-status @(m.Activo ? "" : "off")">
+                                            @(m.Activo ? "ACTIVO" : "INACTIVO")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button type="button"
+                                                class="la-edit"
+                                                data-edit-master
+                                                data-id="@m.Id"
+                                                data-master="@m.Master"
+                                                data-color="@m.ColorAlmacenId"
+                                                data-activo="@m.Activo.ToString().ToLowerInvariant()">
+                                            EDITAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="rotacion"
+                 class="la-section">
+            <div class="la-section-head">
+                <div>
+                    <h2>Reglas de rotación</h2>
+                    <p>
+                        El área define rangos y si se acomodan al inicio, centro o final.
+                    </p>
+                </div>
+            </div>
+
+            <div class="la-grid">
+                <form id="rotacionForm"
+                      class="la-form"
+                      method="post"
+                      action="@Url.Action("GuardarRotacionLayout","Surtido")">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           id="rotacionId"
+                           name="Id"
+                           value="0" />
+
+                    <input type="hidden"
+                           name="CodigoAlmacen"
+                           value="@Model.Almacen.Codigo" />
+
+                    <input type="hidden" name="LayoutId" value="@Model.LayoutId" />
+
+                    <h3>Agregar / editar regla</h3>
+
+                    <div class="la-fields">
+                        <div class="la-field full">
+                            <label>Nombre</label>
+                            <input id="rotacionNombre"
+                                   name="NombreRegla"
+                                   placeholder="Alta rotación"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Desde</label>
+                            <input id="rotacionDesde"
+                                   name="Desde"
+                                   type="number"
+                                   step="0.01" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Hasta</label>
+                            <input id="rotacionHasta"
+                                   name="Hasta"
+                                   type="number"
+                                   step="0.01" />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Modo</label>
+                            <select id="rotacionModo"
+                                    name="ModoOrden"
+                                    required>
+                                <option value="INICIO">INICIO</option>
+                                <option value="CENTRO">CENTRO</option>
+                                <option value="FINAL">FINAL</option>
+                            </select>
+                        </div>
+
+                        <div class="la-field">
+                            <label>Prioridad regla</label>
+                            <input id="rotacionPrioridad"
+                                   name="Prioridad"
+                                   type="number"
+                                   min="1"
+                                   value="1"
+                                   required />
+                        </div>
+
+                        <div class="la-field">
+                            <label>Sin rotación</label>
+                            <div class="la-check">
+                                <input id="rotacionSinDato"
+                                       name="AplicaSinRotacion"
+                                       type="checkbox"
+                                       value="true" />
+                                <input type="hidden"
+                                       name="AplicaSinRotacion"
+                                       value="false" />
+                                Aplica si Rotación es NULL
+                            </div>
+                        </div>
+
+                        <div class="la-field">
+                            <label>Estado</label>
+                            <div class="la-check">
+                                <input id="rotacionActivo"
+                                       name="Activo"
+                                       type="checkbox"
+                                       value="true"
+                                       checked />
+                                <input type="hidden"
+                                       name="Activo"
+                                       value="false" />
+                                Activa
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="la-form-actions">
+                        <button class="la-save"
+                                type="submit">
+                            GUARDAR REGLA
+                        </button>
+
+                        <button class="la-clear"
+                                type="button"
+                                data-clear-form="rotacionForm">
+                            LIMPIAR
+                        </button>
+                    </div>
+                </form>
+
+                <div class="la-table-wrap">
+                    <table class="la-table">
+                        <thead>
+                            <tr>
+                                <th>Regla</th>
+                                <th>Desde</th>
+                                <th>Hasta</th>
+                                <th>Modo</th>
+                                <th>Prioridad</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in Model.ReglasRotacion)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@r.NombreRegla</strong>
+                                        @(r.AplicaSinRotacion ? " · SIN DATO" : "")
+                                    </td>
+                                    <td>@(r.Desde?.ToString("0.##") ?? "—")</td>
+                                    <td>@(r.Hasta?.ToString("0.##") ?? "—")</td>
+                                    <td>@r.ModoOrden</td>
+                                    <td>@r.Prioridad</td>
+                                    <td>
+                                        <span class="la-status @(r.Activo ? "" : "off")">
+                                            @(r.Activo ? "ACTIVA" : "INACTIVA")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button type="button"
+                                                class="la-edit"
+                                                data-edit-rotacion
+                                                data-id="@r.Id"
+                                                data-nombre="@r.NombreRegla"
+                                                data-desde="@(r.Desde?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                                data-hasta="@(r.Hasta?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                                data-sindato="@r.AplicaSinRotacion.ToString().ToLowerInvariant()"
+                                                data-modo="@r.ModoOrden"
+                                                data-prioridad="@r.Prioridad"
+                                                data-activo="@r.Activo.ToString().ToLowerInvariant()">
+                                            EDITAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-layout-3d.js" asp-append-version="true"></script>
+
+<script>
+(() => {
+    "use strict";
+
+    const q = (id) => document.getElementById(id);
+    const bool = (v) => String(v).toLowerCase() === "true";
+
+    document.querySelectorAll("[data-edit-layout]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("layoutIdForm").value = btn.dataset.id || "0";
+            q("layoutCodigo").value = btn.dataset.codigo || "";
+            q("layoutNombre").value = btn.dataset.nombre || "";
+            q("layoutDescripcion").value = btn.dataset.descripcion || "";
+            q("layoutOperativo").checked = bool(btn.dataset.operativo);
+            q("layoutOrden").value = btn.dataset.orden || "1";
+            q("layoutActivo").checked = bool(btn.dataset.activo);
+            q("layoutForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+
+    document.querySelectorAll("[data-clear-form]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const form = q(btn.dataset.clearForm);
+            if (!form) return;
+
+            form.reset();
+
+            const idInput = form.querySelector('input[name="Id"]');
+            if (idInput) idInput.value = "0";
+
+            form.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-rack]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("rackId").value = btn.dataset.id || "0";
+            q("rackCodigo").value = btn.dataset.codigo || "";
+            q("rackNombre").value = btn.dataset.nombre || "";
+            q("rackPosX").value = btn.dataset.posx || "0";
+            q("rackPosZ").value = btn.dataset.posz || "0";
+            q("rackAncho").value = btn.dataset.ancho || "10";
+            q("rackAlto").value = btn.dataset.alto || "6";
+            q("rackProfundidad").value = btn.dataset.profundidad || "2";
+            q("rackRotacion").value = btn.dataset.rotacion || "0";
+            q("rackNiveles").value = btn.dataset.niveles || "4";
+            q("rackPosiciones").value = btn.dataset.posiciones || "10";
+            q("rackHex").value = btn.dataset.hex || "";
+            q("rackOrden").value = btn.dataset.orden || "1";
+            q("rackActivo").checked = bool(btn.dataset.activo);
+
+            q("rackForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-ubicacion]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("ubicacionId").value = btn.dataset.id || "0";
+            q("ubicacionColor").value = btn.dataset.color || "";
+            q("ubicacionRack").value = btn.dataset.rack || "";
+            q("ubicacionPosicion").value = btn.dataset.posicion || "";
+            q("ubicacionAltura").value = btn.dataset.altura || "";
+            q("ubicacionCodigo").value = btn.dataset.codigo || "";
+            q("ubicacionMapa").value = btn.dataset.mapa || "";
+            q("ubicacionOrden").value = btn.dataset.orden || "1";
+            q("ubicacionActivo").checked = bool(btn.dataset.activo);
+
+            q("ubicacionForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-color]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("colorId").value = btn.dataset.id || "0";
+            q("colorCodigo").value = btn.dataset.codigo || "";
+            q("colorNombre").value = btn.dataset.nombre || "";
+            q("colorHex").value = btn.dataset.hex || "";
+            q("colorOrden").value = btn.dataset.orden || "1";
+            q("colorActivo").checked = bool(btn.dataset.activo);
+
+            q("colorForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-master]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("masterId").value = btn.dataset.id || "0";
+            q("masterNombre").value = btn.dataset.master || "";
+            q("masterColor").value = btn.dataset.color || "";
+            q("masterActivo").checked = bool(btn.dataset.activo);
+
+            q("masterForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+
+    document.querySelectorAll("[data-edit-rotacion]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            q("rotacionId").value = btn.dataset.id || "0";
+            q("rotacionNombre").value = btn.dataset.nombre || "";
+            q("rotacionDesde").value = btn.dataset.desde || "";
+            q("rotacionHasta").value = btn.dataset.hasta || "";
+            q("rotacionSinDato").checked = bool(btn.dataset.sindato);
+            q("rotacionModo").value = btn.dataset.modo || "INICIO";
+            q("rotacionPrioridad").value = btn.dataset.prioridad || "1";
+            q("rotacionActivo").checked = bool(btn.dataset.activo);
+
+            q("rotacionForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    });
+})();
+</script>

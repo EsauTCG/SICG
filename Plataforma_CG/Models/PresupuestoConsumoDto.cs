@@ -32,6 +32,9 @@
 
         public int? ClasificacionId { get; set; }
         public string ClasificacionNombre { get; set; }
+
+        public int IdTipoSKU { get; set; }
+        public string TipoSKUDescripcion { get; set; } = string.Empty;
         public decimal? TendenciaProduccion { get; set; } // opcional si la usas
 
     }

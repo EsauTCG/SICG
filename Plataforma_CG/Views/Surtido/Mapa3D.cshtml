@@ -1,0 +1,104 @@
+@model Plataforma_CG.ViewModels.SurtidoMapa3DVM
+
+@{
+    ViewData["Title"] = "Mapa 3D";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<link rel="stylesheet"
+      href="~/css/surtido-mapa3d-erp.css"
+      asp-append-version="true" />
+
+<style>
+    .map-layout-dynamic{
+        width:100%;
+        min-height:560px;
+        height:clamp(560px,70vh,800px);
+        position:relative;
+        overflow:hidden;
+        background:#eef2f4;
+    }
+    .map-layout-dynamic canvas{display:block;width:100%!important;height:100%!important;}
+    .map-layout-meta{padding:8px 10px;border-top:1px solid #d8e0e6;background:#fff;color:#536675;font-size:10px;font-weight:750;}
+    @@media(max-width:700px){.map-layout-dynamic{min-height:420px;height:520px;}}
+</style>
+
+<div class="wms-v7">
+    <main class="wms-content">
+
+        <a class="wms-back"
+           href="@Url.Action("Surtido_cedis","Surtido",new { almacen = Model.Almacen.Codigo })">
+            ‹ Volver a Surtido
+        </a>
+
+        <section class="wms-page-title">
+            <span class="wms-overline">GEMELO DIGITAL · @Model.Almacen.Codigo</span>
+            <h1>Mapa 3D · @Model.Almacen.Nombre</h1>
+            <p>
+                El mapa se genera con el layout OPERATIVO configurado para este almacén.
+                Racks, colores y ubicaciones son los mismos que se administran en Gestión de layouts.
+            </p>
+        </section>
+
+        <div class="wms-site-line">
+            <span>@Model.Almacen.Planta</span>
+            <span>@Model.Almacen.Sucursal</span>
+            <span>@Model.Almacen.Clasificacion</span>
+            <span>LAYOUT OPERATIVO</span>
+        </div>
+
+        <div class="wms-map-search">
+            <input id="map3dSearch"
+                   value="@Model.UbicacionInicial"
+                   placeholder="Ej. V-R2-05E o R2-05E"
+                   autocomplete="off"
+                   spellcheck="false" />
+
+            <button id="map3dSearchBtn" type="button">BUSCAR</button>
+        </div>
+
+        <section class="wms-3d-card">
+            <div class="wms-3d-head">
+                <div>
+                    <span class="wms-overline">LAYOUT / UBICACIÓN</span>
+                    <h2 id="map3dTitle">
+                        @(string.IsNullOrWhiteSpace(Model.UbicacionInicial)
+                            ? "Vista general del layout operativo"
+                            : Model.UbicacionInicial)
+                    </h2>
+                    <p>Arrastra para rotar · rueda para acercar/alejar · clic en rack o posición.</p>
+                </div>
+            </div>
+
+            <div id="warehouseLayout3d"
+                 class="sigo-layout3d map-layout-dynamic"
+                 data-endpoint="@Url.Action("DatosMapa3DOperativo","Surtido",new { almacen=Model.Almacen.Codigo })"
+                 data-location="@Model.UbicacionInicial"
+                 data-info-target="#warehouseLayoutInfo"
+                 data-selected-target="#warehouseLayoutSelected"
+                 data-search-input="#map3dSearch"
+                 data-search-button="#map3dSearchBtn">
+            </div>
+
+            <div id="warehouseLayoutInfo" class="map-layout-meta"></div>
+            <div id="warehouseLayoutSelected" class="wms-3d-info">
+                Haz clic en un rack o una ubicación.
+            </div>
+
+            <div class="wms-3d-legend">
+                <span><i class="rack"></i>Rack</span>
+                <span>■ Color = zona logística configurada</span>
+                <span>Oscuro = posición ocupada</span>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="~/js/surtido-layout-3d.js" asp-append-version="true"></script>

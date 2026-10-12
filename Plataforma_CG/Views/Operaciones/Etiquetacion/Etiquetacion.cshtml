@@ -1,0 +1,274 @@
+@model IEnumerable<dynamic>
+@using System.Globalization
+@using System.Text.Json
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Etiquetación";
+}
+
+<link rel="stylesheet" href="~/css/etiquetacion.css" asp-append-version="true" />
+
+<main class="etq-page" id="etqPage">
+    <header class="etq-hero">
+        <div class="etq-hero-icon" aria-hidden="true">
+            <i class="bi bi-tags"></i>
+        </div>
+        <div class="etq-hero-copy">
+            <span class="etq-kicker">OPERACIONES · CATÁLOGO</span>
+            <h1>Etiquetación de artículos</h1>
+            <p>Consulta y asigna la etiqueta correspondiente a cada producto.</p>
+        </div>
+        <span class="etq-hero-status">
+            <span class="etq-status-dot" aria-hidden="true"></span>
+            Catálogo activo
+        </span>
+    </header>
+
+    <section class="etq-toolbar" aria-label="Herramientas de etiquetación">
+        <div class="etq-toolbar-top">
+            <fieldset class="etq-location-fieldset">
+                <legend>
+                    <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                    Ubicación de etiquetado
+                </legend>
+
+                <div class="ubicacion-slider" role="radiogroup" aria-label="Ubicación de etiquetado">
+                    <input type="radio"
+                           id="ubicacionTif"
+                           name="ubicacionEtiquetacion"
+                           value="0"
+                           checked />
+                    <label for="ubicacionTif">
+                        <i class="bi bi-building" aria-hidden="true"></i>
+                        <span>
+                            <strong>TIF</strong>
+                            <small>Planta principal</small>
+                        </span>
+                    </label>
+
+                    <input type="radio"
+                           id="ubicacionPlanta1"
+                           name="ubicacionEtiquetacion"
+                           value="1" />
+                    <label for="ubicacionPlanta1">
+                        <i class="bi bi-box-seam" aria-hidden="true"></i>
+                        <span>
+                            <strong>Planta 1</strong>
+                            <small>Área de proceso</small>
+                        </span>
+                    </label>
+                </div>
+            </fieldset>
+
+            <button type="button"
+                    class="etq-history-btn"
+                    onclick="abrirModalLogEtiquetacion()">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>Historial de etiquetación</span>
+            </button>
+        </div>
+
+        <div class="articulos-buscador">
+            <label for="buscadorArticulos">Buscar en el catálogo</label>
+            <div class="etq-search-control">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search"
+                       id="buscadorArticulos"
+                       class="form-control"
+                       placeholder="Buscar por artículo, producto o etiqueta..."
+                       autocomplete="off" />
+            </div>
+            <small>Los resultados se actualizan mientras escribes.</small>
+        </div>
+    </section>
+
+    <section class="etq-table-card" aria-labelledby="etqTableTitle">
+        <div class="etq-section-heading">
+            <div>
+                <span class="etq-section-icon" aria-hidden="true">
+                    <i class="bi bi-list-ul"></i>
+                </span>
+                <div>
+                    <h2 id="etqTableTitle">Artículos disponibles</h2>
+                    <p id="etqTableHint">Selecciona una fila para consultar o modificar su etiqueta.</p>
+                </div>
+            </div>
+            <span class="etq-click-hint" aria-hidden="true">
+                <i class="bi bi-cursor"></i>
+                Toca para editar
+            </span>
+        </div>
+
+        <div class="articulos-tabla-wrapper">
+            <table class="table articulos-tabla" aria-describedby="etqTableHint">
+                <thead>
+                    <tr>
+                        <th scope="col">Artículo</th>
+                        <th scope="col">Producto</th>
+                        <th scope="col">Etiqueta asignada</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyArticulos" aria-live="polite">
+                    <tr class="etq-state-row">
+                        <td colspan="3">
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            Preparando catálogo...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div class="modal fade etq-modal"
+     id="modalDetalleArticulo"
+     tabindex="-1"
+     aria-labelledby="modalDetalleArticuloTitulo"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="etq-modal-title-wrap">
+                    <span class="etq-modal-icon" aria-hidden="true"><i class="bi bi-tag"></i></span>
+                    <div>
+                        <span class="etq-modal-kicker">ASIGNACIÓN</span>
+                        <h2 class="modal-title" id="modalDetalleArticuloTitulo">Detalle del artículo</h2>
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="etq-form-grid">
+                    <div class="etq-field">
+                        <label for="detalleArticuloId">Artículo</label>
+                        <div class="etq-input-icon">
+                            <i class="bi bi-upc-scan" aria-hidden="true"></i>
+                            <input type="text" id="detalleArticuloId" class="form-control" readonly />
+                        </div>
+                    </div>
+
+                    <div class="etq-field">
+                        <label for="detalleProducto">Producto</label>
+                        <div class="etq-input-icon">
+                            <i class="bi bi-box" aria-hidden="true"></i>
+                            <input type="text" id="detalleProducto" class="form-control" readonly />
+                        </div>
+                    </div>
+
+                    <div class="etq-field etq-field-wide">
+                        <label for="detalleEtiqueta">Etiqueta</label>
+                        <p class="etq-field-help">Escribe para buscar y seleccionar una etiqueta del catálogo.</p>
+                        <div class="position-relative">
+                            <div class="etq-input-icon etq-input-icon-accent">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input type="search"
+                                       id="detalleEtiqueta"
+                                       class="form-control"
+                                       autocomplete="off"
+                                       placeholder="Buscar etiqueta..." />
+                            </div>
+                            <div id="listaEtiquetasAutocomplete"
+                                 class="list-group position-absolute w-100 shadow etq-autocomplete"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="etq-assignment-summary">
+                    <div>
+                        <label for="detalleNombre">Nombre de la etiqueta</label>
+                        <input type="text" id="detalleNombre" class="form-control" readonly />
+                    </div>
+                    <div>
+                        <label for="detalleDiasCaducidad">Días de caducidad</label>
+                        <input type="text" id="detalleDiasCaducidad" class="form-control" readonly />
+                    </div>
+                </div>
+
+                <input type="hidden" id="detalleColectorId" />
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn etq-btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button"
+                        id="btnGuardarEtiqueta"
+                        class="btn etq-btn-primary"
+                        onclick="guardarEtiquetaArticulo()">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                    Guardar asignación
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade etq-modal"
+     id="modalLogEtiquetacion"
+     tabindex="-1"
+     aria-labelledby="modalLogEtiquetacionTitulo"
+     aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="etq-modal-title-wrap">
+                    <span class="etq-modal-icon" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
+                    <div>
+                        <span class="etq-modal-kicker">AUDITORÍA</span>
+                        <h2 class="modal-title" id="modalLogEtiquetacionTitulo">Historial de etiquetación</h2>
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <section class="etq-log-filters" aria-label="Filtros del historial">
+                    <div class="etq-field">
+                        <label for="fechaInicialLogEtiq">Fecha inicial</label>
+                        <input type="date" id="fechaInicialLogEtiq" class="form-control" />
+                    </div>
+                    <div class="etq-field">
+                        <label for="fechaFinalLogEtiq">Fecha final</label>
+                        <input type="date" id="fechaFinalLogEtiq" class="form-control" />
+                    </div>
+                    <button type="button"
+                            id="btnConsultarLogEtiq"
+                            class="btn etq-btn-primary"
+                            onclick="cargarLogEtiquetacion()">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        Consultar
+                    </button>
+                </section>
+
+                <div class="log-etiquetacion-tabla-wrapper">
+                    <table class="table" id="tablaLogEtiquetacion">
+                        <thead>
+                            <tr>
+                                <th scope="col">SKU</th>
+                                <th scope="col">Producto</th>
+                                <th scope="col">Etiqueta anterior</th>
+                                <th scope="col">Etiqueta nueva</th>
+                                <th scope="col">Usuario</th>
+                                <th scope="col">Fecha y hora</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyLogEtiquetacion" aria-live="polite"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn etq-btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/js/Etiquetas/planetiquetacion.js" asp-append-version="true"></script>

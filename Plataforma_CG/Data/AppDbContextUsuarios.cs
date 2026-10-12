@@ -26,6 +26,7 @@ namespace Plataforma_CG.Data
 
         public DbSet<ModulosSistema> ModulosSistema { get; set; }
         public DbSet<PerfilPermisoModulo> PerfilPermisoModulo { get; set; }
+        public DbSet<UsuarioPermisoModulo> UsuarioPermisoModulo { get; set; }
 
         public DbSet<KpiCatalogo> KpiCatalogo { get; set; }
         public DbSet<UsuarioKpiPermiso> UsuarioKpiPermiso { get; set; }

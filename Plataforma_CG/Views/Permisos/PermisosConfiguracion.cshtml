@@ -694,6 +694,77 @@
             transform: translateY(0);
         }
     }
+
+
+    /* ============================================================
+       CIERRE DE LOTES POR PERFIL
+       ============================================================ */
+
+    .clp-toolbar {
+        display: grid;
+        grid-template-columns: minmax(240px, 1fr) minmax(180px, 280px) auto;
+        gap: 1rem;
+        align-items: end;
+        background: var(--perm-panel-soft);
+        border: 1px solid var(--perm-border);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .clp-info {
+        border: 1px solid var(--perm-border);
+        border-left: 4px solid var(--brand-main);
+        background: var(--perm-panel-soft);
+        color: var(--perm-text);
+        border-radius: 8px;
+        padding: .8rem 1rem;
+        margin-bottom: 1rem;
+        font-size: .8rem;
+    }
+
+    .clp-table input[type="checkbox"] {
+        transform: scale(1.25);
+        accent-color: var(--brand-main);
+        cursor: pointer;
+    }
+
+    .clp-table tbody td {
+        vertical-align: middle;
+    }
+
+    .clp-proceso {
+        font-weight: 800;
+        color: var(--perm-text-strong);
+    }
+
+    .clp-tipo {
+        font-size: .72rem;
+        color: var(--perm-text-muted);
+        font-weight: 700;
+    }
+
+    .clp-master-row {
+        background: var(--perm-panel-soft) !important;
+    }
+
+    .clp-master-row th {
+        color: var(--perm-text-strong) !important;
+        border-color: var(--perm-border) !important;
+    }
+
+    body[data-theme="dark"] #bodyCierreLotes tr td {
+        background-color: var(--perm-card-bg) !important;
+        color: var(--perm-text) !important;
+        border-color: var(--perm-border) !important;
+    }
+
+    @@media (max-width: 900px) {
+        .clp-toolbar {
+            grid-template-columns: 1fr;
+        }
+    }
+
 </style>
 
 <div class="container-fluid py-4 px-3 px-md-4 container-custom">
@@ -748,6 +819,16 @@
         <li class="nav-item">
             <button class="nav-link" onclick="switchTab('modulos', this)">
                 <i class="fa-solid fa-sliders me-1"></i> Permisos a Módulos (L/E/E)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('modulosUsuario', this)">
+                <i class="fa-solid fa-user-shield me-1"></i> Permisos por Usuario (L/E/E)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" onclick="switchTab('cierrelotes', this)">
+                <i class="bi bi-box-seam me-1"></i> Cierre de Lotes
             </button>
         </li>
     </ul>
@@ -845,6 +926,176 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <div id="tab-modulosUsuario" class="tab-content">
+            <div class="row align-items-end mb-4 bg-light p-3 rounded border mx-0">
+                <div class="col-12 col-md-6 mb-3 mb-md-0">
+                    <label class="fw-bold text-muted mb-1" style="font-size: 0.75rem;">SELECCIONAR USUARIO PARA CONFIGURAR</label>
+                    <input type="text" id="buscarUsuarioModulos" class="form-control border-secondary mb-2" placeholder="Buscar usuario por nombre o usuario...">
+                    <select id="selectUsuarioModulos" class="form-select border-secondary fw-bold" onchange="cargarPermisosModulosUsuario()">
+                        <option value="">-- Elija un usuario de la lista --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 d-flex justify-content-md-end gap-2">
+                    <button class="btn btn-outline-dark btn-sm fw-bold px-3" onclick="cargarListaUsuarios()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refrescar Usuarios
+                    </button>
+                    <button class="btn btn-outline-dark btn-sm fw-bold px-3" onclick="abrirModalNuevoModulo()">
+                        <i class="bi bi-plus-square-dotted me-1"></i> Nuevo Módulo
+                    </button>
+                    <button class="btn btn-brand btn-sm px-4 shadow-sm" onclick="guardarPermisosModulosUsuario()">
+                        <i class="bi bi-save me-1"></i> Guardar Permisos (L/E/E)
+                    </button>
+                </div>
+            </div>
+
+            <div class="alert alert-warning fw-bold py-2 small mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Solo se guardan los módulos que marques; sus permisos <u>sobrescriben</u> a los del perfil. Los módulos sin marcar heredan el permiso del perfil del usuario.
+            </div>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-custom align-middle mb-0" id="tablaModulosUsuario">
+                    <thead>
+                        <tr>
+                            <th>Módulo del Sistema</th>
+                            <th class="text-center" style="width: 150px;">Puede Leer</th>
+                            <th class="text-center" style="width: 150px;">Puede Escribir</th>
+                            <th class="text-center" style="width: 150px;">Puede Eliminar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyModulosUsuario">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-5">
+                                <i class="bi bi-person-badge-fill fs-2 d-block mb-3 opacity-50"></i>
+                                <span class="fw-bold fs-6">Seleccione un usuario arriba</span><br>
+                                <small>Los permisos de módulos del usuario se cargarán en esta tabla.</small>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-cierrelotes" class="tab-content">
+
+            <div class="clp-info">
+                <b>Permisos exclusivos de Cierre de Lotes.</b>
+                Esta matriz no sustituye los permisos generales del módulo
+                <b>CIERRE_LOTES</b>. Aquí defines qué planta y qué TipoLote puede
+                consultar, cerrar, autorizar o reabrir cada perfil.
+                Los procesos se detectan automáticamente desde la configuración
+                activa de cierre.
+            </div>
+
+            <div class="clp-toolbar">
+
+                <div>
+                    <label class="fw-bold text-muted mb-1"
+                           style="font-size:.75rem;">
+                        PERFIL
+                    </label>
+
+                    <select id="selectPerfilCierreLotes"
+                            class="form-select border-secondary fw-bold"
+                            onchange="cargarPermisosCierreLotes()">
+                        <option value="">-- Seleccione un perfil --</option>
+
+                        @foreach (var perfil in Model.Perfiles)
+                        {
+                            <option value="@perfil.Id">@perfil.Nombre</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="fw-bold text-muted mb-1"
+                           style="font-size:.75rem;">
+                        PLANTA
+                    </label>
+
+                    <select id="selectSourceCierreLotes"
+                            class="form-select border-secondary fw-bold"
+                            onchange="cargarPermisosCierreLotes()">
+                        <option value="TIF">TIF</option>
+                        <option value="P1">Planta 1</option>
+                    </select>
+                </div>
+
+                <div class="d-grid">
+                    <button type="button"
+                            class="btn btn-brand px-4 shadow-sm"
+                            onclick="guardarPermisosCierreLotes()">
+                        <i class="bi bi-save me-1"></i>
+                        Guardar permisos
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-custom align-middle mb-0 clp-table"
+                       id="tablaCierreLotes">
+
+                    <thead>
+                        <tr>
+                            <th style="min-width:240px;">Proceso / Tipo de lote</th>
+                            <th class="text-center" style="width:110px;">Asignado</th>
+                            <th class="text-center" style="width:120px;">Consultar</th>
+                            <th class="text-center" style="width:110px;">Cerrar</th>
+                            <th class="text-center" style="width:120px;">Autorizar</th>
+                            <th class="text-center" style="width:110px;">Reabrir</th>
+                        </tr>
+
+                        <tr class="clp-master-row">
+                            <th>Seleccionar permisos por columna</th>
+                            <th class="text-center">
+                                <input type="checkbox"
+                                       id="clpTodosAsignados"
+                                       onchange="marcarTodosCierreLotes('asignado', this.checked)">
+                            </th>
+                            <th class="text-center">
+                                <input type="checkbox"
+                                       id="clpTodosConsultar"
+                                       onchange="marcarTodosCierreLotes('consultar', this.checked)">
+                            </th>
+                            <th class="text-center">
+                                <input type="checkbox"
+                                       id="clpTodosCerrar"
+                                       onchange="marcarTodosCierreLotes('cerrar', this.checked)">
+                            </th>
+                            <th class="text-center">
+                                <input type="checkbox"
+                                       id="clpTodosAutorizar"
+                                       onchange="marcarTodosCierreLotes('autorizar', this.checked)">
+                            </th>
+                            <th class="text-center">
+                                <input type="checkbox"
+                                       id="clpTodosReabrir"
+                                       onchange="marcarTodosCierreLotes('reabrir', this.checked)">
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="bodyCierreLotes">
+                        <tr>
+                            <td colspan="6"
+                                class="text-center text-muted py-5">
+                                <i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i>
+                                <span class="fw-bold fs-6">
+                                    Seleccione un perfil y una planta
+                                </span><br>
+                                <small>
+                                    Se mostrarán automáticamente los tipos de lote configurados.
+                                </small>
+                            </td>
+                        </tr>
+                    </tbody>
+
+                </table>
+            </div>
+
         </div>
 
     </div>
@@ -1071,6 +1322,456 @@
             }
         }
 
+
+        // ============================================================
+        // PESTAÑA 3 - CIERRE DE LOTES POR PERFIL
+        // ============================================================
+
+        async function cargarPermisosCierreLotes() {
+
+            const perfilId =
+                document.getElementById("selectPerfilCierreLotes").value;
+
+            const source =
+                document.getElementById("selectSourceCierreLotes").value;
+
+            const tbody =
+                document.getElementById("bodyCierreLotes");
+
+            limpiarChecksMaestrosCierre();
+
+            if (!perfilId) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6"
+                            class="text-center text-muted py-5">
+                            <i class="bi bi-person-lines-fill fs-2 d-block mb-3 opacity-50"></i>
+                            <span class="fw-bold fs-6">
+                                Seleccione un perfil
+                            </span>
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6"
+                        class="text-center py-5">
+                        <div class="spinner-border text-danger"
+                             role="status"></div>
+                        <div class="mt-2 fw-bold text-muted">
+                            Cargando tipos de lote y permisos...
+                        </div>
+                    </td>
+                </tr>`;
+
+            try {
+
+                const url =
+                    `/Permisos/ObtenerPermisosCierreLotes` +
+                    `?perfilId=${encodeURIComponent(perfilId)}` +
+                    `&source=${encodeURIComponent(source)}`;
+
+                const response = await fetch(url);
+
+                const data = await response.json();
+
+                if (!response.ok || !data.ok) {
+                    throw new Error(
+                        data.mensaje ||
+                        "No se pudieron consultar los permisos."
+                    );
+                }
+
+                const tipos =
+                    Array.isArray(data.tipos)
+                        ? data.tipos
+                        : [];
+
+                tbody.innerHTML = "";
+
+                if (tipos.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6"
+                                class="text-center text-warning py-5 fw-bold">
+                                No hay tipos de lote activos configurados para ${source}.
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                tipos.forEach(item => {
+
+                    const asignado =
+                        !!item.puedeConsultar ||
+                        !!item.puedeCerrar ||
+                        !!item.puedeAutorizar ||
+                        !!item.puedeReabrir;
+
+                    const tr =
+                        document.createElement("tr");
+
+                    tr.dataset.tipoLoteId =
+                        item.tipoLoteId;
+
+                    tr.innerHTML = `
+                        <td class="px-4">
+                            <div class="clp-proceso">
+                                ${escapeHtmlPermisos(item.tipoProceso || `TIPO ${item.tipoLoteId}`)}
+                            </div>
+                            <div class="clp-tipo">
+                                TipoLoteId: ${item.tipoLoteId}
+                            </div>
+                        </td>
+
+                        <td class="text-center border-start">
+                            <input type="checkbox"
+                                   class="clp-asignado"
+                                   ${asignado ? "checked" : ""}
+                                   onchange="cambiarAsignacionCierreLote(this)">
+                        </td>
+
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="clp-consultar"
+                                   ${item.puedeConsultar ? "checked" : ""}
+                                   onchange="sincronizarAsignadoCierreLote(this)">
+                        </td>
+
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="clp-cerrar"
+                                   ${item.puedeCerrar ? "checked" : ""}
+                                   onchange="sincronizarAsignadoCierreLote(this)">
+                        </td>
+
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="clp-autorizar"
+                                   ${item.puedeAutorizar ? "checked" : ""}
+                                   onchange="sincronizarAsignadoCierreLote(this)">
+                        </td>
+
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="clp-reabrir"
+                                   ${item.puedeReabrir ? "checked" : ""}
+                                   onchange="sincronizarAsignadoCierreLote(this)">
+                        </td>
+                    `;
+
+                    tbody.appendChild(tr);
+                });
+
+                actualizarChecksMaestrosCierre();
+
+            }
+            catch (error) {
+
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6"
+                            class="text-center text-danger py-5">
+                            <b>Error al cargar permisos de cierre de lotes.</b><br>
+                            <small>${escapeHtmlPermisos(error.message || "")}</small>
+                        </td>
+                    </tr>`;
+            }
+        }
+
+
+        function cambiarAsignacionCierreLote(checkbox) {
+
+            const tr =
+                checkbox.closest("tr");
+
+            if (!tr)
+                return;
+
+            const consultar =
+                tr.querySelector(".clp-consultar");
+
+            const cerrar =
+                tr.querySelector(".clp-cerrar");
+
+            const autorizar =
+                tr.querySelector(".clp-autorizar");
+
+            const reabrir =
+                tr.querySelector(".clp-reabrir");
+
+            if (checkbox.checked) {
+
+                // Al asignar un TipoLote, por seguridad únicamente
+                // activamos CONSULTAR. Los demás permisos se eligen
+                // explícitamente.
+                consultar.checked = true;
+            }
+            else {
+
+                consultar.checked = false;
+                cerrar.checked = false;
+                autorizar.checked = false;
+                reabrir.checked = false;
+            }
+
+            actualizarChecksMaestrosCierre();
+        }
+
+
+        function sincronizarAsignadoCierreLote(checkbox) {
+
+            const tr =
+                checkbox.closest("tr");
+
+            if (!tr)
+                return;
+
+            const asignado =
+                tr.querySelector(".clp-asignado");
+
+            asignado.checked =
+                tr.querySelector(".clp-consultar").checked ||
+                tr.querySelector(".clp-cerrar").checked ||
+                tr.querySelector(".clp-autorizar").checked ||
+                tr.querySelector(".clp-reabrir").checked;
+
+            actualizarChecksMaestrosCierre();
+        }
+
+
+        function marcarTodosCierreLotes(tipo, checked) {
+
+            const filas =
+                document.querySelectorAll(
+                    "#bodyCierreLotes tr[data-tipo-lote-id]"
+                );
+
+            filas.forEach(tr => {
+
+                if (tipo === "asignado") {
+
+                    const asignado =
+                        tr.querySelector(".clp-asignado");
+
+                    asignado.checked = checked;
+
+                    if (checked) {
+                        tr.querySelector(".clp-consultar").checked = true;
+                    }
+                    else {
+                        tr.querySelector(".clp-consultar").checked = false;
+                        tr.querySelector(".clp-cerrar").checked = false;
+                        tr.querySelector(".clp-autorizar").checked = false;
+                        tr.querySelector(".clp-reabrir").checked = false;
+                    }
+
+                    return;
+                }
+
+                const selector = {
+                    consultar: ".clp-consultar",
+                    cerrar: ".clp-cerrar",
+                    autorizar: ".clp-autorizar",
+                    reabrir: ".clp-reabrir"
+                }[tipo];
+
+                const chk =
+                    selector
+                        ? tr.querySelector(selector)
+                        : null;
+
+                if (chk)
+                    chk.checked = checked;
+
+                sincronizarAsignadoFilaCierre(tr);
+            });
+
+            actualizarChecksMaestrosCierre();
+        }
+
+
+        function sincronizarAsignadoFilaCierre(tr) {
+
+            const asignado =
+                tr.querySelector(".clp-asignado");
+
+            if (!asignado)
+                return;
+
+            asignado.checked =
+                tr.querySelector(".clp-consultar").checked ||
+                tr.querySelector(".clp-cerrar").checked ||
+                tr.querySelector(".clp-autorizar").checked ||
+                tr.querySelector(".clp-reabrir").checked;
+        }
+
+
+        function actualizarChecksMaestrosCierre() {
+
+            const filas =
+                Array.from(
+                    document.querySelectorAll(
+                        "#bodyCierreLotes tr[data-tipo-lote-id]"
+                    )
+                );
+
+            if (filas.length === 0) {
+                limpiarChecksMaestrosCierre();
+                return;
+            }
+
+            const mapa = [
+                ["clpTodosAsignados", ".clp-asignado"],
+                ["clpTodosConsultar", ".clp-consultar"],
+                ["clpTodosCerrar", ".clp-cerrar"],
+                ["clpTodosAutorizar", ".clp-autorizar"],
+                ["clpTodosReabrir", ".clp-reabrir"]
+            ];
+
+            mapa.forEach(([masterId, selector]) => {
+
+                const master =
+                    document.getElementById(masterId);
+
+                const checks =
+                    filas.map(x => x.querySelector(selector));
+
+                const marcados =
+                    checks.filter(x => x && x.checked).length;
+
+                master.checked =
+                    marcados === checks.length &&
+                    checks.length > 0;
+
+                master.indeterminate =
+                    marcados > 0 &&
+                    marcados < checks.length;
+            });
+        }
+
+
+        function limpiarChecksMaestrosCierre() {
+
+            [
+                "clpTodosAsignados",
+                "clpTodosConsultar",
+                "clpTodosCerrar",
+                "clpTodosAutorizar",
+                "clpTodosReabrir"
+            ].forEach(id => {
+
+                const el =
+                    document.getElementById(id);
+
+                if (!el)
+                    return;
+
+                el.checked = false;
+                el.indeterminate = false;
+            });
+        }
+
+
+        async function guardarPermisosCierreLotes() {
+
+            const perfilId =
+                document.getElementById("selectPerfilCierreLotes").value;
+
+            const source =
+                document.getElementById("selectSourceCierreLotes").value;
+
+            if (!perfilId) {
+                alert("Seleccione un perfil.");
+                return;
+            }
+
+            const filas =
+                Array.from(
+                    document.querySelectorAll(
+                        "#bodyCierreLotes tr[data-tipo-lote-id]"
+                    )
+                );
+
+            if (filas.length === 0) {
+                alert("No hay tipos de lote para guardar.");
+                return;
+            }
+
+            const permisos =
+                filas.map(tr => ({
+                    tipoLoteId:
+                        parseInt(tr.dataset.tipoLoteId),
+
+                    puedeConsultar:
+                        tr.querySelector(".clp-consultar").checked,
+
+                    puedeCerrar:
+                        tr.querySelector(".clp-cerrar").checked,
+
+                    puedeAutorizar:
+                        tr.querySelector(".clp-autorizar").checked,
+
+                    puedeReabrir:
+                        tr.querySelector(".clp-reabrir").checked
+                }));
+
+            const data = {
+                perfilId: parseInt(perfilId),
+                source: source,
+                permisos: permisos
+            };
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/Permisos/GuardarPermisosCierreLotes",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(data)
+                        }
+                    );
+
+                const result =
+                    await response.json();
+
+                if (!response.ok || !result.ok) {
+                    throw new Error(
+                        result.mensaje ||
+                        "No se pudieron guardar los permisos."
+                    );
+                }
+
+                alert(result.mensaje);
+
+                await cargarPermisosCierreLotes();
+            }
+            catch (error) {
+                alert(
+                    "Error al guardar permisos de cierre de lotes: " +
+                    (error.message || "")
+                );
+            }
+        }
+
+
+        function escapeHtmlPermisos(value) {
+
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+
         // Modal Nuevo Modulo
         function abrirModalNuevoModulo() {
             document.getElementById('formNuevoModulo').classList.remove('d-none');
@@ -1105,10 +1806,13 @@
                 let result = await response.json();
 
                 if (result.ok) {
-                    mostrarEtiquetasGeneradas(result.clave);
-                    if (document.getElementById("selectPerfilModulos").value) {
-                        cargarPermisosModulos();
-                    }
+mostrarEtiquetasGeneradas(result.clave);
+                       if (document.getElementById("selectPerfilModulos").value) {
+                           cargarPermisosModulos();
+                       }
+                       if (document.getElementById("selectUsuarioModulos")?.value) {
+                           cargarPermisosModulosUsuario();
+                       }
                 } else {
                     alert("Error: " + result.mensaje);
                 }
@@ -1128,5 +1832,163 @@
             document.getElementById('lblGeneradaClave2').textContent = clave;
             document.getElementById('lblGeneradaClave3').textContent = clave;
         }
+
+        // ============================================================
+        // PESTAÑA: PERMISOS A MÓDULOS POR USUARIO (L/E/E)
+        // ============================================================
+
+        function poblarSelectUsuarios(usuarios) {
+            const select = document.getElementById("selectUsuarioModulos");
+            if (!select) return;
+
+            const valorAnterior = select.value;
+            let html = '<option value="">-- Elija un usuario de la lista --</option>';
+
+            usuarios.forEach(u => {
+                const key = escapeHtmlPermisos(u.key);
+                const nombre = escapeHtmlPermisos(u.nombre);
+                const etiqueta = escapeHtmlPermisos(u.key ? `${nombre} (${u.key})` : nombre);
+                html += `<option value="${key}">${etiqueta}</option>`;
+            });
+
+            select.innerHTML = html;
+            if (valorAnterior) select.value = valorAnterior;
+            filtrarUsuarios();
+        }
+
+        function filtrarUsuarios() {
+            const input = document.getElementById("buscarUsuarioModulos");
+            const select = document.getElementById("selectUsuarioModulos");
+            if (!input || !select) return;
+
+            const texto = input.value.toLowerCase().trim();
+            Array.from(select.options).forEach(opt => {
+                if (!opt.value) return;
+                opt.hidden = texto ? !opt.text.toLowerCase().includes(texto) : false;
+            });
+        }
+
+        async function cargarListaUsuarios() {
+            const select = document.getElementById("selectUsuarioModulos");
+            if (!select) return;
+
+            const opcionGuardada = select.innerHTML;
+            try {
+                let response = await fetch('/Permisos/ObtenerListaUsuarios');
+                if (!response.ok) throw new Error();
+
+                let usuarios = await response.json();
+                poblarSelectUsuarios(usuarios);
+            } catch (error) {
+                select.innerHTML = opcionGuardada;
+                alert("Error al cargar la lista de usuarios.");
+            }
+        }
+
+        async function cargarPermisosModulosUsuario() {
+            const select = document.getElementById("selectUsuarioModulos");
+            const tbody = document.getElementById("bodyModulosUsuario");
+            if (!select || !tbody) return;
+
+            let usuarioKey = select.value;
+
+            if (!usuarioKey) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-person-badge-fill fs-2 d-block mb-3 opacity-50"></i><span class="fw-bold fs-6">Seleccione un usuario arriba</span></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><div class="mt-2 fw-bold text-muted">Cargando permisos...</div></td></tr>';
+
+            try {
+                let response = await fetch(`/Permisos/ObtenerPermisosPorUsuario?usuarioKey=${encodeURIComponent(usuarioKey)}`);
+                if (!response.ok) throw new Error();
+
+                let permisos = await response.json();
+                tbody.innerHTML = "";
+
+                if (permisos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">No hay módulos registrados en el sistema.</td></tr>';
+                    return;
+                }
+
+                permisos.forEach(p => {
+                    let tr = document.createElement("tr");
+                    tr.dataset.moduloId = p.moduloId;
+
+                    const nombreModulo = escapeHtmlPermisos(p.nombreModulo);
+                    const claveModulo = escapeHtmlPermisos(p.claveModulo);
+
+                    tr.innerHTML = `
+                        <td class="align-middle fw-bold px-4 border-end">
+                            ${nombreModulo} <br>
+                            <small class="text-muted fw-normal">${claveModulo}</small>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-leer-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeLeer ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle border-end">
+                            <input type="checkbox" class="chk-escribir-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEscribir ? 'checked' : ''}>
+                        </td>
+                        <td class="text-center align-middle">
+                            <input type="checkbox" class="chk-eliminar-u" style="transform: scale(1.4); accent-color: var(--brand-main);" ${p.puedeEliminar ? 'checked' : ''}>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4 fw-bold">Error de comunicación con el servidor.</td></tr>';
+            }
+        }
+
+        async function guardarPermisosModulosUsuario() {
+            const select = document.getElementById("selectUsuarioModulos");
+            if (!select || !select.value) {
+                alert("Por favor, selecciona un usuario primero.");
+                return;
+            }
+
+            let permisosArray = [];
+            document.querySelectorAll("#bodyModulosUsuario tr").forEach(tr => {
+                if (tr.dataset.moduloId) {
+                    permisosArray.push({
+                        moduloId: parseInt(tr.dataset.moduloId),
+                        puedeLeer: tr.querySelector(".chk-leer-u").checked,
+                        puedeEscribir: tr.querySelector(".chk-escribir-u").checked,
+                        puedeEliminar: tr.querySelector(".chk-eliminar-u").checked
+                    });
+                }
+            });
+
+            if (permisosArray.length === 0) {
+                alert("No hay módulos cargados para guardar.");
+                return;
+            }
+
+            let data = {
+                usuarioKey: select.value,
+                permisos: permisosArray
+            };
+
+            try {
+                let response = await fetch('/Permisos/GuardarPermisosModulosUsuario', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                let result = await response.json();
+                if (result.ok) {
+                    alert("Exito: " + result.mensaje);
+                } else {
+                    alert("Error: " + result.mensaje);
+                }
+            } catch (error) {
+                alert("Ocurrio un error al intentar guardar los permisos del usuario.");
+            }
+        }
+
+        // Precarga los usuarios la primera vez que se entra a la vista
+        document.getElementById("buscarUsuarioModulos")?.addEventListener("input", filtrarUsuarios);
+        cargarListaUsuarios();
     </script>
 }

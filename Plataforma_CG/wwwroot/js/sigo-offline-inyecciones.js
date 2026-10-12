@@ -72,6 +72,9 @@
     const NO_INTERCEPTAR = [
         "/Acceso/Login",
         "/Acceso/Logout",
+        "/api/Inyeccion/CapturarEntrada",
+        "/api/Inyeccion/Imprimir",
+        "/api/Inyeccion/BitacoraImpresiones",
         "/Operaciones/PlaneadorProduccionPdf",
         "/Operaciones/ImpresorasLocales",
         "/Operaciones/Tcp/ProbarConexion"

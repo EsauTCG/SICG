@@ -544,6 +544,143 @@
         }
 
     }
+
+    /* ============================================================
+       LOGÍSTICA - PERMISOS DE USUARIO
+       ============================================================ */
+    .logistica-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .3rem;
+        min-width: 220px;
+    }
+
+    .logistica-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .28rem;
+        padding: .25rem .48rem;
+        border-radius: 999px;
+        border: 1px solid #d8dce3;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: .73rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .logistica-badge.on {
+        background: #eaf7f0;
+        color: #157347;
+        border-color: #b9e2ca;
+    }
+
+    .logistica-badge.off {
+        background: #f8fafc;
+        color: #94a3b8;
+        border-color: #e2e8f0;
+    }
+
+    .btn-logistica {
+        border-color: #6f42c1;
+        color: #6f42c1;
+        background: #fff;
+    }
+
+    .btn-logistica:hover {
+        background: #6f42c1;
+        color: #fff;
+        border-color: #6f42c1;
+    }
+
+    .logistica-modal-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0,1fr));
+        gap: .75rem;
+    }
+
+    .logistica-option {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: .85rem;
+        background: #f8fafc;
+        cursor: pointer;
+        transition: .15s ease;
+    }
+
+    .logistica-option:hover {
+        border-color: #b9c6d6;
+        background: #fff;
+    }
+
+    .logistica-option .form-check {
+        margin: 0;
+    }
+
+    .logistica-option strong {
+        display: block;
+        color: #273444;
+        margin-bottom: .2rem;
+    }
+
+    .logistica-option small {
+        color: #6b7280;
+        line-height: 1.3;
+    }
+
+    body[data-theme="dark"] .logistica-badge {
+        background: #0b1220 !important;
+        border-color: rgba(203,213,225,.22) !important;
+        color: #94a3b8 !important;
+    }
+
+    body[data-theme="dark"] .logistica-badge.on {
+        background: rgba(22,101,52,.25) !important;
+        color: #86efac !important;
+        border-color: rgba(74,222,128,.35) !important;
+    }
+
+    body[data-theme="dark"] .btn-logistica {
+        background: #0b1220 !important;
+        color: #c4b5fd !important;
+        border-color: rgba(196,181,253,.45) !important;
+    }
+
+    body[data-theme="dark"] .btn-logistica:hover {
+        background: rgba(109,40,217,.75) !important;
+        color: #fff !important;
+    }
+
+    body[data-theme="dark"] .modal-content {
+        background: #111827 !important;
+        color: #e5e7eb !important;
+        border-color: rgba(255,255,255,.12) !important;
+    }
+
+    body[data-theme="dark"] .modal-header,
+    body[data-theme="dark"] .modal-footer {
+        border-color: rgba(255,255,255,.12) !important;
+    }
+
+    body[data-theme="dark"] .logistica-option {
+        background: #0b1220 !important;
+        border-color: rgba(203,213,225,.20) !important;
+    }
+
+    body[data-theme="dark"] .logistica-option strong {
+        color: #f9fafb !important;
+    }
+
+    body[data-theme="dark"] .logistica-option small {
+        color: #cbd5e1 !important;
+    }
+
+    @@media (max-width: 768px) {
+        .logistica-modal-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
 </style>
 
 <div class="container-sap">
@@ -600,6 +737,7 @@
                         <th>Perfil</th>
                         <th>Vendedor</th>
                         <th>Series</th>
+                        <th>Logística</th>
                         <th>Estado</th>
                         <th style="width:210px;">Acciones</th>
                     </tr>
@@ -627,6 +765,31 @@
                                     <span class="text-muted">Sin series</span>
                                 }
                         </td>
+
+                        <td>
+                            <div class="logistica-badges">
+                                <span class="logistica-badge @(u.LogisticaMontacarguista ? "on" : "off")">
+                                    <i class="bi bi-truck-front"></i>
+                                    Montacargas
+                                </span>
+
+                                <span class="logistica-badge @(u.LogisticaCapturista ? "on" : "off")">
+                                    <i class="bi bi-upc-scan"></i>
+                                    Captura
+                                </span>
+
+                                <span class="logistica-badge @(u.LogisticaUbicador ? "on" : "off")">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                    Ubicar
+                                </span>
+
+                                <span class="logistica-badge @(u.LogisticaCoordinador ? "on" : "off")">
+                                    <i class="bi bi-person-gear"></i>
+                                    Coord.
+                                </span>
+                            </div>
+                        </td>
+
                         <td>
                             @(u.Activo
                                                         ? Html.Raw("<span class='badge-on'>✅ Activo</span>")
@@ -638,6 +801,20 @@
                                class="btn btn-sm btn-outline-primary me-1">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </a>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-logistica me-1"
+                                    onclick='abrirPermisosLogistica(
+                                        @u.Id,
+                                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(u.Usuario ?? "")),
+                                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(u.Nombre ?? "")),
+                                        @(u.LogisticaMontacarguista ? "true" : "false"),
+                                        @(u.LogisticaCapturista ? "true" : "false"),
+                                        @(u.LogisticaUbicador ? "true" : "false"),
+                                        @(u.LogisticaCoordinador ? "true" : "false")
+                                    )'>
+                                <i class="bi bi-box-seam"></i> Logística
+                            </button>
 
                                 <form asp-action="CambiarEstado" asp-route-id="@u.Id" method="post" class="d-inline"
                                       onsubmit="return confirmarCambio(this,'@u.Usuario', @u.Activo);">
@@ -663,6 +840,180 @@
     </div>
 </div>
 
+
+<!-- ============================================================
+     MODAL PERMISOS LOGÍSTICA
+     ============================================================ -->
+<div class="modal fade"
+     id="modalPermisosLogistica"
+     tabindex="-1"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form asp-controller="Usuarios"
+                  asp-action="GuardarPermisosLogistica"
+                  method="post">
+
+                @Html.AntiForgeryToken()
+
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-0">
+                            <i class="bi bi-box-seam me-2"></i>
+                            Permisos de logística
+                        </h5>
+                        <small class="text-muted"
+                               id="logisticaUsuarioTexto">
+                            Usuario
+                        </small>
+                    </div>
+
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Cerrar">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <input type="hidden"
+                           name="Id"
+                           id="logisticaUsuarioId" />
+
+                    <div class="alert alert-light border mb-3">
+                        Define qué funciones puede realizar este usuario
+                        dentro de Surtido CEDIS.
+                    </div>
+
+                    <div class="logistica-modal-grid">
+
+                        <label class="logistica-option">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       role="switch"
+                                       id="chkLogMontacarguista"
+                                       name="LogisticaMontacarguista"
+                                       value="true" />
+                                <input type="hidden"
+                                       name="LogisticaMontacarguista"
+                                       value="false" />
+
+                                <label class="form-check-label"
+                                       for="chkLogMontacarguista">
+                                    <strong>
+                                        <i class="bi bi-truck-front me-1"></i>
+                                        Montacarguista
+                                    </strong>
+                                    <small>
+                                        Picking, PEPS, ruta y producto bajado.
+                                    </small>
+                                </label>
+                            </div>
+                        </label>
+
+                        <label class="logistica-option">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       role="switch"
+                                       id="chkLogCapturista"
+                                       name="LogisticaCapturista"
+                                       value="true" />
+                                <input type="hidden"
+                                       name="LogisticaCapturista"
+                                       value="false" />
+
+                                <label class="form-check-label"
+                                       for="chkLogCapturista">
+                                    <strong>
+                                        <i class="bi bi-upc-scan me-1"></i>
+                                        Capturista
+                                    </strong>
+                                    <small>
+                                        Escaneo y vinculación al pedido.
+                                    </small>
+                                </label>
+                            </div>
+                        </label>
+
+                        <label class="logistica-option">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       role="switch"
+                                       id="chkLogUbicador"
+                                       name="LogisticaUbicador"
+                                       value="true" />
+                                <input type="hidden"
+                                       name="LogisticaUbicador"
+                                       value="false" />
+
+                                <label class="form-check-label"
+                                       for="chkLogUbicador">
+                                    <strong>
+                                        <i class="bi bi-grid-3x3-gap me-1"></i>
+                                        Ubicador
+                                    </strong>
+                                    <small>
+                                        Putaway, slotting y ubicación.
+                                    </small>
+                                </label>
+                            </div>
+                        </label>
+
+                        <label class="logistica-option">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       role="switch"
+                                       id="chkLogCoordinador"
+                                       name="LogisticaCoordinador"
+                                       value="true" />
+                                <input type="hidden"
+                                       name="LogisticaCoordinador"
+                                       value="false" />
+
+                                <label class="form-check-label"
+                                       for="chkLogCoordinador">
+                                    <strong>
+                                        <i class="bi bi-person-gear me-1"></i>
+                                        Coordinador
+                                    </strong>
+                                    <small>
+                                        Excepciones y control de operación.
+                                    </small>
+                                </label>
+                            </div>
+                        </label>
+
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i>
+                        Guardar permisos
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+
 @section Scripts {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
     <script>
@@ -676,13 +1027,15 @@
                 const usuario = (tr.children[0].textContent || '').toLowerCase();
                 const nombre  = (tr.children[1].textContent || '').toLowerCase();
                 const perfil  = (tr.children[2].textContent || '').toLowerCase();
-                const series  = (tr.children[4].textContent || '').toLowerCase();
+                const series    = (tr.children[4].textContent || '').toLowerCase();
+                const logistica = (tr.children[5].textContent || '').toLowerCase();
 
                 tr.style.display =
                     usuario.includes(q) ||
                     nombre.includes(q) ||
                     perfil.includes(q) ||
-                    series.includes(q)
+                    series.includes(q) ||
+                    logistica.includes(q)
                         ? ''
                         : 'none';
             });
@@ -692,6 +1045,44 @@
         function confirmarCambio(form, usuario, activo){
             const accion = activo ? "desactivar" : "activar";
             return confirm(`¿Seguro que deseas ${accion} al usuario "${usuario}"?`);
+        }
+
+        // ============================================================
+        // PERMISOS LOGÍSTICA
+        // ============================================================
+        function abrirPermisosLogistica(
+            id,
+            usuario,
+            nombre,
+            montacarguista,
+            capturista,
+            ubicador,
+            coordinador
+        ) {
+            document.getElementById('logisticaUsuarioId').value = id;
+
+            document.getElementById('logisticaUsuarioTexto').textContent =
+                `${nombre || usuario} · ${usuario}`;
+
+            document.getElementById('chkLogMontacarguista').checked =
+                montacarguista === true;
+
+            document.getElementById('chkLogCapturista').checked =
+                capturista === true;
+
+            document.getElementById('chkLogUbicador').checked =
+                ubicador === true;
+
+            document.getElementById('chkLogCoordinador').checked =
+                coordinador === true;
+
+            const modalEl =
+                document.getElementById('modalPermisosLogistica');
+
+            const modal =
+                bootstrap.Modal.getOrCreateInstance(modalEl);
+
+            modal.show();
         }
     </script>
 }

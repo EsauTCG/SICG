@@ -1,0 +1,2187 @@
+﻿@model Plataforma_CG.ViewModels.IntegracionSapIndexVM
+@using System.Linq
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Integraciones SAP";
+
+    var rows = Model.Rows ?? new List<Plataforma_CG.ViewModels.IntegracionSapRowVM>();
+    var total = rows.Count;
+    var enviados = rows.Count(x => x.Enviado);
+    var pendientes = rows.Count(x => !x.Enviado && x.UltimoExitoso != false);
+    var fallidos = rows.Count(x => x.UltimoExitoso == false && !x.Enviado);
+    var conBloqueo = rows.Count(x => x.TieneErrorConfiguracion);
+}
+
+<style>
+    :root {
+        --sap-bg: #f4e8e8;
+        --sap-panel: #fffafa;
+        --sap-panel-soft: #f9eeee;
+        --sap-border: #d7b6b6;
+        --sap-text: #321616;
+        --sap-muted: #765050;
+        --sap-red: #8b0000;
+        --sap-red-dark: #5b0000;
+        --sap-red-light: #b12020;
+        --sap-green: #147a46;
+        --sap-blue: #1769aa;
+        --sap-amber: #b66b00;
+        --sap-shadow: 0 8px 24px rgba(70, 12, 12, .12);
+    }
+
+    * { box-sizing: border-box; }
+
+    .sap-page {
+        min-height: calc(100vh - 12px);
+        padding: 10px;
+        color: var(--sap-text);
+        background:
+            radial-gradient(circle at 100% 0, rgba(177,32,32,.10), transparent 32%),
+            linear-gradient(180deg, #f7eeee 0%, var(--sap-bg) 100%);
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+
+    .sap-shell {
+        width: 100%;
+        border: 1px solid #8a5555;
+        background: var(--sap-panel);
+        box-shadow: var(--sap-shadow);
+    }
+
+    .sap-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--sap-red-dark), var(--sap-red) 55%, var(--sap-red-light));
+        border-bottom: 1px solid #4d0000;
+    }
+
+    .sap-title-wrap { min-width: 0; }
+    .sap-title {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 900;
+        letter-spacing: .2px;
+    }
+    .sap-subtitle {
+        margin-top: 4px;
+        font-size: 12px;
+        color: rgba(255,255,255,.82);
+    }
+
+    .sap-context {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .sap-chip {
+        padding: 6px 8px;
+        border: 1px solid rgba(255,255,255,.30);
+        background: rgba(255,255,255,.12);
+        font-size: 11px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .sap-body { padding: 10px; }
+
+    .type-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .type-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: 44px minmax(0,1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 76px;
+        padding: 11px;
+        border: 1px solid var(--sap-border);
+        background: linear-gradient(180deg, #fff, #f7e9e9);
+        color: var(--sap-text);
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .type-card:hover {
+        transform: translateY(-1px);
+        border-color: var(--sap-red);
+        box-shadow: 0 6px 16px rgba(91,0,0,.12);
+    }
+    .type-card.active {
+        border-color: var(--sap-red);
+        box-shadow: inset 4px 0 0 var(--sap-red), 0 6px 16px rgba(91,0,0,.12);
+        background: linear-gradient(180deg, #fffafa, #f0d9d9);
+    }
+    .type-icon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(180deg, var(--sap-red-light), var(--sap-red-dark));
+        border-radius: 50%;
+        font-size: 18px;
+    }
+    .type-name { font-size: 14px; font-weight: 900; }
+    .type-desc { margin-top: 3px; color: var(--sap-muted); font-size: 11px; }
+    .type-meta { text-align: right; font-size: 10px; color: var(--sap-muted); }
+    .type-meta strong { display: block; margin-bottom: 3px; color: var(--sap-red); font-size: 11px; }
+
+    .panel {
+        margin-bottom: 10px;
+        border: 1px solid var(--sap-border);
+        background: var(--sap-panel);
+    }
+    .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 9px;
+        color: #fff;
+        background: linear-gradient(180deg, #a61515, #760000);
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: 150px 190px 130px 130px 130px minmax(260px, 1fr);
+        gap: 9px;
+        align-items: end;
+        padding: 10px;
+        background: var(--sap-panel-soft);
+    }
+    .field label {
+        display: block;
+        margin-bottom: 4px;
+        color: #5c1a1a;
+        font-size: 11px;
+        font-weight: 900;
+    }
+    .field input, .field select {
+        width: 100%;
+        height: 31px;
+        padding: 4px 7px;
+        border: 1px solid #b98e8e;
+        border-radius: 0;
+        background: #fff;
+        color: #2c1515;
+        font: 12px Tahoma, Verdana, Arial, sans-serif;
+        outline: none;
+    }
+    .field input:focus, .field select:focus {
+        border-color: var(--sap-red);
+        box-shadow: 0 0 0 2px rgba(139,0,0,.10);
+    }
+
+    .actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .btn {
+        height: 31px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 11px;
+        border: 1px solid transparent;
+        border-radius: 0;
+        font: 800 11px Tahoma, Verdana, Arial, sans-serif;
+        cursor: pointer;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { color: #fff; border-color: #650000; background: linear-gradient(#ac1717, #760000); }
+    .btn-success { color: #fff; border-color: #0c6337; background: linear-gradient(#1d9658, #147a46); }
+    .btn-secondary { color: #4c1d1d; border-color: #b98e8e; background: linear-gradient(#fff, #ead9d9); }
+    .btn-blue { color: #fff; border-color: #0d568e; background: linear-gradient(#2580c5, #1769aa); }
+    .btn-xs { height: 26px; padding: 0 8px; font-size: 10px; }
+
+
+    /* =========================================================
+       CONTROL DEL ENVÍO AUTOMÁTICO
+       ========================================================= */
+    .auto-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 31px;
+    }
+
+    .btn-auto {
+        min-width: 88px;
+        color: #fff;
+        border-width: 1px;
+        box-shadow: 0 2px 5px rgba(0,0,0,.14);
+        transition: filter .15s ease, transform .15s ease, opacity .15s ease;
+    }
+
+    .btn-auto:hover:not(:disabled) {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+    }
+
+    .btn-auto.auto-on {
+        border-color: #0754a8;
+        background: linear-gradient(180deg, #1687ef, #0864c7);
+    }
+
+    .btn-auto.auto-off {
+        border-color: #6f2424;
+        background: linear-gradient(180deg, #a13c3c, #762020);
+    }
+
+    .btn-auto.auto-loading {
+        border-color: #68727c;
+        background: linear-gradient(180deg, #8a949e, #606a74);
+    }
+
+    .auto-state-label {
+        min-width: 112px;
+        color: var(--sap-muted);
+        font-size: 10px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .auto-state-label.on { color: #075fb8; }
+    .auto-state-label.off { color: #8b2020; }
+    .auto-state-label.processing { color: #0f6037; }
+
+    .metrics {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .metric {
+        min-height: 72px;
+        padding: 9px 10px;
+        border: 1px solid var(--sap-border);
+        background: #fff;
+        box-shadow: inset 0 3px 0 #d5aaaa;
+    }
+    .metric.good { box-shadow: inset 0 3px 0 var(--sap-green); }
+    .metric.bad { box-shadow: inset 0 3px 0 #b52828; }
+    .metric.warn { box-shadow: inset 0 3px 0 var(--sap-amber); }
+    .metric-label { color: var(--sap-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .metric-value { margin-top: 6px; font-size: 22px; font-weight: 900; line-height: 1; }
+    .metric-note { margin-top: 5px; color: var(--sap-muted); font-size: 10px; }
+
+    .table-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 7px 8px;
+        background: #f3e3e3;
+        border-bottom: 1px solid var(--sap-border);
+    }
+    .selection-info { color: var(--sap-muted); font-size: 11px; font-weight: 800; }
+
+    .table-wrap {
+        width: 100%;
+        max-height: 61vh;
+        overflow: auto;
+        background: #fff;
+    }
+    table {
+        width: 100%;
+        min-width: 1260px;
+        border-collapse: separate;
+        border-spacing: 0;
+        table-layout: fixed;
+        font-size: 11px;
+    }
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        padding: 7px 6px;
+        color: #fff;
+        background: linear-gradient(180deg, #a61515, #710000);
+        border-right: 1px solid #994949;
+        border-bottom: 1px solid #510000;
+        text-align: left;
+        white-space: nowrap;
+    }
+    tbody td {
+        padding: 6px;
+        border-right: 1px solid #ead0d0;
+        border-bottom: 1px solid #ead0d0;
+        background: #fffdfd;
+        color: #211515;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    tbody tr:nth-child(even) td { background: #fbf2f2; }
+    tbody tr:hover td { background: #f5e3e3; }
+    tbody tr.row-blocked td { background: #fff6e4; }
+    th.c-check, td.c-check { width: 38px; text-align: center; }
+    th.c-id, td.c-id { width: 78px; }
+    th.c-date, td.c-date { width: 92px; }
+    th.c-folio, td.c-folio { width: 86px; }
+    th.c-ref, td.c-ref { width: 150px; }
+    th.c-partner, td.c-partner { width: 115px; }
+    th.c-count, td.c-count { width: 66px; text-align: right; }
+    th.c-account, td.c-account { width: 105px; }
+    th.c-status, td.c-status { width: 135px; }
+    th.c-sap, td.c-sap { width: 105px; }
+    th.c-actions, td.c-actions { width: 190px; }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        padding: 4px 6px;
+        border: 1px solid;
+        font-size: 10px;
+        font-weight: 900;
+    }
+    .badge-ok { color: #0f6037; border-color: #79bd98; background: #e9f7ef; }
+    .badge-pending { color: #7a4a00; border-color: #dfb66d; background: #fff6df; }
+    .badge-error { color: #8b1515; border-color: #dd8f8f; background: #fff0f0; }
+    .badge-info { color: #14527e; border-color: #8db8d7; background: #eef7fd; }
+
+    .statusbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 9px;
+        color: var(--sap-muted);
+        background: #f1dfdf;
+        border-top: 1px solid var(--sap-border);
+        font-size: 10px;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 3000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(25, 5, 5, .58);
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+        width: min(980px, 96vw);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #6a2525;
+        background: #fff;
+        box-shadow: 0 22px 70px rgba(0,0,0,.35);
+    }
+    .modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 9px 11px;
+        color: #fff;
+        background: linear-gradient(180deg, #a61515, #650000);
+        font-size: 12px;
+        font-weight: 900;
+    }
+    .modal-body { overflow: auto; padding: 10px; background: #f8eeee; }
+    .json-box {
+        min-height: 300px;
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        border: 1px solid #cbaaaa;
+        background: #1f1919;
+        color: #f8eeee;
+        font: 12px Consolas, "Courier New", monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .modal-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 7px;
+        padding: 9px 10px;
+        border-top: 1px solid #dcc0c0;
+        background: #fff;
+    }
+
+    .toast-area {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 5000;
+        display: grid;
+        gap: 8px;
+        width: min(430px, calc(100vw - 32px));
+    }
+    /*
+       Se utiliza .sap-toast en lugar de .toast para no chocar con
+       la clase toast de Bootstrap cargada por el layout.
+    */
+    .sap-toast {
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        position: relative;
+        padding: 11px 12px;
+        border: 1px solid #d2b5b5;
+        border-left: 5px solid;
+        background: #fff;
+        color: #281515;
+        box-shadow: 0 10px 35px rgba(0,0,0,.22);
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .sap-toast.ok {
+        border-left-color: var(--sap-green);
+        background: #edf9f2;
+        color: #0f6037;
+    }
+    .sap-toast.error {
+        border-left-color: #b52828;
+        background: #fff0f0;
+        color: #7c1111;
+    }
+    .sap-toast.info {
+        border-left-color: var(--sap-blue);
+        background: #eef7fd;
+        color: #14527e;
+    }
+
+    body[data-theme="dark"] .sap-page { background: #17191d; color: #edf0f3; }
+    body[data-theme="dark"] .sap-shell,
+    body[data-theme="dark"] .panel,
+    body[data-theme="dark"] .metric,
+    body[data-theme="dark"] .type-card { background: #24272c; border-color: #4a4f57; color: #edf0f3; }
+    body[data-theme="dark"] .filter-grid,
+    body[data-theme="dark"] .table-toolbar,
+    body[data-theme="dark"] .statusbar { background: #202329; border-color: #4a4f57; }
+    body[data-theme="dark"] tbody td { background: #25282d; border-color: #3d4249; color: #edf0f3; }
+    body[data-theme="dark"] tbody tr:nth-child(even) td { background: #202328; }
+    body[data-theme="dark"] tbody tr:hover td { background: #33373e; }
+    body[data-theme="dark"] .field input,
+    body[data-theme="dark"] .field select { background: #181a1e; color: #edf0f3; border-color: #555b64; }
+    body[data-theme="dark"] .type-desc,
+    body[data-theme="dark"] .type-meta,
+    body[data-theme="dark"] .metric-label,
+    body[data-theme="dark"] .metric-note,
+    body[data-theme="dark"] .selection-info { color: #b9c0c9; }
+
+    @@media (max-width: 1180px) {
+        .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .actions { grid-column: 1 / -1; }
+        .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @@media (max-width: 760px) {
+        .sap-page { padding: 4px; }
+        .sap-header { align-items: flex-start; flex-direction: column; }
+        .sap-context { justify-content: flex-start; }
+        .type-grid { grid-template-columns: 1fr; }
+        .filter-grid { grid-template-columns: 1fr 1fr; }
+        .actions { justify-content: stretch; }
+        .actions .btn { flex: 1; }
+        .metrics { grid-template-columns: 1fr 1fr; }
+        .table-toolbar { align-items: stretch; flex-direction: column; }
+    }
+    @@media (max-width: 480px) {
+        .filter-grid, .metrics { grid-template-columns: 1fr; }
+        .type-card { grid-template-columns: 40px minmax(0,1fr); }
+        .type-meta { grid-column: 1 / -1; text-align: left; padding-left: 50px; }
+    }
+
+    /* =========================================================
+       ESTRUCTURA TIPO AJUSTE DE PRECIOS SKU
+       Pantalla completa dentro del área real de _Layout2.
+       Se expande y se contrae automáticamente con el sidebar.
+       ========================================================= */
+
+    :root {
+        --layout-work-bg: #f0dede;
+        --layout-work-panel: #f8eeee;
+        --layout-work-surface: #fffafa;
+        --layout-work-line: #c79d9d;
+        --layout-work-line-dark: #8f4c4c;
+        --layout-work-text: #3b1717;
+        --layout-work-muted: #6a3a3a;
+        --layout-work-header: linear-gradient(180deg,#b30000 0%,#8b0000 55%,#5c0000 100%);
+        --layout-work-toolbar: linear-gradient(#fff6f6,#ecd8d8);
+        --layout-work-shadow:
+            0 0 0 1px rgba(255,255,255,.45) inset,
+            0 8px 18px rgba(70,12,12,.14);
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
+        background: transparent !important;
+    }
+
+    /*
+     * Se conserva el comportamiento estable de Ajuste de Precios:
+     * el módulo mide el 100% de su padre y el padre es quien responde
+     * al abrir o cerrar el sidebar de _Layout2.
+     */
+    .container,
+    .container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .sap-page {
+        position: relative !important;
+        inset: auto !important;
+        transform: none !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: calc(100vh - 60px) !important;
+        min-height: calc(100dvh - 60px) !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        background: var(--layout-work-bg) !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    .sap-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: calc(100vh - 60px) !important;
+        min-height: calc(100dvh - 60px) !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        border: 1px solid var(--layout-work-line-dark) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-panel) !important;
+        color: var(--layout-work-text) !important;
+        box-shadow: var(--layout-work-shadow) !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+
+        container-type: inline-size;
+        container-name: integraciones-sap;
+    }
+
+    .sap-shell *,
+    .sap-page * {
+        box-sizing: border-box;
+    }
+
+    /* ENCABEZADO */
+    .sap-header {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 58px !important;
+
+        margin: 0 !important;
+        padding: 10px 12px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        flex-wrap: wrap !important;
+        flex: 0 0 auto !important;
+
+        border-bottom: 1px solid #4a0000 !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .sap-title-block {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        min-width: 0 !important;
+        flex: 1 1 420px !important;
+    }
+
+    .sap-title-icon {
+        width: 38px !important;
+        height: 38px !important;
+        flex: 0 0 38px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        border: 1px solid rgba(255,255,255,.30) !important;
+        border-radius: 0 !important;
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        font-size: 18px !important;
+    }
+
+    .sap-title-wrap {
+        min-width: 0 !important;
+    }
+
+    .sap-title {
+        margin: 0 !important;
+        color: #fff !important;
+        font-size: 16px !important;
+        line-height: 1.15 !important;
+        font-weight: 800 !important;
+        overflow-wrap: anywhere;
+    }
+
+    .sap-subtitle {
+        margin-top: 2px !important;
+        color: #f4d7d7 !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+    }
+
+    .sap-context {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+        min-width: 0 !important;
+    }
+
+    .sap-chip {
+        padding: 5px 9px !important;
+        border: 1px solid rgba(255,255,255,.35) !important;
+        border-radius: 0 !important;
+        background: rgba(0,0,0,.15) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+
+    /* CUERPO PRINCIPAL */
+    .sap-body {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        margin: 0 !important;
+        padding: 8px !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+
+        background: var(--layout-work-bg) !important;
+        overflow: hidden !important;
+    }
+
+    .type-grid,
+    .filter-grid,
+    .metrics,
+    .panel,
+    .table-toolbar,
+    .table-wrap,
+    .statusbar {
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .type-grid {
+        grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+        flex: 0 0 auto !important;
+    }
+
+    .type-card {
+        min-width: 0 !important;
+        min-height: 70px !important;
+        padding: 9px !important;
+        grid-template-columns: 40px minmax(0,1fr) auto !important;
+
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: linear-gradient(180deg,#fffafa,#f1dede) !important;
+        box-shadow: none !important;
+    }
+
+    .type-card.active {
+        border-color: #8b0000 !important;
+        box-shadow: inset 4px 0 0 #8b0000 !important;
+        background: linear-gradient(180deg,#fffafa,#ecd7d7) !important;
+    }
+
+    .type-icon {
+        width: 38px !important;
+        height: 38px !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-header) !important;
+        font-size: 16px !important;
+    }
+
+    .type-name {
+        color: var(--layout-work-text) !important;
+        font-size: 12px !important;
+    }
+
+    .type-desc,
+    .type-meta {
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    .type-meta strong {
+        color: #8b0000 !important;
+        font-size: 10px !important;
+    }
+
+    .panel {
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        box-shadow: none !important;
+    }
+
+    .panel-title {
+        min-height: 29px !important;
+        padding: 6px 8px !important;
+        border-bottom: 1px solid #4a0000 !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
+    }
+
+    .filter-grid {
+        width: 100% !important;
+        padding: 8px !important;
+        gap: 7px !important;
+
+        grid-template-columns:
+            minmax(120px,.8fr)
+            minmax(170px,1.1fr)
+            minmax(120px,.75fr)
+            minmax(120px,.75fr)
+            minmax(125px,.8fr)
+            minmax(300px,1.6fr) !important;
+
+        border-bottom: 0 !important;
+        background: var(--layout-work-toolbar) !important;
+    }
+
+    .field {
+        min-width: 0 !important;
+    }
+
+    .field label {
+        margin-bottom: 3px !important;
+        color: var(--layout-work-text) !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+
+    .field input,
+    .field select {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 3px 7px !important;
+
+        border: 1px solid var(--layout-work-line-dark) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        color: var(--layout-work-text) !important;
+
+        font-size: 11px !important;
+        box-shadow: none !important;
+    }
+
+    .actions {
+        min-width: 0 !important;
+    }
+
+    .btn {
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0 10px !important;
+        border-radius: 0 !important;
+        font-size: 10px !important;
+        box-shadow: none !important;
+    }
+
+    .metrics {
+        grid-template-columns: repeat(5,minmax(0,1fr)) !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+        flex: 0 0 auto !important;
+    }
+
+    .metric {
+        min-width: 0 !important;
+        min-height: 68px !important;
+        padding: 8px 9px !important;
+
+        border: 1px solid var(--layout-work-line) !important;
+        border-radius: 0 !important;
+        background: var(--layout-work-surface) !important;
+        box-shadow: inset 0 3px 0 #d5aaaa !important;
+    }
+
+    .metric-value {
+        margin-top: 5px !important;
+        color: #8b0000 !important;
+        font-size: 20px !important;
+    }
+
+    .metric-label,
+    .metric-note {
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    /*
+     * El último panel ocupa el resto del alto disponible.
+     * Así se comporta como la tabla principal de Ajuste de Precios.
+     */
+    .sap-body > .panel:last-of-type {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+        min-height: 310px !important;
+        margin-bottom: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .table-toolbar {
+        width: 100% !important;
+        padding: 7px 8px !important;
+        gap: 8px !important;
+        flex: 0 0 auto !important;
+
+        border-bottom: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-toolbar) !important;
+    }
+
+    .selection-info,
+    .auto-state-label {
+        color: var(--layout-work-muted) !important;
+        font-size: 10px !important;
+    }
+
+    .table-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 260px !important;
+        max-height: none !important;
+
+        flex: 1 1 auto !important;
+        overflow: auto !important;
+        overscroll-behavior-inline: contain;
+        scrollbar-gutter: stable;
+
+        border-top: 0 !important;
+        background: var(--layout-work-surface) !important;
+    }
+
+    table {
+        width: 100% !important;
+        min-width: 1260px !important;
+        color: var(--layout-work-text) !important;
+        background: var(--layout-work-surface) !important;
+        font-size: 10px !important;
+    }
+
+    thead th {
+        padding: 6px 5px !important;
+        border-right: 1px solid rgba(0,0,0,.35) !important;
+        border-bottom: 1px solid rgba(0,0,0,.45) !important;
+        background: var(--layout-work-header) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+
+    tbody td {
+        padding: 5px !important;
+        border-right: 1px solid var(--layout-work-line) !important;
+        border-bottom: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-surface) !important;
+        color: var(--layout-work-text) !important;
+        font-size: 10px !important;
+    }
+
+    tbody tr:nth-child(even) td {
+        background: #f1dede !important;
+    }
+
+    tbody tr:hover td {
+        background: #f4dddd !important;
+    }
+
+    .statusbar {
+        width: 100% !important;
+        padding: 6px 9px !important;
+        flex: 0 0 auto !important;
+
+        border-top: 1px solid var(--layout-work-line) !important;
+        background: var(--layout-work-toolbar) !important;
+        color: var(--layout-work-muted) !important;
+        font-size: 9px !important;
+    }
+
+    .modal-card {
+        border: 1px solid #5c0000 !important;
+        border-radius: 0 !important;
+    }
+
+    .modal-head {
+        background: var(--layout-work-header) !important;
+        border-bottom: 1px solid #5c0000 !important;
+    }
+
+    /*
+     * Estas reglas reaccionan al ancho real del módulo.
+     * Cuando el sidebar reduce el contenido, la vista se reorganiza
+     * aunque el ancho total del navegador siga siendo grande.
+     */
+    @@container integraciones-sap (max-width: 1250px) {
+        .filter-grid {
+            grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        }
+
+        .filter-grid > .actions {
+            grid-column: 1 / -1 !important;
+            justify-content: flex-end !important;
+        }
+
+        .metrics {
+            grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+        }
+
+        .sap-context .sap-chip:last-child {
+            display: none !important;
+        }
+    }
+
+    @@container integraciones-sap (max-width: 900px) {
+        .sap-header {
+            align-items: flex-start !important;
+        }
+
+        .sap-context {
+            width: 100% !important;
+            justify-content: flex-start !important;
+        }
+
+        .type-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        .filter-grid {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        .metrics {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        }
+
+        .table-toolbar {
+            align-items: stretch !important;
+            flex-direction: column !important;
+        }
+
+        .table-toolbar > .actions {
+            justify-content: flex-start !important;
+        }
+    }
+
+    @@container integraciones-sap (max-width: 620px) {
+        .filter-grid,
+        .metrics {
+            grid-template-columns: 1fr !important;
+        }
+
+        .filter-grid > .actions {
+            grid-column: auto !important;
+            justify-content: stretch !important;
+        }
+
+        .filter-grid > .actions .btn {
+            flex: 1 1 auto !important;
+        }
+
+        .sap-context {
+            display: none !important;
+        }
+
+        .type-card {
+            grid-template-columns: 38px minmax(0,1fr) !important;
+        }
+
+        .type-meta {
+            grid-column: 1 / -1 !important;
+            padding-left: 48px !important;
+            text-align: left !important;
+        }
+
+        .table-toolbar > .actions {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .table-toolbar > .actions > * {
+            width: 100% !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .sap-body {
+            padding: 6px !important;
+        }
+
+        .modal-backdrop {
+            padding: 0 !important;
+        }
+
+        .modal-card {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            min-height: 100dvh !important;
+            max-height: 100dvh !important;
+            border-left: 0 !important;
+            border-right: 0 !important;
+        }
+    }
+
+</style>
+
+<link rel="stylesheet" href="~/css/integraciones-sap-erp-final.css" asp-append-version="true" />
+
+<div class="sap-page">
+    <div class="sap-shell">
+        <header class="sap-header">
+            <div class="sap-title-block">
+                <div class="sap-title-icon">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </div>
+                <div class="sap-title-wrap">
+                    <h1 class="sap-title">Integraciones de inventario SAP</h1>
+                    <div class="sap-subtitle">Consulta, valida y envía movimientos de mercancía desde Meat hacia SAP Business One.</div>
+                </div>
+            </div>
+
+            <div class="sap-context">
+                <span class="sap-chip"><i class="fa-solid fa-industry"></i> Planta: @Model.Filtro.Source</span>
+                <span class="sap-chip"><i class="fa-solid fa-database"></i> Base: @Model.BaseDatos</span>
+                <span class="sap-chip"><i class="fa-solid fa-link"></i> @Model.Endpoint</span>
+            </div>
+        </header>
+
+        <main class="sap-body">
+            <div class="type-grid">
+                <a class="type-card @(Model.Filtro.Tipo == "ENTRADA" ? "active" : "")"
+                   href="@Url.Action("Index", "IntegracionesSap", new { source = Model.Filtro.Source, tipo = "ENTRADA", desde = Model.Filtro.Desde.ToString("yyyy-MM-dd"), hasta = Model.Filtro.Hasta.ToString("yyyy-MM-dd") })">
+                    <span class="type-icon"><i class="fa-solid fa-arrow-right-to-bracket"></i></span>
+                    <span>
+                        <span class="type-name">Entrada de mercancía</span>
+                        <span class="type-desc">Recepción de mercancía basada o no en orden de compra.</span>
+                    </span>
+                    <span class="type-meta">
+                        <strong>PurchaseDeliveryNotes</strong>
+                        TipoIntegracionId = 1
+                    </span>
+                </a>
+
+                <a class="type-card @(Model.Filtro.Tipo == "TRANSFERENCIA_ENTRADA" ? "active" : "")"
+                   href="@Url.Action("Index", "IntegracionesSap", new { source = "P1", tipo = "TRANSFERENCIA_ENTRADA", desde = Model.Filtro.Desde.ToString("yyyy-MM-dd"), hasta = Model.Filtro.Hasta.ToString("yyyy-MM-dd") })">
+                    <span class="type-icon"><i class="fa-solid fa-truck-ramp-box"></i></span>
+                    <span>
+                        <span class="type-name">Transferencia de entrada</span>
+                        <span class="type-desc">Transferencias recibidas en P1 generadas por sp_JSONTransferenciaEntrada.</span>
+                    </span>
+                    <span class="type-meta">
+                        <strong>PurchaseDeliveryNotes</strong>
+                        TipoIntegracionId = 2
+                    </span>
+                </a>
+
+                <a class="type-card @(Model.Filtro.Tipo == "SALIDA" ? "active" : "")"
+                   href="@Url.Action("Index", "IntegracionesSap", new { source = Model.Filtro.Source, tipo = "SALIDA", desde = Model.Filtro.Desde.ToString("yyyy-MM-dd"), hasta = Model.Filtro.Hasta.ToString("yyyy-MM-dd") })">
+                    <span class="type-icon"><i class="fa-solid fa-arrow-right-from-bracket"></i></span>
+                    <span>
+                        <span class="type-name">Salida de mercancía</span>
+                        <span class="type-desc">Salida de inventario por líneas, lotes y ubicaciones.</span>
+                    </span>
+                    <span class="type-meta">
+                        <strong>InventoryGenExits</strong>
+                        Cuenta @Model.CuentaSalida · Tipo 4
+                    </span>
+                </a>
+            </div>
+
+            <section class="panel">
+                <div class="panel-title">
+                    <span><i class="fa-solid fa-filter"></i> Filtros de consulta</span>
+                    <span>Máximo 500 registros</span>
+                </div>
+                <form method="get" action="@Url.Action("Index", "IntegracionesSap")" class="filter-grid">
+                    <div class="field">
+                        <label>Planta / base de datos</label>
+                        <select name="source">
+                            @if (Model.Filtro.Source == "P1")
+                            {
+                                <option value="P1" selected>Planta 1</option>
+                                <option value="TIF">Planta TIF</option>
+                            }
+                            else
+                            {
+                                <option value="P1">Planta 1</option>
+                                <option value="TIF" selected>Planta TIF</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Tipo de integración</label>
+                        <select name="tipo">
+                            @if (Model.Filtro.Tipo == "ENTRADA")
+                            {
+                                <option value="ENTRADA" selected>Entrada de mercancía</option>
+                            }
+                            else
+                            {
+                                <option value="ENTRADA">Entrada de mercancía</option>
+                            }
+
+                            @if (Model.Filtro.Tipo == "TRANSFERENCIA_ENTRADA")
+                            {
+                                <option value="TRANSFERENCIA_ENTRADA" selected>Transferencia de entrada</option>
+                            }
+                            else
+                            {
+                                <option value="TRANSFERENCIA_ENTRADA">Transferencia de entrada</option>
+                            }
+
+                            @if (Model.Filtro.Tipo == "SALIDA")
+                            {
+                                <option value="SALIDA" selected>Salida de mercancía</option>
+                            }
+                            else
+                            {
+                                <option value="SALIDA">Salida de mercancía</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Desde</label>
+                        <input type="date" name="desde" value="@Model.Filtro.Desde.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="field">
+                        <label>Hasta</label>
+                        <input type="date" name="hasta" value="@Model.Filtro.Hasta.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="field">
+                        <label>Estatus</label>
+                        <select name="estatus">
+                            @if (Model.Filtro.Estatus == null)
+                            {
+                                <option value="" selected>Todos</option>
+                            }
+                            else
+                            {
+                                <option value="">Todos</option>
+                            }
+                            @if (Model.Filtro.Estatus == 0)
+                            {
+                                <option value="0" selected>Pendientes</option>
+                            }
+                            else
+                            {
+                                <option value="0">Pendientes</option>
+                            }
+                            @if (Model.Filtro.Estatus == 1)
+                            {
+                                <option value="1" selected>Procesados</option>
+                            }
+                            else
+                            {
+                                <option value="1">Procesados</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="actions">
+                        <div class="field" style="min-width:120px; flex:1;">
+                            <label>Folio</label>
+                            <input type="number" name="folio" value="@(Model.Filtro.Folio?.ToString() ?? "")" placeholder="Todos" />
+                        </div>
+                        <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Consultar</button>
+                        <a class="btn btn-secondary" href="@Url.Action("Index", "IntegracionesSap", new { source = Model.Filtro.Source, tipo = Model.Filtro.Tipo })">
+                            <i class="fa-solid fa-eraser"></i> Limpiar
+                        </a>
+                    </div>
+                </form>
+            </section>
+
+            <section class="metrics">
+                <div class="metric">
+                    <div class="metric-label">Integraciones</div>
+                    <div class="metric-value">@total</div>
+                    <div class="metric-note">Resultado del filtro actual</div>
+                </div>
+                <div class="metric good">
+                    <div class="metric-label">Enviadas</div>
+                    <div class="metric-value">@enviados</div>
+                    <div class="metric-note">Estatus procesado o último intento correcto</div>
+                </div>
+                <div class="metric warn">
+                    <div class="metric-label">Pendientes</div>
+                    <div class="metric-value">@pendientes</div>
+                    <div class="metric-note">Disponibles para envío</div>
+                </div>
+                <div class="metric bad">
+                    <div class="metric-label">Fallidas</div>
+                    <div class="metric-value">@fallidos</div>
+                    <div class="metric-note">Último intento rechazado</div>
+                </div>
+                <div class="metric @(conBloqueo > 0 ? "bad" : "good")">
+                    <div class="metric-label">Bloqueadas</div>
+                    <div class="metric-value">@conBloqueo</div>
+                    <div class="metric-note">Sin líneas o ubicación no resuelta</div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title">
+                    <span><i class="fa-solid fa-table-list"></i> Documentos de @Model.Filtro.Tipo.ToLowerInvariant()</span>
+                    <span>@Model.Filtro.Source · @Model.BaseDatos</span>
+                </div>
+
+                @Html.AntiForgeryToken()
+
+                <div class="table-toolbar">
+                    <div class="selection-info"><span id="selectedCount">0</span> integración(es) seleccionada(s)</div>
+                    <div class="actions">
+                        <div class="auto-control">
+                            <button type="button"
+                                    class="btn btn-auto auto-loading"
+                                    id="btnAuto"
+                                    disabled
+                                    aria-pressed="false"
+                                    title="Consultando estado del envío automático...">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Auto
+                            </button>
+                            <span class="auto-state-label" id="autoStatusText">Consultando...</span>
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" id="btnSelectPending">
+                            <i class="fa-solid fa-check-double"></i> Seleccionar pendientes
+                        </button>
+                        <button type="button" class="btn btn-success" id="btnSendSelected" disabled>
+                            <i class="fa-solid fa-paper-plane"></i> Enviar seleccionadas
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="c-check"><input type="checkbox" id="checkAll" aria-label="Seleccionar todos" /></th>
+                                <th class="c-id">ID</th>
+                                <th class="c-date">Fecha</th>
+                                <th class="c-folio">Folio</th>
+                                <th class="c-ref">Referencia</th>
+                                <th class="c-partner">Proveedor</th>
+                                <th class="c-count">Líneas</th>
+                                <th class="c-count">Lotes</th>
+                                <th class="c-account">Cuenta</th>
+                                <th class="c-status">Estatus</th>
+                                <th class="c-sap">Documento SAP</th>
+                                <th class="c-actions">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @if (rows.Count == 0)
+                        {
+                            <tr><td colspan="12" style="text-align:center; padding:28px;">No se encontraron integraciones con los filtros seleccionados.</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var row in rows)
+                            {
+                                <tr class="@(row.TieneErrorConfiguracion ? "row-blocked" : "")"
+                                    data-id="@row.IntegracionId"
+                                    data-enviado="@(row.Enviado ? "1" : "0")"
+                                    data-blocked="@(row.TieneErrorConfiguracion ? "1" : "0")">
+                                    <td class="c-check">
+                                        @if (row.TieneErrorConfiguracion || row.Enviado)
+                                        {
+                                            <input type="checkbox" class="row-check" value="@row.IntegracionId" disabled />
+                                        }
+                                        else
+                                        {
+                                            <input type="checkbox" class="row-check" value="@row.IntegracionId" />
+                                        }
+                                    </td>
+                                    <td class="c-id"><strong>@row.IntegracionId</strong></td>
+                                    <td class="c-date">@row.FechaDocumento.ToString("dd/MM/yyyy")</td>
+                                    <td class="c-folio">@(row.Folio?.ToString() ?? "-")</td>
+                                    <td class="c-ref" title="@row.Referencia">@(row.Referencia ?? "-")</td>
+                                    <td class="c-partner" title="@row.SocioNegocio">@(row.SocioNegocio ?? (Model.Filtro.Tipo == "SALIDA" ? "No aplica" : "-"))</td>
+                                    <td class="c-count">@row.CantidadLineas</td>
+                                    <td class="c-count">@row.CantidadLotes</td>
+                                    <td class="c-account">@(row.CuentaContable ?? "-")</td>
+                                    <td class="c-status">
+                                        @if (row.TieneErrorConfiguracion)
+                                        {
+                                            <span class="badge badge-error" title="@(row.UbicacionesSinResolver > 0 ? $"{row.UbicacionesSinResolver} ubicaciones sin resolver" : "Documento sin líneas")">
+                                                <i class="fa-solid fa-triangle-exclamation"></i> BLOQUEADA
+                                            </span>
+                                        }
+                                        else if (row.Enviado)
+                                        {
+                                            <span class="badge badge-ok"><i class="fa-solid fa-circle-check"></i> ENVIADA</span>
+                                        }
+                                        else if (row.UltimoExitoso == false)
+                                        {
+                                            <span class="badge badge-error" title="@row.UltimoMensaje"><i class="fa-solid fa-circle-xmark"></i> FALLÓ</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-pending"><i class="fa-solid fa-clock"></i> PENDIENTE</span>
+                                        }
+                                    </td>
+                                    <td class="c-sap">
+                                        @if (row.SapDocNum.HasValue || row.SapDocEntry.HasValue)
+                                        {
+                                            <span class="badge badge-info" title="DocEntry: @(row.SapDocEntry?.ToString() ?? "-")">
+                                                #@(row.SapDocNum?.ToString() ?? row.SapDocEntry?.ToString())
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span>-</span>
+                                        }
+                                    </td>
+                                    <td class="c-actions">
+                                        <div class="actions" style="justify-content:flex-start; flex-wrap:nowrap;">
+                                            <button type="button" class="btn btn-blue btn-xs btn-json" data-id="@row.IntegracionId">
+                                                <i class="fa-solid fa-code"></i> JSON
+                                            </button>
+                                            @if (row.TieneErrorConfiguracion || row.Enviado)
+                                            {
+                                                <button type="button" class="btn btn-success btn-xs btn-send" data-id="@row.IntegracionId" disabled>
+                                                    <i class="fa-solid fa-paper-plane"></i> Enviar
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-success btn-xs btn-send" data-id="@row.IntegracionId">
+                                                    <i class="fa-solid fa-paper-plane"></i> Enviar
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="statusbar">
+                    <span>Endpoint activo: <strong>@Model.Endpoint</strong></span>
+                    <span>
+                        @if (Model.Filtro.Tipo == "SALIDA")
+                        {
+                            <text>Cada línea se enviará con AccountCode <strong>@Model.CuentaSalida</strong>.</text>
+                        }
+                        else if (Model.Filtro.Tipo == "TRANSFERENCIA_ENTRADA")
+                        {
+                            <text>Las transferencias Tipo 2 se envían como entrada mediante <strong>PurchaseDeliveryNotes</strong>.</text>
+                        }
+                        else
+                        {
+                            <text>Las entradas con BaseEntry se generan contra orden de compra.</text>
+                        }
+                    </span>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="jsonModal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <span id="modalTitle">JSON SAP</span>
+            <button type="button" class="btn btn-secondary btn-xs" id="btnCloseModal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <pre class="json-box" id="jsonContent">Cargando...</pre>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" id="btnCopyJson"><i class="fa-solid fa-copy"></i> Copiar JSON</button>
+            <button type="button" class="btn btn-primary" id="btnCloseModal2">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-area" id="toastArea"></div>
+
+<script>
+(() => {
+    const SOURCE = '@Model.Filtro.Source';
+    const TYPE = '@Model.Filtro.Tipo';
+    const ENDPOINT = '@Model.Endpoint';
+
+    // Rutas absolutas para evitar problemas con el enrutamiento por atributos.
+    const URL_SEND = '@Url.Content("~/IntegracionesSAP/Enviar")';
+    const URL_SEND_BATCH = '@Url.Content("~/IntegracionesSAP/EnviarLote")';
+    const URL_JSON = '@Url.Content("~/IntegracionesSAP/Json")';
+    const URL_AUTO_STATUS = '@Url.Content("~/IntegracionesSAP/AutomaticoEstado")';
+    const URL_AUTO_SET = '@Url.Content("~/IntegracionesSAP/AutomaticoCambiar")';
+
+    const token =
+        document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+    const rowChecks = () =>
+        Array.from(document.querySelectorAll('.row-check:not(:disabled)'));
+
+    const selectedIds = () =>
+        rowChecks()
+            .filter(x => x.checked)
+            .map(x => Number(x.value))
+            .filter(x => Number.isInteger(x) && x > 0);
+
+    const checkAll = document.getElementById('checkAll');
+    const selectedCount = document.getElementById('selectedCount');
+    const btnSendSelected = document.getElementById('btnSendSelected');
+    const btnSelectPending = document.getElementById('btnSelectPending');
+    const btnAuto = document.getElementById('btnAuto');
+    const autoStatusText = document.getElementById('autoStatusText');
+    const modal = document.getElementById('jsonModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const jsonContent = document.getElementById('jsonContent');
+
+    let automaticoEstado = {
+        activo: false,
+        procesando: false
+    };
+
+    function renderAutomatico(estado) {
+        if (!estado)
+            return;
+
+        automaticoEstado = estado;
+
+        if (!btnAuto || !autoStatusText)
+            return;
+
+        btnAuto.disabled = false;
+        btnAuto.classList.remove('auto-on', 'auto-off', 'auto-loading');
+        autoStatusText.classList.remove('on', 'off', 'processing');
+
+        if (estado.activo) {
+            btnAuto.classList.add('auto-on');
+            btnAuto.setAttribute('aria-pressed', 'true');
+            btnAuto.innerHTML = '<i class="fa-solid fa-pause"></i> Auto';
+            btnAuto.title = 'El envío automático está encendido. Presiona para apagarlo.';
+
+            if (estado.procesando) {
+                autoStatusText.textContent = 'Procesando...';
+                autoStatusText.classList.add('processing');
+            }
+            else {
+                autoStatusText.textContent = 'Automático activo';
+                autoStatusText.classList.add('on');
+            }
+        }
+        else {
+            btnAuto.classList.add('auto-off');
+            btnAuto.setAttribute('aria-pressed', 'false');
+            btnAuto.innerHTML = '<i class="fa-solid fa-play"></i> Auto';
+            btnAuto.title = 'El envío automático está apagado. Presiona para encenderlo.';
+            autoStatusText.textContent = estado.procesando
+                ? 'Terminando envío...'
+                : 'Automático apagado';
+            autoStatusText.classList.add(estado.procesando ? 'processing' : 'off');
+        }
+    }
+
+    async function cargarEstadoAutomatico(mostrarError = false) {
+        try {
+            const response = await fetch(URL_AUTO_STATUS, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await parseResponse(response);
+
+            if (!response.ok || data?.ok === false) {
+                throw new Error(
+                    buildErrorMessage(
+                        response,
+                        data,
+                        'No se pudo consultar el estado automático.'
+                    )
+                );
+            }
+
+            renderAutomatico(data.estado || data);
+        }
+        catch (error) {
+            console.error('INTEGRACIÓN SAP - estado automático', error);
+
+            if (btnAuto) {
+                btnAuto.disabled = true;
+                btnAuto.classList.remove('auto-on', 'auto-off');
+                btnAuto.classList.add('auto-loading');
+                btnAuto.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Auto';
+                btnAuto.title = error?.message || String(error);
+            }
+
+            if (autoStatusText) {
+                autoStatusText.textContent = 'Estado no disponible';
+                autoStatusText.className = 'auto-state-label off';
+            }
+
+            if (mostrarError) {
+                const mensaje = error?.message || String(error);
+                toast(mensaje, 'error', 15000);
+                window.alert(mensaje);
+            }
+        }
+    }
+
+    async function cambiarAutomatico() {
+        if (!btnAuto || btnAuto.disabled)
+            return;
+
+        if (!token) {
+            const mensaje =
+                'No se encontró el token de seguridad. Recarga la página e intenta nuevamente.';
+            toast(mensaje, 'error', 15000);
+            window.alert(mensaje);
+            return;
+        }
+
+        const nuevoEstado = !automaticoEstado.activo;
+        const textoAccion = nuevoEstado ? 'encender' : 'apagar';
+
+        if (!window.confirm(
+            `¿Deseas ${textoAccion} el envío automático de integraciones SAP?`
+        )) {
+            return;
+        }
+
+        btnAuto.disabled = true;
+        btnAuto.classList.remove('auto-on', 'auto-off');
+        btnAuto.classList.add('auto-loading');
+        btnAuto.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Auto';
+        autoStatusText.textContent = nuevoEstado ? 'Encendiendo...' : 'Apagando...';
+
+        try {
+            const response = await fetch(URL_AUTO_SET, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({
+                    activo: nuevoEstado
+                })
+            });
+
+            const data = await parseResponse(response);
+
+            if (!response.ok || data?.ok === false) {
+                throw new Error(
+                    buildErrorMessage(
+                        response,
+                        data,
+                        'No se pudo cambiar el envío automático.'
+                    )
+                );
+            }
+
+            renderAutomatico(data.estado || data);
+            toast(
+                data?.msg ||
+                data?.mensaje ||
+                (nuevoEstado
+                    ? 'Envío automático encendido.'
+                    : 'Envío automático apagado.'),
+                'ok',
+                9000
+            );
+        }
+        catch (error) {
+            const mensaje = error?.message || String(error);
+            console.error('INTEGRACIÓN SAP - cambiar automático', error);
+            toast(mensaje, 'error', 20000);
+            window.alert(mensaje);
+            await cargarEstadoAutomatico(false);
+        }
+    }
+
+    function updateSelection() {
+        const enabled = rowChecks();
+        const selected = selectedIds();
+
+        if (selectedCount)
+            selectedCount.textContent = selected.length;
+
+        if (btnSendSelected)
+            btnSendSelected.disabled = selected.length === 0;
+
+        if (checkAll) {
+            checkAll.checked =
+                enabled.length > 0 &&
+                enabled.every(x => x.checked);
+
+            checkAll.indeterminate =
+                selected.length > 0 &&
+                selected.length < enabled.length;
+        }
+    }
+
+    function toast(message, type = 'info', timeout = 8000) {
+        const area = document.getElementById('toastArea');
+
+        if (!area) {
+            console.warn('No existe #toastArea:', message);
+            return;
+        }
+
+        const node = document.createElement('div');
+        node.className = `sap-toast ${type}`;
+        node.textContent = message || '';
+
+        area.appendChild(node);
+
+        window.setTimeout(() => {
+            node.remove();
+        }, timeout);
+    }
+
+    async function parseResponse(response) {
+        const text = await response.text();
+
+        if (!text) {
+            return {
+                ok: response.ok,
+                status: response.status
+            };
+        }
+
+        try {
+            return JSON.parse(text);
+        }
+        catch {
+            return {
+                ok: false,
+                status: response.status,
+                msg: text,
+                detalle: text
+            };
+        }
+    }
+
+    function buildErrorMessage(response, data, fallback) {
+        const partes = [];
+
+        const principal =
+            data?.msg ||
+            data?.mensaje ||
+            data?.message ||
+            data?.error ||
+            fallback ||
+            'No se pudo completar la operación.';
+
+        partes.push(principal);
+
+        const detalle =
+            data?.detalle ||
+            data?.respuestaSap ||
+            data?.response ||
+            data?.inner;
+
+        if (detalle && detalle !== principal)
+            partes.push(detalle);
+
+        if (response?.status) {
+            partes.push(
+                `HTTP ${response.status} ${response.statusText || ''}`.trim()
+            );
+        }
+
+        return partes
+            .filter(Boolean)
+            .join('\n\n');
+    }
+
+    function setBusy(button, busy, busyText = 'Procesando...') {
+        if (!button)
+            return;
+
+        if (busy) {
+            if (!button.dataset.original)
+                button.dataset.original = button.innerHTML;
+
+            button.disabled = true;
+            button.innerHTML =
+                `<i class="fa-solid fa-spinner fa-spin"></i> ${busyText}`;
+        }
+        else {
+            button.innerHTML =
+                button.dataset.original ||
+                button.innerHTML;
+
+            button.disabled = false;
+        }
+    }
+
+    async function sendOne(id, button) {
+        if (!Number.isInteger(id) || id <= 0) {
+            const msg = 'El identificador de la integración no es válido.';
+            toast(msg, 'error', 15000);
+            window.alert(msg);
+            return;
+        }
+
+        if (!token) {
+            const msg =
+                'No se encontró el token de seguridad. Recarga la página e intenta nuevamente.';
+            toast(msg, 'error', 15000);
+            window.alert(msg);
+            return;
+        }
+
+        if (!window.confirm(
+            `¿Enviar la integración ${id} a SAP mediante ${ENDPOINT}?`
+        )) {
+            return;
+        }
+
+        setBusy(button, true, 'Enviando');
+
+        try {
+            console.log('INTEGRACIÓN SAP - solicitud manual', {
+                url: URL_SEND,
+                integracionId: id,
+                source: SOURCE,
+                tipo: TYPE,
+                endpoint: ENDPOINT
+            });
+
+            const response = await fetch(URL_SEND, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({
+                    integracionId: id,
+                    source: SOURCE,
+                    tipo: TYPE,
+                    forzar: false
+                })
+            });
+
+            const data = await parseResponse(response);
+
+            console.log(
+                'INTEGRACIÓN SAP - respuesta manual',
+                response.status,
+                data
+            );
+
+            if (!response.ok || data?.ok === false) {
+                const mensaje = buildErrorMessage(
+                    response,
+                    data,
+                    'SAP rechazó la integración.'
+                );
+
+                toast(mensaje, 'error', 20000);
+                window.alert(mensaje);
+                return;
+            }
+
+            const mensaje =
+                data?.mensaje ||
+                data?.msg ||
+                (data?.yaEnviado
+                    ? 'La integración ya estaba enviada.'
+                    : 'Integración enviada correctamente a SAP.');
+
+            const documento =
+                data?.docNum
+                    ? `\nDocumento SAP: ${data.docNum}`
+                    : data?.docEntry
+                        ? `\nDocEntry SAP: ${data.docEntry}`
+                        : '';
+
+            toast(
+                mensaje + documento,
+                'ok',
+                12000
+            );
+
+            window.setTimeout(() => {
+                window.location.reload();
+            }, 900);
+        }
+        catch (error) {
+            console.error(
+                'INTEGRACIÓN SAP - error manual',
+                error
+            );
+
+            const mensaje =
+                error?.message ||
+                String(error) ||
+                'Error desconocido al enviar la integración.';
+
+            toast(mensaje, 'error', 20000);
+            window.alert(mensaje);
+        }
+        finally {
+            setBusy(button, false);
+        }
+    }
+
+    async function sendBatch(ids) {
+        ids = Array.from(new Set(
+            (ids || [])
+                .map(Number)
+                .filter(x => Number.isInteger(x) && x > 0)
+        ));
+
+        if (!ids.length) {
+            const msg =
+                'Selecciona al menos una integración pendiente.';
+            toast(msg, 'error', 12000);
+            window.alert(msg);
+            return;
+        }
+
+        if (!token) {
+            const msg =
+                'No se encontró el token de seguridad. Recarga la página e intenta nuevamente.';
+            toast(msg, 'error', 15000);
+            window.alert(msg);
+            return;
+        }
+
+        if (!window.confirm(
+            `¿Enviar ${ids.length} integración(es) seleccionada(s) a SAP?`
+        )) {
+            return;
+        }
+
+        setBusy(btnSendSelected, true, 'Enviando');
+
+        try {
+            console.log('INTEGRACIÓN SAP - solicitud por lote', {
+                url: URL_SEND_BATCH,
+                integracionIds: ids,
+                source: SOURCE,
+                tipo: TYPE
+            });
+
+            const response = await fetch(URL_SEND_BATCH, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({
+                    integracionIds: ids,
+                    source: SOURCE,
+                    tipo: TYPE,
+                    forzar: false
+                })
+            });
+
+            const data = await parseResponse(response);
+
+            console.log(
+                'INTEGRACIÓN SAP - respuesta por lote',
+                response.status,
+                data
+            );
+
+            if (!response.ok || data?.ok === false) {
+                const mensaje = buildErrorMessage(
+                    response,
+                    data,
+                    'No se pudo completar el envío múltiple.'
+                );
+
+                toast(mensaje, 'error', 20000);
+                window.alert(mensaje);
+                return;
+            }
+
+            const message =
+                `Proceso terminado.\n` +
+                `Enviadas: ${data?.enviados || 0}\n` +
+                `Ya enviadas: ${data?.yaEnviados || 0}\n` +
+                `Fallidas: ${data?.fallidos || 0}`;
+
+            const type =
+                (data?.fallidos || 0) > 0
+                    ? 'error'
+                    : 'ok';
+
+            toast(message, type, 15000);
+
+            if ((data?.fallidos || 0) > 0)
+                window.alert(message);
+
+            window.setTimeout(() => {
+                window.location.reload();
+            }, 1200);
+        }
+        catch (error) {
+            console.error(
+                'INTEGRACIÓN SAP - error por lote',
+                error
+            );
+
+            const mensaje =
+                error?.message ||
+                String(error) ||
+                'Error desconocido durante el envío múltiple.';
+
+            toast(mensaje, 'error', 20000);
+            window.alert(mensaje);
+        }
+        finally {
+            setBusy(btnSendSelected, false);
+            updateSelection();
+        }
+    }
+
+    async function openJson(id) {
+        if (modal)
+            modal.classList.add('open');
+
+        if (modalTitle)
+            modalTitle.textContent =
+                `JSON SAP · Integración ${id}`;
+
+        if (jsonContent)
+            jsonContent.textContent = 'Cargando...';
+
+        try {
+            const url =
+                URL_JSON +
+                `?integracionId=${encodeURIComponent(id)}` +
+                `&source=${encodeURIComponent(SOURCE)}` +
+                `&tipo=${encodeURIComponent(TYPE)}`;
+
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+
+            const text = await response.text();
+
+            if (!response.ok) {
+                throw new Error(
+                    text ||
+                    `No se pudo obtener el JSON. HTTP ${response.status}`
+                );
+            }
+
+            if (jsonContent) {
+                try {
+                    jsonContent.textContent =
+                        JSON.stringify(
+                            JSON.parse(text),
+                            null,
+                            2
+                        );
+                }
+                catch {
+                    jsonContent.textContent = text;
+                }
+            }
+        }
+        catch (error) {
+            if (jsonContent) {
+                jsonContent.textContent =
+                    error?.message ||
+                    String(error);
+            }
+        }
+    }
+
+    function closeModal() {
+        modal?.classList.remove('open');
+    }
+
+    rowChecks().forEach(x => {
+        x.addEventListener(
+            'change',
+            updateSelection
+        );
+    });
+
+    checkAll?.addEventListener('change', () => {
+        rowChecks().forEach(x => {
+            x.checked = checkAll.checked;
+        });
+
+        updateSelection();
+    });
+
+    btnSelectPending?.addEventListener('click', () => {
+        rowChecks().forEach(x => {
+            x.checked = true;
+        });
+
+        updateSelection();
+    });
+
+    btnSendSelected?.addEventListener('click', () => {
+        sendBatch(selectedIds());
+    });
+
+    btnAuto?.addEventListener('click', cambiarAutomatico);
+
+    document.querySelectorAll('.btn-send').forEach(button => {
+        button.addEventListener('click', () => {
+            sendOne(
+                Number(button.dataset.id),
+                button
+            );
+        });
+    });
+
+    document.querySelectorAll('.btn-json').forEach(button => {
+        button.addEventListener('click', () => {
+            openJson(
+                Number(button.dataset.id)
+            );
+        });
+    });
+
+    document
+        .getElementById('btnCloseModal')
+        ?.addEventListener(
+            'click',
+            closeModal
+        );
+
+    document
+        .getElementById('btnCloseModal2')
+        ?.addEventListener(
+            'click',
+            closeModal
+        );
+
+    modal?.addEventListener('click', event => {
+        if (event.target === modal)
+            closeModal();
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape')
+            closeModal();
+    });
+
+    document
+        .getElementById('btnCopyJson')
+        ?.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(
+                    jsonContent?.textContent || ''
+                );
+
+                toast(
+                    'JSON copiado al portapapeles.',
+                    'ok'
+                );
+            }
+            catch {
+                const msg =
+                    'No fue posible copiar automáticamente el JSON.';
+
+                toast(
+                    msg,
+                    'error'
+                );
+
+                window.alert(msg);
+            }
+        });
+
+    updateSelection();
+    cargarEstadoAutomatico(true);
+
+    // Mantiene el botón sincronizado con el worker aunque otro usuario
+    // encienda o apague el automático desde otra sesión.
+    window.setInterval(() => {
+        cargarEstadoAutomatico(false);
+    }, 10000);
+})();
+</script>

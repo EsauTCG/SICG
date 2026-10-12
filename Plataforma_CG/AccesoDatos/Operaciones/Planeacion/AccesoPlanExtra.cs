@@ -1,15 +1,152 @@
-﻿using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
+﻿using Microsoft.CodeAnalysis.Elfie.Diagnostics;
+using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 using System.Data.SqlClient;
+
+using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
 using System.Drawing;
 using UglyToad.PdfPig.Graphics.Operations.PathConstruction;
+using Plataforma_CG.Models.Comercial.Planeacion;
 
 namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
 {
     public class AccesoPlanExtra
     {
+
         private string _cadena = new Conexion().GetCadenaSQLSIGO();
         private string _cadenatif = new Conexion().GetCadenaSQLTIFVentas();
         SqlConnection _conn;
+        public List<Models.Operaciones.Planeacion.Diaria.ParticipacionModel> ListarParticipacion(int clasid, string fecha)
+        {
+            var lista = new List<Models.Operaciones.Planeacion.Diaria.ParticipacionModel>();
+            _conn = new SqlConnection(_cadena);
+            string query = @"
+SELECT
+    p.Id,
+    p.ProductoCodigo,
+    p.ProductoCodigo AS ProductoCodigoConvertido,
+    0 AS PorcentajeInyeccion,
+    CASE
+    WHEN sm.ProductoCodigo IS NOT NULL THEN 100
+    ELSE 0
+END AS KgInyeccion,
+    p.fk_Clasificacion,
+    p.Porcentaje,
+    p.fk_SubClas,
+    ISNULL(p.LineaCodigo,'') AS LineaCodigo,
+    COALESCE(sm.PartSub, p.PartSub) AS PartSub,
+    m.Nombre AS Master,
+    CAST(0 AS BIT) AS EsExtra
+FROM Participacion p
+LEFT JOIN SubClasMens sm
+    ON sm.ProductoCodigo = p.ProductoCodigo
+    AND sm.Clasificacion = p.fk_SubClas
+    AND sm.Fecha = @Fecha
+LEFT JOIN MasterProd mp
+    ON mp.SKU = p.ProductoCodigo
+LEFT JOIN Masters m
+    ON m.Id = mp.MasterID
+WHERE p.fk_Clasificacion = @ClasId
+
+ORDER BY
+    Master,
+    ProductoCodigo,
+    fk_SubClas;";
+            SqlCommand cmd = new SqlCommand(query, _conn);
+            cmd.Parameters.AddWithValue("@Clasid", clasid);
+            cmd.Parameters.AddWithValue("@Fecha", Convert.ToDateTime(fecha).ToString("yyyy-MM-dd"));
+
+            _conn.Open();
+            try
+            {
+                using (var dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                    {
+                        lista.Add(new Plataforma_CG.Models.Operaciones.Planeacion.Diaria.ParticipacionModel
+                        {
+                            Id = Convert.ToInt32(dr["Id"]),
+                            ProductoCodigo = Convert.ToString(dr["ProductoCodigo"]),
+                            Nombre = new AccesoPlanDiarios().NombreProducto(Convert.ToString(dr["ProductoCodigo"])),
+                            fk_Clasificacion = Convert.ToInt32(dr["fk_Clasificacion"]),
+                            Porcentaje = Convert.ToDouble(dr["Porcentaje"]),
+                            fk_SubClas = Convert.ToInt32(dr["fk_SubClas"]),
+                            LineaCodigo = Convert.ToString(dr["LineaCodigo"]),
+                            PartSub = Convert.ToDouble(dr["PartSub"]),
+                            Master = Convert.ToString(dr["Master"]),
+                            EsExtra = Convert.ToBoolean(dr["EsExtra"]),
+                            ProductoCodigoConvertido = Convert.ToString(dr["ProductoCodigoConvertido"]),
+                            PorcentajeInyeccion = Convert.ToDecimal(dr["PorcentajeInyeccion"]),
+                            KgInyeccion = Convert.ToDecimal(dr["KgInyeccion"])
+                        });
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            _conn.Close();
+            return lista;
+        }
+        public bool InsertarPlanDetalle(DateTime fecha,string productocodigo, decimal kg)
+        {
+            bool res = false;
+            string mes = fecha.ToString("MM");
+            string anio = fecha.ToString("yyyy");
+            _conn = new SqlConnection(_cadena);
+            string query = $"select Count(*) from PlanDetalle where Anio='{anio}' and Mes='{mes}' and ProductoCodigo='{productocodigo}'";
+            string query2 = $"update PlanDetalle set Peso=Peso+{kg} where Anio='{anio}' and Mes='{mes}' and ProductoCodigo='{productocodigo}'";
+            string query3 = $"insert into PlanDetalle(ProductoCodigo,Porcentaje,Peso,Mes,Anio) values('{productocodigo}',1.0,'{kg}','{mes}','{anio}')";
+            var cmd = new SqlCommand(query,_conn);
+            SqlCommand cmd2;
+            _conn.Open();
+            try
+            {
+                int cont = Convert.ToInt32(cmd.ExecuteScalar());
+                if (cont > 0)
+                {
+                    cmd2 = new SqlCommand(query2,_conn);
+                    res = cmd2.ExecuteNonQuery() > 0;
+                }
+                else
+                {
+                    cmd2 = new SqlCommand(query3, _conn);
+                    res = cmd2.ExecuteNonQuery() > 0;
+                }
+            }
+            catch (Exception)
+            {
+
+            }
+            _conn.Close();
+            return res;
+        }
+        public bool InsertarSubClasMes(string fecha, string productocodigo, List<PlaneacionMensualSubclasModel> model)
+        {
+            bool res = false;
+            _conn = new SqlConnection(_cadena);
+            foreach (var item in model)
+            {
+                string query = $"insert into SubClasMens(Fecha,Clasificacion,ProductoCodigo,PartSub) values(" +
+                    $"'{fecha}'," +
+                    $"'{item.SubClasificacionId}'," +
+                    $"'{productocodigo}'," +
+                    $"'{item.Participacion}'" +
+                    $");";
+                SqlCommand cmd = new SqlCommand(query,_conn);
+                _conn.Open();
+                try
+                {
+                    res= cmd.ExecuteNonQuery() > 0;
+                }
+                catch (Exception)
+                {
+
+                }
+                _conn.Close();
+
+            }
+            return res;
+        }
         public object ConsultarEstatusSolicitud()
         {
             _conn = new SqlConnection(_cadenatif);
@@ -53,6 +190,7 @@ where a.ArticuloId='{sku}'";
             _conn.Open();
             using (var dr = cmd.ExecuteReader())
             {
+                
                 while (dr.Read())
                 {
                     plan.SKU = dr["SKU"].ToString();
@@ -409,6 +547,7 @@ where CONVERT(date,a.FechaProduccion) = CONVERT(date,'{fecha}')";
 
             return res;
         }
+
         public int InsertarSolicitud(string SolicitudId,
             string tipoId,
     string referencia

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data;
+using Plataforma_CG.Models;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -35,36 +36,20 @@ namespace Plataforma_CG.Filters
         {
             var login = (context.HttpContext.User?.Identity?.Name ?? "").Trim();
 
-            var permiso = await (
-                from u in _db.UsuarioSQL
-                join p in _db.Perfiles on u.PerfilId equals p.Id
-                join ppm in _db.PerfilPermisoModulo on p.Id equals ppm.PerfilId
-                join m in _db.ModulosSistema on ppm.ModuloId equals m.Id
-                where (u.Usuario == login || u.Nombre == login)
-                      && m.Clave == _claveModulo
-                      && ppm.Activo
-                      && m.Activo
-                select new
-                {
-                    ppm.PuedeLeer,
-                    ppm.PuedeEscribir,
-                    ppm.PuedeEliminar
-                }
-            ).FirstOrDefaultAsync();
+            // Fuente unica de verdad: el permiso del usuario sobrescribe al de su perfil.
+            // Antes esta consulta solo miraba PerfilPermisoModulo, por lo que los permisos
+            // dados por usuario se ignoraban en las 149 acciones con [RevisarPermiso].
+            var (puedeLeer, puedeEscribir, puedeEliminar) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(_db, login, _claveModulo);
 
-            bool tieneAcceso = false;
-
-            if (permiso != null)
+            // Validacion dinamica segun el permiso solicitado
+            bool tieneAcceso = _tipoPermiso.ToUpper() switch
             {
-                // Validacion dinamica segun el permiso solicitado
-                tieneAcceso = _tipoPermiso.ToUpper() switch
-                {
-                    "LEER" => permiso.PuedeLeer,
-                    "ESCRIBIR" => permiso.PuedeEscribir,
-                    "ELIMINAR" => permiso.PuedeEliminar,
-                    _ => false
-                };
-            }
+                "LEER" => puedeLeer,
+                "ESCRIBIR" => puedeEscribir,
+                "ELIMINAR" => puedeEliminar,
+                _ => false
+            };
 
             if (!tieneAcceso)
             {

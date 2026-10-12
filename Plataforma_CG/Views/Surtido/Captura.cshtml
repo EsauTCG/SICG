@@ -1,0 +1,554 @@
+@using Plataforma_CG.ViewModels
+@model Plataforma_CG.ViewModels.SurtidoAlmacenVM
+
+@{
+    ViewData["Title"] = "Captura";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+
+    var staging =
+        ViewBag.ZonaSurtido as List<SurtidoBajadaFilaVM>
+        ?? new List<SurtidoBajadaFilaVM>();
+}
+
+<link rel="stylesheet"
+      href="~/css/surtido-wms-v7.css"
+      asp-append-version="true" />
+
+<style>
+    :root {
+        --cap-bg: #f2f5f7;
+        --cap-card: #ffffff;
+        --cap-line: #d8e0e6;
+        --cap-text: #1f2b37;
+        --cap-muted: #667787;
+        --cap-green: #198754;
+        --cap-green-dark: #11653f;
+        --cap-blue: #0d6efd;
+        --cap-orange: #d98200;
+        --cap-red: #b4232f;
+        --cap-wine: #7a2029;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    body {
+        background: var(--cap-bg) !important;
+        color: var(--cap-text);
+        font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+
+    body:has(.cap-fast) .layout-main-content,
+    body:has(.cap-fast) .layout-main-content .layout-container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+
+    body:has(.cap-fast) .layout-main-content .layout-container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .cap-fast {
+        width: 100%;
+        max-width: calc(100vw - 140px);
+        padding: 10px 12px 16px;
+        box-sizing: border-box;
+    }
+
+    .cap-fast-shell {
+        width: 100%;
+        max-width: 1500px;
+        margin: 0;
+    }
+
+    .cap-fast-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .cap-fast-back {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 13px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid var(--cap-line);
+        color: #435466 !important;
+        text-decoration: none !important;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .cap-fast-warehouse {
+        color: var(--cap-muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-align: right;
+    }
+
+    .cap-fast-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 15px 17px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--cap-green-dark), var(--cap-green));
+        color: #fff;
+    }
+
+    .cap-fast-kicker {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        opacity: .86;
+    }
+
+    .cap-fast-title {
+        margin: 3px 0 2px;
+        font-size: 27px;
+        line-height: 1.05;
+        font-weight: 900;
+    }
+
+    .cap-fast-instruction {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 650;
+        opacity: .94;
+    }
+
+    .cap-fast-total {
+        min-width: 112px;
+        padding: 11px 14px;
+        border-radius: 14px;
+        text-align: center;
+        background: rgba(255,255,255,.13);
+        border: 1px solid rgba(255,255,255,.22);
+    }
+
+    .cap-fast-total strong {
+        display: block;
+        font-size: 30px;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .cap-fast-total span {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .cap-fast-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0,1fr));
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .cap-fast-summary > div {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        background: #fff;
+        border: 1px solid var(--cap-line);
+        border-radius: 12px;
+    }
+
+    .cap-fast-summary i {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        font-style: normal;
+        font-size: 16px;
+        font-weight: 900;
+    }
+
+    .cap-fast-summary .pending i {
+        background: #fff1da;
+        color: var(--cap-orange);
+    }
+
+    .cap-fast-summary .warehouse i {
+        background: #e9f2ff;
+        color: var(--cap-blue);
+    }
+
+    .cap-fast-summary span {
+        display: block;
+        color: var(--cap-muted);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .cap-fast-summary strong {
+        display: block;
+        margin-top: 1px;
+        font-size: 18px;
+        line-height: 1.1;
+        font-weight: 900;
+        color: var(--cap-text);
+    }
+
+    .cap-fast-section {
+        margin-top: 8px;
+        background: #fff;
+        border: 1px solid var(--cap-line);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .cap-fast-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        background: #f8fafb;
+        border-bottom: 1px solid var(--cap-line);
+    }
+
+    .cap-fast-section-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 900;
+    }
+
+    .cap-fast-count {
+        min-width: 72px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #fff3dc;
+        border: 1px solid #efd4a0;
+        color: #805600;
+        text-align: center;
+        font-size: 10px;
+        font-weight: 900;
+    }
+
+    .cap-fast-list {
+        display: grid;
+        gap: 7px;
+        padding: 9px;
+    }
+
+    .cap-fast-item {
+        display: grid;
+        grid-template-columns: 46px minmax(0,1fr) auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 76px;
+        padding: 10px 11px;
+        background: #fff;
+        border: 2px solid #ead9b6;
+        border-left: 6px solid var(--cap-orange);
+        border-radius: 12px;
+    }
+
+    .cap-fast-item:first-child {
+        background: #fffaf0;
+        border-color: #e9cb8c;
+        border-left-color: var(--cap-orange);
+        box-shadow: 0 7px 18px rgba(50,50,40,.06);
+    }
+
+    .cap-fast-icon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 11px;
+        background: #fff0cf;
+        color: #8a5900;
+        font-size: 22px;
+        font-weight: 900;
+    }
+
+    .cap-fast-main {
+        min-width: 0;
+    }
+
+    .cap-fast-main .tarima {
+        display: block;
+        color: var(--cap-text);
+        font-size: 18px;
+        line-height: 1.1;
+        font-weight: 950;
+        overflow-wrap: anywhere;
+    }
+
+    .cap-fast-main .producto {
+        display: block;
+        margin-top: 3px;
+        color: #40515f;
+        font-size: 12px;
+        line-height: 1.25;
+        font-weight: 800;
+        overflow-wrap: anywhere;
+    }
+
+    .cap-fast-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px 10px;
+        margin-top: 5px;
+        color: var(--cap-muted);
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .cap-fast-status {
+        min-width: 86px;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 10px;
+        border-radius: 10px;
+        background: var(--cap-orange);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .cap-fast-empty {
+        margin: 10px;
+        padding: 24px 15px;
+        border-radius: 12px;
+        background: #edf8f1;
+        border: 1px solid #bee1cc;
+        color: #17683f;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .cap-fast-empty strong {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 20px;
+    }
+
+    @@media (max-width: 1200px) {
+        .cap-fast {
+            max-width: calc(100vw - 115px);
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .cap-fast {
+            max-width: calc(100vw - 28px);
+            padding: 8px;
+        }
+    }
+
+    @@media (max-width: 680px) {
+        .cap-fast {
+            max-width: calc(100vw - 12px);
+            padding: 5px;
+        }
+
+        .cap-fast-top {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .cap-fast-warehouse {
+            text-align: left;
+        }
+
+        .cap-fast-hero {
+            grid-template-columns: 1fr auto;
+            padding: 11px 12px;
+        }
+
+        .cap-fast-title {
+            font-size: 22px;
+        }
+
+        .cap-fast-instruction {
+            font-size: 11px;
+        }
+
+        .cap-fast-total {
+            min-width: 78px;
+            padding: 8px;
+        }
+
+        .cap-fast-total strong {
+            font-size: 23px;
+        }
+
+        .cap-fast-summary {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .cap-fast-item {
+            grid-template-columns: 38px minmax(0,1fr);
+            min-height: 70px;
+            padding: 8px;
+        }
+
+        .cap-fast-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 18px;
+        }
+
+        .cap-fast-main .tarima {
+            font-size: 15px;
+        }
+
+        .cap-fast-status {
+            grid-column: 1 / -1;
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 460px) {
+        .cap-fast-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .cap-fast-total {
+            display: none;
+        }
+
+        .cap-fast-summary {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="cap-fast">
+    <main class="cap-fast-shell">
+
+        <div class="cap-fast-top">
+            <a class="cap-fast-back"
+               href="@Url.Action(
+                    "Surtido_cedis",
+                    "Surtido",
+                    new
+                    {
+                        almacen = Model.Codigo
+                    }
+               )">
+                ← Regresar
+            </a>
+
+            <div class="cap-fast-warehouse">
+                @Model.Codigo · @Model.Nombre
+            </div>
+        </div>
+
+        <section class="cap-fast-hero">
+            <div>
+                <div class="cap-fast-kicker">CAPTURA · ZONA DE SURTIDO</div>
+                <div class="cap-fast-title">Producto por capturar</div>
+                <p class="cap-fast-instruction">
+                    Revisa la tarima o etiqueta y continúa con la captura.
+                </p>
+            </div>
+
+            <div class="cap-fast-total">
+                <strong>@staging.Count</strong>
+                <span>Pendientes</span>
+            </div>
+        </section>
+
+        <section class="cap-fast-summary">
+            <div class="pending">
+                <i>↓</i>
+                <div>
+                    <span>Pendientes</span>
+                    <strong>@staging.Count</strong>
+                </div>
+            </div>
+
+            <div class="warehouse">
+                <i>▣</i>
+                <div>
+                    <span>Almacén</span>
+                    <strong>@Model.Codigo</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="cap-fast-section">
+            <div class="cap-fast-section-head">
+                <h2>Producto bajado</h2>
+                <div class="cap-fast-count">
+                    @staging.Count pendiente@(staging.Count == 1 ? "" : "s")
+                </div>
+            </div>
+
+            @if (staging.Any())
+            {
+                <div class="cap-fast-list">
+                    @foreach (var x in staging)
+                    {
+                        <div class="cap-fast-item">
+                            <div class="cap-fast-icon">↓</div>
+
+                            <div class="cap-fast-main">
+                                <strong class="tarima">
+                                    @(string.IsNullOrWhiteSpace(x.TarimaCodigo)
+                                        ? x.CodigoEtiqueta
+                                        : x.TarimaCodigo)
+                                </strong>
+
+                                <span class="producto">
+                                    @x.Articulo
+                                </span>
+
+                                <div class="cap-fast-meta">
+                                    <span>Etiqueta: @x.CodigoEtiqueta</span>
+                                    <span>@x.PesoNeto?.ToString("N2") kg</span>
+                                    <span>Lote: @x.Lote</span>
+                                    <span>Solicitud: @x.SolicitudSurtidoId</span>
+                                    <span>@x.FechaBaja.ToString("dd/MM HH:mm")</span>
+                                </div>
+                            </div>
+
+                            <div class="cap-fast-status">
+                                Pendiente
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="cap-fast-empty">
+                    <strong>✓ Sin pendientes</strong>
+                    No hay producto por capturar.
+                </div>
+            }
+        </section>
+
+    </main>
+</div>

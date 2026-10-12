@@ -1,0 +1,1387 @@
+/* ==========================================================================
+   PRESUPUESTOS MES — ERP TINTO / POPPINS / CONSOLIDADO
+   Objetivo:
+   - letra legible, no microscópica
+   - filtros alineados y juntos
+   - dropdowns sin recortes
+   - tabla grande con scroll horizontal, sin comprimir columnas
+   - modal por encima de toda la vista
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --pm-bg: #eef2f4;
+    --pm-panel: #ffffff;
+    --pm-panel-2: #f7f9fa;
+    --pm-line: #bec9cf;
+    --pm-line-soft: #d7dfe3;
+    --pm-text: #30373b;
+    --pm-muted: #66747c;
+
+    --pm-tinto: #7a2029;
+    --pm-tinto-dark: #5e1820;
+    --pm-tinto-deep: #351014;
+    --pm-tinto-soft: #f4e8ea;
+
+    --pm-green: #25824d;
+    --pm-green-dark: #1c633a;
+    --pm-green-soft: #e8f3ed;
+
+    --pm-amber: #9c7318;
+    --pm-amber-soft: #f8f0dc;
+
+    --pm-red: #a22e3a;
+    --pm-red-soft: #f7e5e7;
+
+    --pm-blue: #45657d;
+    --pm-blue-soft: #eaf0f4;
+}
+
+/* ==========================================================================
+   FUENTE
+   ========================================================================== */
+
+.pm-page,
+.pm-page button,
+.pm-page input,
+.pm-page select,
+.pm-page textarea,
+.pm-page table,
+#modal-sp,
+#modal-sp button,
+#modal-sp input,
+#modal-sp select,
+#modal-sp table {
+    font-family: "Poppins", "Segoe UI", Arial, sans-serif !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: geometricPrecision !important;
+}
+
+.pm-page .bi,
+.pm-page .bi::before,
+#modal-sp .bi,
+#modal-sp .bi::before {
+    font-family: "bootstrap-icons" !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    line-height: 1 !important;
+}
+
+html,
+body {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+body:not([data-theme="dark"]) {
+    background: var(--pm-bg) !important;
+}
+
+/* ==========================================================================
+   _LAYOUT2
+   ========================================================================== */
+
+body:has(.pm-page) .layout-main-content {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+}
+
+body:has(.pm-page) .layout-main-content.layout-sidebar-open {
+    width: calc(100% - var(--layout-sidebar-width)) !important;
+    max-width: calc(100% - var(--layout-sidebar-width)) !important;
+    margin-left: var(--layout-sidebar-width) !important;
+}
+
+body:has(.layout-sidebar.layout-hidden):has(.pm-page) .layout-main-content,
+body:has(.layout-sidebar.layout-hidden):has(.pm-page) .layout-main-content.layout-sidebar-open {
+    width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+    max-width: calc(100% - var(--layout-sidebar-collapsed-width, 60px)) !important;
+    margin-left: var(--layout-sidebar-collapsed-width, 60px) !important;
+}
+
+body:has(.pm-page) .layout-container-fluid {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* ==========================================================================
+   VENTANA
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page.window {
+    width: calc(100% - 14px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 7px auto 12px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: var(--pm-text) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .titlebar {
+    min-height: 48px !important;
+    height: 48px !important;
+    padding: 9px 13px !important;
+    margin: 0 0 7px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+
+    background: linear-gradient(180deg,#5a171d 0%,#481318 48%,#351014 100%) !important;
+    color: #fff !important;
+    border: 1px solid #351014 !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-main-title {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .titlebar .actions,
+body:not([data-theme="dark"]) .pm-page > .toolbar {
+    display: none !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .content,
+body:not([data-theme="dark"]) .pm-page .workspace {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+/* ==========================================================================
+   ACCIONES SUPERIORES
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page .pm-topbar {
+    width: 100% !important;
+    min-height: 42px !important;
+    margin: 0 0 7px !important;
+    padding: 6px 8px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-radius: 3px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-top-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    margin: 0 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-top-actions .pm-btn {
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 11px !important;
+    gap: 5px !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-btn-excel,
+body:not([data-theme="dark"]) .pm-page .pm-btn-csv {
+    background: var(--pm-green) !important;
+    color: #fff !important;
+    border: 1px solid var(--pm-green-dark) !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-btn-sp {
+    background: var(--pm-blue) !important;
+    color: #fff !important;
+    border: 1px solid #365267 !important;
+}
+
+/* ==========================================================================
+   SECCIONES
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page .section {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 0 7px !important;
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+}
+
+/* Solo filtros permiten overflow para dropdowns */
+body:not([data-theme="dark"]) .pm-page .section:has(#filtros) {
+    position: relative !important;
+    z-index: auto !important;
+    overflow: visible !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section:has(#filtros):has(.dropdown-menu.show) {
+    z-index: 100 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section:not(:has(#filtros)) {
+    position: relative !important;
+    z-index: auto !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section-title {
+    min-height: 36px !important;
+    padding: 8px 10px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+
+    background: linear-gradient(180deg,#edf1f3 0%,#e2e8eb 100%) !important;
+    color: #3f474b !important;
+
+    border: 0 !important;
+    border-bottom: 1px solid var(--pm-line) !important;
+    border-left: 4px solid var(--pm-tinto) !important;
+
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .2px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section-body {
+    padding: 9px !important;
+    background: #fff !important;
+}
+
+/* ==========================================================================
+   FILTROS
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page #filtros.pm-filters {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0,1fr)) !important;
+    grid-auto-flow: row dense !important;
+    column-gap: 9px !important;
+    row-gap: 9px !important;
+    align-items: end !important;
+
+    overflow: visible !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros > div {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: relative !important;
+    overflow: visible !important;
+}
+
+/*
+  En la vista original casi todos los filtros tienen pm-grid-1.
+  Con 10 filtros en una sola fila quedan demasiado estrechos.
+  Los repartimos a 6 columnas lógicas por fila.
+*/
+body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-1 {
+    grid-column: span 2 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-2 {
+    grid-column: span 3 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-full {
+    grid-column: 1 / -1 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .form-label {
+    display: block !important;
+    margin: 0 0 4px !important;
+    padding: 0 !important;
+
+    color: #4e595f !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .form-control,
+body:not([data-theme="dark"]) .pm-page #filtros .form-select,
+body:not([data-theme="dark"]) .pm-page #filtros .btn-select-like {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 39px !important;
+    height: 39px !important;
+    margin: 0 !important;
+    padding: 6px 10px !important;
+
+    background: #fff !important;
+    color: var(--pm-text) !important;
+
+    border: 1px solid #b8c4ca !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+    outline: none !important;
+
+    font-size: 12px !important;
+    line-height: 1 !important;
+    font-weight: 500 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .form-control:focus,
+body:not([data-theme="dark"]) .pm-page #filtros .form-select:focus,
+body:not([data-theme="dark"]) .pm-page #filtros .btn-select-like:focus {
+    border-color: #9e7479 !important;
+    box-shadow: 0 0 0 3px rgba(122,32,41,.08) !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros input::placeholder {
+    font-size: 11px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .btn-select-like {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 7px !important;
+    text-align: left !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .multi-label {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: calc(100% - 18px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+/* Dropdowns: Bootstrap/Popper decide posición. No tocar top/left/transform. */
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown {
+    position: relative !important;
+    overflow: visible !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown.show {
+    z-index: 5000 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu {
+    z-index: 6000 !important;
+    min-width: 100% !important;
+    width: max(100%, 280px) !important;
+    max-width: min(430px, calc(100vw - 32px)) !important;
+
+    padding: 7px !important;
+    background: #fff !important;
+    color: var(--pm-text) !important;
+
+    border: 1px solid #aebbc3 !important;
+    border-radius: 3px !important;
+    box-shadow: 0 12px 28px rgba(25,34,39,.18) !important;
+
+    font-size: 11px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu .form-check {
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu .form-check-label,
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu li {
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu .form-check-input {
+    width: 15px !important;
+    min-width: 15px !important;
+    height: 15px !important;
+    min-height: 15px !important;
+    margin-top: 2px !important;
+    accent-color: var(--pm-tinto) !important;
+}
+
+/* Buscador de SKU dentro del dropdown */
+body:not([data-theme="dark"]) .pm-page #dd-sku-search {
+    min-height: 36px !important;
+    height: 36px !important;
+    font-size: 11.5px !important;
+}
+
+/* ==========================================================================
+   KPIs
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page .pm-kpi-section {
+    background: transparent !important;
+    border: 0 !important;
+    overflow: visible !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-kpi-section > .section-body {
+    padding: 0 0 7px !important;
+    background: transparent !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpis-bar,
+body:not([data-theme="dark"]) .pm-page .kpis-main {
+    width: 100% !important;
+    gap: 6px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpis-main {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(120px, 1fr)) !important;
+    align-items: stretch !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-card {
+    min-width: 0 !important;
+    min-height: 66px !important;
+    padding: 7px 8px !important;
+
+    border: 1px solid rgba(0,0,0,.12) !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-title {
+    margin-bottom: 3px !important;
+    color: rgba(255,255,255,.94) !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-value {
+    color: #fff !important;
+    font-size: 16px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+}
+
+/* mantener colores operativos existentes, pero sin sombras exageradas */
+body:not([data-theme="dark"]) .pm-page .kpi-card::before,
+body:not([data-theme="dark"]) .pm-page .kpi-card::after {
+    opacity: .45 !important;
+}
+
+/* ==========================================================================
+   TABLA PRINCIPAL
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page .table-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .table-responsive-sticky {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    height: calc(100vh - 390px) !important;
+    min-height: 390px !important;
+    max-height: none !important;
+
+    overflow: auto !important;
+    background: #fff !important;
+    border: 0 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data {
+    width: 100% !important;
+    min-width: 1880px !important;
+    margin: 0 !important;
+
+    table-layout: fixed !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+
+    background: #fff !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data thead,
+body:not([data-theme="dark"]) .pm-page #tbl-data thead tr,
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th {
+    background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+    color: #3f4549 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+
+    height: 42px !important;
+    padding: 7px 8px !important;
+
+    border: 0 !important;
+    border-right: 1px solid #aebbc3 !important;
+    border-bottom: 1px solid #aebbc3 !important;
+    box-shadow: none !important;
+
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td {
+    height: 42px !important;
+    padding: 7px 8px !important;
+
+    background: #fff !important;
+    color: #313a40 !important;
+
+    border: 0 !important;
+    border-right: 1px solid #e0e6e9 !important;
+    border-bottom: 1px solid #d7dfe3 !important;
+
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    font-weight: 400 !important;
+    vertical-align: middle !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody tr:nth-child(even) td {
+    background: #f8fafb !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody tr:hover td,
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody tr.is-open td {
+    background: #f4eaec !important;
+}
+
+/* Producto sí permite varias líneas */
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td:nth-child(3) {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word !important;
+    line-height: 1.2 !important;
+}
+
+/* Columnas operativas resaltadas de forma discreta */
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th:nth-child(7),
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th:nth-child(10),
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th:nth-child(14) {
+    background: linear-gradient(180deg,#e7d59a 0%,#d7bf73 100%) !important;
+    color: #5d4810 !important;
+    border-color: #bba35e !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td:nth-child(7),
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td:nth-child(10),
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td:nth-child(14) {
+    background: #fffaf0 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tfoot th {
+    height: 40px !important;
+    padding: 7px 8px !important;
+
+    background: #eaf0f2 !important;
+    color: #344047 !important;
+
+    border-top: 1px solid #b8c4ca !important;
+    border-right: 1px solid #d7dfe3 !important;
+
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+}
+
+/* Anchos legibles */
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(1),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(1) { width: 48px !important; }
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(2),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(2) { width: 105px !important; }
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(3),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(3) { width: 250px !important; }
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(n+4),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(n+4) { width: 100px !important; }
+
+/* ==========================================================================
+   DETALLE EXPANDIBLE
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page tr.detail-row td {
+    padding: 8px !important;
+    background: #f3f6f7 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-box {
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-left: 4px solid var(--pm-tinto) !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-head {
+    min-height: 34px !important;
+    padding: 7px 9px !important;
+
+    background: #e7ecef !important;
+    color: #3d484e !important;
+    border-bottom: 1px solid var(--pm-line) !important;
+
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-head::before {
+    background: var(--pm-tinto) !important;
+    border-radius: 50% !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-table,
+body:not([data-theme="dark"]) .pm-page .ped-table {
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-table th,
+body:not([data-theme="dark"]) .pm-page .detail-table td,
+body:not([data-theme="dark"]) .pm-page .ped-table th,
+body:not([data-theme="dark"]) .pm-page .ped-table td {
+    padding: 6px 7px !important;
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+}
+
+/* ==========================================================================
+   STATUSBAR
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page .statusbar {
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+
+    display: grid !important;
+    grid-template-columns: auto 1fr 1fr auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+
+    background: #e6ecef !important;
+    color: #4a555b !important;
+    border: 1px solid var(--pm-line) !important;
+    border-top: 0 !important;
+
+    font-size: 10px !important;
+    font-weight: 600 !important;
+}
+
+/* ==========================================================================
+   MODAL PRESUPUESTOS VS CUMPLIMIENTO
+   ========================================================================== */
+
+body .modal-backdrop {
+    z-index: 1050 !important;
+}
+
+body #modal-sp.modal {
+    z-index: 1060 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-dialog.modal-sp-wide {
+    width: min(1450px, 96vw) !important;
+    max-width: min(1450px, 96vw) !important;
+    margin: .8rem auto !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-content {
+    background: #fff !important;
+    border: 1px solid #aebbc3 !important;
+    border-radius: 4px !important;
+    box-shadow: 0 16px 42px rgba(25,34,39,.22) !important;
+    overflow: hidden !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-header {
+    min-height: 48px !important;
+    padding: 9px 12px !important;
+
+    background: linear-gradient(180deg,#5a171d 0%,#481318 48%,#351014 100%) !important;
+    color: #fff !important;
+    border: 0 !important;
+    border-bottom: 1px solid #351014 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-title {
+    color: #fff !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-body {
+    padding: 12px !important;
+    background: var(--pm-bg) !important;
+}
+
+/* Filtros del modal */
+body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child {
+    margin: 0 0 10px !important;
+    padding: 10px !important;
+
+    display: grid !important;
+    grid-template-columns: 130px 230px minmax(220px,1fr) minmax(280px,1.2fr) !important;
+    gap: 9px !important;
+
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-radius: 3px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child > [class*="col-"] {
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child > .col-12 {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .form-label {
+    margin: 0 0 4px !important;
+    color: #4e595f !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .form-control,
+body:not([data-theme="dark"]) #modal-sp .form-select,
+body:not([data-theme="dark"]) #modal-sp .btn-select-like {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 6px 9px !important;
+
+    background: #fff !important;
+    color: var(--pm-text) !important;
+
+    border: 1px solid #b8c4ca !important;
+    border-radius: 3px !important;
+    box-shadow: none !important;
+
+    font-size: 12px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .btn.btn-sm {
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 11px !important;
+    border-radius: 3px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .btn-primary {
+    background: var(--pm-tinto) !important;
+    border-color: var(--pm-tinto-dark) !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .dropdown {
+    position: relative !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .dropdown-menu {
+    z-index: 1080 !important;
+    min-width: 100% !important;
+    padding: 8px !important;
+    background: #fff !important;
+    border: 1px solid #aebbc3 !important;
+    border-radius: 3px !important;
+    box-shadow: 0 12px 28px rgba(25,34,39,.18) !important;
+    font-size: 11px !important;
+}
+
+/* KPIs modal */
+body:not([data-theme="dark"]) #modal-sp .sp-kpis-bar {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(150px,1fr)) !important;
+    gap: 7px !important;
+    padding: 0 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-card {
+    min-width: 0 !important;
+    min-height: 66px !important;
+    padding: 7px 9px !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-title {
+    font-size: 9px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-value {
+    font-size: 16px !important;
+}
+
+/* Tabla modal */
+body:not([data-theme="dark"]) #modal-sp .table-responsive {
+    width: 100% !important;
+    overflow: auto !important;
+    background: #fff !important;
+    border: 1px solid var(--pm-line) !important;
+    border-radius: 3px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid {
+    width: 100% !important;
+    min-width: 1080px !important;
+    margin: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead,
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead tr,
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th {
+    background: linear-gradient(180deg,#dce4e8 0%,#d1dbe0 100%) !important;
+    color: #3f4549 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th {
+    height: 40px !important;
+    padding: 7px 8px !important;
+
+    border: 0 !important;
+    border-right: 1px solid #aebbc3 !important;
+    border-bottom: 1px solid #aebbc3 !important;
+
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td {
+    height: 40px !important;
+    padding: 7px 8px !important;
+
+    background: #fff !important;
+    color: #313a40 !important;
+
+    border: 0 !important;
+    border-right: 1px solid #e0e6e9 !important;
+    border-bottom: 1px solid #d7dfe3 !important;
+
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody tr:nth-child(even) td {
+    background: #f8fafb !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody tr:hover td {
+    background: #f4eaec !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th:nth-child(5),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th:nth-child(6),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th:nth-child(7),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th:nth-child(8) {
+    background: linear-gradient(180deg,#e7d59a 0%,#d7bf73 100%) !important;
+    color: #5d4810 !important;
+    border-color: #bba35e !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td:nth-child(5),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td:nth-child(6),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td:nth-child(7),
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td:nth-child(8) {
+    background: #fffaf0 !important;
+}
+
+/* ==========================================================================
+   SCROLLBAR
+   ========================================================================== */
+
+body:not([data-theme="dark"]) .pm-page *::-webkit-scrollbar,
+body:not([data-theme="dark"]) #modal-sp *::-webkit-scrollbar {
+    width: 9px !important;
+    height: 9px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page *::-webkit-scrollbar-track,
+body:not([data-theme="dark"]) #modal-sp *::-webkit-scrollbar-track {
+    background: #edf1f3 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page *::-webkit-scrollbar-thumb,
+body:not([data-theme="dark"]) #modal-sp *::-webkit-scrollbar-thumb {
+    background: #aeb9bf !important;
+    border-radius: 2px !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1380px) {
+    body:not([data-theme="dark"]) .pm-page .kpis-main {
+        grid-template-columns: repeat(4, minmax(120px,1fr)) !important;
+    }
+}
+
+@media (max-width: 1150px) {
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-1,
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-2 {
+        grid-column: span 4 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child {
+        grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    }
+}
+
+@media (max-width: 780px) {
+    body:not([data-theme="dark"]) .pm-page.window {
+        width: calc(100% - 6px) !important;
+        margin-top: 3px !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-1,
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-2 {
+        grid-column: span 6 !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page .kpis-main {
+        grid-template-columns: repeat(2, minmax(120px,1fr)) !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page .statusbar {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .modal-dialog.modal-sp-wide {
+        width: 99vw !important;
+        max-width: 99vw !important;
+    }
+}
+
+@media (max-width: 520px) {
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-1,
+    body:not([data-theme="dark"]) .pm-page #filtros .pm-grid-2 {
+        grid-column: 1 / -1 !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page #filtros .form-control,
+    body:not([data-theme="dark"]) .pm-page #filtros .form-select,
+    body:not([data-theme="dark"]) .pm-page #filtros .btn-select-like {
+        min-height: 44px !important;
+        height: 44px !important;
+        font-size: 13px !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page .pm-top-actions {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        width: 100% !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page .pm-top-actions .pm-btn {
+        width: 100% !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        font-size: 12px !important;
+    }
+
+    body:not([data-theme="dark"]) .pm-page .statusbar {
+        grid-template-columns: 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .modal-dialog.modal-sp-wide {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .modal-content {
+        min-height: 100dvh !important;
+        border-radius: 0 !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child {
+        grid-template-columns: 1fr !important;
+    }
+
+    body:not([data-theme="dark"]) #modal-sp .sp-kpis-bar {
+        grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    }
+}
+
+/* Tema oscuro: no forzar todo claro, solo armonizar headers */
+body[data-theme="dark"] .pm-page .titlebar,
+body[data-theme="dark"] #modal-sp .modal-header {
+    background: linear-gradient(180deg,#541921 0%,#381116 100%) !important;
+}
+
+/* ==========================================================================
+   AJUSTE COMPACTO V2
+   Reduce altura/espacios sin volver microscópica la interfaz.
+   Pensado para escritorio operativo como la captura enviada.
+   ========================================================================== */
+
+/* Ventana y encabezado */
+body:not([data-theme="dark"]) .pm-page.window {
+    width: calc(100% - 10px) !important;
+    margin: 5px auto 8px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .titlebar {
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 7px 11px !important;
+    margin-bottom: 5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-main-title {
+    font-size: 14px !important;
+}
+
+/* Barra superior */
+body:not([data-theme="dark"]) .pm-page .pm-topbar {
+    min-height: 36px !important;
+    margin-bottom: 5px !important;
+    padding: 4px 6px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-top-actions {
+    gap: 4px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .pm-top-actions .pm-btn {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 9px !important;
+    font-size: 10.5px !important;
+}
+
+/* Secciones */
+body:not([data-theme="dark"]) .pm-page .section {
+    margin-bottom: 5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section-title {
+    min-height: 31px !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .section-body {
+    padding: 6px !important;
+}
+
+/* Filtros: misma lectura, menos altura */
+body:not([data-theme="dark"]) .pm-page #filtros.pm-filters {
+    column-gap: 7px !important;
+    row-gap: 6px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .form-label {
+    margin-bottom: 3px !important;
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .form-control,
+body:not([data-theme="dark"]) .pm-page #filtros .form-select,
+body:not([data-theme="dark"]) .pm-page #filtros .btn-select-like {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 4px 8px !important;
+    font-size: 11.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros input::placeholder {
+    font-size: 10.5px !important;
+}
+
+/* Dropdowns compactos, pero cómodos */
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu {
+    padding: 5px !important;
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu .form-check {
+    min-height: 28px !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu .form-check-label,
+body:not([data-theme="dark"]) .pm-page #filtros .dropdown-menu li {
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #dd-sku-search {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 10.5px !important;
+}
+
+/* KPIs: el mayor ahorro vertical */
+body:not([data-theme="dark"]) .pm-page .pm-kpi-section > .section-body {
+    padding: 0 0 4px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpis-bar,
+body:not([data-theme="dark"]) .pm-page .kpis-main {
+    gap: 4px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-card {
+    min-height: 54px !important;
+    padding: 5px 6px !important;
+    border-radius: 3px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-title {
+    margin-bottom: 1px !important;
+    font-size: 8px !important;
+    line-height: 1.05 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .kpi-value {
+    font-size: 14px !important;
+    line-height: 1.05 !important;
+}
+
+/* Tabla principal: compacta vertical y horizontalmente sin sacrificar lectura */
+body:not([data-theme="dark"]) .pm-page .table-responsive-sticky {
+    height: calc(100vh - 325px) !important;
+    min-height: 420px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data {
+    min-width: 1680px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data thead th {
+    height: 35px !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tbody td {
+    height: 34px !important;
+    padding: 5px 6px !important;
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data tfoot th {
+    height: 34px !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+}
+
+/* Anchos un poco más contenidos */
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(1),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(1) {
+    width: 42px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(2),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(2) {
+    width: 92px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(3),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(3) {
+    width: 220px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page #tbl-data th:nth-child(n+4),
+body:not([data-theme="dark"]) .pm-page #tbl-data td:nth-child(n+4) {
+    width: 90px !important;
+}
+
+/* Detalle desplegable */
+body:not([data-theme="dark"]) .pm-page tr.detail-row td {
+    padding: 5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-head {
+    min-height: 29px !important;
+    padding: 5px 7px !important;
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-table,
+body:not([data-theme="dark"]) .pm-page .ped-table {
+    font-size: 10px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .detail-table th,
+body:not([data-theme="dark"]) .pm-page .detail-table td,
+body:not([data-theme="dark"]) .pm-page .ped-table th,
+body:not([data-theme="dark"]) .pm-page .ped-table td {
+    padding: 4px 5px !important;
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+}
+
+/* Chips y contenido lateral del detalle */
+body:not([data-theme="dark"]) .pm-page .ped-side-body {
+    padding: 4px !important;
+    min-height: 150px !important;
+}
+
+body:not([data-theme="dark"]) .pm-page .ped-chip {
+    padding: 2px 5px !important;
+    font-size: 9.5px !important;
+}
+
+/* Status */
+body:not([data-theme="dark"]) .pm-page .statusbar {
+    min-height: 29px !important;
+    padding: 4px 7px !important;
+    font-size: 9.5px !important;
+}
+
+/* Modal: compactar ligeramente, no tanto como la pantalla principal */
+body:not([data-theme="dark"]) #modal-sp .modal-header {
+    min-height: 43px !important;
+    padding: 7px 10px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-title {
+    font-size: 14px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-body {
+    padding: 8px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .modal-body > .row.g-2.mb-2:first-child {
+    margin-bottom: 7px !important;
+    padding: 7px !important;
+    gap: 7px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .form-label {
+    margin-bottom: 3px !important;
+    font-size: 10.5px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .form-control,
+body:not([data-theme="dark"]) #modal-sp .form-select,
+body:not([data-theme="dark"]) #modal-sp .btn-select-like {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpis-bar {
+    gap: 5px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-card {
+    min-height: 55px !important;
+    padding: 5px 7px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-title {
+    font-size: 8px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp .sp-kpi-value {
+    font-size: 14px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid thead th {
+    height: 35px !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+}
+
+body:not([data-theme="dark"]) #modal-sp table.sap-grid tbody td {
+    height: 34px !important;
+    padding: 5px 6px !important;
+    font-size: 10.5px !important;
+}
+
+/* En pantallas medianas mantener legibilidad */
+@media (max-width: 1380px) {
+    body:not([data-theme="dark"]) .pm-page .kpis-main {
+        grid-template-columns: repeat(5, minmax(110px,1fr)) !important;
+    }
+}
+
+@media (max-width: 1150px) {
+    body:not([data-theme="dark"]) .pm-page .kpis-main {
+        grid-template-columns: repeat(4, minmax(110px,1fr)) !important;
+    }
+}

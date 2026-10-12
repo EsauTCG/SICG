@@ -435,7 +435,7 @@ ORDER BY s.Almacen, COUNT(1) DESC;",
             Directory.GetCurrentDirectory(),
             "wwwroot",
             "images",
-            "logoPDF.png"
+            "logoCubo.png"
         );
 
         byte[]? logoBytes = null;

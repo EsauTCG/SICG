@@ -1,0 +1,298 @@
+﻿@model Plataforma_CG.ViewModels.OrdenVentaDocumentoViewModel
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = $"Vista previa {Model.Consecutivo}";
+
+    string pdfUrl = Url.Action(
+        "OrdenVentaPdf",
+        "Comercial",
+        new { id = Model.Id }) ?? string.Empty;
+}
+
+<style>
+    .preview-page {
+        min-height: 100vh;
+        padding: 18px;
+        background: #e9edf2;
+    }
+
+    .preview-shell {
+        width: 100%;
+        max-width: 1500px;
+        margin: 0 auto;
+    }
+
+    .preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 16px 20px;
+        color: #fff;
+        background:
+            linear-gradient(
+                180deg,
+                #b30000 0%,
+                #8b0000 58%,
+                #5c0000 100%);
+        border: 1px solid #4a0000;
+    }
+
+    .preview-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 800;
+    }
+
+    .preview-subtitle {
+        margin: 4px 0 0;
+        color: #f5dede;
+        font-size: .9rem;
+    }
+
+    .preview-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .preview-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 38px;
+        padding: 7px 14px;
+        border: 1px solid rgba(255,255,255,.5);
+        background: #fff;
+        color: #5c0000;
+        font-weight: 700;
+        text-decoration: none;
+        transition: .15s ease;
+    }
+
+    .preview-btn:hover {
+        color: #8b0000;
+        background: #fff5f5;
+        transform: translateY(-1px);
+    }
+
+    .preview-btn-excel {
+        color: #126c3a;
+    }
+
+    .preview-btn-primary {
+        color: #fff;
+        border-color: #fff;
+        background: transparent;
+    }
+
+    .preview-btn-primary:hover {
+        color: #5c0000;
+        background: #fff;
+    }
+
+    .preview-summary {
+        display: grid;
+        grid-template-columns:
+            repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px;
+        background: #fff;
+        border: 1px solid #c9a3a3;
+        border-top: none;
+    }
+
+    .summary-item {
+        min-width: 0;
+        padding: 10px 12px;
+        background: #fffafa;
+        border: 1px solid #e0c4c4;
+    }
+
+    .summary-label {
+        display: block;
+        margin-bottom: 3px;
+        color: #8b0000;
+        font-size: .72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .summary-value {
+        display: block;
+        overflow: hidden;
+        color: #222;
+        font-size: .95rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .preview-document {
+        height: calc(100vh - 245px);
+        min-height: 620px;
+        margin-top: 12px;
+        background: #525659;
+        border: 1px solid #777;
+        box-shadow: 0 12px 30px rgba(0,0,0,.18);
+    }
+
+    .preview-document iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #525659;
+    }
+
+    .preview-mobile-link {
+        display: none;
+        padding: 20px;
+        text-align: center;
+        background: #fff;
+    }
+
+    @@media (max-width: 900px) {
+        .preview-page {
+            padding: 6px;
+        }
+
+        .preview-summary {
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+        }
+
+        .preview-actions {
+            width: 100%;
+        }
+
+        .preview-btn {
+            flex: 1 1 160px;
+        }
+
+        .preview-document {
+            height: calc(100vh - 360px);
+            min-height: 500px;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .preview-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .preview-document {
+            min-height: 440px;
+        }
+    }
+</style>
+
+<div class="preview-page">
+    <div class="preview-shell">
+
+        <div class="preview-header">
+            <div>
+                <h1 class="preview-title">
+                    Orden guardada correctamente
+                </h1>
+
+                <p class="preview-subtitle">
+                    @Model.Consecutivo ·
+                    Revisa el documento antes de continuar.
+                </p>
+            </div>
+
+            <div class="preview-actions">
+
+                <a asp-controller="Comercial"
+                   asp-action="OrdenVentaPdf"
+                   asp-route-id="@Model.Id"
+                   asp-route-descargar="true"
+                   class="preview-btn">
+                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                    Descargar PDF
+                </a>
+
+                <a asp-controller="Comercial"
+                   asp-action="OrdenVentaExcel"
+                   asp-route-id="@Model.Id"
+                   class="preview-btn preview-btn-excel">
+                    <i class="bi bi-file-earmark-excel-fill"></i>
+                    Descargar Excel
+                </a>
+
+                <a asp-controller="Comercial"
+                   asp-action="OrdenVentaPdf"
+                   asp-route-id="@Model.Id"
+                   target="_blank"
+                   class="preview-btn">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                    Abrir PDF
+                </a>
+
+                @if (Model.Siguiente == "nuevo")
+                {
+                    <a asp-controller="Comercial"
+                       asp-action="OrdenVenta"
+                       class="preview-btn preview-btn-primary">
+                        <i class="bi bi-plus-circle"></i>
+                        Crear nueva orden
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="Home"
+                       asp-action="Inicio"
+                       class="preview-btn preview-btn-primary">
+                        <i class="bi bi-house-door"></i>
+                        Ir al inicio
+                    </a>
+                }
+            </div>
+        </div>
+
+        <div class="preview-summary">
+
+            <div class="summary-item">
+                <span class="summary-label">Cliente</span>
+                <span class="summary-value"
+                      title="@Model.ClienteNombre">
+                    @Model.Cliente - @Model.ClienteNombre
+                </span>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">Vendedor</span>
+                <span class="summary-value">
+                    @Model.Vendedor
+                </span>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">Peso total</span>
+                <span class="summary-value">
+                    @Model.TotalPeso.ToString("N2") kg
+                </span>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">Importe total</span>
+                <span class="summary-value">
+                    @Model.TotalImporte.ToString("C2")
+                </span>
+            </div>
+
+        </div>
+
+        <div class="preview-document">
+            <iframe src="@($"{pdfUrl}#toolbar=1&navpanes=0&view=FitH")"
+                    title="Vista previa de la orden de venta">
+            </iframe>
+        </div>
+
+    </div>
+</div>

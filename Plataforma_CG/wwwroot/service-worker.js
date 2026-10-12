@@ -14,7 +14,7 @@
     - Las vistas protegidas solo se guardan si el servidor no devuelve login.
 */
 
-const SIGO_SW_VERSION = "2026-06-27-views-v1";
+const SIGO_SW_VERSION = "2026-09-10-inyecciones-integridad-v2";
 const CACHE_STATIC = "sigo-static-" + SIGO_SW_VERSION;
 const CACHE_PAGES = "sigo-pages-" + SIGO_SW_VERSION;
 const CACHE_DATA = "sigo-data-" + SIGO_SW_VERSION;
@@ -202,7 +202,7 @@ const STATIC_ASSETS = [
     "/images/filete.jpg",
     "/images/giba.png",
     "/images/ico_sigo.ico",
-    "/images/logoPDF.png",
+    "/images/logoCubo.png",
     "/images/logoTIF.png",
     "/images/logo_carnesg.png",
     "/images/logo_sigo_cg2_1.png",
@@ -253,6 +253,9 @@ const STATIC_ASSETS = [
 const NO_CACHE_EXACT = [
     "/Acceso/Login",
     "/Acceso/Logout",
+    "/api/Inyeccion/CapturarEntrada",
+    "/api/Inyeccion/Imprimir",
+    "/api/Inyeccion/BitacoraImpresiones",
     "/BasculaCamionera/Sync/Movimiento",
     "/BasculaCamionera/CatalogosOffline"
 ];

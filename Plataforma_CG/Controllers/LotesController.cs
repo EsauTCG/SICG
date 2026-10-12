@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Plataforma_CG.AccesoDatos.Operaciones;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -9,10 +10,12 @@ namespace Plataforma_CG.Controllers
     public class LotesController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly InyeccionAPI _api;
 
-        public LotesController(IHttpClientFactory httpClientFactory)
+        public LotesController(IHttpClientFactory httpClientFactory, InyeccionAPI api)
         {
             _httpClientFactory = httpClientFactory;
+            _api = api;
         }
 
         [HttpGet("Listar")]
@@ -21,7 +24,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 var client = _httpClientFactory.CreateClient();
-                var response = await client.GetAsync("http://10.1.1.2:252/Lote/ListarLotePlaneacion");
+                var response = await client.GetAsync($"{_api.BaseUrl}Lote/ListarLotePlaneacion");
 
                 if (!response.IsSuccessStatusCode)
                 {

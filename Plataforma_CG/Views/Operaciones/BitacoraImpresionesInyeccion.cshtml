@@ -1,0 +1,133 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Bitácora de impresiones de Inyección";
+}
+
+<link rel="stylesheet" href="~/css/inyeccion-bitacora.css" asp-append-version="true" />
+
+<main class="iny-log-page">
+    <header class="iny-log-header">
+        <div>
+            <span class="iny-log-kicker">INYECCIONES · AUDITORÍA</span>
+            <h1>Bitácora de etiquetas enviadas</h1>
+            <p>Consulta el ZPL exacto que SIGO intentó enviar y, cuando sea necesario, reimprime ese mismo contenido.</p>
+        </div>
+        <div class="iny-log-header-actions">
+            <span class="iny-log-readonly">Consulta y reimpresión</span>
+            <a class="iny-log-back" href="/Operaciones/Inyecciones">
+                <span aria-hidden="true">←</span>
+                Volver a Inyecciones
+            </a>
+        </div>
+    </header>
+
+    <section class="iny-log-card iny-log-filters" aria-label="Filtros de bitácora">
+        <label>
+            Desde
+            <input id="logDesde" type="date" />
+        </label>
+        <label>
+            Hasta
+            <input id="logHasta" type="date" />
+        </label>
+        <label>
+            SKU
+            <input id="logSku" type="search" maxlength="20" placeholder="Ej. N060" />
+        </label>
+        <label>
+            Producto
+            <input id="logProducto" type="search" maxlength="100" placeholder="Ej. Pecho" />
+        </label>
+        <label>
+            Estado
+            <select id="logEstado">
+                <option value="">Todos</option>
+                <option value="ENVIADO">Enviado</option>
+                <option value="ERROR">Error</option>
+                <option value="PENDIENTE">Pendiente</option>
+            </select>
+        </label>
+        <button id="btnConsultarBitacora" type="button">Consultar</button>
+    </section>
+
+    <section class="iny-log-summary" aria-live="polite">
+        <span id="logResumen">Preparando consulta…</span>
+        <small>Las fechas se muestran en la hora local de esta terminal.</small>
+    </section>
+
+    <section class="iny-log-card iny-log-table-wrap">
+        <table class="iny-log-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Entrada / folio</th>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Lote</th>
+                    <th>Peso / tara</th>
+                    <th>Impresora</th>
+                    <th>Usuario</th>
+                    <th>Tipo</th>
+                    <th>Huella</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="logFilas">
+                <tr class="iny-log-empty-row"><td colspan="12" class="iny-log-empty">Cargando…</td></tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<dialog id="logPayloadDialog" class="iny-log-dialog">
+    <header>
+        <div>
+            <strong id="logPayloadTitulo">Payload ZPL</strong>
+            <small id="logPayloadMeta"></small>
+        </div>
+        <button id="btnCerrarPayload" type="button" aria-label="Cerrar">×</button>
+    </header>
+    <p id="logPayloadMensaje"></p>
+    <pre id="logPayloadContenido"></pre>
+    <footer>
+        <button id="btnCopiarPayload" type="button">Copiar ZPL</button>
+        <button id="btnCerrarPayloadFooter" type="button">Cerrar</button>
+    </footer>
+</dialog>
+
+<dialog id="logReprintDialog" class="iny-log-dialog iny-log-reprint-dialog">
+    <header>
+        <div>
+            <strong>Reimprimir ZPL guardado</strong>
+            <small id="logReprintMeta"></small>
+        </div>
+        <button id="btnCerrarReimpresion" type="button" aria-label="Cerrar">×</button>
+    </header>
+    <form id="logReprintForm">
+        <p>
+            Se enviará exactamente el ZPL histórico después de validar su huella SHA-256.
+            El resultado quedará como un nuevo registro de reimpresión.
+        </p>
+        <label for="logReprintIp">
+            Impresora
+            <input id="logReprintIp"
+                   name="ipImpresora"
+                   type="text"
+                   list="logPrinterIps"
+                   maxlength="64"
+                   autocomplete="off"
+                   placeholder="Ej. 10.1.1.45"
+                   required />
+            <small>Seleccione una dirección usada anteriormente o capture otra.</small>
+        </label>
+        <datalist id="logPrinterIps"></datalist>
+        <p id="logReprintEstado" class="iny-log-reprint-status" role="status" aria-live="polite"></p>
+        <footer>
+            <button id="btnConfirmarReimpresion" type="submit">Enviar a impresora</button>
+            <button id="btnCancelarReimpresion" type="button">Cancelar</button>
+        </footer>
+    </form>
+</dialog>
+
+<script src="~/js/inyeccion-bitacora.js" asp-append-version="true"></script>

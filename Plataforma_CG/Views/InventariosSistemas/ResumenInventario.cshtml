@@ -1,0 +1,803 @@
+﻿@model Plataforma_CG.Models.ResumenInventarioViewModel
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Tablero Gerencial de Inventario";
+}
+
+@functions {
+    string M(decimal v) => v.ToString("C0", new System.Globalization.CultureInfo("es-MX"));
+
+    string Barra(int enUso, int sinUso)
+    {
+        int total = enUso + sinUso;
+        if (total == 0) return "<div class='bar-enuso' style='width:100%'></div>";
+        double pct = enUso * 100.0 / total;
+        var a = "<div class='bar-enuso' style='width:" + pct.ToString("0") + "%'></div>";
+        var b = "<div class='bar-sinuso' style='width:" + (100 - pct).ToString("0") + "%'></div>";
+
+        return a + b;
+    }
+}
+
+<style>
+    .resumen-app,
+    .resumen-modal {
+        --brand: #7a0b0b;
+        --brand-dark: #4a0e0e;
+        --panel: #ffffff;
+        --panel-soft: #f8f3f3;
+        --border: #e7dcdb;
+        --muted: #6b6f76;
+        --text: #2c2c2c;
+        --amber: #e3a93b;
+        --red: #c0392b;
+    }
+
+    /* Soporte modo oscuro */
+    body[data-theme="dark"] .resumen-app,
+    body[data-theme="dark"] .resumen-modal {
+        --brand: #d04549;
+        --brand-dark: #b91c1c;
+        --panel: #1b2431;
+        --panel-soft: #222d3c;
+        --border: #394554;
+        --muted: #9aa4b2;
+        --text: #e6edf3;
+        --amber: #e3b341;
+        --red: #f85149;
+    }
+
+    .resumen-app {
+        background: transparent;
+        color: var(--text);
+    }
+
+    .resumen-banner {
+        background: linear-gradient(180deg, #5a171d 0%, #481318 52%, #351014 100%);
+        color: #fff;
+        border: 1px solid #351014;
+        border-radius: 3px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+        .resumen-banner h2 {
+            font-size: 1rem;
+            font-weight: 800;
+            margin: 0;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+
+        .resumen-banner p {
+            font-size: 0.75rem;
+            color: #eadbdd;
+            margin: 2px 0 0;
+        }
+
+        .resumen-banner .btn-volver {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            border-radius: 3px;
+            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+            .resumen-banner .btn-volver:hover {
+                background: rgba(255, 255, 255, 0.12);
+                border-color: #fff;
+                color: #fff;
+            }
+
+    .resumen-filtro {
+        min-width: 180px;
+        font-size: 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 3px 6px;
+        background-color: var(--panel);
+        color: var(--text);
+    }
+
+    .resumen-card {
+        background-color: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1.1rem 1.25rem;
+        height: 100%;
+        box-shadow: 0 1px 3px rgba(74, 14, 14, 0.06);
+    }
+
+        .resumen-card h5 {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--brand-dark);
+            margin-bottom: 0.15rem;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .resumen-card .card-sub {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+
+    .resumen-kpi {
+        background-color: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        border-left: 4px solid var(--brand);
+        height: 100%;
+        box-shadow: 0 1px 3px rgba(74, 14, 14, 0.06);
+    }
+
+        .resumen-kpi .kpi-num {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--brand);
+            line-height: 1.05;
+        }
+
+        .resumen-kpi .kpi-lbl {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            font-weight: 700;
+            margin-top: 0.2rem;
+        }
+
+    .item-dash {
+        margin-bottom: 1rem;
+    }
+
+    .item-dash-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.3rem;
+    }
+
+    .item-dash .count {
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+
+    .item-dash .importe {
+        color: var(--brand-dark);
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+
+    .bar-thin {
+        height: 6px;
+        background-color: var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+        display: flex;
+    }
+
+    .bar-enuso {
+        background: linear-gradient(90deg, #7a0b0b, #b03030);
+        height: 100%;
+    }
+
+    .bar-sinuso {
+        background-color: var(--amber);
+        height: 100%;
+    }
+
+    .leyenda {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-bottom: 0.9rem;
+    }
+
+        .leyenda .dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+    .dot-enuso {
+        background: linear-gradient(90deg, #7a0b0b, #b03030);
+    }
+
+    .dot-sinuso {
+        background-color: var(--amber);
+    }
+
+    .resumen-table {
+        width: 100%;
+        font-size: 0.82rem;
+        color: var(--text);
+        margin-bottom: 0;
+    }
+
+        .resumen-table th {
+            color: var(--muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.68rem;
+            letter-spacing: 0.4px;
+            border-bottom: 2px solid var(--border);
+            padding: 0.4rem 0.6rem;
+        }
+
+        .resumen-table td {
+            border-bottom: 1px solid var(--border);
+            padding: 0.55rem 0.6rem;
+            background-color: transparent !important;
+        }
+
+        .resumen-table tbody tr:hover td {
+            background-color: var(--panel-soft) !important;
+        }
+
+        .resumen-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+    .badge-area {
+        background-color: var(--panel-soft);
+        color: var(--brand-dark);
+        font-weight: 700;
+    }
+
+    .dq-box {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.8rem;
+        text-align: center;
+        height: 100%;
+        background-color: var(--panel-soft);
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+        user-select: none;
+    }
+
+        .dq-box:hover, .dq-box:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(74, 14, 14, 0.15);
+            outline: none;
+        }
+
+        .dq-box .dq-num {
+            font-size: 1.4rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .dq-box .dq-lbl {
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 600;
+            margin: 0.15rem 0 0;
+            text-decoration: underline dotted;
+            text-underline-offset: 3px;
+        }
+
+        .dq-box.dq-red .dq-num {
+            color: var(--red);
+        }
+
+        .dq-box.dq-amber .dq-num {
+            color: var(--amber);
+        }
+
+        .dq-box.dq-red {
+            border-color: rgba(192, 57, 43, 0.35);
+            background-color: rgba(192, 57, 43, 0.06);
+        }
+
+        .dq-box.dq-amber {
+            border-color: rgba(227, 169, 59, 0.4);
+            background-color: rgba(227, 169, 59, 0.08);
+        }
+
+    .resumen-footer {
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-align: center;
+        margin-top: 1.1rem;
+    }
+
+    .drill-link {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        transition: opacity 0.12s ease;
+    }
+
+        .drill-link:hover {
+            opacity: 0.82;
+        }
+
+    .kpi-link {
+        display: block;
+        text-decoration: none;
+    }
+
+    .badge-motivo {
+        background-color: var(--panel-soft);
+        color: var(--brand-dark);
+        font-size: 0.68rem;
+        font-weight: 700;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 2px 6px;
+        white-space: nowrap;
+    }
+
+    /* Modal general */
+    .resumen-modal .modal-content {
+        background-color: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+    }
+
+    .resumen-modal .modal-title {
+        font-weight: 800;
+        font-size: 1rem;
+        color: var(--brand-dark);
+    }
+
+    .resumen-modal .btn-close {
+        filter: none;
+    }
+
+    .resumen-modal .modal-body {
+        max-height: 65vh;
+        overflow-y: auto;
+    }
+
+    .resumen-modal .tabla-detalle {
+        width: 100%;
+        font-size: 0.76rem;
+        color: var(--text);
+    }
+
+        .resumen-modal .tabla-detalle th {
+            position: sticky;
+            top: 0;
+            background-color: var(--panel);
+            color: var(--muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.62rem;
+            letter-spacing: 0.4px;
+            border-bottom: 2px solid var(--border);
+            padding: 0.4rem 0.5rem;
+            white-space: nowrap;
+            z-index: 1;
+        }
+
+        .resumen-modal .tabla-detalle td {
+            border-bottom: 1px solid var(--border);
+            padding: 0.45rem 0.5rem;
+            vertical-align: top;
+        }
+
+        .resumen-modal .tabla-detalle tbody tr:hover td {
+            background-color: var(--panel-soft);
+        }
+
+        .resumen-modal .tabla-detalle .cel-id {
+            width: 42px;
+            color: var(--muted);
+        }
+</style>
+
+<div class="resumen-app container-fluid py-3">
+    <div class="resumen-banner">
+        <div>
+            <h2>Tablero Gerencial de Inventario</h2>
+            <p>Valor, distribución y calidad del dato</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label class="me-1" style="font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #eadbdd; margin: 0;">Filtros:</label>
+
+            <select class="form-select resumen-filtro" id="filtroPlantaSel" onchange="aplicarFiltrosDashboard()">
+                <option value="" selected="@(Model.Planta == "")">Todas las plantas</option>
+                @foreach (var p in Model.Plantas)
+                {
+                    <option value="@p" selected="@(Model.Planta == p)">@p</option>
+                }
+            </select>
+
+            <select class="form-select resumen-filtro" id="filtroAreaSel" onchange="aplicarFiltrosDashboard()">
+                <option value="" selected="@(Model.Area == "")">Todas las áreas</option>
+                @foreach (var a in Model.Areas)
+                {
+                    <option value="@a" selected="@(Model.Area == a)">@a</option>
+                }
+            </select>
+
+            <a href="@Url.Action("InventariosSis")" class="btn-volver" title="Regresar a Inventario Sistemas">
+                Volver a Inventario
+            </a>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        @{
+            var filtroPlanta = Model.Planta == "" ? (string)null : Model.Planta;
+        }
+        <div class="col-6 col-lg-3">
+            <a href="@Url.Action("InventariosSis", new { planta = filtroPlanta })" class="resumen-kpi kpi-link" title="Ver todos los registros">
+                <div class="kpi-num">@Model.TotalRegistros</div>
+                <div class="kpi-lbl">Registros</div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="@Url.Action("InventariosSis", new { planta = filtroPlanta })" class="resumen-kpi kpi-link" title="Ver el inventario completo">
+                <div class="kpi-num">@M(Model.TotalValor)</div>
+                <div class="kpi-lbl">Valor del inventario</div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="@Url.Action("InventariosSis", new { planta = filtroPlanta, tipo = "Activo Fijo" })" class="resumen-kpi kpi-link" title="Ver equipos de activo fijo">
+                <div class="kpi-num">@Model.TotalEquipos</div>
+                <div class="kpi-lbl">Equipos (activo fijo)</div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <a href="@Url.Action("InventariosSis", new { planta = filtroPlanta, estado = "disponible" })" class="resumen-kpi kpi-link" style="border-left-color: var(--amber);" title="Ver los artículos sin uso">
+                <div class="kpi-num" style="color: var(--amber);">@Model.SinUso</div>
+                <div class="kpi-lbl">Sin uso aparente</div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Dónde está el dinero -->
+        <div class="col-lg-6">
+            <div class="resumen-card">
+                <h5>Dónde está el dinero</h5>
+                <p class="card-sub">Valor por tipo de activo.</p>
+
+                <div class="leyenda">
+                    <span class="me-3"><i class="dot dot-enuso"></i>En uso o asignado</span>
+                    <span><i class="dot dot-sinuso"></i>Sin uso aparente</span>
+                </div>
+
+                @foreach (var tipo in Model.PorTipo)
+                {
+                    <a class="drill-link" href="javascript:void(0);" onclick="abrirDetalleGeneral('TipoArticulo', '@tipo.Nombre', 'Categoría: @tipo.Nombre')" title="Ver registros">
+                        <div class="item-dash">
+                            <div class="item-dash-header">
+                                <span>@tipo.Nombre <span class="count">@tipo.Registros reg. · @tipo.EnUso en uso</span></span>
+                                <span class="importe">@M(tipo.Valor)</span>
+                            </div>
+                            <div class="bar-thin">
+                                @Html.Raw(Barra(tipo.EnUso, tipo.SinUso))
+                            </div>
+                        </div>
+                    </a>
+                }
+                @if (Model.PorTipo.Count == 0)
+                {
+                    <p class="text-center" style="color: var(--muted);">Sin datos para la planta seleccionada.</p>
+                }
+            </div>
+        </div>
+
+        <!-- Distribución por planta -->
+        <div class="col-lg-6">
+            <div class="resumen-card">
+                <h5>Distribución por planta</h5>
+                <p class="card-sub">Valor y equipos de cómputo en cada planta.</p>
+
+                <div class="leyenda">
+                    <span class="me-3"><i class="dot dot-enuso"></i>En uso o asignado</span>
+                    <span><i class="dot dot-sinuso"></i>Sin uso aparente</span>
+                </div>
+
+                @foreach (var planta in Model.PorPlanta)
+                {
+                    <a class="drill-link" href="javascript:void(0);" onclick="abrirDetalleGeneral('Planta', '@planta.Nombre', 'Planta: @planta.Nombre')" title="Ver registros">
+                        <div class="item-dash">
+                            <div class="item-dash-header">
+                                <span>@planta.Nombre <span class="count">@planta.Equipos equipos</span></span>
+                                <span class="importe">@M(planta.Valor)</span>
+                            </div>
+                            <div class="bar-thin">
+                                @Html.Raw(Barra(planta.EnUso, planta.SinUso))
+                            </div>
+                        </div>
+                    </a>
+                }
+            </div>
+        </div>
+
+        <!-- Top Activos sin uso -->
+        <div class="col-lg-6">
+            <div class="resumen-card">
+                <h5>Activo sin uso de mayor valor</h5>
+                <p class="card-sub">Candidatos a reasignar antes de comprar.</p>
+
+                @foreach (var activo in Model.TopActivosSinUso)
+                {
+                    <div class="item-dash border-bottom pb-2 mb-2" style="border-color: var(--border) !important;">
+                        <div class="item-dash-header mb-1">
+                            <span class="sigo-text text-truncate" style="max-width: 75%; text-transform: uppercase;">@activo.Nombre</span>
+                            <span class="importe">@M(activo.Valor)</span>
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--muted);">
+                            @(string.IsNullOrEmpty(activo.SapCodigo) ? "SIN SAP" : activo.SapCodigo), @activo.Ubicacion
+                        </div>
+                    </div>
+                }
+                @if (Model.TopActivosSinUso.Count == 0)
+                {
+                    <p class="text-center mt-4" style="color: var(--muted);">Todos los activos están en uso.</p>
+                }
+            </div>
+        </div>
+
+        <!-- Proveedores -->
+        <div class="col-lg-6">
+            <div class="resumen-card">
+                <h5>Proveedores</h5>
+                <p class="card-sub">Participación en el valor registrado.</p>
+
+                @foreach (var prov in Model.PorProveedor)
+                {
+                    double pct = Model.TotalValor > 0 ? (double)(prov.Valor * 100 / Model.TotalValor) : 0;
+                    <a class="drill-link" href="javascript:void(0);" onclick="abrirDetalleGeneral('Proveedor', '@prov.Nombre', 'Proveedor: @prov.Nombre')" title="Ver registros">
+                        <div class="item-dash">
+                            <div class="item-dash-header">
+                                <span>@prov.Nombre <span class="count ms-2">@pct.ToString("0")%</span></span>
+                                <span class="importe">@M(prov.Valor)</span>
+                            </div>
+                            <div class="bar-thin">
+                                <div class="bar-enuso" style="width: @pct.ToString("0.##", new System.Globalization.CultureInfo("en-US"))%"></div>
+                            </div>
+                        </div>
+                    </a>
+                }
+                @if (Model.PorProveedor.Count == 0)
+                {
+                    <p class="text-center mt-4" style="color: var(--muted);">Sin proveedores registrados.</p>
+                }
+            </div>
+        </div>
+
+        <!-- Distribución por área -->
+        <div class="col-12">
+            <div class="resumen-card">
+                <h5>Distribución por área</h5>
+                <p class="card-sub">Compara valor y equipos de cómputo para detectar áreas sobreequipadas o con faltantes.</p>
+
+                <div class="table-responsive">
+                    <table class="resumen-table">
+                        <thead>
+                            <tr>
+                                <th>Área</th>
+                                <th class="text-end">Valor</th>
+                                <th class="text-center">Cómputo</th>
+                                <th class="text-end">Sin uso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var area in Model.PorArea)
+                            {
+                                <tr>
+                                    <td><span class="badge-area rounded px-2 py-1">@area.Nombre</span></td>
+                                    <td class="text-end fw-semibold">@M(area.Valor)</td>
+                                    <td class="text-center">@(area.Computo > 0 ? area.Computo.ToString() : "—")</td>
+                                    <td class="text-end @(area.SinUsoValor > 0 ? "text-warning fw-bold" : "")">
+                                        @(area.SinUsoValor > 0 ? M(area.SinUsoValor) : "—")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calidad del dato -->
+        <div class="col-lg-9 mx-auto">
+            <div class="resumen-card">
+                <h5>Calidad del dato</h5>
+                <p class="card-sub">Clic en una métrica para ver los registros afectados.</p>
+
+                <div class="row g-3">
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-red" role="button" tabindex="0" onclick="abrirDetalleCalidad('serie')">
+                            <p class="dq-num">@Model.SerieIpRepetida</p>
+                            <p class="dq-lbl">Serie o IP repetida</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-red" role="button" tabindex="0" onclick="abrirDetalleCalidad('costo')">
+                            <p class="dq-num">@Model.CostoDudoso</p>
+                            <p class="dq-lbl">Costo o stock dudoso</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-amber" role="button" tabindex="0" onclick="abrirDetalleCalidad('planta')">
+                            <p class="dq-num">@Model.SinPlantaUbicacion</p>
+                            <p class="dq-lbl">Sin planta o ubicación</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-red" role="button" tabindex="0" onclick="abrirDetalleCalidad('sap')">
+                            <p class="dq-num">@Model.SapRepetido</p>
+                            <p class="dq-lbl">Código SAP repetido</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-amber" role="button" tabindex="0" onclick="abrirDetalleCalidad('serie_nula')">
+                            <p class="dq-num">@Model.EquipoSinSerie</p>
+                            <p class="dq-lbl">Equipo sin serie</p>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="dq-box dq-amber" role="button" tabindex="0" onclick="abrirDetalleCalidad('responsiva')">
+                            <p class="dq-num">@Model.SinResponsiva</p>
+                            <p class="dq-lbl">Sin responsiva registrada</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal unificado de listado -->
+<div class="modal fade resumen-modal" id="modalDetalleCalidad" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" id="modalCalidadTitulo">Registros</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <table class="tabla-detalle">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>SAP</th>
+                            <th>Nombre</th>
+                            <th>Serie</th>
+                            <th>Planta</th>
+                            <th>Ubicación</th>
+                            <th>Asignación</th>
+                            <th class="text-end">Costo</th>
+                            <th id="thColExtra">Dato Extra</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalCalidadCuerpo"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer border-0">
+                <a href="@Url.Action("InventariosSis")" class="btn btn-sm btn-primary" style="background-color: var(--brand); border-color: var(--brand);">Ir a Inventario</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ESTA FUNCIÓN DEBE SER GLOBAL PARA QUE EL HTML LA ENCUENTRE
+    function aplicarFiltrosDashboard() {
+        var planta = document.getElementById("filtroPlantaSel").value;
+        var area = document.getElementById("filtroAreaSel").value;
+
+        // Construir URL con parámetros
+        var url = '@Url.Action("ResumenInventario")' +
+                  '?planta=' + encodeURIComponent(planta) +
+                  '&area=' + encodeURIComponent(area);
+
+        location.href = url;
+    }
+
+    // LÓGICA PRIVADA PARA EL MODAL (Encapsulada)
+    (function () {
+        var CALIDAD = {
+            serie: { titulo: "Serie o IP repetida", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleSerieIp)) },
+            costo: { titulo: "Costo o stock dudoso", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleCosto)) },
+            planta: { titulo: "Sin planta o ubicación", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleSinPlanta)) },
+            sap: { titulo: "Código SAP repetido", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleSap)) },
+            serie_nula: { titulo: "Equipo sin serie", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleSinSerie)) },
+            responsiva: { titulo: "Sin responsiva registrada", filas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DetalleSinResponsiva)) }
+        };
+
+        var TODOS_LOS_ARTICULOS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TodosLosArticulos));
+
+        function esc(s) {
+            s = s || "";
+            return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        function dinero(v) {
+            try {
+                return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v || 0);
+            } catch (e) {
+                return "$" + (v || 0);
+            }
+        }
+
+        function generarFilasHtml(datos, propiedadExtra) {
+            var html = datos.map(function (d) {
+                var extraDato = d.Clave ? d.Clave : (d[propiedadExtra] || "—");
+
+                return "<tr>" +
+                    "<td class='cel-id'>" + esc(d.Id) + "</td>" +
+                    "<td class='fw-semibold'>" + esc(d.Sap) + "</td>" +
+                    "<td>" + esc(d.Nombre) + "</td>" +
+                    "<td>" + (d.Serie ? esc(d.Serie) : "—") + "</td>" +
+                    "<td>" + (d.Planta ? esc(d.Planta) : "—") + "</td>" +
+                    "<td>" + (d.Ubicacion ? esc(d.Ubicacion) : "—") + "</td>" +
+                    "<td>" + (d.Asignacion ? esc(d.Asignacion) : "—") + "</td>" +
+                    "<td class='text-end'>" + dinero(d.Costo) + "</td>" +
+                    "<td><span class='badge-motivo'>" + esc(extraDato) + "</span></td>" +
+                    "</tr>";
+            }).join("");
+
+            return html || "<tr><td colspan='9' class='text-center py-4' style='color:var(--muted);'>Sin registros</td></tr>";
+        }
+
+        function mostrarModal() {
+            var m = document.getElementById("modalDetalleCalidad");
+            if (window.bootstrap && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(m).show();
+            } else {
+                m.style.display = "block";
+            }
+        }
+
+        window.abrirDetalleCalidad = function (clave) {
+            var bloque = CALIDAD[clave];
+            if (!bloque) return;
+
+            document.getElementById("modalCalidadTitulo").textContent = bloque.titulo + " (" + bloque.filas.length + ")";
+            document.getElementById("thColExtra").textContent = "Motivo";
+            document.getElementById("modalCalidadCuerpo").innerHTML = generarFilasHtml(bloque.filas, "Clave");
+
+            mostrarModal();
+        };
+
+        window.abrirDetalleGeneral = function (campoFiltro, valorBuscado, titulo) {
+            var datosFiltrados = TODOS_LOS_ARTICULOS.filter(function(d) {
+                var valorActual = (d[campoFiltro] || "").trim();
+
+                if (campoFiltro === "Proveedor" && valorBuscado === "Sin proveedor capturado") return valorActual === "";
+                if (campoFiltro === "Planta" && valorBuscado === "Sin planta") return valorActual === "";
+
+                return valorActual.toUpperCase() === valorBuscado.toUpperCase();
+            });
+
+            document.getElementById("modalCalidadTitulo").textContent = titulo + " (" + datosFiltrados.length + ")";
+            document.getElementById("thColExtra").textContent = campoFiltro;
+            document.getElementById("modalCalidadCuerpo").innerHTML = generarFilasHtml(datosFiltrados, campoFiltro);
+
+            mostrarModal();
+        };
+    })();
+</script>

@@ -2,6 +2,7 @@
 using Microsoft.Data.SqlClient;
 using Dapper;
 using System.Text.Json;
+using Plataforma_CG.AccesoDatos.Operaciones;
 
 namespace Plataforma_CG.Controllers
 {
@@ -12,12 +13,14 @@ namespace Plataforma_CG.Controllers
         private readonly IConfiguration _config;
         private readonly ILogger<ComparacionController> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly InyeccionAPI _api;
 
-        public ComparacionController(IConfiguration config, ILogger<ComparacionController> logger, IHttpClientFactory httpClientFactory)
+        public ComparacionController(IConfiguration config, ILogger<ComparacionController> logger, IHttpClientFactory httpClientFactory, InyeccionAPI api)
         {
             _config = config;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _api = api;
         }
 
         [HttpGet]
@@ -38,7 +41,7 @@ namespace Plataforma_CG.Controllers
 
                 // 2. Datos de API externa (después de inyección)
                 var http = _httpClientFactory.CreateClient();
-                var url = $"http://10.1.1.2:252/Reporte/Consultar?fechaIn={fechaIn:yyyyMMdd}&fechaFin={fechaFin:yyyyMMdd}";
+                var url = $"{_api.BaseUrl}Reporte/Consultar?fechaIn={fechaIn:yyyyMMdd}&fechaFin={fechaFin:yyyyMMdd}";
                 var response = await http.GetStringAsync(url);
 
                 var apiData = JsonSerializer.Deserialize<List<ApiRegistro>>(response, new JsonSerializerOptions

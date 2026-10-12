@@ -1,0 +1,4173 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Control de Compras TI";
+}
+
+@Html.AntiForgeryToken()
+
+<style>
+    :root {
+        --cti-wine: #7a1014;
+        --cti-wine-2: #a5151c;
+        --cti-wine-3: #4f080b;
+        --cti-rose: #f6e7e7;
+        --cti-rose-2: #ead0d1;
+        --cti-paper: #fffafa;
+        --cti-page: #e9edf2;
+        --cti-line: #d9b5b7;
+        --cti-ink: #301316;
+        --cti-muted: #765b5d;
+        --cti-green: #15803d;
+        --cti-green-bg: #dcfce7;
+        --cti-amber: #a16207;
+        --cti-amber-bg: #fef3c7;
+        --cti-red: #b91c1c;
+        --cti-red-bg: #fee2e2;
+        --cti-blue: #1d4ed8;
+        --cti-blue-bg: #dbeafe;
+        --cti-gray: #64748b;
+        --cti-gray-bg: #f1f5f9;
+        --cti-shadow: 0 14px 30px rgba(70, 12, 12, .13);
+    }
+
+    body {
+        background: var(--cti-page) !important;
+    }
+
+    .cti-app {
+        width: min(100%, 1900px);
+        margin: 0 auto;
+        padding: 10px;
+        color: var(--cti-ink);
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        font-size: 13px;
+    }
+
+        .cti-app *, .cti-app *::before, .cti-app *::after {
+            box-sizing: border-box;
+        }
+
+    .cti-hero {
+        margin-bottom: 12px;
+        padding: 18px;
+        color: #fff;
+        border: 1px solid #6d292c;
+        background: linear-gradient(180deg, var(--cti-wine-2), var(--cti-wine) 58%, var(--cti-wine-3));
+        box-shadow: var(--cti-shadow);
+    }
+
+    .cti-hero-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .cti-hero h1 {
+        margin: 0 0 3px;
+        font-size: 23px;
+        font-weight: 900;
+    }
+
+    .cti-hero p {
+        margin: 0;
+        opacity: .86;
+    }
+
+    .cti-hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .cti-btn {
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid var(--cti-line);
+        border-radius: 0;
+        background: linear-gradient(#fff, #f1dddd);
+        color: #4a171a;
+        font-weight: 800;
+        cursor: pointer;
+        transition: .16s ease;
+    }
+
+        .cti-btn:hover:not(:disabled) {
+            border-color: var(--cti-wine);
+            filter: brightness(.98);
+            transform: translateY(-1px);
+        }
+
+        .cti-btn:disabled {
+            opacity: .42;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+    .cti-btn-primary {
+        color: #fff;
+        border-color: #5e171a;
+        background: linear-gradient(180deg, #c1161e, var(--cti-wine), var(--cti-wine-3));
+    }
+
+    .cti-btn-light {
+        color: var(--cti-wine);
+        border-color: rgba(255,255,255,.5);
+        background: #fff;
+    }
+
+    .cti-btn-danger {
+        color: #fff;
+        border-color: #6f0d11;
+        background: linear-gradient(#c9333a, #8b1116);
+    }
+
+    .cti-btn-success {
+        color: #fff;
+        border-color: #116932;
+        background: linear-gradient(#22a65a, #13753c);
+    }
+
+    .cti-btn-sm {
+        min-height: 29px;
+        padding: 5px 8px;
+        font-size: 11px;
+    }
+
+    .cti-kpis {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(125px, 1fr));
+        gap: 9px;
+        margin-top: 16px;
+    }
+
+    .cti-kpi {
+        position: relative;
+        min-height: 90px;
+        overflow: hidden;
+        padding: 13px 15px;
+        border: 1px solid rgba(255,255,255,.25);
+        background: rgba(255,255,255,.12);
+        box-shadow: inset 4px 0 rgba(255,255,255,.18);
+        cursor: pointer;
+    }
+
+        .cti-kpi::after {
+            content: "";
+            position: absolute;
+            right: -32px;
+            bottom: -42px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.13);
+        }
+
+        .cti-kpi span, .cti-kpi strong {
+            position: relative;
+            z-index: 1;
+            display: block;
+        }
+
+        .cti-kpi span {
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            opacity: .92;
+        }
+
+        .cti-kpi strong {
+            margin-top: 8px;
+            font-size: 27px;
+            line-height: 1;
+        }
+
+        .cti-kpi.cti-alert {
+            background: linear-gradient(135deg, #b7791f, #d99a28, #8a4f05);
+        }
+
+        .cti-kpi.cti-danger {
+            background: linear-gradient(135deg, #b91c1c, #dc2626, #7f1d1d);
+        }
+
+        .cti-kpi.cti-ok {
+            background: linear-gradient(135deg, #157f49, #22a65a, #0f5132);
+        }
+
+        .cti-kpi.cti-blue {
+            background: linear-gradient(135deg, #1d4ed8, #2563eb, #1e3a8a);
+        }
+
+    .cti-toolbar {
+        display: grid;
+        grid-template-columns: minmax(260px, 2fr) minmax(180px, 1fr) minmax(120px, .6fr) auto auto;
+        gap: 8px;
+        align-items: end;
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid var(--cti-line);
+        background: #f1dede;
+    }
+
+    .cti-field label {
+        display: block;
+        margin-bottom: 3px;
+        color: #6a3a3a;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+    }
+
+    .cti-control {
+        width: 100%;
+        min-height: 37px;
+        padding: 7px 9px;
+        border: 1px solid #b48787;
+        border-radius: 0;
+        outline: 0;
+        background: var(--cti-paper);
+        color: #421414;
+        font: inherit;
+    }
+
+        .cti-control:focus {
+            border-color: var(--cti-wine);
+            box-shadow: 0 0 0 3px rgba(139,0,0,.1);
+        }
+
+    textarea.cti-control {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .cti-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(350px, 410px);
+        gap: 10px;
+    }
+
+    .cti-panel {
+        border: 1px solid var(--cti-line);
+        background: var(--cti-paper);
+        box-shadow: 0 5px 15px rgba(70,12,12,.05);
+    }
+
+    .cti-panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 11px 13px;
+        border-bottom: 1px solid var(--cti-line);
+        background: #f1dede;
+    }
+
+        .cti-panel-head h3 {
+            margin: 0;
+            color: #5c1a1a;
+            font-size: 13px;
+            font-weight: 900;
+        }
+
+        .cti-panel-head small {
+            color: var(--cti-muted);
+        }
+
+    .cti-table-wrap {
+        max-height: 66vh;
+        overflow: auto;
+    }
+
+    .cti-table {
+        width: 100%;
+        min-width: 1120px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 11px;
+    }
+
+        .cti-table th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            padding: 8px 7px;
+            border-right: 1px solid #8e3b3b;
+            background: linear-gradient(180deg, var(--cti-wine-2), var(--cti-wine), var(--cti-wine-3));
+            color: #fff;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .cti-table td {
+            padding: 8px 7px;
+            border-right: 1px solid #d8bcbc;
+            border-bottom: 1px solid #d8bcbc;
+            background: var(--cti-paper);
+            vertical-align: middle;
+        }
+
+        .cti-table tbody tr:nth-child(even) td {
+            background: #f9eded;
+        }
+
+        .cti-table tbody tr:hover td, .cti-table tbody tr.cti-selected td {
+            background: #f3dada;
+        }
+
+        .cti-table tbody tr {
+            cursor: pointer;
+        }
+
+    .cti-folio {
+        color: var(--cti-wine);
+        font-weight: 900;
+    }
+
+    .cti-money {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+    }
+
+    .cti-muted {
+        color: var(--cti-muted);
+    }
+
+    .cti-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border: 1px solid transparent;
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .cti-b-green {
+        color: #166534;
+        border-color: #86efac;
+        background: var(--cti-green-bg);
+    }
+
+    .cti-b-amber {
+        color: #854d0e;
+        border-color: #fde68a;
+        background: var(--cti-amber-bg);
+    }
+
+    .cti-b-red {
+        color: #991b1b;
+        border-color: #fca5a5;
+        background: var(--cti-red-bg);
+    }
+
+    .cti-b-blue {
+        color: #1e40af;
+        border-color: #93c5fd;
+        background: var(--cti-blue-bg);
+    }
+
+    .cti-b-gray {
+        color: #475569;
+        border-color: #cbd5e1;
+        background: var(--cti-gray-bg);
+    }
+
+    .cti-inspector-body {
+        max-height: 66vh;
+        overflow: auto;
+        padding: 12px;
+    }
+
+    .cti-empty {
+        padding: 55px 15px;
+        color: var(--cti-muted);
+        text-align: center;
+    }
+
+    .cti-exp-title {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--cti-line);
+    }
+
+        .cti-exp-title h4 {
+            margin: 0;
+            font-size: 15px;
+        }
+
+    .cti-summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-bottom: 11px;
+    }
+
+    .cti-summary {
+        min-width: 0;
+        padding: 8px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+    }
+
+        .cti-summary span {
+            display: block;
+            color: var(--cti-muted);
+            font-size: 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .cti-summary b {
+            display: block;
+            margin-top: 3px;
+            overflow-wrap: anywhere;
+            font-size: 11px;
+        }
+
+    .cti-section {
+        margin-top: 12px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+    }
+
+    .cti-section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 8px 9px;
+        border-bottom: 1px solid var(--cti-line);
+        background: #f7eaea;
+        color: var(--cti-wine);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .cti-section-body {
+        padding: 9px;
+    }
+
+    .cti-mini-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10px;
+    }
+
+        .cti-mini-table th, .cti-mini-table td {
+            padding: 6px;
+            border: 1px solid #e1c4c6;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .cti-mini-table th {
+            background: #f5e3e4;
+            color: #5c1a1a;
+        }
+
+    .cti-match {
+        margin-bottom: 11px;
+        padding: 10px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+    }
+
+        .cti-match h5 {
+            margin: 0 0 8px;
+            font-size: 11px;
+        }
+
+    .cti-match-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 5px 0;
+        border-bottom: 1px dashed #e3c7c8;
+    }
+
+        .cti-match-row:last-child {
+            border: 0;
+        }
+
+        .cti-match-row strong {
+            font-variant-numeric: tabular-nums;
+        }
+
+    .cti-notice {
+        margin-bottom: 9px;
+        padding: 9px 10px;
+        border-left: 4px solid;
+    }
+
+    .cti-notice-red {
+        border-color: var(--cti-red);
+        background: var(--cti-red-bg);
+        color: #7f1d1d;
+    }
+
+    .cti-notice-amber {
+        border-color: #d97706;
+        background: var(--cti-amber-bg);
+        color: #78350f;
+    }
+
+    .cti-notice-green {
+        border-color: var(--cti-green);
+        background: var(--cti-green-bg);
+        color: #14532d;
+    }
+
+    .cti-notice-blue {
+        border-color: var(--cti-blue);
+        background: var(--cti-blue-bg);
+        color: #1e3a8a;
+    }
+
+    .cti-action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-top: 12px;
+    }
+
+        .cti-action-grid .cti-wide {
+            grid-column: 1 / -1;
+        }
+
+    .cti-timeline {
+        margin-left: 7px;
+        padding-left: 14px;
+        border-left: 2px solid #c99b9e;
+    }
+
+    .cti-event {
+        position: relative;
+        margin-bottom: 13px;
+    }
+
+        .cti-event::before {
+            content: "";
+            position: absolute;
+            left: -20px;
+            top: 3px;
+            width: 10px;
+            height: 10px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            background: var(--cti-wine);
+            box-shadow: 0 0 0 1px var(--cti-line);
+        }
+
+        .cti-event b {
+            display: block;
+            font-size: 10px;
+        }
+
+        .cti-event small {
+            color: var(--cti-muted);
+            font-size: 9px;
+        }
+
+        .cti-event p {
+            margin: 3px 0 0;
+            font-size: 10px;
+            white-space: pre-wrap;
+        }
+
+    .cti-pager {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 7px;
+        padding: 9px;
+        border-top: 1px solid var(--cti-line);
+        background: #f8eeee;
+    }
+
+    .cti-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1055;
+        place-items: center;
+        overflow: auto;
+        padding: 14px;
+        background: rgba(30,5,7,.72);
+    }
+
+        .cti-modal-backdrop.cti-show {
+            display: grid;
+        }
+
+    .cti-modal {
+        width: min(940px, 100%);
+        max-height: calc(100vh - 28px);
+        overflow: auto;
+        border: 1px solid #7d4949;
+        background: #f7eaea;
+        box-shadow: 0 24px 70px rgba(0,0,0,.42);
+    }
+
+    .cti-modal-sm {
+        width: min(620px, 100%);
+    }
+
+    .cti-modal-lg {
+        width: min(1120px, 100%);
+    }
+
+    .cti-modal-head {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 12px 15px;
+        background: linear-gradient(180deg, var(--cti-wine-2), var(--cti-wine), var(--cti-wine-3));
+        color: #fff;
+    }
+
+        .cti-modal-head h3 {
+            margin: 0;
+            font-size: 14px;
+        }
+
+    .cti-modal-close {
+        border: 0;
+        background: transparent;
+        color: #fff;
+        font-size: 23px;
+        cursor: pointer;
+    }
+
+    .cti-modal-body {
+        padding: 14px;
+    }
+
+    .cti-modal-foot {
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 10px 14px;
+        border-top: 1px solid var(--cti-line);
+        background: #f7eaea;
+    }
+
+    .cti-form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .cti-span-2 {
+        grid-column: span 2;
+    }
+
+    .cti-span-3 {
+        grid-column: 1 / -1;
+    }
+
+    .cti-check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 37px;
+        padding: 7px 9px;
+        border: 1px solid #b48787;
+        background: #fffafa;
+    }
+
+    .cti-line-editor {
+        margin-top: 12px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+    }
+
+    .cti-line-editor-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--cti-line);
+        background: #f1dede;
+    }
+
+    .cti-line-row {
+        display: grid;
+        grid-template-columns: 125px minmax(140px, .8fr) minmax(250px, 2fr) 95px 85px 38px;
+        gap: 6px;
+        align-items: end;
+        padding: 8px;
+        border-bottom: 1px solid #ead0d1;
+    }
+
+        .cti-line-row:last-child {
+            border-bottom: 0;
+        }
+
+    .cti-search-box {
+        position: relative;
+    }
+
+    .cti-search-results {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        z-index: 20;
+        max-height: 220px;
+        overflow: auto;
+        border: 1px solid #9e6d70;
+        background: #fff;
+        box-shadow: 0 10px 22px rgba(70,12,12,.18);
+    }
+
+        .cti-search-results.cti-open {
+            display: block;
+        }
+
+    .cti-search-item {
+        padding: 8px 9px;
+        border-bottom: 1px solid #ead7d8;
+        cursor: pointer;
+    }
+
+        .cti-search-item:hover {
+            background: #f6e4e5;
+        }
+
+        .cti-search-item b {
+            display: block;
+            color: var(--cti-wine);
+        }
+
+        .cti-search-item small {
+            color: var(--cti-muted);
+        }
+
+    .cti-picker-control {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px;
+        align-items: stretch;
+    }
+
+        .cti-picker-control .cti-control[readonly] {
+            background: #fff !important;
+            cursor: pointer;
+        }
+
+    .cti-selection-card {
+        min-height: 42px;
+        margin-top: 6px;
+        padding: 8px 10px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+        color: var(--cti-muted);
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
+        .cti-selection-card strong {
+            color: var(--cti-wine);
+        }
+
+    .cti-modal-xl {
+        width: min(1280px, 100%);
+    }
+
+    .cti-picker-toolbar {
+        display: grid;
+        grid-template-columns: minmax(240px, 1fr) minmax(130px, 180px) auto;
+        gap: 8px;
+        align-items: end;
+        margin-bottom: 10px;
+    }
+
+    .cti-picker-table-wrap {
+        max-height: 58vh;
+        overflow: auto;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+    }
+
+    .cti-picker-table {
+        width: 100%;
+        min-width: 900px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 11px;
+    }
+
+        .cti-picker-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            padding: 8px;
+            border-right: 1px solid #8e3b3b;
+            background: linear-gradient(180deg, var(--cti-wine-2), var(--cti-wine), var(--cti-wine-3));
+            color: #fff;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .cti-picker-table td {
+            padding: 8px;
+            border-right: 1px solid #ead0d1;
+            border-bottom: 1px solid #ead0d1;
+            vertical-align: top;
+        }
+
+        .cti-picker-table tbody tr:hover td {
+            background: #f7e5e6;
+        }
+
+    .cti-picker-empty {
+        padding: 35px 15px !important;
+        color: var(--cti-muted);
+        text-align: center;
+    }
+
+    .cti-sap-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin: 2px 3px 2px 0;
+        padding: 2px 6px;
+        border: 1px solid #c5d5f5;
+        background: #eef4ff;
+        color: #1e4f9f;
+        font-size: 9px;
+        font-weight: 800;
+    }
+
+
+    .cti-doc-box {
+        margin-bottom: 10px;
+        padding: 14px;
+        border: 2px dashed #c79d9d;
+        background: #fffafa;
+        text-align: center;
+    }
+
+    .cti-compare {
+        width: 100%;
+        margin-top: 10px;
+        border-collapse: collapse;
+    }
+
+        .cti-compare th, .cti-compare td {
+            padding: 7px;
+            border: 1px solid var(--cti-line);
+            text-align: right;
+        }
+
+            .cti-compare th:first-child, .cti-compare td:first-child {
+                text-align: left;
+            }
+
+    .cti-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 1080;
+        display: none;
+        place-items: center;
+        background: rgba(255,255,255,.64);
+        backdrop-filter: blur(1px);
+    }
+
+        .cti-loading.cti-show {
+            display: grid;
+        }
+
+    .cti-loader-card {
+        min-width: 220px;
+        padding: 18px;
+        border: 1px solid var(--cti-line);
+        background: #fff;
+        box-shadow: var(--cti-shadow);
+        text-align: center;
+        font-weight: 900;
+    }
+
+    .cti-spinner {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        margin-bottom: 8px;
+        border: 3px solid #ead0d1;
+        border-top-color: var(--cti-wine);
+        border-radius: 50%;
+        animation: cti-spin .7s linear infinite;
+    }
+
+    @@keyframes cti-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .cti-toast-host {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 1100;
+        display: grid;
+        gap: 8px;
+        width: min(390px, calc(100vw - 32px));
+    }
+
+    .cti-toast {
+        padding: 11px 13px;
+        border: 1px solid;
+        background: #fff;
+        box-shadow: 0 12px 28px rgba(0,0,0,.18);
+        animation: cti-in .18s ease-out;
+    }
+
+    .cti-toast-success {
+        color: #14532d;
+        border-color: #86efac;
+        background: #ecfdf5;
+    }
+
+    .cti-toast-error {
+        color: #7f1d1d;
+        border-color: #fca5a5;
+        background: #fff1f2;
+    }
+
+    .cti-toast-info {
+        color: #1e3a8a;
+        border-color: #93c5fd;
+        background: #eff6ff;
+    }
+
+    @@keyframes cti-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+
+    .cti-hidden {
+        display: none !important;
+    }
+
+    @@media (max-width: 1450px) {
+        .cti-kpis {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .cti-workspace {
+            grid-template-columns: minmax(0, 1fr) 360px;
+        }
+    }
+
+    @@media (max-width: 1000px) {
+        .cti-toolbar {
+            grid-template-columns: 1fr 1fr;
+        }
+
+            .cti-toolbar .cti-search-main {
+                grid-column: 1 / -1;
+            }
+
+        .cti-workspace {
+            grid-template-columns: 1fr;
+        }
+
+        .cti-inspector-body {
+            max-height: none;
+        }
+
+        .cti-form-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .cti-span-3 {
+            grid-column: 1 / -1;
+        }
+
+        .cti-line-row {
+            grid-template-columns: 1fr 1fr;
+        }
+
+            .cti-line-row .cti-line-description {
+                grid-column: 1 / -1;
+            }
+    }
+
+    @@media (max-width: 600px) {
+        .cti-app {
+            padding: 5px;
+        }
+
+        .cti-kpis, .cti-toolbar, .cti-form-grid, .cti-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .cti-span-2, .cti-span-3 {
+            grid-column: auto;
+        }
+
+        .cti-hero-actions, .cti-hero-actions .cti-btn {
+            width: 100%;
+        }
+
+        .cti-action-grid {
+            grid-template-columns: 1fr;
+        }
+
+            .cti-action-grid .cti-wide {
+                grid-column: auto;
+            }
+
+        .cti-line-row {
+            grid-template-columns: 1fr;
+        }
+
+            .cti-line-row .cti-line-description {
+                grid-column: auto;
+            }
+    }
+
+    /* ============================================================
+               PANTALLA COMPLETA Y DISEÑO RESPONSIVO
+               ============================================================ */
+    html, body {
+        width: 100%;
+        min-height: 100%;
+        overflow-x: clip;
+    }
+
+    body {
+        margin: 0;
+    }
+
+    /*
+             * Full-bleed: rompe el límite de ancho del container del Layout
+             * sin depender de la resolución del monitor.
+             */
+    .cti-app {
+        position: relative;
+        /* Evita que el encabezado fijo de _Layout2 cubra la parte superior. */
+        top: var(--cti-header-clearance, 0px);
+        left: 50%;
+        width: 100dvw;
+        max-width: none;
+        min-height: calc(100dvh - var(--cti-top-offset, 0px));
+        margin: 0 0 0 -50dvw;
+        padding: clamp(6px, .7vw, 16px);
+        font-size: clamp(11px, .68vw, 14px);
+        overflow-x: clip;
+    }
+
+        .cti-app:fullscreen,
+        .cti-app:-webkit-full-screen {
+            top: 0;
+            left: 0;
+            width: 100vw;
+            max-width: 100vw;
+            height: 100vh;
+            min-height: 100vh;
+            margin: 0;
+            padding: clamp(6px, .7vw, 16px);
+            overflow: auto;
+            background: var(--cti-page);
+        }
+
+            .cti-app:fullscreen::backdrop {
+                background: var(--cti-page);
+            }
+
+    .cti-hero {
+        padding: clamp(11px, 1vw, 20px);
+        margin-bottom: clamp(7px, .65vw, 12px);
+    }
+
+        .cti-hero h1 {
+            font-size: clamp(18px, 1.35vw, 28px);
+        }
+
+    .cti-hero-actions {
+        align-items: center;
+    }
+
+    .cti-kpis {
+        grid-template-columns: repeat(auto-fit, minmax(clamp(128px, 10.5vw, 210px), 1fr));
+        gap: clamp(6px, .55vw, 11px);
+        margin-top: clamp(10px, .9vw, 18px);
+    }
+
+    .cti-kpi {
+        min-height: clamp(72px, 6vw, 104px);
+        padding: clamp(9px, .8vw, 16px);
+    }
+
+        .cti-kpi span {
+            font-size: clamp(8px, .52vw, 10px);
+        }
+
+        .cti-kpi strong {
+            font-size: clamp(22px, 1.7vw, 34px);
+        }
+
+    .cti-toolbar {
+        grid-template-columns: minmax(240px, 2.4fr) minmax(165px, 1fr) minmax(105px, .55fr) auto auto;
+        gap: clamp(6px, .5vw, 10px);
+        padding: clamp(7px, .65vw, 12px);
+    }
+
+    /*
+             * En escritorio, tabla e inspector ocupan toda la altura disponible.
+             * JavaScript calcula --cti-workspace-height según el monitor.
+             */
+    .cti-workspace {
+        grid-template-columns: minmax(0, 1fr) clamp(350px, 25vw, 540px);
+        height: var(--cti-workspace-height, auto);
+        min-height: 390px;
+        gap: clamp(7px, .6vw, 12px);
+    }
+
+        .cti-workspace > .cti-panel {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+    .cti-table-wrap,
+    .cti-inspector-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+
+    .cti-table {
+        width: 100%;
+        min-width: max(1120px, 72vw);
+    }
+
+    .cti-panel-head,
+    .cti-pager {
+        flex: 0 0 auto;
+    }
+
+    .cti-modal-backdrop {
+        padding: clamp(5px, 1vw, 18px);
+    }
+
+    .cti-modal {
+        width: min(1000px, calc(100dvw - 20px));
+        max-width: calc(100dvw - 20px);
+        max-height: calc(100dvh - 20px);
+    }
+
+    .cti-modal-sm {
+        width: min(680px, calc(100dvw - 20px));
+    }
+
+    .cti-modal-lg {
+        width: min(1240px, calc(100dvw - 20px));
+    }
+
+    .cti-modal-xl {
+        width: min(1680px, calc(100dvw - 20px));
+    }
+
+    .cti-modal-body {
+        padding: clamp(9px, .9vw, 16px);
+    }
+
+    .cti-picker-table-wrap {
+        max-height: min(64dvh, 760px);
+    }
+
+    .cti-form-grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+        .cti-form-grid > .cti-field {
+            grid-column: span 4;
+            min-width: 0;
+        }
+
+        .cti-form-grid > .cti-span-2 {
+            grid-column: span 8;
+        }
+
+        .cti-form-grid > .cti-span-3 {
+            grid-column: 1 / -1;
+        }
+
+    .cti-line-row {
+        grid-template-columns: minmax(118px, .75fr) minmax(145px, 1fr) minmax(260px, 3fr) minmax(85px, .55fr) minmax(78px, .55fr) 38px;
+    }
+
+    /* Monitor grande / 2K / 4K */
+    @@media (min-width: 1921px) {
+        .cti-app {
+            padding: 18px 22px;
+            font-size: 14px;
+        }
+
+        .cti-workspace {
+            grid-template-columns: minmax(0, 1fr) clamp(460px, 24vw, 680px);
+        }
+
+        .cti-table {
+            min-width: 1450px;
+            font-size: 12px;
+        }
+
+            .cti-table th,
+            .cti-table td {
+                padding: 10px 9px;
+            }
+
+        .cti-picker-table {
+            font-size: 12px;
+        }
+    }
+
+    /* Laptop y monitor mediano */
+    @@media (max-width: 1450px) {
+        .cti-workspace {
+            grid-template-columns: minmax(0, 1fr) clamp(330px, 29vw, 410px);
+        }
+
+        .cti-table {
+            min-width: 1080px;
+        }
+    }
+
+    @@media (max-width: 1180px) {
+        .cti-toolbar {
+            grid-template-columns: 1fr 1fr auto auto;
+        }
+
+            .cti-toolbar .cti-search-main {
+                grid-column: 1 / -1;
+            }
+
+        .cti-workspace {
+            height: auto !important;
+            min-height: 0;
+            grid-template-columns: 1fr;
+        }
+
+            .cti-workspace > .cti-panel {
+                min-height: 420px;
+            }
+
+        .cti-inspector-body {
+            max-height: none;
+        }
+
+        .cti-form-grid > .cti-field {
+            grid-column: span 6;
+        }
+
+        .cti-form-grid > .cti-span-2,
+        .cti-form-grid > .cti-span-3 {
+            grid-column: 1 / -1;
+        }
+
+        .cti-line-row {
+            grid-template-columns: 1fr 1fr;
+        }
+
+            .cti-line-row .cti-line-description {
+                grid-column: 1 / -1;
+            }
+    }
+
+    @@media (max-width: 720px) {
+        .cti-app {
+            padding: 4px;
+        }
+
+        .cti-hero-row,
+        .cti-hero-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+
+            .cti-hero-actions .cti-btn {
+                width: 100%;
+            }
+
+        .cti-kpis,
+        .cti-toolbar,
+        .cti-summary-grid,
+        .cti-action-grid {
+            grid-template-columns: 1fr;
+        }
+
+            .cti-toolbar > * {
+                grid-column: 1 / -1 !important;
+            }
+
+        .cti-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+            .cti-form-grid > .cti-field,
+            .cti-form-grid > .cti-span-2,
+            .cti-form-grid > .cti-span-3 {
+                grid-column: 1 / -1;
+            }
+
+        .cti-line-row {
+            grid-template-columns: 1fr;
+        }
+
+            .cti-line-row .cti-line-description {
+                grid-column: auto;
+            }
+
+        .cti-picker-toolbar {
+            grid-template-columns: 1fr !important;
+        }
+
+            .cti-picker-toolbar > * {
+                grid-column: 1 / -1;
+            }
+
+        .cti-modal,
+        .cti-modal-sm,
+        .cti-modal-lg,
+        .cti-modal-xl {
+            width: calc(100dvw - 8px);
+            max-width: calc(100dvw - 8px);
+            max-height: calc(100dvh - 8px);
+        }
+
+        .cti-modal-backdrop {
+            padding: 4px;
+        }
+
+        .cti-modal-head,
+        .cti-modal-foot {
+            padding: 9px;
+        }
+
+        .cti-modal-foot {
+            flex-wrap: wrap;
+        }
+
+            .cti-modal-foot .cti-btn {
+                flex: 1 1 140px;
+            }
+    }
+
+    @@media (max-height: 700px) and (min-width: 1181px) {
+        .cti-hero {
+            padding-top: 9px;
+            padding-bottom: 9px;
+        }
+
+        .cti-kpis {
+            margin-top: 8px;
+        }
+
+        .cti-kpi {
+            min-height: 64px;
+        }
+
+            .cti-kpi strong {
+                margin-top: 4px;
+            }
+
+        .cti-toolbar {
+            margin-bottom: 6px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+    }
+
+
+    /* ============================================================
+               LIMPIEZA DEL CONTENEDOR HEREDADO DE _Layout2
+               El layout coloca la vista dentro de una tarjeta blanca.
+               Estas clases se asignan por JavaScript solo a los ancestros
+               de #ctiApp, sin modificar el resto del sistema.
+               ============================================================ */
+    body.cti-page-active {
+        background: var(--cti-page) !important;
+    }
+
+    .cti-layout-shell-clean {
+        background: transparent !important;
+        background-image: none !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: 0 !important;
+    }
+
+        .cti-layout-shell-clean.cti-layout-shell-inner {
+            /* Conserva el padding superior de _Layout2: normalmente reserva
+                   el espacio del header fijo. Solo se limpian laterales y fondo. */
+            padding-right: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 0 !important;
+        }
+
+        .cti-layout-shell-clean::before,
+        .cti-layout-shell-clean::after {
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+
+    /* ============================================================
+           CONTROL DE COMPRAS TI — SIDEBAR RÁPIDO
+           Pantalla completa dentro del espacio real de _Layout2.
+           ============================================================ */
+
+    .cti-sidebar-host {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .cti-sidebar-host-clean {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /*
+         * Sustituye únicamente el cálculo anterior basado en 100dvw,
+         * left:50% y margen negativo. La posición y el ancho exterior
+         * quedan controlados por _Layout2 y por el ajuste rápido del menú.
+         */
+    #ctiApp.cti-app {
+        position: relative !important;
+        top: var(--cti-header-clearance, 0px) !important;
+        right: auto !important;
+        transform: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 0 !important;
+        align-self: stretch !important;
+        overflow-x: hidden !important;
+        transition: width .18s ease, max-width .18s ease, left .18s ease;
+    }
+
+    #ctiApp,
+    #ctiApp .cti-hero,
+    #ctiApp .cti-kpis,
+    #ctiApp .cti-toolbar,
+    #ctiApp .cti-workspace,
+    #ctiApp .cti-panel,
+    #ctiApp .cti-table-wrap,
+    #ctiApp .cti-inspector-body,
+    #ctiApp .cti-pager {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+        /*
+         * Las tablas conservan su desplazamiento interno y nunca obligan
+         * al área principal a mantener el ancho del sidebar cerrado.
+         */
+        #ctiApp .cti-table-wrap,
+        #ctiApp .cti-inspector-body {
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        #ctiApp .cti-table {
+            max-width: none !important;
+        }
+
+    @@media (max-width: 720px) {
+        #ctiApp.cti-app {
+            left: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+    }
+</style>
+
+<link rel="stylesheet" href="~/css/control-compras-ti-tabla-ajustada.css" asp-append-version="true" />
+
+<div class="cti-app" id="ctiApp">
+    <section class="cti-hero">
+        <div class="cti-hero-row">
+            <div>
+                <h1><i class="bi bi-cart-check-fill me-2"></i>Control integral de compras TI</h1>
+                <p>Solicitud SAP → proveedor → cotización → autorización → orden de compra SAP → recepción → factura → conciliación → pago.</p>
+            </div>
+            <div class="cti-hero-actions">
+                <button type="button" class="cti-btn cti-btn-light" id="ctiBtnNueva">
+                    <i class="bi bi-plus-circle me-1"></i>Nueva solicitud
+                </button>
+            @*     <button type="button" class="cti-btn cti-btn-light" id="ctiBtnSyncProveedores">
+                    <i class="bi bi-arrow-repeat me-1"></i>Sincronizar proveedores
+                </button> *@
+               @*  <button type="button"
+                        class="cti-btn cti-btn-light"
+                        id="ctiBtnFullscreen"
+                        title="Usar toda la pantalla del monitor">
+                    <i class="bi bi-arrows-fullscreen me-1" id="ctiFullscreenIcon"></i>
+                    <span id="ctiFullscreenText">Pantalla completa</span>
+                </button> *@
+                <button type="button" class="cti-btn cti-btn-light" id="ctiBtnRecargar">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+                </button>
+            </div>
+        </div>
+
+        <div class="cti-kpis">
+            <div class="cti-kpi" data-kpi-status="">
+                <span>Total expedientes</span><strong id="ctiKpiTotal">0</strong>
+            </div>
+            <div class="cti-kpi cti-alert" data-kpi-status="COTIZACION_REGISTRADA">
+                <span>Pendientes de autorización</span><strong id="ctiKpiAutorizacion">0</strong>
+            </div>
+            <div class="cti-kpi cti-alert">
+                <span>Pendientes de orden SAP</span><strong id="ctiKpiOrdenCompra">0</strong>
+            </div>
+            <div class="cti-kpi cti-blue" data-kpi-status="AUTORIZADA">
+                <span>Pendientes de recepción</span><strong id="ctiKpiRecepcion">0</strong>
+            </div>
+            <div class="cti-kpi cti-danger" data-kpi-status="DIFERENCIA_FACTURA">
+                <span>Diferencias de factura</span><strong id="ctiKpiDiferencias">0</strong>
+            </div>
+            <div class="cti-kpi cti-ok" data-kpi-status="FACTURA_CONCILIADA">
+                <span>Listas para pago</span><strong id="ctiKpiPago">0</strong>
+            </div>
+            <div class="cti-kpi" data-kpi-status="LIBERADA_PAGO">
+                <span>Liberadas a pago</span><strong id="ctiKpiLiberadas">0</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="cti-toolbar">
+        <div class="cti-field cti-search-main">
+            <label for="ctiFiltroBuscar">Buscar expediente</label>
+            <input type="search" class="cti-control" id="ctiFiltroBuscar" placeholder="Folio CTI, solicitud SAP, título, proveedor o solicitante" autocomplete="off" />
+        </div>
+        <div class="cti-field">
+            <label for="ctiFiltroEstatus">Estatus</label>
+            <select class="cti-control" id="ctiFiltroEstatus">
+                <option value="">Todos</option>
+                <option value="BORRADOR">Borrador</option>
+                <option value="COTIZACION_REGISTRADA">Cotización registrada</option>
+                <option value="AUTORIZADA">Autorizada</option>
+                <option value="RECHAZADA">Rechazada</option>
+                <option value="RECEPCION_PARCIAL">Recepción parcial</option>
+                <option value="RECIBIDA_CONFORME">Recibida conforme</option>
+                <option value="RECEPCION_NO_CONFORME">Recepción no conforme</option>
+                <option value="FACTURA_CONCILIADA">Factura conciliada</option>
+                <option value="DIFERENCIA_FACTURA">Diferencia en factura</option>
+                <option value="LIBERADA_PAGO">Liberada a pago</option>
+            </select>
+        </div>
+        <div class="cti-field">
+            <label for="ctiPageSize">Registros</label>
+            <select class="cti-control" id="ctiPageSize">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+        </div>
+        <button type="button" class="cti-btn cti-btn-primary" id="ctiBtnBuscar"><i class="bi bi-search me-1"></i>Buscar</button>
+        <button type="button" class="cti-btn" id="ctiBtnLimpiar"><i class="bi bi-eraser me-1"></i>Limpiar</button>
+    </section>
+
+    <section class="cti-workspace">
+        <div class="cti-panel">
+            <div class="cti-panel-head">
+                <div>
+                    <h3>Expedientes de compra</h3>
+                    <small id="ctiResumenLista">Consultando registros...</small>
+                </div>
+                <span class="cti-badge cti-b-gray" id="ctiBadgePermiso">Verificando permisos</span>
+            </div>
+            <div class="cti-table-wrap cti-table-wrap-expedientes">
+                <table class="cti-table cti-table-expedientes">
+                    <thead>
+                        <tr>
+                            <th>Folio / SAP</th>
+                            <th>Tipo / Título</th>
+                            <th>Proveedor</th>
+                            <th>Orden SAP</th>
+                            <th>Planta / Centro costo</th>
+                            <th>Estatus</th>
+                            <th>Total cotizado</th>
+                            <th>Total factura</th>
+                            <th>Diferencia</th>
+                            <th>Evidencias</th>
+                            <th>Actualización</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ctiSolicitudesBody">
+                        <tr><td colspan="11" class="cti-empty">Cargando expedientes...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cti-pager">
+                <button type="button" class="cti-btn cti-btn-sm" id="ctiPrevPage">Anterior</button>
+                <span id="ctiPageLabel">Página 1</span>
+                <button type="button" class="cti-btn cti-btn-sm" id="ctiNextPage">Siguiente</button>
+            </div>
+        </div>
+
+        <aside class="cti-panel">
+            <div class="cti-panel-head">
+                <div>
+                    <h3>Expediente y validaciones</h3>
+                    <small>Selecciona un registro para consultar su trazabilidad.</small>
+                </div>
+            </div>
+            <div class="cti-inspector-body" id="ctiInspector">
+                <div class="cti-empty">
+                    <i class="bi bi-folder2-open" style="font-size:34px"></i><br />
+                    Selecciona un expediente de la tabla.
+                </div>
+            </div>
+        </aside>
+    </section>
+</div>
+
+<!-- NUEVA SOLICITUD -->
+<div class="cti-modal-backdrop" id="ctiModalNueva">
+    <div class="cti-modal cti-modal-lg" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-file-earmark-plus me-2"></i>Crear expediente de compra TI</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalNueva">×</button>
+        </div>
+        <form id="ctiFormNueva">
+            <div class="cti-modal-body">
+                <div class="cti-notice cti-notice-blue">
+                    El folio de solicitud SAP debe ser único. Agrega todos los artículos, activos o servicios que forman parte de la compra.
+                </div>
+                <div class="cti-form-grid">
+                    <div class="cti-field cti-span-2">
+                        <label for="ctiNuevaSap">Solicitud de compra SAP *</label>
+                        <div class="cti-picker-control">
+                            <input class="cti-control"
+                                   id="ctiNuevaSap"
+                                   maxlength="100"
+                                   required
+                                   readonly
+                                   placeholder="Selecciona una solicitud desde SAP" />
+                            <button type="button"
+                                    class="cti-btn cti-btn-primary"
+                                    id="ctiBtnBuscarSolicitudSap">
+                                <i class="bi bi-search me-1"></i>Buscar en SAP
+                            </button>
+                        </div>
+                        <input type="hidden" id="ctiNuevaSapDocEntry" />
+                        <div class="cti-selection-card" id="ctiNuevaSapInfo">
+                            Ninguna solicitud SAP seleccionada.
+                        </div>
+                    </div>
+
+                    <div class="cti-field">
+                        <label for="ctiNuevaTipo">Tipo de compra *</label>
+                        <select class="cti-control" id="ctiNuevaTipo" required>
+                            <option value="ACTIVO_FIJO">Activo fijo</option>
+                            <option value="CONSUMIBLE">Consumible</option>
+                            <option value="SERVICIO">Servicio</option>
+                        </select>
+                    </div>
+
+                    <div class="cti-field">
+                        <label for="ctiNuevaPlanta">Planta *</label>
+                        <select class="cti-control" id="ctiNuevaPlanta" required>
+                            <option value="PLANTA 1" selected>Planta 1</option>
+                            <option value="TIF 776">TIF 776</option>
+                        </select>
+                    </div>
+
+                    <div class="cti-field cti-span-2">
+                        <label for="ctiNuevaTitulo">Título de la solicitud *</label>
+                        <input class="cti-control"
+                               id="ctiNuevaTitulo"
+                               maxlength="250"
+                               required
+                               placeholder="Se completa con la solicitud SAP y puede ajustarse" />
+                    </div>
+
+                    <div class="cti-field">
+                        <label for="ctiNuevaCentroCosto">Centro de costo SAP *</label>
+                        <div class="cti-picker-control">
+                            <input class="cti-control"
+                                   id="ctiNuevaCentroCosto"
+                                   maxlength="100"
+                                   required
+                                   readonly
+                                   placeholder="Selecciona un centro de costo" />
+                            <button type="button"
+                                    class="cti-btn"
+                                    id="ctiBtnBuscarCentroCosto">
+                                <i class="bi bi-diagram-3 me-1"></i>Lista
+                            </button>
+                        </div>
+                        <div class="cti-selection-card" id="ctiNuevaCentroCostoInfo">
+                            Sin centro de costo.
+                        </div>
+                    </div>
+
+                    <div class="cti-field cti-span-2">
+                        <label for="ctiNuevaProveedorText">Proveedor SAP inicial</label>
+                        <div class="cti-picker-control">
+                            <input class="cti-control"
+                                   id="ctiNuevaProveedorText"
+                                   readonly
+                                   placeholder="Selecciona un proveedor autorizado" />
+                            <button type="button"
+                                    class="cti-btn"
+                                    id="ctiBtnBuscarProveedorInicial">
+                                <i class="bi bi-building me-1"></i>Ver proveedores
+                            </button>
+                        </div>
+                        <input type="hidden" id="ctiNuevaProveedorCodigo" />
+                    </div>
+
+                    <div class="cti-field">
+                        <label>Proveedor seleccionado</label>
+                        <div class="cti-selection-card"
+                             id="ctiNuevaProveedorInfo"
+                             style="margin-top:0;">
+                            Sin proveedor.
+                        </div>
+                    </div>
+
+                    <div class="cti-field cti-span-3">
+                        <label for="ctiNuevaJustificacion">Justificación *</label>
+                        <textarea class="cti-control"
+                                  id="ctiNuevaJustificacion"
+                                  required
+                                  placeholder="Describe la necesidad, riesgo, alcance y resultado esperado."></textarea>
+                    </div>
+                </div>
+
+                <div class="cti-line-editor">
+                    <div class="cti-line-editor-head">
+                        <strong>Conceptos solicitados</strong>
+                        <button type="button" class="cti-btn cti-btn-sm" id="ctiBtnAgregarLinea"><i class="bi bi-plus-lg me-1"></i>Agregar concepto</button>
+                    </div>
+                    <div id="ctiLineasSolicitud"></div>
+                </div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalNueva">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-primary"><i class="bi bi-save me-1"></i>Crear expediente</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- BUSCAR SOLICITUD SAP -->
+<div class="cti-modal-backdrop" id="ctiModalSolicitudSap">
+    <div class="cti-modal cti-modal-xl" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-cloud-check me-2"></i>Solicitudes de compra en SAP</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalSolicitudSap">×</button>
+        </div>
+        <div class="cti-modal-body">
+            <div class="cti-notice cti-notice-blue">
+                La selección se consulta directamente en SAP Business One. Al elegirla se cargan sus líneas,
+                proveedor preferido, almacén, fechas y centro de costo.
+            </div>
+            <div class="cti-picker-toolbar">
+                <div class="cti-field">
+                    <label for="ctiSapSolicitudBuscar">Buscar</label>
+                    <input class="cti-control"
+                           id="ctiSapSolicitudBuscar"
+                           placeholder="DocNum, DocEntry, solicitante, comentario, artículo o descripción" />
+                </div>
+                <div class="cti-field">
+                    <label>Estado</label>
+                    <label class="cti-check-row">
+                        <input type="checkbox" id="ctiSapIncluirCerradas" />
+                        Incluir cerradas
+                    </label>
+                </div>
+                <button type="button" class="cti-btn cti-btn-primary" id="ctiBtnConsultarSolicitudesSap">
+                    <i class="bi bi-search me-1"></i>Consultar SAP
+                </button>
+            </div>
+            <div class="cti-picker-table-wrap">
+                <table class="cti-picker-table">
+                    <thead>
+                        <tr>
+                            <th>Solicitud</th>
+                            <th>Fecha / requerida</th>
+                            <th>Solicitante</th>
+                            <th>Descripción / comentarios</th>
+                            <th>Centro / proveedor</th>
+                            <th>Planta</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ctiSapSolicitudesBody">
+                        <tr><td colspan="8" class="cti-picker-empty">Presiona Consultar SAP.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="cti-modal-foot">
+            <span class="cti-muted" id="ctiSapSolicitudesResumen" style="margin-right:auto;">Sin consulta.</span>
+            <button type="button" class="cti-btn" data-close-modal="ctiModalSolicitudSap">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- CENTROS DE COSTO SAP -->
+<div class="cti-modal-backdrop" id="ctiModalCentroCosto">
+    <div class="cti-modal cti-modal-lg" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-diagram-3 me-2"></i>Centros de costo SAP</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalCentroCosto">×</button>
+        </div>
+        <div class="cti-modal-body">
+            <div class="cti-picker-toolbar">
+                <div class="cti-field">
+                    <label for="ctiCentroCostoBuscar">Buscar</label>
+                    <input class="cti-control"
+                           id="ctiCentroCostoBuscar"
+                           placeholder="Código, nombre o grupo" />
+                </div>
+                <div class="cti-field">
+                    <label for="ctiCentroCostoDimension">Dimensión</label>
+                    <select class="cti-control" id="ctiCentroCostoDimension">
+                        <option value="0">Todas</option>
+                        <option value="1">Dimensión 1</option>
+                        <option value="2">Dimensión 2</option>
+                        <option value="3">Dimensión 3</option>
+                        <option value="4">Dimensión 4</option>
+                        <option value="5">Dimensión 5</option>
+                    </select>
+                </div>
+                <button type="button" class="cti-btn cti-btn-primary" id="ctiBtnConsultarCentrosCosto">
+                    <i class="bi bi-search me-1"></i>Consultar SAP
+                </button>
+            </div>
+            <div class="cti-picker-table-wrap">
+                <table class="cti-picker-table" style="min-width:720px;">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Grupo</th>
+                            <th>Dimensión</th>
+                            <th>Vigencia</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ctiCentrosCostoBody">
+                        <tr><td colspan="6" class="cti-picker-empty">Presiona Consultar SAP.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="cti-modal-foot">
+            <span class="cti-muted" id="ctiCentrosCostoResumen" style="margin-right:auto;">Sin consulta.</span>
+            <button type="button" class="cti-btn" data-close-modal="ctiModalCentroCosto">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- PROVEEDOR INICIAL -->
+<div class="cti-modal-backdrop" id="ctiModalProveedorInicial">
+    <div class="cti-modal cti-modal-lg" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-building-check me-2"></i>Proveedores autorizados</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalProveedorInicial">×</button>
+        </div>
+        <div class="cti-modal-body">
+            <div class="cti-notice cti-notice-blue">
+                Solo aparecen proveedores activos cuyo grupo contiene las clasificaciones
+                <b>PROVEEDOR</b> y <b>CONSUMIBLE</b>.
+            </div>
+            <div class="cti-picker-toolbar" style="grid-template-columns:minmax(260px,1fr) auto;">
+                <div class="cti-field">
+                    <label for="ctiProveedorInicialBuscar">Buscar proveedor</label>
+                    <input class="cti-control"
+                           id="ctiProveedorInicialBuscar"
+                           placeholder="Código, nombre o RFC" />
+                </div>
+                <button type="button" class="cti-btn cti-btn-primary" id="ctiBtnConsultarProveedorInicial">
+                    <i class="bi bi-search me-1"></i>Buscar
+                </button>
+            </div>
+            <div class="cti-picker-table-wrap">
+                <table class="cti-picker-table" style="min-width:850px;">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Proveedor</th>
+                            <th>RFC</th>
+                            <th>Grupo</th>
+                            <th>Moneda</th>
+                            <th>Condición de pago</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ctiProveedorInicialBody">
+                        <tr><td colspan="7" class="cti-picker-empty">Presiona Buscar.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="cti-modal-foot">
+            <span class="cti-muted" id="ctiProveedorInicialResumen" style="margin-right:auto;">Sin consulta.</span>
+            <button type="button" class="cti-btn" id="ctiBtnLimpiarProveedorInicial">
+                Quitar selección
+            </button>
+            <button type="button" class="cti-btn" data-close-modal="ctiModalProveedorInicial">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ASIGNAR PROVEEDOR -->
+<div class="cti-modal-backdrop" id="ctiModalProveedor">
+    <div class="cti-modal cti-modal-sm" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-building-check me-2"></i>Asignar proveedor SAP</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalProveedor">×</button>
+        </div>
+        <form id="ctiFormProveedor">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiProveedorSolicitudId" />
+                <div class="cti-field">
+                    <label>Proveedor *</label>
+                    <div class="cti-search-box" id="ctiAsignarProveedorBox">
+                        <input class="cti-control" id="ctiAsignarProveedorText" placeholder="Buscar código, nombre o RFC" autocomplete="off" required />
+                        <input type="hidden" id="ctiAsignarProveedorCodigo" />
+                        <div class="cti-search-results" id="ctiAsignarProveedorResults"></div>
+                    </div>
+                </div>
+                <div class="cti-notice cti-notice-amber" style="margin-top:10px">
+                    El proveedor no puede cambiarse después de autorizar la cotización.
+                </div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalProveedor">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-primary">Guardar proveedor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- COTIZACIÓN -->
+<div class="cti-modal-backdrop" id="ctiModalCotizacion">
+    <div class="cti-modal" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-file-earmark-text me-2"></i>Registrar cotización</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalCotizacion">×</button>
+        </div>
+        <form id="ctiFormCotizacion" enctype="multipart/form-data">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiCotSolicitudId" />
+                <div class="cti-form-grid">
+                    <div class="cti-field">
+                        <label for="ctiCotNumero">Número de cotización</label>
+                        <input class="cti-control" id="ctiCotNumero" maxlength="100" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotFecha">Fecha de cotización</label>
+                        <input type="date" class="cti-control" id="ctiCotFecha" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotVigencia">Vigencia hasta</label>
+                        <input type="date" class="cti-control" id="ctiCotVigencia" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotSubtotal">Subtotal *</label>
+                        <input type="number" step="0.01" min="0" class="cti-control" id="ctiCotSubtotal" required />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotIva">IVA *</label>
+                        <input type="number" step="0.01" min="0" class="cti-control" id="ctiCotIva" required />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotTotal">Total *</label>
+                        <input type="number" step="0.01" min="0.01" class="cti-control" id="ctiCotTotal" required />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiCotMoneda">Moneda</label>
+                        <select class="cti-control" id="ctiCotMoneda">
+                            <option value="MXN">MXN</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="cti-field cti-span-2">
+                        <label for="ctiCotArchivo">Archivo de cotización *</label>
+                        <input type="file" class="cti-control" id="ctiCotArchivo" accept=".pdf,.xlsx,.xls,.doc,.docx,image/*" required />
+                    </div>
+                </div>
+                <div class="cti-notice cti-notice-amber" id="ctiCotAnalisis" style="margin-top:10px">Captura los importes para validar subtotal + IVA contra total.</div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalCotizacion">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-primary">Registrar cotización</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- AUTORIZACIÓN -->
+<div class="cti-modal-backdrop" id="ctiModalAutorizacion">
+    <div class="cti-modal cti-modal-sm" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-person-check-fill me-2"></i>Autorizar cotización</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalAutorizacion">×</button>
+        </div>
+        <form id="ctiFormAutorizacion">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiAutSolicitudId" />
+                <div id="ctiAutResumen" class="cti-notice cti-notice-blue"></div>
+                <div class="cti-field">
+                    <label for="ctiAutDecision">Decisión *</label>
+                    <select class="cti-control" id="ctiAutDecision" required>
+                        <option value="true">Autorizar</option>
+                        <option value="false">Rechazar</option>
+                    </select>
+                </div>
+                <div class="cti-field" style="margin-top:10px">
+                    <label for="ctiAutComentario">Comentario</label>
+                    <textarea class="cti-control" id="ctiAutComentario" maxlength="1000" placeholder="Fundamento o condición de la autorización."></textarea>
+                </div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalAutorizacion">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-primary">Registrar decisión</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- RECEPCIÓN -->
+<div class="cti-modal-backdrop" id="ctiModalRecepcion">
+    <div class="cti-modal" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-box-seam-fill me-2"></i>Registrar recepción</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalRecepcion">×</button>
+        </div>
+        <form id="ctiFormRecepcion" enctype="multipart/form-data">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiRecSolicitudId" />
+                <div class="cti-form-grid">
+                    <div class="cti-field">
+                        <label for="ctiRecFecha">Fecha y hora</label>
+                        <input type="datetime-local" class="cti-control" id="ctiRecFecha" />
+                    </div>
+                    <div class="cti-field">
+                        <label>Recepción conforme</label>
+                        <label class="cti-check-row"><input type="checkbox" id="ctiRecConforme" /> Sí, cumple con lo autorizado</label>
+                    </div>
+                    <div class="cti-field">
+                        <label>Recepción parcial</label>
+                        <label class="cti-check-row"><input type="checkbox" id="ctiRecParcial" /> Faltan equipos o conceptos</label>
+                    </div>
+                    <div class="cti-field cti-span-3">
+                        <label for="ctiRecObservaciones">Observaciones *</label>
+                        <textarea class="cti-control" id="ctiRecObservaciones" required placeholder="Cantidades, estado físico, números de serie, faltantes, daños o conformidad del servicio."></textarea>
+                    </div>
+                    <div class="cti-field cti-span-3">
+                        <label for="ctiRecEvidencia">Evidencia de recepción</label>
+                        <input type="file" class="cti-control" id="ctiRecEvidencia" accept=".pdf,image/*,.doc,.docx,.xlsx,.xls" />
+                        <small class="cti-muted">Es obligatoria cuando se marca recepción conforme.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalRecepcion">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-primary">Guardar recepción</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- FACTURA -->
+<div class="cti-modal-backdrop" id="ctiModalFactura">
+    <div class="cti-modal cti-modal-lg" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-receipt-cutoff me-2"></i>Registrar y conciliar factura</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalFactura">×</button>
+        </div>
+        <form id="ctiFormFactura" enctype="multipart/form-data">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiFacSolicitudId" />
+                <div class="cti-notice cti-notice-blue">
+                    Cuando se adjunta el XML CFDI, el servidor toma automáticamente RFC, UUID, serie, folio, fecha, subtotal, IVA y total desde el XML.
+                </div>
+                <div class="cti-form-grid">
+                    <div class="cti-field">
+                        <label for="ctiFacSerie">Serie</label>
+                        <input class="cti-control" id="ctiFacSerie" maxlength="50" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacFolio">Folio</label>
+                        <input class="cti-control" id="ctiFacFolio" maxlength="100" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacFecha">Fecha de factura</label>
+                        <input type="date" class="cti-control" id="ctiFacFecha" />
+                    </div>
+                    <div class="cti-field cti-span-2">
+                        <label for="ctiFacUuid">UUID</label>
+                        <input class="cti-control" id="ctiFacUuid" maxlength="50" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacRfc">RFC emisor</label>
+                        <input class="cti-control" id="ctiFacRfc" maxlength="20" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacSubtotal">Subtotal</label>
+                        <input type="number" step="0.01" min="0" class="cti-control" id="ctiFacSubtotal" value="0" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacIva">IVA</label>
+                        <input type="number" step="0.01" min="0" class="cti-control" id="ctiFacIva" value="0" />
+                    </div>
+                    <div class="cti-field">
+                        <label for="ctiFacTotal">Total</label>
+                        <input type="number" step="0.01" min="0" class="cti-control" id="ctiFacTotal" value="0" />
+                    </div>
+                    <div class="cti-field c<script>
+                        (function () {
+                        'use strict' ;
+                        function prepararContenedorComprasTI() {
+                        const root=document.getElementById('ctiApp');
+                        if (!root) return;
+                        let parent=root.parentElement;
+                        while (parent && parent != =document.body) {
+                        if (
+                        parent.matches('.container, .container-fluid, .pb-3') ||
+                        parent.matches('main[role="main" ]')
+                         ) {
+                         parent.classList.add(
+                         'cti-sidebar-host' ,
+                         'cti-sidebar-host-clean'
+                         );
+                         }
+                         parent=parent.parentElement;
+                         }
+                         }
+                         if (document.readyState= = ='loading' ) {
+                        document.addEventListener(
+                        'DOMContentLoaded' ,
+                        prepararContenedorComprasTI,
+                        { once: true }
+                        );
+                        } else {
+                        prepararContenedorComprasTI();
+                        }
+                        })();
+                    </script>
+
+                    <script>
+                    (function () {
+                        'use strict';
+
+                        const ROOT_SELECTOR = '#ctiApp';
+                        const SIDEBAR_SELECTORS = [
+                            '#sidebar',
+                            '.sidebar',
+                            '.main-sidebar',
+                            '.app-sidebar',
+                            '.sidebar-wrapper',
+                            '.left-sidebar',
+                            'aside',
+                            '[id*="sidebar" i]',
+                            '[class*="sidebar" i]',
+                            '[data-sidebar]'
+                        ].join(',');
+
+                        let root = null;
+                        let parent = null;
+                        let sidebar = null;
+
+                        let intervalId = 0;
+                        let finalTimerId = 0;
+                        let lastWidth = -1;
+                        let lastLeft = -1;
+
+                        function esSidebarValido(element) {
+                            if (!element || !document.documentElement.contains(element)) {
+                                return false;
+                            }
+
+                            if (root && (element === root || root.contains(element))) {
+                                return false;
+                            }
+
+                            const style = window.getComputedStyle(element);
+                            const rect = element.getBoundingClientRect();
+                            const viewportWidth = document.documentElement.clientWidth;
+                            const viewportHeight = window.innerHeight;
+
+                            return (
+                                style.display !== 'none' &&
+                                style.visibility !== 'hidden' &&
+                                Number.parseFloat(style.opacity || '1') > 0.05 &&
+                                rect.left <= 10 &&
+                                rect.width >= 150 &&
+                                rect.width <= Math.min(470, viewportWidth * 0.60) &&
+                                rect.height >= Math.max(400, viewportHeight * 0.52)
+                            );
+                        }
+
+                        function buscarSidebar() {
+                            let mejor = null;
+                            let mejorPuntaje = -1;
+
+                            document.querySelectorAll(SIDEBAR_SELECTORS).forEach(function (element) {
+                                if (!esSidebarValido(element)) return;
+
+                                const rect = element.getBoundingClientRect();
+                                const puntaje = rect.height + (rect.width * 2);
+
+                                if (puntaje > mejorPuntaje) {
+                                    mejor = element;
+                                    mejorPuntaje = puntaje;
+                                }
+                            });
+
+                            if (mejor) return mejor;
+
+                            /*
+                             * Respaldo geométrico para layouts cuyo menú no usa
+                             * una clase o identificador llamado sidebar.
+                             */
+                            const puntosY = [
+                                140,
+                                Math.round(window.innerHeight * 0.40),
+                                Math.round(window.innerHeight * 0.72)
+                            ];
+
+                            puntosY.some(function (y) {
+                                return [5, 24, 70].some(function (x) {
+                                    const elementos = document.elementsFromPoint(x, y);
+
+                                    for (const element of elementos) {
+                                        let actual = element;
+
+                                        while (actual && actual !== document.body) {
+                                            if (esSidebarValido(actual)) {
+                                                mejor = actual;
+                                                return true;
+                                            }
+
+                                            actual = actual.parentElement;
+                                        }
+                                    }
+
+                                    return false;
+                                });
+                            });
+
+                            return mejor;
+                        }
+
+                        function bordeDerechoSidebar() {
+                            if (!sidebar || !esSidebarValido(sidebar)) {
+                                sidebar = buscarSidebar();
+                            }
+
+                            if (!sidebar) return 0;
+
+                            return Math.max(
+                                0,
+                                Math.round(sidebar.getBoundingClientRect().right)
+                            );
+                        }
+
+                        function aplicarAjuste() {
+                            root ??= document.querySelector(ROOT_SELECTOR);
+                            if (!root) return;
+
+                            parent = root.parentElement;
+                            if (!parent) return;
+
+                            const parentRect = parent.getBoundingClientRect();
+                            const viewportRight = document.documentElement.clientWidth;
+                            const sidebarRight = bordeDerechoSidebar();
+
+                            const containerRight = Math.min(
+                                viewportRight,
+                                parentRect.right
+                            );
+
+                            /*
+                             * Si _Layout2 ya desplazó el contenido se respeta ese inicio.
+                             * Si el menú se superpone, la vista comienza en su borde derecho.
+                             */
+                            const targetLeft = Math.max(
+                                parentRect.left,
+                                sidebarRight
+                            );
+
+                            const leftOffset = Math.max(
+                                0,
+                                Math.round(targetLeft - parentRect.left)
+                            );
+
+                            const availableWidth = Math.max(
+                                320,
+                                Math.floor(containerRight - targetLeft)
+                            );
+
+                            if (
+                                Math.abs(availableWidth - lastWidth) < 2 &&
+                                Math.abs(leftOffset - lastLeft) < 2
+                            ) {
+                                return;
+                            }
+
+                            lastWidth = availableWidth;
+                            lastLeft = leftOffset;
+
+                            root.style.setProperty('position', 'relative', 'important');
+                            root.style.setProperty('left', leftOffset + 'px', 'important');
+                            root.style.setProperty('width', availableWidth + 'px', 'important');
+                            root.style.setProperty('max-width', availableWidth + 'px', 'important');
+                            root.style.setProperty('margin-left', '0', 'important');
+                            root.style.setProperty('margin-right', '0', 'important');
+                        }
+
+                        function detenerSecuencia() {
+                            if (intervalId) {
+                                window.clearInterval(intervalId);
+                                intervalId = 0;
+                            }
+
+                            if (finalTimerId) {
+                                window.clearTimeout(finalTimerId);
+                                finalTimerId = 0;
+                            }
+                        }
+
+                        function ajustarDuranteTransicion() {
+                            detenerSecuencia();
+                            aplicarAjuste();
+
+                            /*
+                             * Frecuencia moderada: acompaña la animación sin recalcular
+                             * tablas, KPIs e inspector en cada frame.
+                             */
+                            intervalId = window.setInterval(aplicarAjuste, 70);
+
+                            finalTimerId = window.setTimeout(function () {
+                                detenerSecuencia();
+                                aplicarAjuste();
+
+                                /*
+                                 * El script original escucha resize y recalcula la altura
+                                 * del workspace. Este evento sintético se emite una sola vez.
+                                 */
+                                window.dispatchEvent(new Event('resize'));
+                            }, 490);
+                        }
+
+                        function clickRelacionadoConSidebar(event) {
+                            const target = event.target instanceof Element
+                                ? event.target
+                                : null;
+
+                            if (!target) return false;
+
+                            const control = target.closest(
+                                'button, a, [role="button"], [aria-expanded], [aria-controls]'
+                            );
+
+                            if (!control) return false;
+
+                            const descriptor = [
+                                control.id,
+                                control.className,
+                                control.getAttribute('aria-controls'),
+                                control.getAttribute('title'),
+                                control.getAttribute('data-target'),
+                                control.getAttribute('data-bs-target')
+                            ]
+                                .filter(Boolean)
+                                .join(' ')
+                                .toLowerCase();
+
+                            const rect = control.getBoundingClientRect();
+
+                            return (
+                                descriptor.includes('sidebar') ||
+                                descriptor.includes('menu') ||
+                                descriptor.includes('toggle') ||
+                                descriptor.includes('collapse') ||
+                                rect.left < 330
+                            );
+                        }
+
+                        function iniciarSidebarRapido() {
+                            root = document.querySelector(ROOT_SELECTOR);
+                            if (!root) return;
+
+                            parent = root.parentElement;
+                            sidebar = buscarSidebar();
+
+                            aplicarAjuste();
+
+                            window.addEventListener(
+                                'resize',
+                                function (event) {
+                                    /*
+                                     * Evita que el resize sintético final reinicie esta misma
+                                     * secuencia. El script original sí recibe ese evento.
+                                     */
+                                    if (event.isTrusted) {
+                                        ajustarDuranteTransicion();
+                                    }
+                                },
+                                { passive: true }
+                            );
+
+                            window.addEventListener(
+                                'orientationchange',
+                                ajustarDuranteTransicion,
+                                { passive: true }
+                            );
+
+                            document.addEventListener('click', function (event) {
+                                if (!clickRelacionadoConSidebar(event)) return;
+
+                                window.setTimeout(function () {
+                                    sidebar = buscarSidebar() || sidebar;
+                                    ajustarDuranteTransicion();
+                                }, 0);
+                            }, true);
+
+                            /*
+                             * Solamente se observan el contenedor inmediato y el menú.
+                             * No se instala MutationObserver sobre toda la página.
+                             */
+                            if ('ResizeObserver' in window) {
+                                const resizeObserver = new ResizeObserver(
+                                    ajustarDuranteTransicion
+                                );
+
+                                if (parent) {
+                                    resizeObserver.observe(parent);
+                                }
+
+                                if (sidebar) {
+                                    resizeObserver.observe(sidebar);
+                                }
+                            }
+
+                            if (sidebar) {
+                                const mutationObserver = new MutationObserver(
+                                    ajustarDuranteTransicion
+                                );
+
+                                mutationObserver.observe(sidebar, {
+                                    attributes: true,
+                                    attributeFilter: [
+                                        'class',
+                                        'style',
+                                        'aria-expanded',
+                                        'aria-hidden',
+                                        'data-state'
+                                    ]
+                                });
+                            }
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener(
+                                'DOMContentLoaded',
+                                iniciarSidebarRapido,
+                                { once: true }
+                            );
+                        } else {
+                            iniciarSidebarRapido();
+                        }
+                    })();
+                    </script>
+
+                    ti-span-2">
+                    <label for="ctiFacPdf">Factura PDF</label>
+                    <input type="file" class="cti-control" id="ctiFacPdf" accept="application/pdf,.pdf" />
+                </div>
+                <div class="cti-field">
+                    <label for="ctiFacXml">Factura XML</label>
+                    <input type="file" class="cti-control" id="ctiFacXml" accept="application/xml,text/xml,.xml" />
+                </div>
+            </div>
+            <div id="ctiFacComparacion"></div>
+        </div>
+        <div class="cti-modal-foot">
+            <button type="button" class="cti-btn" data-close-modal="ctiModalFactura">Cancelar</button>
+            <button type="submit" class="cti-btn cti-btn-primary">Registrar y conciliar</button>
+        </div>
+    </form>
+</div>
+</div>
+
+<!-- LIBERAR PAGO -->
+<div class="cti-modal-backdrop" id="ctiModalPago">
+    <div class="cti-modal cti-modal-sm" role="dialog" aria-modal="true">
+        <div class="cti-modal-head">
+            <h3><i class="bi bi-cash-coin me-2"></i>Liberar expediente a pago</h3>
+            <button type="button" class="cti-modal-close" data-close-modal="ctiModalPago">×</button>
+        </div>
+        <form id="ctiFormPago">
+            <div class="cti-modal-body">
+                <input type="hidden" id="ctiPagoSolicitudId" />
+                <div class="cti-notice cti-notice-green">
+                    El expediente cumple con autorización, recepción conforme, factura y conciliación económica.
+                </div>
+                <div class="cti-field">
+                    <label for="ctiPagoComentario">Comentario para Cuentas por Pagar</label>
+                    <textarea class="cti-control" id="ctiPagoComentario" maxlength="1000" placeholder="Referencia, prioridad, fecha comprometida o indicaciones."></textarea>
+                </div>
+            </div>
+            <div class="cti-modal-foot">
+                <button type="button" class="cti-btn" data-close-modal="ctiModalPago">Cancelar</button>
+                <button type="submit" class="cti-btn cti-btn-success">Confirmar liberación</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cti-loading" id="ctiLoading">
+    <div class="cti-loader-card"><span class="cti-spinner"></span><br /><span id="ctiLoadingText">Procesando...</span></div>
+</div>
+<div class="cti-toast-host" id="ctiToastHost"></div>
+
+<script>
+    (() => {
+        'use strict';
+
+        const urls = {
+            permisos: '@Url.Action("ObtenerPermisosVistaComprasTi", "InventariosSistemas")',
+            dashboard: '@Url.Action("GetDashboardComprasTi", "InventariosSistemas")',
+            solicitudes: '@Url.Action("GetSolicitudesCompraTi", "InventariosSistemas")',
+            detalle: '@Url.Action("GetDetalleCompraTi", "InventariosSistemas")',
+            syncProveedores: '@Url.Action("SincronizarProveedoresComprasTi", "InventariosSistemas")',
+            proveedores: '@Url.Action("ObtenerProveedoresComprasTi", "InventariosSistemas")',
+            asignarProveedor: '@Url.Action("AsignarProveedorCompraTi", "InventariosSistemas")',
+            articulos: '@Url.Action("ObtenerArticulosSapComprasTi", "InventariosSistemas")',
+            solicitudesSap: '@Url.Action("BuscarSolicitudesCompraSapTi", "InventariosSistemas")',
+            solicitudSapDetalle: '@Url.Action("ObtenerSolicitudCompraSapTi", "InventariosSistemas")',
+            ordenesCompraSap: '@Url.Action("ObtenerOrdenesCompraRelacionadasSapTi", "InventariosSistemas")',
+            sincronizarOrdenesCompraSap: '@Url.Action("SincronizarOrdenesCompraSapTi", "InventariosSistemas")',
+            centrosCostoSap: '@Url.Action("ObtenerCentrosCostoSapTi", "InventariosSistemas")',
+            crear: '@Url.Action("CrearSolicitudCompraTi", "InventariosSistemas")',
+            cotizacion: '@Url.Action("RegistrarCotizacionCompraTi", "InventariosSistemas")',
+            autorizar: '@Url.Action("AutorizarCompraTi", "InventariosSistemas")',
+            recepcion: '@Url.Action("RegistrarRecepcionCompraTi", "InventariosSistemas")',
+            factura: '@Url.Action("RegistrarFacturaCompraTi", "InventariosSistemas")',
+            pago: '@Url.Action("LiberarCompraTiAPago", "InventariosSistemas")'
+        };
+
+        const state = {
+            page: 1,
+            pageSize: 50,
+            total: 0,
+            solicitudes: [],
+            selectedId: 0,
+            detalle: null,
+            permisos: { puedeLeer: false, puedeEscribir: false, puedeEliminar: false },
+            sapSolicitudSeleccionada: null,
+            sapSolicitudes: [],
+            sapOrdenesCompra: [],
+            centrosCostoSap: [],
+            proveedoresIniciales: [],
+            lineCounter: 0,
+            busy: 0
+        };
+
+        const $ = id => document.getElementById(id);
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+        const moneyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 });
+        const dateFormatter = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function money(value, currency = 'MXN') {
+            const amount = Number(value || 0);
+            try {
+                return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN', minimumFractionDigits: 2 }).format(amount);
+            } catch {
+                return moneyFormatter.format(amount);
+            }
+        }
+
+        function dateText(value, withTime = true) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return escapeHtml(value);
+            return withTime ? dateFormatter.format(date) : date.toLocaleDateString('es-MX');
+        }
+
+        function localDateInput(date = new Date()) {
+            const offset = date.getTimezoneOffset();
+            return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+        }
+
+        function localDateTimeInput(date = new Date()) {
+            const offset = date.getTimezoneOffset();
+            return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+        }
+
+        function statusInfo(status) {
+            const map = {
+                BORRADOR: ['Borrador', 'cti-b-gray'],
+                COTIZACION_REGISTRADA: ['Cotización registrada', 'cti-b-amber'],
+                AUTORIZADA: ['Autorizada', 'cti-b-blue'],
+                RECHAZADA: ['Rechazada', 'cti-b-red'],
+                RECEPCION_PARCIAL: ['Recepción parcial', 'cti-b-amber'],
+                RECIBIDA_CONFORME: ['Recibida conforme', 'cti-b-blue'],
+                RECEPCION_NO_CONFORME: ['Recepción no conforme', 'cti-b-red'],
+                FACTURA_CONCILIADA: ['Factura conciliada', 'cti-b-green'],
+                DIFERENCIA_FACTURA: ['Diferencia en factura', 'cti-b-red'],
+                LIBERADA_PAGO: ['Liberada a pago', 'cti-b-green']
+            };
+            return map[status] || [status || 'Sin estatus', 'cti-b-gray'];
+        }
+
+        function showLoading(text = 'Procesando...') {
+            state.busy++;
+            $('ctiLoadingText').textContent = text;
+            $('ctiLoading').classList.add('cti-show');
+        }
+
+        function hideLoading() {
+            state.busy = Math.max(0, state.busy - 1);
+            if (state.busy === 0) $('ctiLoading').classList.remove('cti-show');
+        }
+
+        function toast(message, type = 'info', duration = 4200) {
+            const item = document.createElement('div');
+            item.className = `cti-toast cti-toast-${type}`;
+            item.textContent = message;
+            $('ctiToastHost').appendChild(item);
+            window.setTimeout(() => item.remove(), duration);
+        }
+
+        async function parseResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+            let data;
+            if (contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                const textoPlano = String(text || '')
+                    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                data = {
+                    ok: response.ok,
+                    mensaje: contentType.includes('text/html')
+                        ? `El servidor devolvió un error HTTP ${response.status}. Revisa el log de la aplicación.`
+                        : (textoPlano || `Error HTTP ${response.status}`),
+                    detalleTecnico: textoPlano.slice(0, 1500)
+                };
+            }
+            if (!response.ok || data?.ok === false) {
+                const error = new Error(data?.mensaje || `Error HTTP ${response.status}`);
+                error.data = data;
+                error.status = response.status;
+                throw error;
+            }
+            return data;
+        }
+
+        async function getJson(url) {
+            const response = await fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            return parseResponse(response);
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify(payload)
+            });
+            return parseResponse(response);
+        }
+
+        async function postForm(url, formData) {
+            if (!formData.has('__RequestVerificationToken')) formData.append('__RequestVerificationToken', token);
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'RequestVerificationToken': token },
+                body: formData
+            });
+            return parseResponse(response);
+        }
+
+        async function postUrlEncoded(url, values) {
+            const body = new URLSearchParams(values);
+            body.append('__RequestVerificationToken', token);
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body
+            });
+            return parseResponse(response);
+        }
+
+        function openModal(id) {
+            $(id)?.classList.add('cti-show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(id) {
+            $(id)?.classList.remove('cti-show');
+            if (!document.querySelector('.cti-modal-backdrop.cti-show')) document.body.style.overflow = '';
+        }
+
+        function canWrite() { return !!state.permisos.puedeEscribir; }
+
+        async function loadPermisos() {
+            try {
+                const data = await getJson(urls.permisos);
+                state.permisos = data;
+                $('ctiBadgePermiso').className = `cti-badge ${data.puedeEscribir ? 'cti-b-green' : data.puedeLeer ? 'cti-b-blue' : 'cti-b-red'}`;
+                $('ctiBadgePermiso').textContent = data.puedeEscribir ? 'Lectura y escritura' : data.puedeLeer ? 'Solo lectura' : 'Sin permiso';
+                $('ctiBtnNueva').disabled = !data.puedeEscribir;
+                $('ctiBtnSyncProveedores').disabled = !data.puedeEscribir;
+            } catch (error) {
+                $('ctiBadgePermiso').className = 'cti-badge cti-b-red';
+                $('ctiBadgePermiso').textContent = 'Permiso no disponible';
+                toast(error.message, 'error');
+            }
+        }
+
+        async function loadDashboard() {
+            const data = await getJson(urls.dashboard);
+            $('ctiKpiTotal').textContent = data.total ?? 0;
+            $('ctiKpiAutorizacion').textContent = data.pendientesAutorizacion ?? 0;
+            $('ctiKpiOrdenCompra').textContent = data.pendientesOrdenCompra ?? 0;
+            $('ctiKpiRecepcion').textContent = data.pendientesRecepcion ?? 0;
+            $('ctiKpiDiferencias').textContent = data.diferencias ?? 0;
+            $('ctiKpiPago').textContent = data.listasPago ?? 0;
+            $('ctiKpiLiberadas').textContent = data.liberadasPago ?? 0;
+        }
+
+        function buildListUrl() {
+            const params = new URLSearchParams({
+                page: String(state.page),
+                pageSize: String(state.pageSize),
+                search: $('ctiFiltroBuscar').value.trim(),
+                estatus: $('ctiFiltroEstatus').value
+            });
+            return `${urls.solicitudes}?${params}`;
+        }
+
+        async function loadSolicitudes(selectId = 0) {
+            const data = await getJson(buildListUrl());
+            state.total = data.total ?? 0;
+            state.solicitudes = data.solicitudes ?? [];
+            renderSolicitudes();
+            updatePager();
+
+            if (selectId) {
+                await selectSolicitud(selectId);
+            } else if (state.selectedId && state.solicitudes.some(x => x.id === state.selectedId)) {
+                await selectSolicitud(state.selectedId);
+            } else if (state.solicitudes.length) {
+                await selectSolicitud(state.solicitudes[0].id);
+            } else {
+                state.selectedId = 0;
+                state.detalle = null;
+                renderInspector();
+            }
+        }
+
+        function renderSolicitudes() {
+            const tbody = $('ctiSolicitudesBody');
+            if (!state.solicitudes.length) {
+                tbody.innerHTML = '<tr><td colspan="11" class="cti-empty">No se encontraron expedientes con los filtros seleccionados.</td></tr>';
+                $('ctiResumenLista').textContent = '0 expedientes';
+                return;
+            }
+
+            tbody.innerHTML = state.solicitudes.map(item => {
+                const [label, badge] = statusInfo(item.estatus);
+                const selected = item.id === state.selectedId ? 'cti-selected' : '';
+                const differenceClass = Math.abs(Number(item.diferenciaFacturaCotizacion || 0)) > .02 ? 'color:var(--cti-red)' : 'color:var(--cti-green)';
+                return `<tr class="${selected}" data-id="${item.id}">
+                    <td><span class="cti-folio">${escapeHtml(item.folio)}</span><br><small>${escapeHtml(item.solicitudSap)}</small></td>
+                    <td><b>${escapeHtml(typeLabel(item.tipoCompra))}</b><br><small>${escapeHtml(item.titulo)}</small></td>
+                    <td>${item.proveedorNombreSnapshot ? `<b>${escapeHtml(item.proveedorNombreSnapshot)}</b><br><small>${escapeHtml(item.proveedorSapCodigo || '')}</small>` : '<span class="cti-badge cti-b-amber">Sin proveedor</span>'}</td>
+                    <td>${item.ordenCompraSapDocNum
+                        ? `<span class="cti-badge cti-b-blue">OC ${escapeHtml(item.ordenCompraSapDocNum)}</span><br><small>${escapeHtml(item.ordenesCompraSap || 1)} orden(es)</small>`
+                        : '<span class="cti-badge cti-b-amber">Pendiente</span>'}</td>
+                    <td><b>${escapeHtml(item.planta || '-')}</b><br><small>${escapeHtml(item.centroCosto || '-')}</small></td>
+                    <td><span class="cti-badge ${badge}">${escapeHtml(label)}</span></td>
+                    <td class="cti-money">${money(item.totalCotizado, item.moneda)}</td>
+                    <td class="cti-money">${money(item.totalFactura, item.moneda)}</td>
+                    <td class="cti-money" style="${differenceClass}">${money(item.diferenciaFacturaCotizacion, item.moneda)}</td>
+                    <td><small>Cot. ${item.cotizaciones || 0} · Fac. ${item.facturas || 0} · Rec. ${item.recepciones || 0}</small></td>
+                    <td>${dateText(item.fechaModificacion || item.fechaCreacion)}</td>
+                </tr>`;
+            }).join('');
+
+            const first = (state.page - 1) * state.pageSize + 1;
+            const last = Math.min(state.page * state.pageSize, state.total);
+            $('ctiResumenLista').textContent = `${first}-${last} de ${state.total} expedientes`;
+        }
+
+        function updatePager() {
+            const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+            $('ctiPageLabel').textContent = `Página ${state.page} de ${pages}`;
+            $('ctiPrevPage').disabled = state.page <= 1;
+            $('ctiNextPage').disabled = state.page >= pages;
+        }
+
+        async function selectSolicitud(id) {
+            state.selectedId = Number(id);
+            renderSolicitudes();
+            $('ctiInspector').innerHTML = '<div class="cti-empty"><span class="cti-spinner"></span><br>Consultando expediente...</div>';
+            try {
+                state.detalle = await getJson(`${urls.detalle}?id=${encodeURIComponent(id)}`);
+                renderInspector();
+            } catch (error) {
+                state.detalle = null;
+                $('ctiInspector').innerHTML = `<div class="cti-notice cti-notice-red">${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function typeLabel(type) {
+            return ({ ACTIVO_FIJO: 'Activo fijo', CONSUMIBLE: 'Consumible', SERVICIO: 'Servicio', ARTICULO: 'Artículo' })[type] || type || '-';
+        }
+
+        function documentLink(path, label) {
+            if (!path) return '<span class="cti-muted">Sin archivo</span>';
+            const safe = escapeHtml(path);
+            return `<a class="cti-btn cti-btn-sm" href="${safe}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>${escapeHtml(label)}</a>`;
+        }
+
+        function renderInspector() {
+            const host = $('ctiInspector');
+            if (!state.detalle?.solicitud) {
+                host.innerHTML = '<div class="cti-empty"><i class="bi bi-folder2-open" style="font-size:34px"></i><br>Selecciona un expediente de la tabla.</div>';
+                return;
+            }
+
+            const d = state.detalle;
+            const s = d.solicitud;
+            const [statusLabel, statusBadge] = statusInfo(s.estatus);
+            const blockers = d.bloqueosPago || [];
+            const closed = s.liberadaPago || s.estatus === 'RECHAZADA';
+            const write = canWrite();
+
+            const detailsHtml = (d.detalles || []).length
+                ? `<table class="cti-mini-table"><thead><tr><th>Línea SAP</th><th>Tipo / artículo</th><th>Descripción</th><th>Centro / almacén</th><th>Cantidad</th><th>Recibido</th></tr></thead><tbody>${d.detalles.map(x => `<tr><td>${escapeHtml(x.lineaSap ?? '-')}</td><td>${escapeHtml(typeLabel(x.tipoLinea))}<br><small>${escapeHtml(x.articuloSapCodigo || '-')}</small></td><td>${escapeHtml(x.descripcion)}</td><td>${escapeHtml(x.centroCostoSap || '-')}<br><small>${escapeHtml(x.almacenSap || '-')}</small></td><td>${escapeHtml(x.cantidadSolicitada)} ${escapeHtml(x.unidad)}</td><td>${escapeHtml(x.cantidadRecibida)} ${escapeHtml(x.unidad)}</td></tr>`).join('')}</tbody></table>`
+                : '<span class="cti-muted">Sin conceptos registrados.</span>';
+
+            const quoteHtml = (d.cotizaciones || []).length
+                ? `<table class="cti-mini-table"><thead><tr><th>Documento</th><th>Importe</th><th>Estatus</th></tr></thead><tbody>${d.cotizaciones.map(x => `<tr><td><b>${escapeHtml(x.numeroCotizacion || 'Sin número')}</b><br><small>${dateText(x.fechaCotizacion, false)} · ${escapeHtml(x.registradoPor)}</small><br>${documentLink(x.rutaArchivo, 'Abrir')}</td><td>${money(x.total, x.moneda)}</td><td><span class="cti-badge ${x.estatus === 'AUTORIZADA' ? 'cti-b-green' : x.estatus === 'RECHAZADA' ? 'cti-b-red' : 'cti-b-amber'}">${escapeHtml(x.estatus)}</span></td></tr>`).join('')}</tbody></table>`
+                : '<span class="cti-muted">No se ha registrado una cotización.</span>';
+
+            const receiptHtml = (d.recepciones || []).length
+                ? `<table class="cti-mini-table"><thead><tr><th>Fecha / responsable</th><th>Resultado</th><th>Evidencia</th></tr></thead><tbody>${d.recepciones.map(x => `<tr><td>${dateText(x.fechaRecepcion)}<br><small>${escapeHtml(x.recibidoPor)}</small></td><td><span class="cti-badge ${x.recibidaConforme && !x.recepcionParcial ? 'cti-b-green' : 'cti-b-amber'}">${x.recepcionParcial ? 'PARCIAL' : x.recibidaConforme ? 'CONFORME' : 'NO CONFORME'}</span><br><small>${escapeHtml(x.observaciones || '')}</small></td><td>${documentLink(x.evidenciaRuta, 'Evidencia')}</td></tr>`).join('')}</tbody></table>`
+                : '<span class="cti-muted">No se ha registrado recepción.</span>';
+
+            const orderHtml = (d.ordenesCompraSap || []).length
+                ? `<table class="cti-mini-table">
+                    <thead><tr><th>Orden SAP</th><th>Proveedor</th><th>Fecha / estado</th><th>Total</th><th>Líneas ligadas</th></tr></thead>
+                    <tbody>${d.ordenesCompraSap.map(x => `
+                        <tr>
+                            <td><b>OC ${escapeHtml(x.docNum)}</b><br><small>DocEntry ${escapeHtml(x.docEntry)}</small></td>
+                            <td>${escapeHtml(x.proveedorNombre || '-')}<br><small>${escapeHtml(x.proveedorCodigo || '-')}</small></td>
+                            <td>${dateText(x.fechaDocumento, false)}<br><span class="cti-badge ${sapStatusBadge(x.estado)}">${escapeHtml(x.estado)}</span></td>
+                            <td>${money(x.total, x.moneda)}</td>
+                            <td>${escapeHtml(x.lineasRelacionadas || 0)}</td>
+                        </tr>`).join('')}</tbody>
+                  </table>`
+                : '<div class="cti-notice cti-notice-amber">SAP todavía no reporta una orden de compra relacionada con esta solicitud.</div>';
+
+            const seguimientoHtml = (d.seguimiento || []).length
+                ? `<div class="cti-timeline">${d.seguimiento.map(x => `
+                    <div class="cti-event">
+                        <b>${x.completada ? '✓' : '○'} ${escapeHtml(x.etapa)}</b>
+                        <p>${escapeHtml(x.detalle || '')}</p>
+                    </div>`).join('')}</div>`
+                : '<span class="cti-muted">Sin información de seguimiento.</span>';
+
+            const invoiceHtml = (d.facturas || []).length
+                ? `<table class="cti-mini-table"><thead><tr><th>Factura</th><th>Total / diferencia</th><th>Conciliación</th></tr></thead><tbody>${d.facturas.map(x => `<tr><td><b>${escapeHtml([x.serie, x.folio].filter(Boolean).join('-') || 'Sin folio')}</b><br><small>UUID: ${escapeHtml(x.uuid || '-')}<br>RFC: ${escapeHtml(x.rfcEmisor || '-')}</small><br>${documentLink(x.rutaPdf, 'PDF')} ${documentLink(x.rutaXml, 'XML')}</td><td>${money(x.total, s.moneda)}<br><small>Diferencia: ${money(x.diferenciaContraCotizacion, s.moneda)}</small></td><td><span class="cti-badge ${x.conciliacionOk ? 'cti-b-green' : 'cti-b-red'}">${x.conciliacionOk ? 'CORRECTA' : 'DIFERENCIA'}</span></td></tr>`).join('')}</tbody></table>`
+                : '<span class="cti-muted">No se ha registrado factura.</span>';
+
+            const authHtml = (d.autorizaciones || []).length
+                ? `<div class="cti-timeline">${d.autorizaciones.map(x => `<div class="cti-event"><b>${escapeHtml(x.etapa)} · ${escapeHtml(x.decision)}</b><small>${escapeHtml(x.usuario)} · ${dateText(x.fecha)}</small><p>${escapeHtml(x.comentario || '')}</p></div>`).join('')}</div>`
+                : '<span class="cti-muted">Sin autorizaciones.</span>';
+
+            const logHtml = (d.bitacora || []).length
+                ? `<div class="cti-timeline">${d.bitacora.map(x => `<div class="cti-event"><b>${escapeHtml(x.accion)}</b><small>${escapeHtml(x.usuario)} · ${dateText(x.fecha)}</small><p>${escapeHtml(x.detalle || '')}</p></div>`).join('')}</div>`
+                : '<span class="cti-muted">Sin movimientos en la bitácora.</span>';
+
+            host.innerHTML = `
+                <div class="cti-exp-title">
+                    <div><h4>${escapeHtml(s.folio)} · ${escapeHtml(s.titulo)}</h4><small class="cti-muted">Solicitud SAP ${escapeHtml(s.solicitudSap)} · DocEntry ${escapeHtml(s.solicitudSapDocEntry ?? '-')} · ${escapeHtml(s.solicitante)}</small></div>
+                    <span class="cti-badge ${statusBadge}">${escapeHtml(statusLabel)}</span>
+                </div>
+
+                ${s.liberadaPago ? `<div class="cti-notice cti-notice-green"><b>Expediente liberado a pago.</b><br>${dateText(s.fechaLiberacionPago)} por ${escapeHtml(s.liberadoPagoPor)}</div>` : ''}
+                ${blockers.length ? `<div class="cti-notice cti-notice-red"><b>Bloqueos para pago:</b><ul style="margin:5px 0 0;padding-left:18px">${blockers.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : `<div class="cti-notice cti-notice-green"><b>Validación completa.</b> El expediente puede liberarse a pago.</div>`}
+
+                <div class="cti-summary-grid">
+                    <div class="cti-summary"><span>Tipo de compra</span><b>${escapeHtml(typeLabel(s.tipoCompra))}</b></div>
+                    <div class="cti-summary"><span>Planta / centro</span><b>${escapeHtml(s.planta || '-')} · ${escapeHtml(s.centroCosto || '-')}</b></div>
+                    <div class="cti-summary"><span>Proveedor SAP</span><b>${escapeHtml(s.proveedorSapCodigo || 'Pendiente')}<br>${escapeHtml(s.proveedorNombreSnapshot || '')}</b></div>
+                    <div class="cti-summary"><span>RFC proveedor</span><b>${escapeHtml(s.proveedorRfcSnapshot || '-')}</b></div>
+                    <div class="cti-summary"><span>Solicitud SAP</span><b>DocEntry ${escapeHtml(s.solicitudSapDocEntry ?? '-')} · ${escapeHtml(s.solicitudSapEstatus || '-')}</b></div>
+                    <div class="cti-summary"><span>Orden de compra SAP</span><b>${(d.ordenesCompraSap || []).length
+                        ? d.ordenesCompraSap.map(x => `OC ${escapeHtml(x.docNum)}`).join(', ')
+                        : 'Pendiente'}</b></div>
+                    <div class="cti-summary"><span>Solicitante SAP / fecha</span><b>${escapeHtml(s.solicitudSapSolicitante || '-')}<br>${dateText(s.solicitudSapFecha, false)}</b></div>
+                </div>
+
+                <div class="cti-match">
+                    <h5>Conciliación económica</h5>
+                    <div class="cti-match-row"><span>Cotización</span><strong>${money(s.totalCotizado, s.moneda)}</strong></div>
+                    <div class="cti-match-row"><span>Factura</span><strong>${money(s.totalFactura, s.moneda)}</strong></div>
+                    <div class="cti-match-row"><span>Diferencia</span><strong style="color:${Math.abs(Number(s.diferenciaFacturaCotizacion || 0)) > .02 ? 'var(--cti-red)' : 'var(--cti-green)'}">${money(s.diferenciaFacturaCotizacion, s.moneda)}</strong></div>
+                    <div class="cti-match-row"><span>Autorización / recepción / conciliación</span><strong>${s.autorizada ? '✓' : '✕'} / ${s.recibidaConforme ? '✓' : '✕'} / ${s.conciliacionOk ? '✓' : '✕'}</strong></div>
+                </div>
+
+                <div class="cti-action-grid">
+                    <button class="cti-btn" data-action="proveedor" ${!write || closed || s.autorizada ? 'disabled' : ''}><i class="bi bi-building me-1"></i>${s.proveedorSapCodigo ? 'Cambiar proveedor' : 'Asignar proveedor'}</button>
+                    <button class="cti-btn" data-action="cotizacion" ${!write || closed || !s.proveedorSapCodigo ? 'disabled' : ''}><i class="bi bi-file-earmark-arrow-up me-1"></i>Subir cotización</button>
+                    <button class="cti-btn cti-btn-primary" data-action="autorizar" ${!write || closed || s.estatus !== 'COTIZACION_REGISTRADA' ? 'disabled' : ''}><i class="bi bi-person-check me-1"></i>Autorizar / rechazar</button>
+                    <button class="cti-btn" data-action="ordenes" ${!write || !s.solicitudSapDocEntry ? 'disabled' : ''}><i class="bi bi-arrow-repeat me-1"></i>Actualizar orden SAP</button>
+                    <button class="cti-btn" data-action="recepcion" ${!write || closed || !s.autorizada ? 'disabled' : ''}><i class="bi bi-box-seam me-1"></i>Registrar recepción</button>
+                    <button class="cti-btn" data-action="factura" ${!write || closed || !s.autorizada ? 'disabled' : ''}><i class="bi bi-receipt me-1"></i>Registrar factura</button>
+                    <button class="cti-btn cti-btn-success" data-action="pago" ${!write || !d.puedeLiberarPago ? 'disabled' : ''}><i class="bi bi-cash-coin me-1"></i>Liberar a pago</button>
+                    <button class="cti-btn cti-wide" data-action="imprimir"><i class="bi bi-printer me-1"></i>Expediente ejecutivo para Dirección</button>
+                </div>
+
+                <div class="cti-section"><div class="cti-section-title">Conceptos <span>${d.detalles?.length || 0}</span></div><div class="cti-section-body">${detailsHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Cotizaciones <span>${d.cotizaciones?.length || 0}</span></div><div class="cti-section-body">${quoteHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Órdenes de compra SAP <span>${d.ordenesCompraSap?.length || 0}</span></div><div class="cti-section-body">${orderHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Seguimiento del expediente <span>${d.pendientesSeguimiento?.length || 0} pendientes</span></div><div class="cti-section-body">${seguimientoHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Recepciones <span>${d.recepciones?.length || 0}</span></div><div class="cti-section-body">${receiptHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Facturas <span>${d.facturas?.length || 0}</span></div><div class="cti-section-body">${invoiceHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Autorizaciones <span>${d.autorizaciones?.length || 0}</span></div><div class="cti-section-body">${authHtml}</div></div>
+                <div class="cti-section"><div class="cti-section-title">Bitácora completa <span>${d.bitacora?.length || 0}</span></div><div class="cti-section-body">${logHtml}</div></div>
+            `;
+        }
+
+
+        function sapStatusBadge(status) {
+            const value = String(status || '').toUpperCase();
+            if (value === 'ABIERTA') return 'cti-b-green';
+            if (value === 'CERRADA') return 'cti-b-amber';
+            if (value === 'CANCELADA') return 'cti-b-red';
+            return 'cti-b-gray';
+        }
+
+        async function loadSapPurchaseRequests() {
+            const term = $('ctiSapSolicitudBuscar').value.trim();
+            const incluirCerradas = $('ctiSapIncluirCerradas').checked;
+            const body = $('ctiSapSolicitudesBody');
+
+            body.innerHTML = '<tr><td colspan="8" class="cti-picker-empty"><span class="cti-spinner"></span><br>Consultando SAP...</td></tr>';
+
+            try {
+                const params = new URLSearchParams({
+                    term,
+                    top: '100',
+                    incluirCerradas: String(incluirCerradas)
+                });
+
+                const data = await getJson(`${urls.solicitudesSap}?${params}`);
+                state.sapSolicitudes = data.solicitudes || [];
+
+                if (!state.sapSolicitudes.length) {
+                    body.innerHTML = '<tr><td colspan="8" class="cti-picker-empty">No se encontraron solicitudes con esos criterios.</td></tr>';
+                } else {
+                    body.innerHTML = state.sapSolicitudes.map((item, index) => `
+                        <tr>
+                            <td><b>${escapeHtml(item.docNum)}</b><br><small>DocEntry ${escapeHtml(item.docEntry)}</small></td>
+                            <td>${dateText(item.fechaDocumento, false)}<br><small>Requerida: ${dateText(item.fechaRequerida, false)}</small></td>
+                            <td>${escapeHtml(item.solicitante || '-')}</td>
+                            <td><b>${escapeHtml(item.primeraDescripcion || 'Sin descripción')}</b><br><small>${escapeHtml(item.comentarios || '')}</small><br><span class="cti-sap-chip">${escapeHtml(item.lineas || 0)} líneas</span></td>
+                            <td>${escapeHtml(item.centroCosto || '-')}<br><small>${escapeHtml(item.proveedorPreferido || 'Sin proveedor preferido')}</small></td>
+                            <td>${escapeHtml(item.plantaSugerida || 'PLANTA 1')}</td>
+                            <td><span class="cti-badge ${sapStatusBadge(item.estado)}">${escapeHtml(item.estado)}</span></td>
+                            <td><button type="button" class="cti-btn cti-btn-primary cti-btn-sm" data-select-sap="${index}">Seleccionar</button></td>
+                        </tr>`).join('');
+                }
+
+                $('ctiSapSolicitudesResumen').textContent =
+                    `${state.sapSolicitudes.length} solicitudes recuperadas desde SAP.`;
+            } catch (error) {
+                state.sapSolicitudes = [];
+                body.innerHTML = `<tr><td colspan="8" class="cti-picker-empty">${escapeHtml(error.message)}</td></tr>`;
+                $('ctiSapSolicitudesResumen').textContent = 'La consulta a SAP presentó un error.';
+                toast(error.message, 'error', 7000);
+            }
+        }
+
+        async function selectSapPurchaseRequest(index) {
+            const selected = state.sapSolicitudes[Number(index)];
+            if (!selected) return;
+
+            showLoading(`Consultando solicitud SAP ${selected.docNum}...`);
+
+            try {
+                const data = await getJson(
+                    `${urls.solicitudSapDetalle}?docEntry=${encodeURIComponent(selected.docEntry)}`
+                );
+
+                const sap = data.solicitud;
+                const detalles = data.detalles || [];
+                const ordenesCompra = data.ordenesCompra || [];
+
+                state.sapSolicitudSeleccionada = sap;
+                state.sapOrdenesCompra = ordenesCompra;
+                $('ctiNuevaSapDocEntry').value = sap.docEntry;
+                $('ctiNuevaSap').value = sap.docNum;
+
+                const ordenesResumen = ordenesCompra.length
+                    ? ordenesCompra
+                        .map(x => `OC ${escapeHtml(x.docNum)} · ${escapeHtml(x.estado)} · ${money(x.total, x.moneda)}`)
+                        .join('<br>')
+                    : '<span class="cti-badge cti-b-amber">Todavía sin orden de compra SAP relacionada</span>';
+
+                $('ctiNuevaSapInfo').innerHTML = `
+                    <strong>SAP ${escapeHtml(sap.docNum)}</strong> · DocEntry ${escapeHtml(sap.docEntry)}
+                    · ${escapeHtml(sap.estado)}<br>
+                    <small>${dateText(sap.fechaDocumento, false)} · ${escapeHtml(sap.solicitante || 'Sin solicitante')}
+                    · ${escapeHtml(sap.lineas || 0)} líneas</small>
+                    <div style="margin-top:7px">${ordenesResumen}</div>`;
+
+                if (sap.tipoCompraSugerido) {
+                    $('ctiNuevaTipo').value = sap.tipoCompraSugerido;
+                }
+
+                if (sap.plantaSugerida &&
+                    [...$('ctiNuevaPlanta').options].some(x => x.value === sap.plantaSugerida)) {
+                    $('ctiNuevaPlanta').value = sap.plantaSugerida;
+                } else {
+                    $('ctiNuevaPlanta').value = 'PLANTA 1';
+                }
+
+                if (!$('ctiNuevaTitulo').value.trim()) {
+                    $('ctiNuevaTitulo').value =
+                        sap.comentarios ||
+                        sap.primeraDescripcion ||
+                        `Solicitud SAP ${sap.docNum}`;
+                }
+
+                if (!$('ctiNuevaJustificacion').value.trim()) {
+                    $('ctiNuevaJustificacion').value =
+                        sap.comentarios ||
+                        `Necesidad registrada en la solicitud SAP ${sap.docNum}.`;
+                }
+
+                if (sap.centroCosto) {
+                    selectCostCenter({
+                        codigo: sap.centroCosto,
+                        nombre: 'Centro obtenido de la solicitud SAP',
+                        grupo: '',
+                        dimension: 0
+                    }, false);
+                }
+
+                if (sap.proveedorPreferidoDisponible && sap.proveedorPreferidoDetalle) {
+                    selectInitialProvider(sap.proveedorPreferidoDetalle, false);
+                } else if (sap.proveedorPreferidoCodigoSap) {
+                    $('ctiNuevaProveedorCodigo').value = '';
+                    $('ctiNuevaProveedorText').value = '';
+                    $('ctiNuevaProveedorInfo').innerHTML =
+                        `<span class="cti-badge cti-b-amber">Proveedor SAP ${escapeHtml(sap.proveedorPreferidoCodigoSap)} no pertenece al grupo permitido</span>`;
+                }
+
+                $('ctiLineasSolicitud').innerHTML = '';
+                state.lineCounter = 0;
+
+                detalles.forEach(line => addRequestLine(line.tipoLinea || '', {
+                    lineaSap: line.lineaSap,
+                    itemCode: line.itemCode,
+                    descripcion: line.descripcion,
+                    cantidad: line.cantidad,
+                    unidad: line.unidad,
+                    centroCostoSap: line.centroCostoSap,
+                    almacenSap: line.almacenSap,
+                    proveedorPreferidoSap: line.proveedorPreferidoSap
+                }));
+
+                if (!detalles.length) addRequestLine();
+
+                closeModal('ctiModalSolicitudSap');
+                toast(`Solicitud SAP ${sap.docNum} ligada al formulario.`, 'success');
+            } catch (error) {
+                toast(error.message, 'error', 7000);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function loadCostCenters() {
+            const term = $('ctiCentroCostoBuscar').value.trim();
+            const dimension = Number($('ctiCentroCostoDimension').value || 0);
+            const body = $('ctiCentrosCostoBody');
+
+            body.innerHTML = '<tr><td colspan="6" class="cti-picker-empty"><span class="cti-spinner"></span><br>Consultando SAP...</td></tr>';
+
+            try {
+                const params = new URLSearchParams({
+                    term,
+                    dimension: String(dimension)
+                });
+
+                const data = await getJson(`${urls.centrosCostoSap}?${params}`);
+                state.centrosCostoSap = data.centros || [];
+
+                body.innerHTML = state.centrosCostoSap.length
+                    ? state.centrosCostoSap.map((item, index) => `
+                        <tr>
+                            <td><b>${escapeHtml(item.codigo)}</b></td>
+                            <td>${escapeHtml(item.nombre || '-')}</td>
+                            <td>${escapeHtml(item.grupo || '-')}</td>
+                            <td>${escapeHtml(item.dimension || '-')}</td>
+                            <td>${dateText(item.vigenciaDesde, false)} — ${dateText(item.vigenciaHasta, false)}</td>
+                            <td><button type="button" class="cti-btn cti-btn-primary cti-btn-sm" data-select-centro="${index}">Seleccionar</button></td>
+                        </tr>`).join('')
+                    : '<tr><td colspan="6" class="cti-picker-empty">No se encontraron centros de costo.</td></tr>';
+
+                $('ctiCentrosCostoResumen').textContent =
+                    `${state.centrosCostoSap.length} centros de costo disponibles.`;
+            } catch (error) {
+                state.centrosCostoSap = [];
+                body.innerHTML = `<tr><td colspan="6" class="cti-picker-empty">${escapeHtml(error.message)}</td></tr>`;
+                $('ctiCentrosCostoResumen').textContent = 'La consulta a SAP presentó un error.';
+                toast(error.message, 'error', 7000);
+            }
+        }
+
+        function selectCostCenter(item, close = true) {
+            if (!item?.codigo) return;
+
+            $('ctiNuevaCentroCosto').value = item.codigo;
+            $('ctiNuevaCentroCostoInfo').innerHTML = `
+                <strong>${escapeHtml(item.codigo)}</strong> · ${escapeHtml(item.nombre || 'Centro de costo SAP')}<br>
+                <small>${item.dimension ? `Dimensión ${escapeHtml(item.dimension)}` : 'Origen: solicitud SAP'}
+                ${item.grupo ? ` · ${escapeHtml(item.grupo)}` : ''}</small>`;
+
+            document.querySelectorAll('#ctiLineasSolicitud .cti-line-row').forEach(row => {
+                if (!row.dataset.costingCode) row.dataset.costingCode = item.codigo;
+            });
+
+            if (close) closeModal('ctiModalCentroCosto');
+        }
+
+        async function loadInitialProviders() {
+            const term = $('ctiProveedorInicialBuscar').value.trim();
+            const body = $('ctiProveedorInicialBody');
+
+            body.innerHTML = '<tr><td colspan="7" class="cti-picker-empty"><span class="cti-spinner"></span><br>Consultando catálogo...</td></tr>';
+
+            try {
+                const data = await getJson(
+                    `${urls.proveedores}?term=${encodeURIComponent(term)}`
+                );
+
+                state.proveedoresIniciales = Array.isArray(data) ? data : [];
+
+                body.innerHTML = state.proveedoresIniciales.length
+                    ? state.proveedoresIniciales.map((item, index) => `
+                        <tr>
+                            <td><b>${escapeHtml(item.codigo)}</b></td>
+                            <td>${escapeHtml(item.nombre || '-')}<br><small>${escapeHtml(item.correo || '')}</small></td>
+                            <td>${escapeHtml(item.rfc || '-')}</td>
+                            <td>${escapeHtml(item.grupo || '-')}</td>
+                            <td>${escapeHtml(item.moneda || 'MXN')}</td>
+                            <td>${escapeHtml(item.condicionPago || '-')}</td>
+                            <td><button type="button" class="cti-btn cti-btn-primary cti-btn-sm" data-select-provider="${index}">Seleccionar</button></td>
+                        </tr>`).join('')
+                    : '<tr><td colspan="7" class="cti-picker-empty">No se encontraron proveedores autorizados.</td></tr>';
+
+                $('ctiProveedorInicialResumen').textContent =
+                    `${state.proveedoresIniciales.length} proveedores disponibles.`;
+            } catch (error) {
+                state.proveedoresIniciales = [];
+                body.innerHTML = `<tr><td colspan="7" class="cti-picker-empty">${escapeHtml(error.message)}</td></tr>`;
+                $('ctiProveedorInicialResumen').textContent = 'No se pudo consultar el catálogo.';
+                toast(error.message, 'error', 7000);
+            }
+        }
+
+        function selectInitialProvider(item, close = true) {
+            if (!item?.codigo) return;
+
+            $('ctiNuevaProveedorCodigo').value = item.codigo;
+            $('ctiNuevaProveedorText').value =
+                `${item.nombre || 'SIN NOMBRE'} (${item.codigo})`;
+
+            $('ctiNuevaProveedorInfo').innerHTML = `
+                <strong>${escapeHtml(item.codigo)}</strong> · ${escapeHtml(item.nombre || 'SIN NOMBRE')}<br>
+                <small>RFC ${escapeHtml(item.rfc || '-')} · ${escapeHtml(item.moneda || 'MXN')}
+                · ${escapeHtml(item.condicionPago || '')}</small>`;
+
+            if (close) closeModal('ctiModalProveedorInicial');
+        }
+
+        function clearInitialProvider() {
+            $('ctiNuevaProveedorCodigo').value = '';
+            $('ctiNuevaProveedorText').value = '';
+            $('ctiNuevaProveedorInfo').textContent = 'Sin proveedor.';
+        }
+
+        function wireRemoteSearch({ inputId, hiddenId, resultsId, url, onSelect, renderExtra }) {
+            const input = $(inputId);
+            const hidden = $(hiddenId);
+            const results = $(resultsId);
+            let timer;
+            let request = 0;
+
+            async function search() {
+                const term = input.value.trim();
+                hidden.value = '';
+                if (term.length < 2) {
+                    results.classList.remove('cti-open');
+                    results.innerHTML = '';
+                    return;
+                }
+                const current = ++request;
+                try {
+                    const data = await getJson(`${url}?term=${encodeURIComponent(term)}`);
+                    if (current !== request) return;
+                    if (!data.length) {
+                        results.innerHTML = '<div class="cti-search-item"><small>Sin coincidencias.</small></div>';
+                    } else {
+                        results.innerHTML = data.map((item, index) => `<div class="cti-search-item" data-index="${index}"><b>${escapeHtml(item.text)}</b>${renderExtra ? renderExtra(item) : ''}</div>`).join('');
+                        results.querySelectorAll('[data-index]').forEach(el => {
+                            el.addEventListener('click', () => {
+                                const item = data[Number(el.dataset.index)];
+                                hidden.value = item.id;
+                                input.value = item.text;
+                                results.classList.remove('cti-open');
+                                onSelect?.(item);
+                            });
+                        });
+                    }
+                    results.classList.add('cti-open');
+                } catch (error) {
+                    results.innerHTML = `<div class="cti-search-item"><small>${escapeHtml(error.message)}</small></div>`;
+                    results.classList.add('cti-open');
+                }
+            }
+
+            input.addEventListener('input', () => {
+                clearTimeout(timer);
+                timer = setTimeout(search, 260);
+            });
+            input.addEventListener('focus', () => { if (results.innerHTML) results.classList.add('cti-open'); });
+            document.addEventListener('click', e => { if (!input.closest('.cti-search-box')?.contains(e.target)) results.classList.remove('cti-open'); });
+        }
+
+        function addRequestLine(defaultType = '', data = {}) {
+            state.lineCounter++;
+            const id = state.lineCounter;
+            const row = document.createElement('div');
+            row.className = 'cti-line-row';
+            row.dataset.lineId = id;
+            row.dataset.sapLine = data.lineaSap ?? '';
+            row.dataset.costingCode = data.centroCostoSap ?? '';
+            row.dataset.warehouseCode = data.almacenSap ?? '';
+            row.dataset.preferredVendor = data.proveedorPreferidoSap ?? '';
+
+            row.innerHTML = `
+                <div class="cti-field"><label>Tipo</label><select class="cti-control cti-line-type"><option value="ARTICULO">Artículo</option><option value="ACTIVO_FIJO">Activo fijo</option><option value="CONSUMIBLE">Consumible</option><option value="SERVICIO">Servicio</option></select></div>
+                <div class="cti-field"><label>Artículo SAP</label><div class="cti-search-box"><input class="cti-control cti-line-art-text" placeholder="Buscar SAP" autocomplete="off"><input type="hidden" class="cti-line-art-code"><div class="cti-search-results cti-line-art-results"></div></div></div>
+                <div class="cti-field cti-line-description"><label>Descripción *</label><input class="cti-control cti-line-desc" maxlength="500" required></div>
+                <div class="cti-field"><label>Cantidad *</label><input type="number" class="cti-control cti-line-qty" min="0.0001" step="0.0001" value="1" required></div>
+                <div class="cti-field"><label>Unidad</label><input class="cti-control cti-line-unit" maxlength="30" value="PZA"></div>
+                <button type="button" class="cti-btn cti-btn-danger cti-btn-sm cti-line-remove" title="Eliminar">×</button>
+                <div class="cti-span-3 cti-muted" style="padding:0 8px 7px; font-size:10px;">
+                    ${data.lineaSap !== undefined && data.lineaSap !== null ? `Línea SAP ${escapeHtml(data.lineaSap)} · ` : ''}
+                    Centro ${escapeHtml(data.centroCostoSap || '-')} ·
+                    Almacén ${escapeHtml(data.almacenSap || '-')} ·
+                    Proveedor preferido ${escapeHtml(data.proveedorPreferidoSap || '-')}
+                </div>`;
+
+            $('ctiLineasSolicitud').appendChild(row);
+
+            const type = row.querySelector('.cti-line-type');
+            const artText = row.querySelector('.cti-line-art-text');
+            const artCode = row.querySelector('.cti-line-art-code');
+            const artResults = row.querySelector('.cti-line-art-results');
+            const desc = row.querySelector('.cti-line-desc');
+            const qty = row.querySelector('.cti-line-qty');
+            const unit = row.querySelector('.cti-line-unit');
+            let timer;
+
+            type.value =
+                defaultType ||
+                data.tipoLinea ||
+                ($('ctiNuevaTipo').value === 'SERVICIO'
+                    ? 'SERVICIO'
+                    : $('ctiNuevaTipo').value);
+
+            artCode.value = data.itemCode || '';
+            artText.value = data.itemCode || '';
+            desc.value = data.descripcion || '';
+            qty.value = Number(data.cantidad || 1);
+            unit.value = data.unidad || 'PZA';
+
+            type.addEventListener('change', () => {
+                const service = type.value === 'SERVICIO';
+                artText.disabled = service;
+
+                if (service) {
+                    artText.value = '';
+                    artCode.value = '';
+                    artResults.classList.remove('cti-open');
+                } else if (data.itemCode && !artText.value) {
+                    artText.value = data.itemCode;
+                    artCode.value = data.itemCode;
+                }
+            });
+
+            type.dispatchEvent(new Event('change'));
+
+            artText.addEventListener('input', () => {
+                artCode.value = '';
+                clearTimeout(timer);
+
+                timer = setTimeout(async () => {
+                    const term = artText.value.trim();
+
+                    if (term.length < 2) {
+                        artResults.classList.remove('cti-open');
+                        return;
+                    }
+
+                    try {
+                        const list = await getJson(
+                            `${urls.articulos}?term=${encodeURIComponent(term)}`
+                        );
+
+                        artResults.innerHTML = list.length
+                            ? list.map((x, i) => `
+                                <div class="cti-search-item" data-i="${i}">
+                                    <b>${escapeHtml(x.codigo)}</b>
+                                    <small>${escapeHtml(x.nombre)}</small>
+                                </div>`).join('')
+                            : '<div class="cti-search-item"><small>Sin coincidencias.</small></div>';
+
+                        artResults.querySelectorAll('[data-i]').forEach(el =>
+                            el.addEventListener('click', () => {
+                                const item = list[Number(el.dataset.i)];
+                                artCode.value = item.codigo;
+                                artText.value = item.text;
+                                if (!desc.value.trim()) desc.value = item.nombre;
+                                artResults.classList.remove('cti-open');
+                            })
+                        );
+
+                        artResults.classList.add('cti-open');
+                    } catch (error) {
+                        toast(error.message, 'error');
+                    }
+                }, 260);
+            });
+
+            row.querySelector('.cti-line-remove').addEventListener('click', () => {
+                if ($('ctiLineasSolicitud').children.length <= 1) {
+                    return toast('Debe existir al menos un concepto.', 'error');
+                }
+
+                row.remove();
+            });
+        }
+
+        function resetNewRequest() {
+            $('ctiFormNueva').reset();
+            state.sapSolicitudSeleccionada = null;
+            state.sapOrdenesCompra = [];
+            $('ctiNuevaSap').value = '';
+            $('ctiNuevaSapDocEntry').value = '';
+            $('ctiNuevaSapInfo').textContent = 'Ninguna solicitud SAP seleccionada.';
+            $('ctiNuevaPlanta').value = 'PLANTA 1';
+            $('ctiNuevaTipo').value = 'ACTIVO_FIJO';
+            $('ctiNuevaCentroCosto').value = '';
+            $('ctiNuevaCentroCostoInfo').textContent = 'Sin centro de costo.';
+            clearInitialProvider();
+            $('ctiLineasSolicitud').innerHTML = '';
+            state.lineCounter = 0;
+            addRequestLine();
+        }
+
+        function requestLinesPayload() {
+            return [...document.querySelectorAll('#ctiLineasSolicitud .cti-line-row')]
+                .map(row => ({
+                    lineaSap: row.dataset.sapLine
+                        ? Number(row.dataset.sapLine)
+                        : null,
+                    articuloSapCodigo:
+                        row.querySelector('.cti-line-art-code').value || null,
+                    tipoLinea:
+                        row.querySelector('.cti-line-type').value,
+                    descripcion:
+                        row.querySelector('.cti-line-desc').value.trim(),
+                    cantidad:
+                        Number(row.querySelector('.cti-line-qty').value || 0),
+                    unidad:
+                        row.querySelector('.cti-line-unit').value.trim() || 'PZA',
+                    centroCostoSap:
+                        row.dataset.costingCode || $('ctiNuevaCentroCosto').value || null,
+                    almacenSap:
+                        row.dataset.warehouseCode || null,
+                    proveedorPreferidoSap:
+                        row.dataset.preferredVendor || null
+                }));
+        }
+
+        function openProviderModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiProveedorSolicitudId').value = s.id;
+            $('ctiAsignarProveedorCodigo').value = s.proveedorSapCodigo || '';
+            $('ctiAsignarProveedorText').value = s.proveedorSapCodigo ? `${s.proveedorNombreSnapshot} (${s.proveedorSapCodigo})` : '';
+            openModal('ctiModalProveedor');
+        }
+
+        async function syncPurchaseOrders() {
+            const s = state.detalle?.solicitud;
+            if (!s?.id) return;
+
+            showLoading(`Consultando órdenes SAP de la solicitud ${s.solicitudSap}...`);
+
+            try {
+                const result = await postUrlEncoded(
+                    urls.sincronizarOrdenesCompraSap,
+                    { solicitudId: String(s.id) }
+                );
+
+                toast(result.mensaje || 'Órdenes SAP actualizadas.', 'success', 6500);
+                await loadDashboard();
+                await loadSolicitudes(s.id);
+            } catch (error) {
+                toast(error.message, 'error', 8000);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function openQuoteModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiFormCotizacion').reset();
+            $('ctiCotSolicitudId').value = s.id;
+            $('ctiCotFecha').value = localDateInput();
+            $('ctiCotMoneda').value = s.moneda || 'MXN';
+            updateQuoteAnalysis();
+            openModal('ctiModalCotizacion');
+        }
+
+        function updateQuoteAnalysis() {
+            const subtotal = Number($('ctiCotSubtotal').value || 0);
+            const iva = Number($('ctiCotIva').value || 0);
+            const total = Number($('ctiCotTotal').value || 0);
+            const diff = Math.round(((subtotal + iva) - total) * 100) / 100;
+            const box = $('ctiCotAnalisis');
+            if (!subtotal && !iva && !total) {
+                box.className = 'cti-notice cti-notice-amber';
+                box.textContent = 'Captura los importes para validar subtotal + IVA contra total.';
+            } else if (Math.abs(diff) <= .02) {
+                box.className = 'cti-notice cti-notice-green';
+                box.innerHTML = `<b>Aritmética correcta.</b> Subtotal + IVA coincide con el total. IVA efectivo: ${subtotal ? ((iva / subtotal) * 100).toFixed(2) : '0.00'}%.`;
+            } else {
+                box.className = 'cti-notice cti-notice-red';
+                box.innerHTML = `<b>Diferencia aritmética.</b> Subtotal + IVA difiere del total por ${money(diff)}.`;
+            }
+        }
+
+        function openAuthorizationModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiFormAutorizacion').reset();
+            $('ctiAutSolicitudId').value = s.id;
+            $('ctiAutResumen').innerHTML = `<b>${escapeHtml(s.folio)} · ${escapeHtml(s.proveedorNombreSnapshot)}</b><br>Total cotizado: ${money(s.totalCotizado, s.moneda)}.`;
+            openModal('ctiModalAutorizacion');
+        }
+
+        function openReceiptModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiFormRecepcion').reset();
+            $('ctiRecSolicitudId').value = s.id;
+            $('ctiRecFecha').value = localDateTimeInput();
+            openModal('ctiModalRecepcion');
+        }
+
+        function updateInvoiceComparison() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            const subtotal = Number($('ctiFacSubtotal').value || 0);
+            const iva = Number($('ctiFacIva').value || 0);
+            const total = Number($('ctiFacTotal').value || 0);
+            const ds = subtotal - Number(s.subtotalCotizado || 0);
+            const di = iva - Number(s.ivaCotizado || 0);
+            const dt = total - Number(s.totalCotizado || 0);
+            const ok = Math.abs(ds) <= .02 && Math.abs(di) <= .02 && Math.abs(dt) <= .02 && Math.abs(subtotal + iva - total) <= .02;
+            $('ctiFacComparacion').innerHTML = `
+                <div class="cti-notice ${ok ? 'cti-notice-green' : 'cti-notice-amber'}" style="margin-top:10px"><b>${ok ? 'Coincidencia preliminar.' : 'Validación preliminar pendiente.'}</b> El XML será la fuente definitiva cuando se adjunte.</div>
+                <table class="cti-compare"><thead><tr><th>Concepto</th><th>Cotización</th><th>Factura capturada</th><th>Diferencia</th></tr></thead><tbody>
+                <tr><td>Subtotal</td><td>${money(s.subtotalCotizado, s.moneda)}</td><td>${money(subtotal, s.moneda)}</td><td>${money(ds, s.moneda)}</td></tr>
+                <tr><td>IVA</td><td>${money(s.ivaCotizado, s.moneda)}</td><td>${money(iva, s.moneda)}</td><td>${money(di, s.moneda)}</td></tr>
+                <tr><td><b>Total</b></td><td><b>${money(s.totalCotizado, s.moneda)}</b></td><td><b>${money(total, s.moneda)}</b></td><td><b>${money(dt, s.moneda)}</b></td></tr>
+                </tbody></table>`;
+        }
+
+        function openInvoiceModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiFormFactura').reset();
+            $('ctiFacSolicitudId').value = s.id;
+            $('ctiFacFecha').value = localDateInput();
+            $('ctiFacRfc').value = s.proveedorRfcSnapshot || '';
+            $('ctiFacSubtotal').value = Number(s.subtotalCotizado || 0).toFixed(2);
+            $('ctiFacIva').value = Number(s.ivaCotizado || 0).toFixed(2);
+            $('ctiFacTotal').value = Number(s.totalCotizado || 0).toFixed(2);
+            updateInvoiceComparison();
+            openModal('ctiModalFactura');
+        }
+
+        function openPaymentModal() {
+            const s = state.detalle?.solicitud;
+            if (!s) return;
+            $('ctiFormPago').reset();
+            $('ctiPagoSolicitudId').value = s.id;
+            openModal('ctiModalPago');
+        }
+
+        // Las etiquetas del documento imprimible usan \\u003C para evitar que Razor o el navegador terminen prematuramente el bloque script.
+        function printExecutive() {
+            const d = state.detalle;
+            if (!d?.solicitud) return;
+            const s = d.solicitud;
+            const win = window.open('', '_blank', 'width=1100,height=780');
+            if (!win) return toast('El navegador bloqueó la ventana de impresión.', 'error');
+            const rows = (d.detalles || []).map(x => `<tr><td>${escapeHtml(typeLabel(x.tipoLinea))}</td><td>${escapeHtml(x.articuloSapCodigo || '-')}</td><td>${escapeHtml(x.descripcion)}</td><td>${escapeHtml(x.cantidadSolicitada)} ${escapeHtml(x.unidad)}</td></tr>`).join('');
+            const logs = (d.bitacora || []).map(x => `<li><b>${escapeHtml(x.accion)}</b> · ${escapeHtml(x.usuario)} · ${dateText(x.fecha)}<br>${escapeHtml(x.detalle || '')}</li>`).join('');
+            win.document.write(`\u003C!doctype html>\u003Chtml lang="es">\u003Chead>\u003Cmeta charset="utf-8">\u003Ctitle>Expediente ${escapeHtml(s.folio)}\u003C/title>\u003Cstyle>body{font:12px Arial;color:#222;margin:30px}h1{color:#7a1014;border-bottom:3px solid #7a1014;padding-bottom:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.box{border:1px solid #bbb;padding:8px}.box span{display:block;font-size:9px;color:#666;text-transform:uppercase}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.ok{color:#15803d}.bad{color:#b91c1c}@@media print{button{display:none}}\u003C/style>\u003C/head>\u003Cbody>\u003Cbutton onclick="print()">Imprimir\u003C/button>\u003Ch1>Expediente ejecutivo de compra TI\u003C/h1>\u003Cdiv class="grid">\u003Cdiv class="box">\u003Cspan>Folio\u003C/span>\u003Cb>${escapeHtml(s.folio)}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Solicitud SAP\u003C/span>\u003Cb>${escapeHtml(s.solicitudSap)}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Proveedor\u003C/span>\u003Cb>${escapeHtml(s.proveedorNombreSnapshot || '-')} (${escapeHtml(s.proveedorSapCodigo || '-')})\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Estatus\u003C/span>\u003Cb>${escapeHtml(statusInfo(s.estatus)[0])}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Total cotizado\u003C/span>\u003Cb>${money(s.totalCotizado, s.moneda)}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Total factura\u003C/span>\u003Cb>${money(s.totalFactura, s.moneda)}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Diferencia\u003C/span>\u003Cb class="${Math.abs(Number(s.diferenciaFacturaCotizacion || 0)) <= .02 ? 'ok' : 'bad'}">${money(s.diferenciaFacturaCotizacion, s.moneda)}\u003C/b>\u003C/div>\u003Cdiv class="box">\u003Cspan>Validaciones\u003C/span>\u003Cb>Autorización ${s.autorizada ? '✓' : '✕'} · Recepción ${s.recibidaConforme ? '✓' : '✕'} · Conciliación ${s.conciliacionOk ? '✓' : '✕'}\u003C/b>\u003C/div>\u003C/div>\u003Ch2>Objeto de la compra\u003C/h2>\u003Cp>\u003Cb>${escapeHtml(s.titulo)}\u003C/b>\u003C/p>\u003Cp>${escapeHtml(s.justificacion || '')}\u003C/p>\u003Ch2>Conceptos\u003C/h2>\u003Ctable>\u003Ctr>\u003Cth>Tipo\u003C/th>\u003Cth>SAP\u003C/th>\u003Cth>Descripción\u003C/th>\u003Cth>Cantidad\u003C/th>\u003C/tr>${rows}\u003C/table>\u003Ch2>Bloqueos para pago\u003C/h2>${d.bloqueosPago?.length ? `\u003Cul>${d.bloqueosPago.map(x => `\u003Cli>${escapeHtml(x)}\u003C/li>`).join('')}\u003C/ul>` : '\u003Cp class="ok">\u003Cb>Sin bloqueos.\u003C/b>\u003C/p>'}\u003Ch2>Bitácora\u003C/h2>\u003Col>${logs}\u003C/ol>\u003Cp style="margin-top:30px;color:#777">Generado ${dateText(new Date().toISOString())}\u003C/p>\u003C/body>\u003C/html>`);
+            win.document.close();
+        }
+
+        async function refreshAll(selectId = 0) {
+            showLoading('Actualizando información...');
+            try {
+                await Promise.all([loadDashboard(), loadSolicitudes(selectId)]);
+            } catch (error) {
+                toast(error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+
+        // ============================================================
+        // PANTALLA COMPLETA Y ALTURA RESPONSIVA
+        // ============================================================
+        function isCtiFullscreen() {
+            return document.fullscreenElement === $('ctiApp') ||
+                   document.webkitFullscreenElement === $('ctiApp');
+        }
+
+        function updateFullscreenButton() {
+            const active = isCtiFullscreen();
+            const icon = $('ctiFullscreenIcon');
+            const label = $('ctiFullscreenText');
+
+            if (icon) {
+                icon.className = active
+                    ? 'bi bi-fullscreen-exit me-1'
+                    : 'bi bi-arrows-fullscreen me-1';
+            }
+
+            if (label) {
+                label.textContent = active
+                    ? 'Salir de pantalla completa'
+                    : 'Pantalla completa';
+            }
+        }
+
+        async function toggleCtiFullscreen() {
+            const app = $('ctiApp');
+
+            try {
+                if (!isCtiFullscreen()) {
+                    if (app.requestFullscreen) {
+                        await app.requestFullscreen();
+                    } else if (app.webkitRequestFullscreen) {
+                        app.webkitRequestFullscreen();
+                    } else {
+                        return toast(
+                            'Este navegador no permite el modo de pantalla completa.',
+                            'error'
+                        );
+                    }
+                } else if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            } catch (error) {
+                toast(
+                    `No fue posible cambiar a pantalla completa. ${error.message || ''}`,
+                    'error'
+                );
+            } finally {
+                window.setTimeout(() => {
+                    updateFullscreenButton();
+                    updateResponsiveWorkspace();
+                }, 80);
+            }
+        }
+
+        function getCtiFixedHeaderBottom() {
+            if (isCtiFullscreen()) return 0;
+
+            const selectors = [
+                'body > header',
+                'header',
+                'nav',
+                '.navbar',
+                '.topbar',
+                '.main-header',
+                '.app-header',
+                '.fixed-top',
+                '[class*="topbar"]',
+                '[class*="header"]'
+            ];
+
+            let bottom = 0;
+
+            document.querySelectorAll(selectors.join(','))
+                .forEach(element => {
+                    if (element.closest('#ctiApp')) return;
+
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    const isFixed = style.position === 'fixed' ||
+                                    style.position === 'sticky';
+                    const isVisible = style.display !== 'none' &&
+                                      style.visibility !== 'hidden' &&
+                                      Number(style.opacity || 1) > 0 &&
+                                      rect.width > 0 &&
+                                      rect.height > 0;
+                    const isTopBar = rect.bottom > 0 &&
+                                     rect.top < Math.min(240, window.innerHeight * .30) &&
+                                     rect.width >= window.innerWidth * .45;
+
+                    if (isFixed && isVisible && isTopBar) {
+                        bottom = Math.max(bottom, rect.bottom);
+                    }
+                });
+
+            return Math.max(0, Math.ceil(bottom));
+        }
+
+        function updateResponsiveWorkspace() {
+            const app = $('ctiApp');
+            const workspace = document.querySelector('.cti-workspace');
+
+            if (!app || !workspace) return;
+
+            /*
+             * Primero se mide la posición natural de la vista sin corrección.
+             * Después se desplaza únicamente lo necesario para terminar debajo
+             * del encabezado fijo de _Layout2.
+             */
+            app.style.setProperty('--cti-header-clearance', '0px');
+
+            const naturalTop = app.getBoundingClientRect().top;
+            const headerBottom = getCtiFixedHeaderBottom();
+            const clearance = isCtiFullscreen()
+                ? 0
+                : Math.max(0, headerBottom - naturalTop + 6);
+
+            app.style.setProperty(
+                '--cti-header-clearance',
+                `${Math.ceil(clearance)}px`
+            );
+
+            const appTop = Math.max(0, naturalTop + clearance);
+            app.style.setProperty(
+                '--cti-top-offset',
+                `${Math.round(appTop)}px`
+            );
+
+            /*
+             * En tablet/móvil la pantalla fluye verticalmente.
+             * En escritorio tabla e inspector aprovechan el alto restante.
+             */
+            if (window.matchMedia('(max-width: 1180px)').matches) {
+                app.style.removeProperty('--cti-workspace-height');
+                return;
+            }
+
+            const workspaceTop = workspace.getBoundingClientRect().top;
+            const bottomSpace = isCtiFullscreen() ? 8 : 12;
+            const viewportHeight = window.visualViewport?.height ||
+                                   window.innerHeight;
+            const available = Math.max(
+                390,
+                viewportHeight - workspaceTop - bottomSpace
+            );
+
+            app.style.setProperty(
+                '--cti-workspace-height',
+                `${Math.floor(available)}px`
+            );
+        }
+
+        let ctiResizeTimer = 0;
+        function scheduleResponsiveUpdate() {
+            window.clearTimeout(ctiResizeTimer);
+            ctiResizeTimer = window.setTimeout(
+                updateResponsiveWorkspace,
+                80
+            );
+        }
+
+        // Eventos generales
+        document.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
+        document.querySelectorAll('.cti-modal-backdrop').forEach(backdrop => backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdrop.id); }));
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.cti-modal-backdrop.cti-show').forEach(x => closeModal(x.id)); });
+
+        $('ctiSolicitudesBody').addEventListener('click', e => {
+            const row = e.target.closest('tr[data-id]');
+            if (row) selectSolicitud(Number(row.dataset.id));
+        });
+
+        $('ctiInspector').addEventListener('click', e => {
+            const action = e.target.closest('[data-action]')?.dataset.action;
+            if (!action) return;
+            ({
+                proveedor: openProviderModal,
+                cotizacion: openQuoteModal,
+                autorizar: openAuthorizationModal,
+                ordenes: syncPurchaseOrders,
+                recepcion: openReceiptModal,
+                factura: openInvoiceModal,
+                pago: openPaymentModal,
+                imprimir: printExecutive
+            })[action]?.();
+        });
+
+        $('ctiBtnNueva').addEventListener('click', () => { resetNewRequest(); openModal('ctiModalNueva'); });
+        $('ctiBtnFullscreen').addEventListener('click', toggleCtiFullscreen);
+        $('ctiBtnRecargar').addEventListener('click', () => refreshAll(state.selectedId));
+
+        window.addEventListener('resize', scheduleResponsiveUpdate, { passive: true });
+        window.addEventListener('orientationchange', scheduleResponsiveUpdate, { passive: true });
+        window.visualViewport?.addEventListener(
+            'resize',
+            scheduleResponsiveUpdate,
+            { passive: true }
+        );
+        document.addEventListener('fullscreenchange', () => {
+            updateFullscreenButton();
+            scheduleResponsiveUpdate();
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            updateFullscreenButton();
+            scheduleResponsiveUpdate();
+        });
+        $('ctiBtnBuscar').addEventListener('click', () => { state.page = 1; refreshAll(); });
+        $('ctiBtnLimpiar').addEventListener('click', () => { $('ctiFiltroBuscar').value = ''; $('ctiFiltroEstatus').value = ''; state.page = 1; refreshAll(); });
+        $('ctiFiltroBuscar').addEventListener('keydown', e => { if (e.key === 'Enter') { state.page = 1; refreshAll(); } });
+        $('ctiFiltroEstatus').addEventListener('change', () => { state.page = 1; refreshAll(); });
+        $('ctiPageSize').addEventListener('change', () => { state.pageSize = Number($('ctiPageSize').value); state.page = 1; refreshAll(); });
+        $('ctiPrevPage').addEventListener('click', () => { if (state.page > 1) { state.page--; refreshAll(); } });
+        $('ctiNextPage').addEventListener('click', () => { if (state.page * state.pageSize < state.total) { state.page++; refreshAll(); } });
+        document.querySelectorAll('.cti-kpi[data-kpi-status]').forEach(kpi => kpi.addEventListener('click', () => { $('ctiFiltroEstatus').value = kpi.dataset.kpiStatus; state.page = 1; refreshAll(); }));
+
+
+        $('ctiBtnBuscarSolicitudSap').addEventListener('click', () => {
+            openModal('ctiModalSolicitudSap');
+            loadSapPurchaseRequests();
+        });
+
+        $('ctiBtnConsultarSolicitudesSap').addEventListener('click', loadSapPurchaseRequests);
+        $('ctiSapSolicitudBuscar').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loadSapPurchaseRequests();
+            }
+        });
+
+        $('ctiSapSolicitudesBody').addEventListener('click', e => {
+            const button = e.target.closest('[data-select-sap]');
+            if (button) selectSapPurchaseRequest(button.dataset.selectSap);
+        });
+
+        $('ctiBtnBuscarCentroCosto').addEventListener('click', () => {
+            openModal('ctiModalCentroCosto');
+            loadCostCenters();
+        });
+
+        $('ctiBtnConsultarCentrosCosto').addEventListener('click', loadCostCenters);
+        $('ctiCentroCostoBuscar').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loadCostCenters();
+            }
+        });
+
+        $('ctiCentrosCostoBody').addEventListener('click', e => {
+            const button = e.target.closest('[data-select-centro]');
+            if (!button) return;
+            const item = state.centrosCostoSap[Number(button.dataset.selectCentro)];
+            selectCostCenter(item);
+        });
+
+        $('ctiBtnBuscarProveedorInicial').addEventListener('click', () => {
+            openModal('ctiModalProveedorInicial');
+            loadInitialProviders();
+        });
+
+        $('ctiBtnConsultarProveedorInicial').addEventListener('click', loadInitialProviders);
+        $('ctiProveedorInicialBuscar').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                loadInitialProviders();
+            }
+        });
+
+        $('ctiProveedorInicialBody').addEventListener('click', e => {
+            const button = e.target.closest('[data-select-provider]');
+            if (!button) return;
+            const item =
+                state.proveedoresIniciales[Number(button.dataset.selectProvider)];
+            selectInitialProvider(item);
+        });
+
+        $('ctiBtnLimpiarProveedorInicial').addEventListener('click', () => {
+            clearInitialProvider();
+            closeModal('ctiModalProveedorInicial');
+        });
+
+        $('ctiBtnSyncProveedores').addEventListener('click', async () => {
+            if (!canWrite()) return;
+            showLoading('Sincronizando proveedores con SAP...');
+            try {
+                const data = await postForm(urls.syncProveedores, new FormData());
+                toast(`${data.mensaje} Insertados: ${data.insertados}; actualizados: ${data.actualizados}.`, 'success', 6000);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        wireRemoteSearch({
+            inputId: 'ctiAsignarProveedorText', hiddenId: 'ctiAsignarProveedorCodigo', resultsId: 'ctiAsignarProveedorResults', url: urls.proveedores,
+            renderExtra: item => `<small>RFC ${escapeHtml(item.rfc || '-')} · ${escapeHtml(item.condicionPago || '')}</small>`
+        });
+
+        $('ctiBtnAgregarLinea').addEventListener('click', () => addRequestLine());
+        $('ctiNuevaTipo').addEventListener('change', () => {
+            document.querySelectorAll('#ctiLineasSolicitud .cti-line-type').forEach(select => {
+                if (select.value !== 'SERVICIO') {
+                    select.value = $('ctiNuevaTipo').value === 'SERVICIO' ? 'SERVICIO' : $('ctiNuevaTipo').value;
+                    select.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+
+        $('ctiFormNueva').addEventListener('submit', async e => {
+            e.preventDefault();
+            const details = requestLinesPayload();
+
+            if (!$('ctiNuevaSapDocEntry').value) {
+                return toast('Selecciona una solicitud directamente desde SAP.', 'error');
+            }
+
+            if (!$('ctiNuevaCentroCosto').value) {
+                return toast('Selecciona un centro de costo del catálogo SAP.', 'error');
+            }
+
+            if (details.some(x => !x.descripcion || x.cantidad <= 0)) return toast('Revisa descripción y cantidad de todos los conceptos.', 'error');
+            const payload = {
+                solicitudSap: $('ctiNuevaSap').value.trim(),
+                solicitudSapDocEntry: Number($('ctiNuevaSapDocEntry').value || 0),
+                tipoCompra: $('ctiNuevaTipo').value,
+                titulo: $('ctiNuevaTitulo').value.trim(),
+                justificacion: $('ctiNuevaJustificacion').value.trim(),
+                centroCosto: $('ctiNuevaCentroCosto').value.trim(),
+                planta: $('ctiNuevaPlanta').value.trim(),
+                proveedorSapCodigo: $('ctiNuevaProveedorCodigo').value,
+                detalles: details
+            };
+            showLoading('Creando expediente...');
+            try {
+                const data = await postJson(urls.crear, payload);
+                closeModal('ctiModalNueva');
+                toast(`Expediente ${data.folio} creado correctamente.`, 'success');
+                await refreshAll(data.solicitudId);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        $('ctiFormProveedor').addEventListener('submit', async e => {
+            e.preventDefault();
+            const codigo = $('ctiAsignarProveedorCodigo').value;
+            if (!codigo) return toast('Selecciona un proveedor del catálogo.', 'error');
+            showLoading('Asignando proveedor...');
+            try {
+                await postUrlEncoded(urls.asignarProveedor, { solicitudId: $('ctiProveedorSolicitudId').value, proveedorSapCodigo: codigo });
+                closeModal('ctiModalProveedor');
+                toast('Proveedor asignado correctamente.', 'success');
+                await refreshAll(state.selectedId);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        ['ctiCotSubtotal', 'ctiCotIva', 'ctiCotTotal'].forEach(id => $(id).addEventListener('input', updateQuoteAnalysis));
+        $('ctiCotSubtotal').addEventListener('change', () => {
+            const subtotal = Number($('ctiCotSubtotal').value || 0);
+            if (!$('ctiCotIva').value && subtotal) $('ctiCotIva').value = (subtotal * .16).toFixed(2);
+            if (!$('ctiCotTotal').value && subtotal) $('ctiCotTotal').value = (subtotal + Number($('ctiCotIva').value || 0)).toFixed(2);
+            updateQuoteAnalysis();
+        });
+
+        $('ctiFormCotizacion').addEventListener('submit', async e => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('SolicitudId', $('ctiCotSolicitudId').value);
+            fd.append('NumeroCotizacion', $('ctiCotNumero').value.trim());
+            fd.append('FechaCotizacion', $('ctiCotFecha').value);
+            fd.append('VigenciaHasta', $('ctiCotVigencia').value);
+            fd.append('Subtotal', $('ctiCotSubtotal').value);
+            fd.append('Iva', $('ctiCotIva').value);
+            fd.append('Total', $('ctiCotTotal').value);
+            fd.append('Moneda', $('ctiCotMoneda').value);
+            const file = $('ctiCotArchivo').files[0];
+            if (!file) return toast('Adjunta el archivo de cotización.', 'error');
+            fd.append('Archivo', file);
+            showLoading('Registrando y validando cotización...');
+            try {
+                await postForm(urls.cotizacion, fd);
+                closeModal('ctiModalCotizacion');
+                toast('Cotización registrada y enviada a autorización.', 'success');
+                await refreshAll(state.selectedId);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        $('ctiFormAutorizacion').addEventListener('submit', async e => {
+            e.preventDefault();
+            showLoading('Registrando decisión...');
+            try {
+                await postJson(urls.autorizar, {
+                    solicitudId: Number($('ctiAutSolicitudId').value),
+                    autorizar: $('ctiAutDecision').value === 'true',
+                    comentario: $('ctiAutComentario').value.trim()
+                });
+                closeModal('ctiModalAutorizacion');
+                toast('Decisión registrada correctamente.', 'success');
+                await refreshAll(state.selectedId);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        $('ctiRecParcial').addEventListener('change', () => { if ($('ctiRecParcial').checked) $('ctiRecConforme').checked = true; });
+        $('ctiFormRecepcion').addEventListener('submit', async e => {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('SolicitudId', $('ctiRecSolicitudId').value);
+            fd.append('FechaRecepcion', $('ctiRecFecha').value);
+            fd.append('RecibidaConforme', String($('ctiRecConforme').checked));
+            fd.append('RecepcionParcial', String($('ctiRecParcial').checked));
+            fd.append('Observaciones', $('ctiRecObservaciones').value.trim());
+            const file = $('ctiRecEvidencia').files[0];
+            if ($('ctiRecConforme').checked && !file) return toast('La evidencia es obligatoria para una recepción conforme.', 'error');
+            if (file) fd.append('Evidencia', file);
+            showLoading('Registrando recepción...');
+            try {
+                await postForm(urls.recepcion, fd);
+                closeModal('ctiModalRecepcion');
+                toast('Recepción registrada correctamente.', 'success');
+                await refreshAll(state.selectedId);
+            } catch (error) { toast(error.message, 'error'); }
+            finally { hideLoading(); }
+        });
+
+        ['ctiFacSubtotal', 'ctiFacIva', 'ctiFacTotal'].forEach(id => $(id).addEventListener('input', updateInvoiceComparison));
+        $('ctiFormFactura').addEventListener('submit', async e => {
+            e.preventDefault();
+            const pdf = $('ctiFacPdf').files[0];
+            const xml = $('ctiFacXml').files[0];
+            if (!pdf && !xml) return toast('Adjunta al menos el PDF o el XML de la factura.', 'error');
+            const fd = new FormData();
+            fd.append('SolicitudId', $('ctiFacSolicitudId').value);
+            fd.append('Serie', $('ctiFacSerie').value.trim());
+            fd.append('Folio', $('ctiFacFolio').value.trim());
+            fd.append('Uuid', $('ctiFacUuid').value.trim());
+            fd.append('RfcEmisor', $('ctiFacRfc').value.trim());
+            fd.append('FechaFactura', $('ctiFacFecha').value);
+            fd.append('Subtotal', $('ctiFacSubtotal').value || '0');
+            fd.append('Iva', $('ctiFacIva').value || '0');
+            fd.append('Total', $('ctiFacTotal').value || '0');
+            if (pdf) fd.append('Pdf', pdf);
+            if (xml) fd.append('Xml', xml);
+            showLoading('Analizando XML y conciliando factura...');
+            try {
+                const data = await postForm(urls.factura, fd);
+                closeModal('ctiModalFactura');
+                toast(data.conciliacionOk ? 'Factura conciliada correctamente.' : 'Factura registrada con diferencias; el pago quedó bloqueado.', data.conciliacionOk ? 'success' : 'error', 6500);
+                await refreshAll(state.selectedId);
+            } catch (error) { toast(error.message, 'error', 6500); }
+            finally { hideLoading(); }
+        });
+
+        $('ctiFormPago').addEventListener('submit', async e => {
+            e.preventDefault();
+            showLoading('Liberando expediente a pago...');
+            try {
+                await postJson(urls.pago, { solicitudId: Number($('ctiPagoSolicitudId').value), comentario: $('ctiPagoComentario').value.trim() });
+                closeModal('ctiModalPago');
+                toast('Expediente liberado a pago correctamente.', 'success');
+                await refreshAll(state.selectedId);
+            } catch (error) {
+                const blockers = error.data?.bloqueos;
+                toast(blockers?.length ? `${error.message} ${blockers.join(' ')}` : error.message, 'error', 7000);
+            } finally { hideLoading(); }
+        });
+
+
+        function cleanCtiLayoutShell() {
+            const app = $('ctiApp');
+            if (!app) return;
+
+            document.body.classList.add('cti-page-active');
+
+            let node = app.parentElement;
+            let level = 0;
+
+            /*
+             * Solo se revisan los ancestros inmediatos de la vista.
+             * Se limpian aquellos que tengan fondo, sombra o borde
+             * redondeado, que son los que generan la tarjeta blanca.
+             */
+            while (node && node !== document.body && level < 5) {
+                const css = window.getComputedStyle(node);
+                const background = css.backgroundColor;
+
+                const hasVisibleBackground =
+                    background &&
+                    background !== 'transparent' &&
+                    background !== 'rgba(0, 0, 0, 0)';
+
+                const hasShadow =
+                    css.boxShadow &&
+                    css.boxShadow !== 'none';
+
+                const hasRadius =
+                    Number.parseFloat(css.borderTopLeftRadius || '0') > 0 ||
+                    Number.parseFloat(css.borderTopRightRadius || '0') > 0 ||
+                    Number.parseFloat(css.borderBottomLeftRadius || '0') > 0 ||
+                    Number.parseFloat(css.borderBottomRightRadius || '0') > 0;
+
+                if (level === 0 || hasVisibleBackground || hasShadow || hasRadius) {
+                    node.classList.add('cti-layout-shell-clean');
+
+                    /*
+                     * El espacio blanco de la captura viene principalmente
+                     * del padding vertical del contenedor inmediato.
+                     */
+                    if (level <= 1) {
+                        node.classList.add('cti-layout-shell-inner');
+                    }
+                }
+
+                if (node.tagName === 'MAIN') break;
+
+                node = node.parentElement;
+                level++;
+            }
+        }
+
+        async function init() {
+            cleanCtiLayoutShell();
+            updateFullscreenButton();
+            updateResponsiveWorkspace();
+            showLoading('Inicializando Control de Compras TI...');
+
+            try {
+                await loadPermisos();
+                await Promise.all([loadDashboard(), loadSolicitudes()]);
+            } catch (error) {
+                toast(error.message, 'error', 7000);
+            } finally {
+                hideLoading();
+                window.requestAnimationFrame(updateResponsiveWorkspace);
+            }
+        }
+
+        init();
+    })();
+</script>

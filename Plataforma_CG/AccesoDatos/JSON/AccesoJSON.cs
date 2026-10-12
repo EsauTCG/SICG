@@ -7,6 +7,7 @@ namespace Plataforma_CG.AccesoDatos.JSON
     public class AccesoJSON
     {
         HttpClient api= new Conexion().ConAPI();
+        HttpClient api2= new Conexion().APIPlan();
         public static string generarJsonSurtido(SolicitudSurtidoModel model)
         {
             var salida = new
@@ -39,6 +40,19 @@ namespace Plataforma_CG.AccesoDatos.JSON
         {
             var body = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await api.PostAsync($"ConexionAPI/Insertar", body);
+            response.EnsureSuccessStatusCode();
+
+            // Leer el stream directamente y deserializar en un paso (mejor que leer como string)
+            //var lista = await JsonSerializer.DeserializeAsync<string>(await response.Content.ReadAsStreamAsync());
+            string res = await response.Content.ReadAsStringAsync();
+
+
+            return res;
+        }
+        public async Task<string> APIPLAN(string fecha)
+        {
+            
+            var response = await api2.GetAsync($"EjecutarTodo?fecha={fecha}");
             response.EnsureSuccessStatusCode();
 
             // Leer el stream directamente y deserializar en un paso (mejor que leer como string)

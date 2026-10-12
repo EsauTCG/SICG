@@ -189,7 +189,6 @@ document.addEventListener(
     }
 );
 
-
 function buscarYScrollDiario() {
 
     const input = document.getElementById("buscadorProductos");
@@ -378,7 +377,6 @@ function actualizarContador() {
         ? `${actual} de ${total}`
         : "Sin resultados";
 }
-
 
 function exportarExcel() {
 
@@ -1237,7 +1235,38 @@ async function abrirModalSolicitud() {
     }
 
 }
+async function activarPlantilla(btn) {
 
+    const fecha = btn.dataset.fecha;
+    console.log(btn.dataset.fecha);
+
+    try {
+
+        const response = await fetch("/Operaciones/ActivarPlantilla", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(
+                 fecha
+            )
+        });
+
+        if (!response.ok) {
+            throw new Error("Error al activar la plantilla.");
+        }
+
+        const resultado = await response.json();
+
+        alert(resultado.mensaje);
+
+    } catch (error) {
+
+        console.error(error);
+        alert("Ocurrió un error al activar la plantilla.");
+
+    }
+}
 async function guardarSolicitud() {
 
     try {

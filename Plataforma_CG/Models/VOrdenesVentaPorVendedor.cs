@@ -20,7 +20,7 @@ namespace Plataforma_CG.Models
         public decimal KgTotales { get; set; }
         public decimal Importe { get; set; }
 
-        public int VendedorId { get; set; }       
+        public int VendedorId { get; set; }      
 
         // NUEVO: coincide con tu CASE en la vista SQL
         public string? AutorizacionPendiente { get; set; }

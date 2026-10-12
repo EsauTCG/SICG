@@ -1,0 +1,205 @@
+/* ==========================================================================
+   _Layout2 — FIX DEFINITIVO SIDEBAR MÓVIL
+   Problema corregido:
+   el overlay sí aparecía, pero reglas posteriores podían dejar el sidebar
+   todavía desplazado/oculto. Este override unifica el mismo breakpoint que
+   usa el JavaScript: 991.98px.
+   ========================================================================== */
+
+@media (max-width: 991.98px) {
+
+    :root {
+        --layout-sidebar-mobile-width: min(86vw, 300px);
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    /* En móvil no se utiliza la zona hover del escritorio. */
+    .layout-sidebar-hover-zone {
+        display: none !important;
+        pointer-events: none !important;
+    }
+
+    /* ----------------------------------------------------------
+       DRAWER MÓVIL
+       Por defecto está realmente fuera de pantalla.
+       ---------------------------------------------------------- */
+    .layout-sidebar,
+    .layout-sidebar.layout-hidden {
+        position: fixed !important;
+
+        top: var(--layout-navbar-height) !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: 0 !important;
+
+        width: var(--layout-sidebar-mobile-width) !important;
+        min-width: var(--layout-sidebar-mobile-width) !important;
+        max-width: var(--layout-sidebar-mobile-width) !important;
+
+        height: calc(100dvh - var(--layout-navbar-height)) !important;
+        max-height: calc(100dvh - var(--layout-navbar-height)) !important;
+
+        display: flex !important;
+        flex-direction: column !important;
+
+        transform: translate3d(-105%, 0, 0) !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+
+        z-index: 1400 !important;
+
+        overflow: hidden !important;
+
+        transition:
+            transform .22s ease,
+            opacity .16s ease,
+            visibility .16s ease !important;
+
+        will-change: transform !important;
+    }
+
+    /* ----------------------------------------------------------
+       ESTADO ABIERTO
+       Se fuerza también aunque alguna regla anterior conserve
+       accidentalmente .layout-hidden.
+       ---------------------------------------------------------- */
+    body.layout-mobile-sidebar-open .layout-sidebar,
+    body.layout-mobile-sidebar-open .layout-sidebar.layout-hidden,
+    .layout-sidebar:not(.layout-hidden) {
+        transform: translate3d(0, 0, 0) !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* El menú debe poder desplazarse con el dedo. */
+    .layout-sidebar,
+    .layout-sidebar-nav {
+        touch-action: pan-y !important;
+        overscroll-behavior: contain !important;
+    }
+
+    .layout-sidebar-nav {
+        min-height: 0 !important;
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .layout-sidebar .sb-user-section,
+    .layout-sidebar .sb-search,
+    .layout-sidebar .sb-footer {
+        flex: 0 0 auto !important;
+    }
+
+    /* ----------------------------------------------------------
+       OVERLAY
+       Siempre debajo del drawer.
+       ---------------------------------------------------------- */
+    .layout-sidebar-overlay {
+        display: block !important;
+        position: fixed !important;
+
+        top: var(--layout-navbar-height) !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+
+        background: rgba(0, 0, 0, .48) !important;
+
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+
+        z-index: 1390 !important;
+
+        transition:
+            opacity .18s ease,
+            visibility .18s ease !important;
+    }
+
+    .layout-sidebar-overlay.show,
+    body.layout-mobile-sidebar-open .layout-sidebar-overlay {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+
+    /* ----------------------------------------------------------
+       BOTÓN ABRIR / CERRAR
+       ---------------------------------------------------------- */
+    .layout-toggle-sidebar-btn,
+    .layout-sidebar.layout-hidden ~ .layout-toggle-sidebar-btn,
+    body:has(.layout-sidebar.layout-hidden) .layout-toggle-sidebar-btn {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+
+        position: fixed !important;
+
+        top: calc(var(--layout-navbar-height) + 8px) !important;
+        left: 8px !important;
+
+        width: 38px !important;
+        height: 38px !important;
+
+        transform: none !important;
+
+        border-radius: 5px !important;
+
+        z-index: 1410 !important;
+    }
+
+    body.layout-mobile-sidebar-open .layout-toggle-sidebar-btn {
+        left: calc(var(--layout-sidebar-mobile-width) - 46px) !important;
+
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+
+        z-index: 1410 !important;
+    }
+
+    /* ----------------------------------------------------------
+       MAIN: el drawer flota; no empuja la página en móvil.
+       ---------------------------------------------------------- */
+    .layout-main-content,
+    .layout-main-content.layout-sidebar-open {
+        width: 100% !important;
+        max-width: 100% !important;
+
+        margin-left: 0 !important;
+
+        transform: none !important;
+    }
+
+    /*
+       Bloquea el fondo, pero NO bloquea los gestos del drawer.
+       La regla original touch-action:none hacía incómodo el scroll.
+    */
+    body.layout-mobile-sidebar-open {
+        overflow: hidden !important;
+        touch-action: auto !important;
+    }
+
+    /* Nunca mostrar PIN en móvil. */
+    #layout-pin-btn {
+        display: none !important;
+    }
+}
+
+/* Teléfonos pequeños: aprovechar más ancho sin salir del viewport. */
+@media (max-width: 575.98px) {
+    :root {
+        --layout-sidebar-mobile-width: min(90vw, 286px);
+    }
+}

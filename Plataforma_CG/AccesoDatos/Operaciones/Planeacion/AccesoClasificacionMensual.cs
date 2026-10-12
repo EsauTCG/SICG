@@ -14,6 +14,7 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
             var lista = new List<PlaneacionMensualModel>();
             string query = @$"SELECT  
     ISNULL(a.Id, 0)                AS Id,
+	ISNULL(b.Id,0)				   AS IdClas,
     ISNULL(a.Fecha, '{ano}-{mes}-1')  AS Fecha,
     b.fk_Clasificacion                          AS Clasificacion,
     b.Nombre                       AS SubClas,
@@ -29,6 +30,23 @@ LEFT JOIN PlanProduccion a
    on c.SKU=b.fk_Clasificacion
     where c.SKU='{clasi}'
 ORDER BY b.fk_Clasificacion;";
+//            string query = @$"SELECT  
+//    ISNULL(a.Id, 0)                AS Id,
+//    ISNULL(a.Fecha, '{ano}-{mes}-1')  AS Fecha,
+//    b.fk_Clasificacion                          AS Clasificacion,
+//    b.Nombre                       AS SubClas,
+//    ISNULL(a.Canales, 0)           AS Canales,
+//    ISNULL(a.PesoPromedio, b.PesoPromedio) AS PesoPromedio,
+//    ISNULL(a.PesoTotal, 0)         AS PesoTotal,
+//    ISNULL(a.Porcentaje,0) as Porcentaje
+//FROM SubClasif b
+//LEFT JOIN PlanProduccion a
+//    ON a.fk_Clasificacion = b.Nombre
+//   AND a.Fecha = '{ano}-{mes}-1'
+//   inner join Clasificacion c 
+//   on c.SKU=b.fk_Clasificacion
+//    where c.SKU='{clasi}'
+//ORDER BY b.fk_Clasificacion;";
             SqlCommand cmd = new SqlCommand(query, _conn);
             _conn.Open();
             try
@@ -40,6 +58,7 @@ ORDER BY b.fk_Clasificacion;";
                         lista.Add(new PlaneacionMensualModel
                         {
                             Id = Convert.ToInt32(dr["ID"]),
+                            IdClas= Convert.ToInt32(dr["IdClas"]),
                             Fecha = Convert.ToString(dr["Fecha"]),
                             SkuClasificacion = Convert.ToString(dr["Clasificacion"]),
                             NombreClasificacion = Convert.ToString(dr["SubClas"]),
