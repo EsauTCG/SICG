@@ -120,6 +120,13 @@ namespace Plataforma_CG.Data
         public DbSet<AuditoriaInventario> AuditoriasInventario { get; set; }
         public DbSet<ProveedorInventario> ProveedoresInventario { get; set; }
 
+        // Inventario de Refacciones
+        public DbSet<Refaccion> Refacciones { get; set; }
+        public DbSet<RefaccionCategoria> RefaccionCategorias { get; set; }
+        public DbSet<RefaccionUbicacion> RefaccionUbicaciones { get; set; }
+public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
+        public DbSet<RefaccionMovimiento> RefaccionMovimientos { get; set; }
+
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
 
@@ -701,7 +708,80 @@ namespace Plataforma_CG.Data
             });
 
 
+            // =========================
+            // Inventario de Refacciones
+            // =========================
+            modelBuilder.Entity<RefaccionCategoria>(e =>
+            {
+                e.ToTable("RefaccionCategoria");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+                e.Property(x => x.UsuarioCreacion).HasMaxLength(120);
+                e.HasIndex(x => x.Nombre).IsUnique();
+            });
 
+            modelBuilder.Entity<RefaccionUbicacion>(e =>
+            {
+                e.ToTable("RefaccionUbicacion");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Nombre).HasMaxLength(150).IsRequired();
+                e.Property(x => x.UsuarioCreacion).HasMaxLength(120);
+                e.HasIndex(x => x.Nombre).IsUnique();
+            });
+
+            modelBuilder.Entity<RefaccionMaquina>(e =>
+            {
+                e.ToTable("RefaccionMaquina");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Nombre).HasMaxLength(150).IsRequired();
+                e.Property(x => x.UsuarioCreacion).HasMaxLength(120);
+                e.HasIndex(x => x.Nombre).IsUnique();
+            });
+
+            modelBuilder.Entity<Refaccion>(e =>
+            {
+                e.ToTable("Refaccion");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Sku).HasMaxLength(50).IsRequired();
+                e.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
+                e.Property(x => x.Costo).HasColumnType("decimal(18,2)");
+                e.Property(x => x.CodigoEtiqueta).HasMaxLength(80);
+                e.Property(x => x.UsuarioCreacion).HasMaxLength(120);
+                e.Property(x => x.UsuarioModificacion).HasMaxLength(120);
+                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
+                e.HasIndex(x => x.Sku).IsUnique();
+
+                e.HasOne(x => x.Categoria)
+                    .WithMany()
+                    .HasForeignKey(x => x.CategoriaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(x => x.Ubicacion)
+                    .WithMany()
+                    .HasForeignKey(x => x.UbicacionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<RefaccionMovimiento>(e =>
+            {
+                e.ToTable("RefaccionMovimiento");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Tipo).HasMaxLength(20).IsRequired();
+                e.Property(x => x.Folio).HasMaxLength(30);
+                e.Property(x => x.Referencia).HasMaxLength(100);
+                e.Property(x => x.MaquinaDestino).HasMaxLength(150);
+                e.Property(x => x.Comentario).HasMaxLength(300);
+                e.Property(x => x.Usuario).HasMaxLength(120);
+                e.Property(x => x.Fecha).HasColumnType("datetime2(0)");
+                e.HasIndex(x => new { x.RefaccionId, x.Fecha });
+                e.HasIndex(x => x.Folio);
+
+                e.HasOne(x => x.Refaccion)
+                    .WithMany()
+                    .HasForeignKey(x => x.RefaccionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
         }
 
