@@ -130,13 +130,7 @@
                                     style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
                                 <i class="bi bi-gear"></i> Configurar Tipos
                             </button>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-light shadow-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#modalNuevoKpi"
-                                    style="font-size: 0.70rem; padding: 0.1rem 0.5rem;">
-                                <i class="bi bi-plus-lg"></i> Crear Nuevo Tipo de Objetivo
-                            </button>
+                           
                         </div>
                     }
         </div>
@@ -527,8 +521,21 @@
                 <div id="msgConfigTipos" class="alert alert-danger py-2 small d-none"></div>
                 <div class="accordion" id="accordionTipos"></div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+
+            <div class="modal-footer d-flex justify-content-between">
+
+                <button type="button"
+                    class="btn btn-danger btn-sm"
+                    id="btnAbrirNuevoTipo">
+                    <i class="bi bi-plus-lg me-1"></i>
+                    Crear Nuevo
+                </button>
+
+                <button type="button" 
+                    class="btn btn-outline-secondary btn-sm" 
+                    data-bs-dismiss="modal">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>
@@ -750,6 +757,25 @@
     </script>
     <script>
         $(document).ready(function () {
+
+            $('#btnAbrirNuevoTipo').on('click', function () {
+
+                var modalConfig = document.getElementById('modalConfigTipos');
+                var modalNuevo = document.getElementById('modalNuevoKpi');
+
+                if (!modalConfig || !modalNuevo) {
+                    console.error('No se encontró alguno de los modales.');
+                    return;
+                }
+
+                var instanciaConfig = bootstrap.Modal.getOrCreateInstance(modalConfig);
+
+                $(modalConfig).one('hidden.bs.modal', function () {
+                    bootstrap.Modal.getOrCreateInstance(modalNuevo).show();
+                });
+
+                instanciaConfig.hide();
+            });
             // Lista maestra de SKU del combo (se captura una sola vez, antes de filtrar)
             var skuOpcionesTodas = [];
             $('#sku option').each(function () {
@@ -988,7 +1014,7 @@
                                 '<label class="form-check-label small" for="' + idChk + '">' + c.texto + '</label></div>';
                         });
 
-                        var badgeEstado = '<span class="badge ' + (t.Activo ? 'bg-success' : 'bg-secondary') + ' ms-2 cfg-badge-estado">' + (t.Activo ? 'Activo' : 'Inactivo') + '</span>';
+                        var badgeEstado = '<span class="badge ' + (t.Activo ? 'bg-success' : 'bg-danger') + ' ms-2 cfg-badge-estado">' + (t.Activo ? 'Activo' : 'Inactivo') + '</span>';
                         var skusCount = Number(t.SkusConfigurados || 0);
 
                         html += '<div class="accordion-item">' +
@@ -1090,7 +1116,7 @@
                     $item.find('.cfg-titulo-nombre').text(response.nombre);
                     $item.find('.cfg-badge-estado')
                         .toggleClass('bg-success', response.activo)
-                        .toggleClass('bg-secondary', !response.activo)
+                        .toggleClass('bg-danger', !response.activo)
                         .text(response.activo ? 'Activo' : 'Inactivo');
                     $item.find('.cfg-nota-sin-config').toggleClass('d-none', response.campos !== null);
 
