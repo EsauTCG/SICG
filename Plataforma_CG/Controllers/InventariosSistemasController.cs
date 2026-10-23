@@ -42,7 +42,36 @@ namespace Plataforma_CG.Controllers
             _sap = sap ?? throw new ArgumentNullException(nameof(sap));
         }
 
-        public IActionResult InventariosSis() => View();
+        [HttpGet]
+        public IActionResult Index()
+        {
+            return View("Seleccion");
+        }
+
+        public IActionResult InventariosSis(string modo = "ambos")
+        {
+            var modoNorm = string.IsNullOrWhiteSpace(modo) ? "ambos" : modo.Trim().ToLowerInvariant();
+            if (modoNorm != "consumibles" && modoNorm != "fijos" && modoNorm != "ambos" && modoNorm != "auditoria")
+                modoNorm = "ambos";
+
+            ViewBag.Modo = modoNorm;
+            ViewBag.SoloLectura = modoNorm == "auditoria";
+            ViewBag.FiltroTipo = modoNorm switch
+            {
+                "consumibles" => "Consumible",
+                "fijos" => "Activo Fijo",
+                _ => ""
+            };
+            ViewBag.TituloModulo = modoNorm switch
+            {
+                "consumibles" => "Inventario de Sistemas - Consumibles",
+                "fijos" => "Inventario de Sistemas - Activos Fijos",
+                "auditoria" => "Inventario de Sistemas - Auditoría (Solo consulta)",
+                _ => "Inventario de Sistemas - Ambos"
+            };
+
+            return View();
+        }
 
         public IActionResult ResumenInventario(string? planta = null, string? area = null)
         {

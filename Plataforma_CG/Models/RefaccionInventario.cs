@@ -17,6 +17,7 @@ namespace Plataforma_CG.Models
         public int? StockMaximo { get; set; }
         public decimal Costo { get; set; }
         public string? CodigoEtiqueta { get; set; }
+        public string? FotoUrl { get; set; }
         public bool Activo { get; set; } = true;
         public DateTime FechaCreacion { get; set; }
         public string? UsuarioCreacion { get; set; }
@@ -57,7 +58,7 @@ namespace Plataforma_CG.Models
         public string? UsuarioCreacion { get; set; }
     }
 
-    [Table("RefaccionMovimiento")]
+    [Table("RefaccionMovimiento")] 
     public class RefaccionMovimiento
     {
         public int Id { get; set; }
