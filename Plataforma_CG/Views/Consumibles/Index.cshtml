@@ -1,0 +1,735 @@
+﻿@{
+    ViewBag.Title = "Consumibles";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<div class="container-fluid mt-4">
+
+    <div class="card shadow-sm">
+
+        <div class="card-header bg-danger text-white">
+            <h4 class="mb-0">Consulta de consumibles</h4>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row align-items-end mb-4">
+
+                <div class="col-md-3 mb-3">
+                    <label for="tipoProceso" class="font-weight-bold">
+                        Proceso
+                    </label>
+
+                    <select id="tipoProceso" class="form-control">
+                        <option value="DEST">Deshuese</option>
+                        <option value="RETT">Retrabajo</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label for="fechaInicio" class="font-weight-bold">
+                        Fecha inicial
+                    </label>
+
+                    <input type="date"
+                           id="fechaInicio"
+                           class="form-control"
+                           required />
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label for="fechaFin" class="font-weight-bold">
+                        Fecha final
+                    </label>
+
+                    <input type="date"
+                           id="fechaFin"
+                           class="form-control"
+                           required />
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <button type="button"
+                            id="btnConsultar"
+                            class="btn btn-danger btn-block">
+                        <i class="fas fa-search"></i> Consultar
+                    </button>
+                    <button type="button"
+                            id="btnExportarExcel"
+                            class="btn btn-success btn-block">
+                        <i class="fas fa-file-excel"></i> Exportar a Excel
+                    </button>
+                </div>
+
+            </div>
+
+            <div id="mensajeConsumibles"
+                 class="alert d-none"
+                 role="alert">
+            </div>
+
+            <div class="tabla-consumibles-scroll">
+                <table id="tablaConsumibles"
+                       class="table table-bordered table-hover table-striped">
+
+
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Artículo</th>
+                            <th>Nombre del artículo</th>
+                            <th>Caja</th>
+                            <th>Bolsa</th>
+                            <th class="text-right">Total cajas</th>
+                            <th class="text-right">Bolsas / caja</th>
+                            <th class="text-right">Pza / bolsa</th>
+                            <th class="text-right">Total piezas</th>
+                            <th class="text-right">Total KG</th>
+                            <th class="text-right">KG / Caja</th>
+
+                            <th class="text-right">% Inyección</th>
+                            <th class="text-right">Deshuese Plan</th>
+                            <th class="text-right">Polvo Plan</th>
+                            <th class="text-right">Deshuese Produccion</th>
+                            <th class="text-right">Polvo Produccion</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="tbodyConsumibles"></tbody>
+
+                    <tfoot>
+                        <tr class="font-weight-bold">
+                            <td colspan="4" class="text-right">TOTALES</td>
+                            <td id="totalCajas" class="text-right">0</td>
+                            <td></td>
+                            <td></td>
+                            <td id="totalPiezas" class="text-right">0</td>
+                            <td id="totalKG" class="text-right">0.00</td>
+                            <td id="promedioKGCaja" class="text-right">0.00</td>
+                            <td colspan="5"></td>
+                        </tr>
+                    </tfoot>
+
+
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    #tablaConsumibles {
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+        #tablaConsumibles th {
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        #tablaConsumibles td {
+            vertical-align: middle;
+        }
+
+        #tablaConsumibles tbody tr:hover {
+            background-color: #fce4e4;
+        }
+
+    #btnConsultar {
+        min-height: 38px;
+    }
+
+    #mensajeConsumibles {
+        margin-bottom: 15px;
+    }
+
+    .tabla-consumibles-scroll {
+        max-height: 65vh;
+        overflow: auto;
+        position: relative;
+        border: 1px solid #dee2e6;
+    }
+
+    #tablaConsumibles {
+        font-size: 14px;
+        white-space: nowrap;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-bottom: 0;
+    }
+
+        #tablaConsumibles thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background-color: #343a40;
+            color: white;
+            vertical-align: middle;
+        }
+
+        #tablaConsumibles tfoot td {
+            position: sticky;
+            bottom: 0;
+            z-index: 4;
+            background-color: #e9ecef;
+            box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        #tablaConsumibles th,
+        #tablaConsumibles td {
+            padding: 8px 10px;
+        }
+
+        #tablaConsumibles tbody tr:hover {
+            background-color: #fce4e4;
+        }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const tipoProceso = document.getElementById("tipoProceso");
+        const fechaInicio = document.getElementById("fechaInicio");
+        const fechaFin = document.getElementById("fechaFin");
+        const btnConsultar = document.getElementById("btnConsultar");
+        const btnExportar = document.getElementById("btnExportarExcel");
+        const tbody = document.getElementById("tbodyConsumibles");
+        const mensaje = document.getElementById("mensajeConsumibles");
+
+        const urlConsulta =
+            '@Url.Action("ObtenerConsumibles", "Consumibles")';
+
+        const urlNombre =
+            '@Url.Action("ConsultarNombreArticulo", "Consumibles")';
+
+        const urlPlan =
+            '@Url.Action("ConsultarPlan", "Consumibles")';
+
+        const urlInye =
+            '@Url.Action("ConsultarInye", "Consumibles")';
+
+        const FACTOR_CONSUMO = 0.0656825;
+
+        // Cachés para evitar repetir consultas del mismo artículo.
+        const cacheNombres = new Map();
+        const cachePlanes = new Map();
+        const cacheInyecciones = new Map();
+
+        function fechaLocalHoy() {
+            const hoy = new Date();
+            const anio = hoy.getFullYear();
+            const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+            const dia = String(hoy.getDate()).padStart(2, "0");
+
+            return `${anio}-${mes}-${dia}`;
+        }
+
+        const hoy = fechaLocalHoy();
+        fechaInicio.value = hoy;
+        fechaFin.value = hoy;
+
+        function mostrarMensaje(texto, tipo) {
+            mensaje.textContent = texto;
+            mensaje.className = "alert alert-" + tipo;
+        }
+
+        function ocultarMensaje() {
+            mensaje.textContent = "";
+            mensaje.className = "alert d-none";
+        }
+
+        function obtenerPropiedad(obj, nombre) {
+            if (obj == null) return undefined;
+
+            if (obj[nombre] !== undefined) {
+                return obj[nombre];
+            }
+
+            const camel =
+                nombre.charAt(0).toLowerCase() + nombre.slice(1);
+
+            return obj[camel];
+        }
+
+        function numero(valor) {
+            const resultado = Number(valor);
+            return Number.isFinite(resultado) ? resultado : 0;
+        }
+
+        function formatoNumero(valor, decimales = 2) {
+            return numero(valor).toLocaleString("es-MX", {
+                minimumFractionDigits: decimales,
+                maximumFractionDigits: decimales
+            });
+        }
+
+        function agregarCelda(fila, valor, alineacion = "") {
+            const celda = document.createElement("td");
+            celda.textContent = valor ?? "";
+
+            if (alineacion) {
+                celda.className = alineacion;
+            }
+
+            fila.appendChild(celda);
+        }
+
+        function claveArticulo(articulo) {
+            return String(articulo ?? "").trim().toUpperCase();
+        }
+
+        function parametrosArticulo(articulo, inicio, fin) {
+            return new URLSearchParams({
+                articulo: articulo ?? "",
+                fechain: inicio,
+                fechafin: fin
+            });
+        }
+
+        async function consultarJson(url) {
+            const respuesta = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json"
+                }
+            });
+
+            if (!respuesta.ok) {
+                throw new Error("Error al consultar: " + url);
+            }
+
+            return await respuesta.json();
+        }
+
+        async function consultarNombreArticulo(articulo) {
+            const clave = claveArticulo(articulo);
+
+            if (cacheNombres.has(clave)) {
+                return cacheNombres.get(clave);
+            }
+
+            const url = urlNombre +
+                "?articulo=" + encodeURIComponent(articulo ?? "");
+
+            const resultado = await consultarJson(url);
+
+            const nombre = typeof resultado === "string"
+                ? resultado
+                : (resultado?.nombre ?? resultado?.Nombre ?? "");
+
+            cacheNombres.set(clave, nombre);
+            return nombre;
+        }
+
+            async function consultarPesoPlan(articulo, inicio, fin) {
+        const clave = claveArticulo(articulo);
+
+        if (cachePlanes.has(clave)) {
+            return cachePlanes.get(clave);
+        }
+
+        const params = parametrosArticulo(articulo, inicio, fin);
+        const resultado = await consultarJson(urlPlan + "?" + params.toString());
+
+        console.log("Respuesta ConsultarPlan:", articulo, resultado);
+
+        const peso = typeof resultado === "number"
+            ? numero(resultado)
+            : numero(
+                resultado?.pesoPlan ??
+                resultado?.PesoPlan ??
+                resultado?.peso ??
+                resultado?.Peso ??
+                resultado?.plan ??
+                resultado?.Plan ??
+                resultado?.valor ??
+                resultado?.Valor
+            );
+
+        cachePlanes.set(clave, peso);
+        return peso;
+    }
+
+                    async function consultarInyeccion(articulo, inicio, fin) {
+        const clave = claveArticulo(articulo);
+
+        if (cacheInyecciones.has(clave)) {
+            return cacheInyecciones.get(clave);
+        }
+
+        const params = parametrosArticulo(articulo, inicio, fin);
+        const url = urlInye + "?" + params.toString();
+
+        const respuesta = await fetch(url, {
+            method: "GET",
+            headers: { "Accept": "application/json" }
+        });
+
+        if (!respuesta.ok) {
+            throw new Error(
+                "Error al consultar la inyección del artículo " + articulo
+            );
+        }
+
+        const resultado = await respuesta.json();
+
+        console.log("Respuesta ConsultarInye:", resultado);
+
+        const dato = Array.isArray(resultado)
+            ? resultado[0]
+            : resultado;
+
+        // Admite Peso, peso, Item1 y otros nombres habituales.
+        const pesoOriginal =
+            dato?.Peso ??
+            dato?.peso ??
+            dato?.Item1 ??
+            dato?.item1 ??
+            dato?.pesoNatural ??
+            dato?.PesoNatural;
+
+        const porcentajeOriginal =
+            dato?.Porcentaje ??
+            dato?.porcentaje ??
+            dato?.Item2 ??
+            dato?.item2;
+
+        const peso = Number(pesoOriginal ?? 0);
+        const porcentaje = Number(porcentajeOriginal ?? 0);
+
+        const inyeccion = {
+            peso: Number.isFinite(peso) ? peso : 0,
+            porcentaje: Number.isFinite(porcentaje) ? porcentaje : 0
+        };
+
+        console.log("Inyección interpretada:", {
+            articulo,
+            pesoOriginal,
+            porcentajeOriginal,
+            inyeccion
+        });
+
+        cacheInyecciones.set(clave, inyeccion);
+
+        return inyeccion;
+    }
+
+        async function cargarConsumibles() {
+            const inicio = fechaInicio.value;
+            const fin = fechaFin.value;
+
+            if (!inicio || !fin) {
+                mostrarMensaje(
+                    "Selecciona la fecha inicial y la fecha final.",
+                    "warning"
+                );
+                return;
+            }
+
+            if (inicio > fin) {
+                mostrarMensaje(
+                    "La fecha inicial no puede ser posterior a la fecha final.",
+                    "warning"
+                );
+                return;
+            }
+
+            ocultarMensaje();
+
+            btnConsultar.disabled = true;
+            btnConsultar.textContent = "Consultando...";
+
+            tbody.replaceChildren();
+
+            document.getElementById("totalCajas").textContent = "0";
+            document.getElementById("totalPiezas").textContent = "0";
+            document.getElementById("totalKG").textContent = "0.00";
+            document.getElementById("promedioKGCaja").textContent = "0.00";
+
+            // Las cachés se limpian al cambiar el periodo o el proceso.
+            cacheNombres.clear();
+            cachePlanes.clear();
+            cacheInyecciones.clear();
+
+            const parametros = new URLSearchParams({
+                tipo: tipoProceso.value,
+                fechaInicio: inicio,
+                fechaFin: fin
+            });
+
+            try {
+                const resultado = await consultarJson(
+                    urlConsulta + "?" + parametros.toString()
+                );
+
+                if (resultado?.success === false) {
+                    throw new Error(
+                        resultado.mensaje ||
+                        "Error al consultar los consumibles."
+                    );
+                }
+
+                const datos = Array.isArray(resultado)
+                    ? resultado
+                    : (resultado?.datos || resultado?.Datos || []);
+
+                if (datos.length === 0) {
+                    mostrarMensaje(
+                        "No se encontraron registros para los filtros seleccionados.",
+                        "info"
+                    );
+                    return;
+                }
+
+                // Ordenar por artículo/SKU.
+                datos.sort((a, b) => {
+                    const skuA = String(
+                        obtenerPropiedad(a, "Articulo") ?? ""
+                    );
+                    const skuB = String(
+                        obtenerPropiedad(b, "Articulo") ?? ""
+                    );
+
+                    return skuA.localeCompare(
+                        skuB,
+                        "es",
+                        { numeric: true, sensitivity: "base" }
+                    );
+                });
+
+
+    let sumaCajas = 0;
+    let sumaPiezas = 0;
+    let sumaKG = 0;
+
+    // Obtener un artículo por cada SKU, sin duplicados.
+    const articulos = [...new Map(
+        datos.map(item => {
+            const articulo = obtenerPropiedad(item, "Articulo") ?? "";
+            return [claveArticulo(articulo), articulo];
+        })
+    ).values()];
+
+    // ETAPA 1: consultar primero todas las inyecciones.
+    await Promise.all(
+        articulos.map(articulo =>
+            consultarInyeccion(articulo, inicio, fin)
+        )
+    );
+
+    // ETAPA 2: consultar después todas las planeaciones.
+    await Promise.all(
+        articulos.map(articulo =>
+            consultarPesoPlan(articulo, inicio, fin)
+        )
+    );
+
+    // ETAPA 3: ahora que ambas consultas terminaron,
+    // construir la tabla y hacer los cálculos.
+    datos.sort((a, b) => {
+        const skuA = String(obtenerPropiedad(a, "Articulo") ?? "");
+        const skuB = String(obtenerPropiedad(b, "Articulo") ?? "");
+
+        return skuA.localeCompare(
+            skuB,
+            "es",
+            { numeric: true, sensitivity: "base" }
+        );
+    });
+
+    let articuloAnterior = null;
+    const fragmento = document.createDocumentFragment();
+
+    for (const item of datos) {
+        const fila = document.createElement("tr");
+
+        const articulo = obtenerPropiedad(item, "Articulo") ?? "";
+        const clave = claveArticulo(articulo);
+
+        const caja = obtenerPropiedad(item, "Caja");
+        const bolsa = obtenerPropiedad(item, "Bolsa");
+
+        const cajas = numero(obtenerPropiedad(item, "TotalCajas"));
+        const bolsasCaja = numero(obtenerPropiedad(item, "BolsasCaja"));
+        const pzaBolsa = numero(obtenerPropiedad(item, "PzaBolsa"));
+        const piezas = numero(obtenerPropiedad(item, "TotalPzas"));
+        const kg = numero(obtenerPropiedad(item, "TotalKG"));
+
+        const kgPorCaja = cajas > 0 ? kg / cajas : 0;
+
+        agregarCelda(fila, articulo);
+        agregarCelda(fila, await consultarNombreArticulo(articulo));
+        agregarCelda(fila, caja);
+        agregarCelda(fila, bolsa);
+        agregarCelda(fila, formatoNumero(cajas), "text-right");
+        agregarCelda(fila, formatoNumero(bolsasCaja), "text-right");
+        agregarCelda(fila, formatoNumero(pzaBolsa), "text-right");
+        agregarCelda(fila, formatoNumero(piezas), "text-right");
+        agregarCelda(fila, formatoNumero(kg), "text-right");
+        agregarCelda(fila, formatoNumero(kgPorCaja), "text-right");
+
+        if (clave !== articuloAnterior) {
+            const inyeccion = cacheInyecciones.get(clave) ?? {
+                peso: 0,
+                porcentaje: 0
+            };
+
+            const pesoPlan = numero(cachePlanes.get(clave));
+            const pesoNatural = numero(inyeccion.peso);
+            const porcentaje = numero(inyeccion.porcentaje);
+
+            // Si Porcentaje llega como 0.25 para representar 25 %,
+            // se usa directamente como factor.
+            const consumoPlan =
+                pesoPlan * porcentaje/100 * FACTOR_CONSUMO;
+
+            const consumoNatural =
+                pesoNatural * porcentaje/100 * FACTOR_CONSUMO;
+
+            agregarCelda(
+                fila,
+                formatoNumero(porcentaje) + "%",
+                "text-right"
+            );
+
+            agregarCelda(
+                fila,
+                formatoNumero(pesoPlan),
+                "text-right"
+            );
+
+            agregarCelda(
+                fila,
+                formatoNumero(consumoPlan, 4),
+                "text-right"
+            );
+
+            agregarCelda(
+                fila,
+                formatoNumero(pesoNatural),
+                "text-right"
+            );
+
+            agregarCelda(
+                fila,
+                formatoNumero(consumoNatural, 4),
+                "text-right"
+            );
+
+            articuloAnterior = clave;
+        } else {
+            for (let i = 0; i < 5; i++) {
+                agregarCelda(fila, "");
+            }
+        }
+
+        fragmento.appendChild(fila);
+
+        sumaCajas += cajas;
+        sumaPiezas += piezas;
+        sumaKG += kg;
+    }
+
+    tbody.appendChild(fragmento);
+
+    document.getElementById("totalCajas").textContent =
+        formatoNumero(sumaCajas, 0);
+
+    document.getElementById("totalPiezas").textContent =
+        formatoNumero(sumaPiezas, 0);
+
+    document.getElementById("totalKG").textContent =
+        formatoNumero(sumaKG);
+
+    document.getElementById("promedioKGCaja").textContent =
+        formatoNumero(sumaCajas > 0 ? sumaKG / sumaCajas : 0);
+
+
+                mostrarMensaje(
+                    "Consulta completada. Registros encontrados: " +
+                    datos.length,
+                    "success"
+                );
+
+            } catch (error) {
+                console.error(error);
+
+                mostrarMensaje(
+                    error.message ||
+                    "Ocurrió un error al consultar los datos.",
+                    "danger"
+                );
+
+            } finally {
+                btnConsultar.disabled = false;
+                btnConsultar.innerHTML =
+                    '<i class="fas fa-search"></i> Consultar';
+            }
+        }
+
+        btnConsultar.addEventListener("click", cargarConsumibles);
+        tipoProceso.addEventListener("change", cargarConsumibles);
+        fechaInicio.addEventListener("change", cargarConsumibles);
+        fechaFin.addEventListener("change", cargarConsumibles);
+
+        btnExportar.addEventListener("click", function () {
+            const tabla = document.getElementById("tablaConsumibles");
+            const filas = document.querySelectorAll("#tbodyConsumibles tr");
+
+            if (filas.length === 0) {
+                mostrarMensaje(
+                    "No hay datos para exportar. Realiza una consulta primero.",
+                    "warning"
+                );
+                return;
+            }
+
+            if (typeof XLSX === "undefined") {
+                mostrarMensaje(
+                    "No se pudo cargar el módulo de Excel. Verifica la conexión.",
+                    "danger"
+                );
+                return;
+            }
+
+            const libro = XLSX.utils.table_to_book(tabla, {
+                sheet: "Consumibles"
+            });
+
+            const hoja = libro.Sheets["Consumibles"];
+
+            hoja["!cols"] = [
+                { wch: 18 }, // Artículo
+                { wch: 35 }, // Nombre
+                { wch: 20 }, // Caja
+                { wch: 20 }, // Bolsa
+                { wch: 14 }, // Total cajas
+                { wch: 15 }, // Bolsas/caja
+                { wch: 13 }, // Pza/bolsa
+                { wch: 15 }, // Total piezas
+                { wch: 14 }, // Total KG
+                { wch: 14 }, // KG/caja
+                { wch: 16 }, // % Inyección
+                { wch: 14 }, // Peso Plan
+                { wch: 17 }, // Consumo Plan
+                { wch: 14 }, // Natural
+                { wch: 18 }  // Consumo Natural
+            ];
+
+            const proceso = tipoProceso.value === "DEST"
+                ? "Deshuese"
+                : "Retrabajo";
+
+            const nombreArchivo =
+                "Consumibles_" + proceso + "_" +
+                fechaInicio.value + "_al_" + fechaFin.value + ".xlsx";
+
+            XLSX.writeFile(libro, nombreArchivo);
+        });
+
+        cargarConsumibles();
+    });
+
+</script>

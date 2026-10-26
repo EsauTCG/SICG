@@ -1,0 +1,224 @@
+@model Plataforma_CG.Models.ActivacionSkus.ActivacionSkusPagina
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Activación de SKUS";
+    var descripcionesTipo = new Dictionary<string, string>
+    {
+        ["F"] = "Habilitado en Marinado y Empaque",
+        ["S"] = "Solo se muestra en Marinado (SIGO inyecciones)",
+        ["P"] = "En ningún lado",
+        ["C"] = "Desconocido"
+    };
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/activacion-skus.css" asp-append-version="true" />
+}
+
+<div class="container-principal pp-sigo pp-page activation-page" id="activacionSkus"
+     data-programaciones="@Url.Action("Programaciones", "ActivacionSkus")"
+     data-listado="@Url.Action("Listado", "ActivacionSkus")"
+     data-cambiar="@Url.Action("CambiarTipo", "ActivacionSkus")"
+     data-cambiar-masivo="@Url.Action("CambiarTipoMasivo", "ActivacionSkus")"
+     data-disponibles="@Url.Action("Disponibles", "ActivacionSkus")"
+     data-agregar="@Url.Action("AgregarMasivo", "ActivacionSkus")"
+     data-eliminar="@Url.Action("Eliminar", "ActivacionSkus")"
+     data-subclasificaciones="@Url.Action("Subclasificaciones", "ActivacionSkus")"
+     data-guardar-subclasificacion="@Url.Action("GuardarSubclasificacion", "ActivacionSkus")"
+     data-planta="@Model.Plantas[0].Clave"
+     data-maximo-lote="@Plataforma_CG.Services.ActivacionSkusService.MaximoLote"
+     data-escribir="@(Model.PuedeEscribir ? "true" : "false")"
+     data-puede-eliminar="@(Model.PuedeEliminar ? "true" : "false")">
+    <header class="pp-titlebar activation-header">
+        <div class="activation-heading">
+            <span class="activation-heading-icon"><i class="bi bi-upc-scan" aria-hidden="true"></i></span>
+            <div>
+                <span class="pp-eyebrow">Operaciones · Programaciones</span>
+                <h1>Activación de SKUS</h1>
+                <p>Consulta, agrega y administra los SKU de cada programación.</p>
+            </div>
+        </div>
+        <div class="activation-header-meta">
+            <span class="activation-header-plant"><i class="bi bi-building" aria-hidden="true"></i> <span id="activacionPlantaEncabezado" aria-live="polite">@Model.Plantas[0].Nombre</span></span>
+            <span class="activation-access"><i class="bi bi-shield-check" aria-hidden="true"></i> @(Model.PuedeEscribir && Model.PuedeEliminar ? "Lectura, edición y eliminación" : Model.PuedeEscribir ? "Lectura y edición" : Model.PuedeEliminar ? "Lectura y eliminación" : "Solo lectura")</span>
+        </div>
+    </header>
+
+    <div id="activacionMensaje" class="alert d-none" role="status" aria-live="polite"></div>
+    <section class="activation-panel" aria-label="Filtros de SKU">
+        <div class="activation-section-heading"><h2><i class="bi bi-sliders" aria-hidden="true"></i> Consulta de SKU</h2><span>Selecciona una programación o consulta todas</span></div>
+        <div class="activation-plant-selector">
+            <div>
+                <label for="activacionPlanta" class="form-label">Planta</label>
+                <select id="activacionPlanta" class="form-select" aria-describedby="activacionPlantaAyuda">
+                    @foreach (var planta in Model.Plantas)
+                    {
+                        <option value="@planta.Clave">@planta.Nombre</option>
+                    }
+                </select>
+            </div>
+            <p id="activacionPlantaAyuda">Al cambiar de planta se recargan las programaciones y los SKU.</p>
+        </div>
+        <form id="activacionFiltros" class="activation-filters">
+            <div class="activation-programacion">
+                <label for="activacionOrigen" class="form-label">Programación</label>
+                <select id="activacionOrigen" class="form-select" disabled><option value="">Cargando programaciones…</option></select>
+            </div>
+            <div class="activation-search">
+                <label for="activacionBusqueda" class="form-label">Buscar SKU o alias</label>
+                <input id="activacionBusqueda" class="form-control" type="search" maxlength="100" placeholder="Escribe el código del artículo o su alias" />
+            </div>
+            <div>
+                <label for="activacionTipo" class="form-label">Tipo</label>
+                <select id="activacionTipo" class="form-select"><option value="">Todos</option></select>
+            </div>
+            <button type="submit" class="btn btn-primary" id="activacionConsultar" disabled><i class="bi bi-search" aria-hidden="true"></i> <span id="activacionConsultarTexto">Consultar</span></button>
+        </form>
+    </section>
+
+    <section class="activation-counts" aria-label="Distribución de tipos" aria-live="polite">
+        @foreach (var tipo in new[] { "P", "F", "C", "S" })
+        {
+            <div class="activation-count activation-count-@(tipo)" data-tipo="@tipo" data-descripcion="@descripcionesTipo[tipo]">
+                <span class="activation-type activation-type-@(tipo)">@tipo</span>
+                <div class="activation-count-value"><span>Tipo @tipo</span><strong id="activacionConteo@(tipo)">—</strong></div>
+                <p class="activation-count-description">@descripcionesTipo[tipo]</p>
+            </div>
+        }
+    </section>
+    <p class="activation-caption"><i class="bi bi-info-circle" aria-hidden="true"></i> Conteos de la programación y búsqueda consultadas, antes del filtro por tipo.</p>
+
+    <section class="activation-panel activation-results" aria-label="Listado de SKU">
+        <div class="activation-results-header">
+            <h2 id="activacionTablaTitulo"><i class="bi bi-list-ul" aria-hidden="true"></i> SKU por programación <span class="activation-plant-context" id="activacionPlantaActual" aria-live="polite">@Model.Plantas[0].Nombre</span></h2>
+            <div class="activation-results-actions">
+                <span class="activation-total" id="activacionTotal" aria-live="polite">Cargando…</span>
+                <button type="button" id="activacionSubAbrir" class="btn btn-outline-primary"><i class="bi bi-tags" aria-hidden="true"></i> Subclasificación</button>
+                <button type="button" id="activacionAgregar" class="btn btn-primary@(Model.PuedeEscribir ? "" : " d-none")" disabled><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar SKU</button>
+            </div>
+        </div>
+        <div class="activation-bulk-toolbar@(Model.PuedeEscribir ? "" : " d-none")" id="activacionSeleccionBarra">
+            <label class="activation-check-label"><input type="checkbox" id="activacionSeleccionPagina" class="activation-selection-input" disabled /> Seleccionar esta página</label>
+            <span id="activacionSeleccionResumen" role="status" aria-live="polite">0 vínculos seleccionados</span>
+            <div class="activation-bulk-actions">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="activacionSeleccionLimpiar" disabled>Limpiar selección</button>
+                <button type="button" class="btn btn-primary" id="activacionMasivoAbrir" disabled>Cambiar tipo a seleccionados</button>
+            </div>
+            <p>Marca los vínculos que deseas cambiar. La selección se conserva entre páginas; se limpia al volver a consultar o cambiar de planta. Máximo 500 por lote.</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle" id="activacionTabla" role="table" aria-labelledby="activacionTablaTitulo">
+                <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader" id="activacionColSku">SKU</th><th scope="col" role="columnheader" id="activacionColAlias">Alias externo</th><th scope="col" role="columnheader" id="activacionColProgramacion">Programación</th><th scope="col" role="columnheader" id="activacionColOrigen">ID programación</th><th scope="col" role="columnheader" id="activacionColTipo">Tipo actual</th><th scope="col" role="columnheader" id="activacionColAcciones">Acción</th></tr></thead>
+                <tbody id="activacionFilas" role="rowgroup"><tr role="row"><td role="cell" colspan="6" class="activation-empty">Cargando SKU…</td></tr></tbody>
+            </table>
+        </div>
+        <footer class="activation-pagination">
+            <span id="activacionPagina" aria-live="polite">Página —</span>
+            <div><button type="button" class="btn btn-outline-secondary btn-sm" id="activacionAnterior" disabled>Anterior</button><button type="button" class="btn btn-outline-secondary btn-sm" id="activacionSiguiente" disabled>Siguiente</button></div>
+        </footer>
+    </section>
+</div>
+
+<div class="modal fade pp-sigo activation-modal activation-sub-modal" id="activacionSubModal" data-planta="@Model.Plantas[0].Clave" tabindex="-1" aria-labelledby="activacionSubTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title" id="activacionSubTitulo"><i class="bi bi-tags" aria-hidden="true"></i> Subclasificación</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            <div class="activation-operation-context activation-sub-context"><span>Planta: <strong id="activacionSubPlanta"></strong></span><span><span class="activation-type activation-sub-n">N</span> Solo aparece en Empaque</span></div>
+            <p class="activation-modal-note" id="activacionSubAyuda">Consulta todos los artículos de esta planta. Marca para agregar N o desmarca para quitarla. Aplica al SKU en todas sus programaciones de esta planta. Los demás valores de subclasificación se conservan.</p>
+            <div id="activacionSubLectura" class="alert alert-info d-none" role="status"></div>
+            <form id="activacionSubFiltros" class="activation-sub-filters">
+                <div><label class="form-label" for="activacionSubBusqueda">Buscar SKU o nombre</label><input id="activacionSubBusqueda" class="form-control" type="search" maxlength="100" placeholder="Código o nombre del artículo" /></div>
+                <div><label class="form-label" for="activacionSubEstado">Subclasificación actual</label><select id="activacionSubEstado" class="form-select"><option value="">Todos</option><option value="N">Con N · Solo aparece en Empaque</option><option value="VACIO">Sin subclasificación</option><option value="OTROS">Otros valores · Solo lectura</option></select></div>
+                <button type="submit" class="btn btn-outline-primary" id="activacionSubConsultar">Buscar</button>
+            </form>
+            <div class="alert d-none" id="activacionSubMensaje" role="status" aria-live="polite"></div>
+            <ul class="activation-sub-list" id="activacionSubFilas" aria-label="Artículos de la planta" aria-describedby="activacionSubAyuda"></ul>
+            <div class="activation-catalog-pagination"><span id="activacionSubPagina" aria-live="polite"></span><div><button type="button" id="activacionSubAnterior" class="btn btn-outline-secondary btn-sm" disabled>Anterior</button><button type="button" id="activacionSubSiguiente" class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button></div></div>
+            <details id="activacionSubRevision" class="activation-sub-review d-none"><summary>Revisar cambios pendientes</summary><ul id="activacionSubCambios" class="activation-selection-list" aria-label="Cambios de subclasificación pendientes"></ul></details>
+            <button type="button" class="btn btn-outline-secondary btn-sm@(Model.PuedeEscribir ? "" : " d-none")" id="activacionSubDescartar" disabled>Descartar pendientes</button>
+            <p class="activation-modal-note" id="activacionSubNotaCambios">La selección se conserva entre páginas y búsquedas, hasta 500 cambios por lote. Cerrar sin guardar descarta los cambios pendientes.</p>
+        </div>
+        <div class="modal-footer"><span class="activation-sub-pending" id="activacionSubPendientes" role="status" aria-live="polite">Sin cambios pendientes</span><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button><button type="button" class="btn btn-primary@(Model.PuedeEscribir ? "" : " d-none")" id="activacionSubGuardar" disabled>Guardar cambios</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade pp-sigo activation-modal" id="activacionModal" data-planta="@Model.Plantas[0].Clave" tabindex="-1" aria-labelledby="activacionModalTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title" id="activacionModalTitulo"><i class="bi bi-pencil-square" aria-hidden="true"></i> Editar vínculo de SKU</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            @Html.AntiForgeryToken()
+            <div class="alert d-none" id="activacionModalMensaje" role="alert"></div>
+            <dl class="activation-detail"><dt>SKU</dt><dd id="activacionDetalleSku"></dd><dt>Planta</dt><dd id="activacionDetallePlanta"></dd><dt>Alias externo</dt><dd id="activacionDetalleAlias"></dd><dt>Programación</dt><dd id="activacionDetalleProgramacion"></dd><dt>ID programación</dt><dd id="activacionDetalleOrigen"></dd><dt>Tipo actual</dt><dd id="activacionDetalleTipo"></dd></dl>
+            <label class="form-label" for="activacionOrigenNuevo">Programación destino</label>
+            <select class="form-select activation-field-spacing" id="activacionOrigenNuevo"></select>
+            <label class="form-label" for="activacionTipoNuevo">Tipo nuevo</label>
+            <select class="form-select" id="activacionTipoNuevo" aria-describedby="activacionTipoNuevoDescripcion"></select>
+            <p class="activation-type-selection d-none" id="activacionTipoNuevoDescripcion" aria-live="polite"></p>
+            <p class="activation-modal-note">Puedes cambiar el tipo o mover el SKU a otra programación de esta planta. El SKU y el alias se conservan.</p>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="activacionGuardar" disabled>Confirmar cambio</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade pp-sigo activation-modal" id="activacionMasivoModal" data-planta="@Model.Plantas[0].Clave" tabindex="-1" aria-labelledby="activacionMasivoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title" id="activacionMasivoTitulo"><i class="bi bi-ui-checks" aria-hidden="true"></i> Cambiar tipo de varios SKU</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            <div class="alert d-none" id="activacionMasivoMensaje" role="alert"></div>
+            <div class="activation-operation-context">Planta: <strong id="activacionMasivoPlanta"></strong></div>
+            <p id="activacionMasivoResumen"></p>
+            <ul class="activation-selection-list" id="activacionMasivoFilas" aria-label="Vínculos que se van a revisar"></ul>
+            <label class="form-label" for="activacionMasivoTipo">Tipo para los vínculos seleccionados</label>
+            <select class="form-select" id="activacionMasivoTipo" aria-describedby="activacionMasivoTipoDescripcion"></select>
+            <p class="activation-type-selection d-none" id="activacionMasivoTipoDescripcion" aria-live="polite"></p>
+            <p class="activation-modal-note">Solo cambia el tipo de los vínculos marcados; cada SKU conserva su programación. Si algún registro cambió desde tu consulta, no se guardará el lote.</p>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="activacionMasivoGuardar" disabled>Confirmar cambio masivo</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade pp-sigo activation-modal" id="activacionAltaModal" data-planta="@Model.Plantas[0].Clave" tabindex="-1" aria-labelledby="activacionAltaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title" id="activacionAltaTitulo"><i class="bi bi-plus-circle" aria-hidden="true"></i> Agregar SKU a programación</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            <div class="alert d-none" id="activacionAltaMensaje" role="alert"></div>
+            <div class="activation-operation-context">Planta destino: <strong id="activacionAltaPlanta"></strong></div>
+            <label class="form-label" for="activacionAltaOrigen">Programación destino</label>
+            <select class="form-select activation-field-spacing" id="activacionAltaOrigen"></select>
+            <form id="activacionCatalogoFiltros" class="activation-catalog-search">
+                <div><label class="form-label" for="activacionCatalogoBusqueda">Buscar en catálogo SIGO</label><input class="form-control" id="activacionCatalogoBusqueda" type="search" maxlength="100" placeholder="Código o descripción del SKU" /></div>
+                <button type="submit" class="btn btn-outline-primary" id="activacionCatalogoConsultar">Buscar</button>
+            </form>
+            <p class="activation-modal-note">Se muestran los artículos de ArticuloSAP que todavía no están ligados a esta programación.</p>
+            <div class="activation-catalog-toolbar">
+                <label class="activation-check-label"><input type="checkbox" class="activation-selection-input" id="activacionCatalogoSeleccionPagina" disabled /> Seleccionar esta página</label>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="activacionCatalogoLimpiar" disabled>Limpiar selección</button>
+            </div>
+            <div class="table-responsive activation-catalog-table"><table class="table align-middle"><thead><tr><th scope="col">SKU</th><th scope="col">Descripción</th><th scope="col">Selección</th></tr></thead><tbody id="activacionCatalogoFilas"><tr><td colspan="3">Selecciona una programación para consultar el catálogo.</td></tr></tbody></table></div>
+            <div class="activation-catalog-pagination"><span id="activacionCatalogoPagina" aria-live="polite"></span><div><button type="button" class="btn btn-outline-secondary btn-sm" id="activacionCatalogoAnterior" disabled>Anterior</button><button type="button" class="btn btn-outline-secondary btn-sm" id="activacionCatalogoSiguiente" disabled>Siguiente</button></div></div>
+            <div class="activation-catalog-selection" id="activacionAltaSeleccion"><strong id="activacionAltaSeleccionResumen" role="status" aria-live="polite">No has seleccionado SKU.</strong><ul class="activation-selection-list" id="activacionAltaSeleccionFilas" aria-label="SKU seleccionados para agregar"></ul></div>
+            <label class="form-label" for="activacionAltaTipo">Tipo inicial para todos los SKU seleccionados</label>
+            <select class="form-select" id="activacionAltaTipo" aria-describedby="activacionAltaTipoDescripcion"></select>
+            <p class="activation-type-selection d-none" id="activacionAltaTipoDescripcion" aria-live="polite"></p>
+            <p class="activation-modal-note">Puedes seleccionar hasta 500 SKU entre páginas y búsquedas. Cambiar la programación limpia la selección. Todos se agregarán con el tipo elegido y el alias igual a su código. Si alguno ya fue ligado por otro usuario, no se agregará el lote.</p>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="activacionAltaGuardar" disabled>Agregar a programación</button></div>
+    </div></div>
+</div>
+
+<div class="modal fade pp-sigo activation-modal" id="activacionEliminarModal" data-planta="@Model.Plantas[0].Clave" tabindex="-1" aria-labelledby="activacionEliminarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title" id="activacionEliminarTitulo"><i class="bi bi-trash" aria-hidden="true"></i> Eliminar vínculo de SKU</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+            <div class="alert d-none" id="activacionEliminarMensaje" role="alert"></div>
+            <p>Confirma el vínculo que deseas eliminar:</p>
+            <dl class="activation-detail"><dt>SKU</dt><dd id="activacionEliminarSku"></dd><dt>Planta</dt><dd id="activacionEliminarPlanta"></dd><dt>Programación</dt><dd id="activacionEliminarProgramacion"></dd><dt>ID programación</dt><dd id="activacionEliminarOrigen"></dd><dt>Alias externo</dt><dd id="activacionEliminarAlias"></dd><dt>Tipo</dt><dd id="activacionEliminarTipo"></dd></dl>
+            <div class="alert alert-warning">Se quitará únicamente este vínculo de la programación indicada. El artículo seguirá disponible en el catálogo de SIGO y en sus otras programaciones.</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-danger" id="activacionEliminarGuardar">Eliminar vínculo</button></div>
+    </div></div>
+</div>
+
+@section Scripts {
+    <script src="~/js/activacion-skus.js" asp-append-version="true"></script>
+}

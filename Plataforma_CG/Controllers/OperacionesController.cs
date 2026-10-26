@@ -8,11 +8,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Plataforma_CG.AccesoDatos.JSON;
 using Plataforma_CG.AccesoDatos.Operaciones;
+using Plataforma_CG.AccesoDatos.Operaciones.Pieles;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.AccesoDatos.Operaciones.Planeacion;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
 using Plataforma_CG.Models.Operaciones.Etiquetas;
+using Plataforma_CG.Models.Operaciones.Pieles;
 using Plataforma_CG.Models.Operaciones.Planeacion;
 using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
@@ -68,6 +70,77 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Etiquetacion()
         {
             return View("~/Views/Operaciones/Etiquetacion/Etiquetacion.cshtml");
+        }
+        public async Task<IActionResult> PielesD()
+        {
+            return View("~/Views/Operaciones/Pieles/Pieles.cshtml");
+        }
+        AccesoPieles apl = new AccesoPieles();
+        [HttpGet]
+        public async Task<IActionResult> ConsultarLotesPieles()
+        {
+            var lista = new List<LotePielesModel>();
+            lista = apl.ConsultarLotes();
+            return Ok(lista);
+        }
+        [HttpGet]
+        public async Task<IActionResult> ConsultarOrdenesPieles()
+        {
+            var lista = new List<OrdenesPielesModel>();
+            lista = apl.ConsultarOrdenesPieles();
+            return Ok(lista);
+        }
+        [HttpGet]
+        public async Task<IActionResult> ConsultarPielesLote(long loteId)
+        {
+            var lista = new List<PielesModel>();
+            lista = apl.ConsultarPielesPorLote(loteId);
+            return Ok(lista);
+        }
+        [HttpPost]
+        public IActionResult GuardarPielesSurtido(
+    [FromBody] GuardarPielesSurtidoModel model)
+        {
+            try
+            {
+                if (model == null)
+                {
+                    return BadRequest(
+                        "No se recibieron datos."
+                    );
+                }
+
+                if (model.SolicitudSurtidoId <= 0)
+                {
+                    return BadRequest(
+                        "SolicitudSurtidoId inválido."
+                    );
+                }
+
+                if (model.Pieles == null ||
+                    model.Pieles.Count == 0)
+                {
+                    return BadRequest(
+                        "No se recibieron pieles."
+                    );
+                }
+                var res = "";
+                // Aquí posteriormente hacemos el INSERT
+                // de las pieles seleccionadas.
+                try
+                {
+                   res= apl.InsertarPielesPedido(model,User.Identity.Name);
+                }
+                catch (Exception)
+                {
+
+                }
+                return Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
         AccesoEtiquetacion aet = new AccesoEtiquetacion();
         [HttpGet]

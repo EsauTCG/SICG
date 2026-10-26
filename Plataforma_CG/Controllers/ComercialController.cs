@@ -25509,7 +25509,7 @@ VALUES
                 foreach (var pagina in paginas)
                 {
                     pagina.BackgroundColor = MagickColors.White;
-                    pagina.Alpha(AlphaOption.Remove);
+                    pagina.Alpha(AlphaAction.Remove);
                     pagina.ColorType = ColorType.Grayscale;
                     pagina.Format = MagickFormat.Png;
 
@@ -25535,7 +25535,7 @@ VALUES
 
             image.AutoOrient();
             image.BackgroundColor = MagickColors.White;
-            image.Alpha(AlphaOption.Remove);
+            image.Alpha(AlphaAction.Remove);
             image.ColorType = ColorType.Grayscale;
 
             // Para tablas con letras pequeñas, 1600 es poco.
