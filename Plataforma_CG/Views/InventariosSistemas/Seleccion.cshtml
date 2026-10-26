@@ -1,0 +1,331 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Inventario de Sistemas";
+}
+
+<style>
+    /* Variables de color y tema */
+    :root {
+        --sel-bg: #f4f7f9;
+        --sel-card-bg: #ffffff;
+        --sel-text-dark: #1e293b;
+        --sel-text-muted: #64748b;
+        --sel-border: #e2e8f0;
+        --sel-brand: #b30000;
+    }
+
+    body {
+        background-color: var(--sel-bg) !important;
+    }
+
+    .inv-sel-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 50px 24px;
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+    }
+
+    /* Animaciones de entrada */
+    @@keyframes fadeDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Encabezado */
+    .inv-sel-header {
+        text-align: center;
+        margin-bottom: 50px;
+        animation: fadeDown 0.6s ease-out forwards;
+    }
+
+    .inv-sel-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(179, 0, 0, 0.1);
+        color: var(--sel-brand);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+    }
+
+    .inv-sel-header h2 {
+        font-weight: 900;
+        font-size: 2.4rem;
+        color: var(--sel-text-dark);
+        margin-bottom: 12px;
+        letter-spacing: -0.5px;
+    }
+
+    .inv-sel-header p {
+        color: var(--sel-text-muted);
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.5;
+    }
+
+    /* Cuadrícula de tarjetas */
+    .inv-sel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 24px;
+        animation: fadeUp 0.8s ease-out forwards;
+    }
+
+    /* Tarjetas */
+    .inv-sel-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        background: var(--sel-card-bg);
+        border: 1px solid var(--sel-border);
+        border-radius: 20px;
+        padding: 32px 24px;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        z-index: 1;
+    }
+
+        /* Borde superior de color invisible por defecto */
+        .inv-sel-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--sel-brand);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .inv-sel-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            border-color: transparent;
+            color: inherit;
+        }
+
+            .inv-sel-card:hover::before {
+                opacity: 1;
+            }
+
+        /* Colores específicos por tarjeta en hover */
+        .inv-sel-card.card-consumibles:hover::before {
+            background: #16a34a;
+        }
+
+        .inv-sel-card.card-fijos:hover::before {
+            background: #2563eb;
+        }
+
+        .inv-sel-card.card-ambos:hover::before {
+            background: #7c3aed;
+        }
+
+        .inv-sel-card.card-auditoria:hover::before {
+            background: #d97706;
+        }
+
+    /* Iconos */
+    .inv-sel-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+        transition: transform 0.3s ease;
+    }
+
+    .inv-sel-card:hover .inv-sel-icon {
+        transform: scale(1.1);
+    }
+
+    .card-consumibles .inv-sel-icon {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .card-fijos .inv-sel-icon {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .card-ambos .inv-sel-icon {
+        background: #ede9fe;
+        color: #7c3aed;
+    }
+
+    .card-auditoria .inv-sel-icon {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    /* Textos dentro de la tarjeta */
+    .inv-sel-title {
+        font-weight: 800;
+        font-size: 1.25rem;
+        color: var(--sel-text-dark);
+        margin-bottom: 12px;
+    }
+
+    .inv-sel-text {
+        color: var(--sel-text-muted);
+        font-size: 0.95rem;
+        line-height: 1.5;
+        margin-bottom: 24px;
+        flex-grow: 1;
+    }
+
+    /* Botón / Flecha inferior */
+    .inv-sel-arrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 800;
+        font-size: 0.9rem;
+        color: var(--sel-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: color 0.2s ease, gap 0.2s ease;
+    }
+
+    .inv-sel-card:hover .inv-sel-arrow {
+        gap: 12px;
+    }
+
+    .card-consumibles:hover .inv-sel-arrow {
+        color: #16a34a;
+    }
+
+    .card-fijos:hover .inv-sel-arrow {
+        color: #2563eb;
+    }
+
+    .card-ambos:hover .inv-sel-arrow {
+        color: #7c3aed;
+    }
+
+    .card-auditoria:hover .inv-sel-arrow {
+        color: #d97706;
+    }
+
+    /* MODO OSCURO */
+    body[data-theme="dark"] {
+        --sel-bg: #0f172a;
+        --sel-card-bg: #1e293b;
+        --sel-text-dark: #f8fafc;
+        --sel-text-muted: #94a3b8;
+        --sel-border: #334155;
+    }
+
+        body[data-theme="dark"] .inv-sel-card {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        body[data-theme="dark"] .card-consumibles .inv-sel-icon {
+            background: rgba(22, 163, 74, 0.2);
+        }
+
+        body[data-theme="dark"] .card-fijos .inv-sel-icon {
+            background: rgba(37, 99, 235, 0.2);
+        }
+
+        body[data-theme="dark"] .card-ambos .inv-sel-icon {
+            background: rgba(124, 58, 237, 0.2);
+        }
+
+        body[data-theme="dark"] .card-auditoria .inv-sel-icon {
+            background: rgba(217, 119, 6, 0.2);
+        }
+</style>
+
+<div class="inv-sel-container">
+    <div class="inv-sel-header">
+        <div class="inv-sel-badge">
+            <i class="bi bi-hdd-network"></i> Módulo de TI
+        </div>
+        <h2>Inventario de Sistemas</h2>
+        <p>Selecciona el área de trabajo operativa. Cada módulo está optimizado para agilizar el registro y control de tus equipos.</p>
+    </div>
+
+    <div class="inv-sel-grid">
+        <!-- Tarjeta Consumibles -->
+        <a class="inv-sel-card card-consumibles" href="@Url.Action("InventariosSis", "InventariosSistemas", new { modo = "consumibles" })">
+            <div class="inv-sel-icon">
+                <i class="bi bi-printer"></i>
+            </div>
+            <h5 class="inv-sel-title">Consumibles</h5>
+            <p class="inv-sel-text">Toner, cartuchos, cables y refacciones TI. Gestiona tu stock, entradas, salidas y recibe alertas de mínimos.</p>
+            <div class="inv-sel-arrow">
+                Acceder <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+
+        <!-- Tarjeta Activos Fijos -->
+        <a class="inv-sel-card card-fijos" href="@Url.Action("InventariosSis", "InventariosSistemas", new { modo = "fijos" })">
+            <div class="inv-sel-icon">
+                <i class="bi bi-laptop"></i>
+            </div>
+            <h5 class="inv-sel-title">Activos Fijos</h5>
+            <p class="inv-sel-text">Laptops, monitores y equipos de alto valor. Controla números de serie, asignaciones, comodatos y garantías.</p>
+            <div class="inv-sel-arrow">
+                Acceder <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+
+        <!-- Tarjeta Ambos -->
+        <a class="inv-sel-card card-ambos" href="@Url.Action("InventariosSis", "InventariosSistemas", new { modo = "ambos" })">
+            <div class="inv-sel-icon">
+                <i class="bi bi-boxes"></i>
+            </div>
+            <h5 class="inv-sel-title">Vista Unificada</h5>
+            <p class="inv-sel-text">Gestión total. Administra simultáneamente consumibles y activos fijos en un solo panel de control operativo.</p>
+            <div class="inv-sel-arrow">
+                Acceder <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+
+        <!-- Tarjeta Auditoría -->
+        <a class="inv-sel-card card-auditoria" href="@Url.Action("InventariosSis", "InventariosSistemas", new { modo = "auditoria" })">
+            <div class="inv-sel-icon">
+                <i class="bi bi-clipboard2-check"></i>
+            </div>
+            <h5 class="inv-sel-title">Auditoría Física</h5>
+            <p class="inv-sel-text">Modo de solo lectura diseñado para el pase de lista físico, inspecciones mediante código QR e historial de movimientos.</p>
+            <div class="inv-sel-arrow">
+                Acceder <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+    </div>
+</div>

@@ -2516,12 +2516,18 @@ ORDER BY LoteId, Desde;
 
 DROP TABLE #TempPesoLote;";
 
-            using var multi = await cn.QueryMultipleAsync(sqlTodo, new
-            {
-                Desde = desde,
-                Hasta = hastaExclusivo,
-                Tipo = tipo
-            });
+            using var multi = await cn.QueryMultipleAsync(
+     new CommandDefinition(
+         sqlTodo,
+         new
+         {
+             Desde = desde,
+             Hasta = hastaExclusivo,
+             Tipo = tipo
+         },
+         commandTimeout: 120
+     )
+ );
 
             var lotesRaw = (await multi.ReadAsync<string>()).ToList();
             var rows = (await multi.ReadAsync<PesoLoteEncRow>()).ToList();

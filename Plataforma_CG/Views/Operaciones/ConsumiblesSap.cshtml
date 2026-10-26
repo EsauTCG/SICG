@@ -1,0 +1,666 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Consumibles SAP";
+}
+
+<style>
+    .cons-page { padding: 16px; }
+    .cons-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .cons-stat {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 16px;
+    }
+    .cons-stat .v { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
+    .cons-stat .l {
+        font-size: .72rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #64748b;
+        font-weight: 700;
+    }
+    .cons-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+    }
+    .cons-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    .cons-scroll {
+        max-height: 62vh;
+        overflow: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+    }
+    .cons-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .cons-table th, .cons-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .cons-table th {
+        position: sticky;
+        top: 0;
+        background: #f8fafc;
+        text-align: left;
+        font-size: .7rem;
+        text-transform: uppercase;
+        color: #475569;
+        z-index: 2;
+    }
+    .cons-table tbody tr:hover { background: #f8fafc; }
+    .cons-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 700;
+    }
+    .cons-badge.on { background: #dcfce7; color: #166534; }
+    .cons-badge.off { background: #fee2e2; color: #991b1b; }
+    .cons-spin { animation: cons-spin 1s linear infinite; }
+    @@keyframes cons-spin { to { transform: rotate(360deg); } }
+    .cons-pager {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 12px;
+    }
+    .cons-pager-info { font-size: .76rem; color: #64748b; }
+    .cons-pager-btns { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .cons-page-btn {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #fff;
+        color: #1e293b;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+    .cons-page-btn:hover:not(:disabled) { background: #f1f5f9; }
+    .cons-page-btn.active { background: #b30000; border-color: #8b0000; color: #fff; }
+    .cons-page-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .cons-page-size {
+        height: 32px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0 8px;
+        font-size: .76rem;
+        background: #fff;
+        color: #1e293b;
+    }
+    .cons-prev-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+    .cons-prev-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        text-align: center;
+    }
+    .cons-prev-box .v { font-size: 1.3rem; font-weight: 800; }
+    .cons-prev-box .l {
+        font-size: .7rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #64748b;
+        font-weight: 700;
+    }
+    .cons-prev-box.nuevo .v { color: #166534; }
+    .cons-prev-box.actualizar .v { color: #b45309; }
+    .cons-prev-box.total .v { color: #1e293b; }
+    .cons-prev-scroll {
+        max-height: 440px;
+        overflow: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+    }
+    .cons-prev-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .cons-prev-table th, .cons-prev-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .cons-prev-table th {
+        position: sticky;
+        top: 0;
+        background: #f8fafc;
+        text-align: left;
+        font-size: .7rem;
+        text-transform: uppercase;
+        color: #475569;
+        z-index: 2;
+    }
+    .cons-accion {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 700;
+    }
+    .cons-accion.nuevo { background: #dcfce7; color: #166534; }
+    .cons-accion.actualizar { background: #fef3c7; color: #b45309; }
+    .cons-cambios { display: flex; flex-direction: column; gap: 2px; }
+    .cons-cambio {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: .72rem;
+    }
+    .cons-cambio .campo { font-weight: 700; color: #475569; }
+    .cons-cambio .antes { color: #b91c1c; text-decoration: line-through; }
+    .cons-cambio .flecha { color: #94a3b8; }
+    .cons-cambio .despues { color: #166534; font-weight: 700; }
+
+    .cons-loading {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, .55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 20000;
+        backdrop-filter: blur(2px);
+    }
+    .cons-loading.show { display: flex; }
+    .cons-loading img {
+        width: 180px;
+        max-width: 60vw;
+        border-radius: 14px;
+        background: #fff;
+        padding: 6px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+    .cons-loading .txt {
+        color: #fff;
+        font-weight: 700;
+        font-size: .9rem;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+</style>
+
+<div class="cons-loading" id="consLoading">
+    <img src="~/images/vaquita-comiendo.gif" alt="Cargando..." asp-append-version="true" />
+    <div class="txt" id="consLoadingTxt">Cargando...</div>
+</div>
+
+<div class="cons-page">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h5 class="fw-bold mb-0"><i class="bi bi-box-seam me-2"></i>Consumibles SAP</h5>
+            <div class="text-muted small">Catálogo local de consumibles sincronizado desde SAP Service Layer.</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="btnPreviaCons" onclick="verPreviaConsumibles()">
+                <i class="bi bi-eye me-1"></i> Vista previa
+            </button>
+            <button type="button" class="btn btn-danger" id="btnSyncCons" onclick="sincronizarConsumibles()">
+                <i class="bi bi-cloud-arrow-down me-1"></i> Sincronizar con SAP
+            </button>
+        </div>
+    </div>
+
+    <div class="cons-stats">
+        <div class="cons-stat">
+            <div class="v" id="consTotal">0</div>
+            <div class="l">Total en tabla</div>
+        </div>
+        <div class="cons-stat">
+            <div class="v" id="consActivos">0</div>
+            <div class="l">Activos</div>
+        </div>
+        <div class="cons-stat">
+            <div class="v" id="consUltima">—</div>
+            <div class="l">Última sincronización</div>
+        </div>
+    </div>
+
+    <div class="cons-card">
+        <div class="cons-toolbar">
+            <div class="input-group input-group-sm" style="max-width: 360px;">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="search" id="consBuscar" class="form-control" placeholder="Buscar SKU o descripción..." oninput="buscarConsumibles()" />
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Mostrando <b id="consMostrados">0</b></span>
+                <select id="consPageSize" class="cons-page-size" onchange="cambiarTamPaginaCons(this.value)">
+                    <option value="25">25 / pág.</option>
+                    <option value="50" selected>50 / pág.</option>
+                    <option value="100">100 / pág.</option>
+                    <option value="200">200 / pág.</option>
+                </select>
+            </div>
+        </div>
+        <div class="cons-scroll">
+            <table class="cons-table">
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Descripción</th>
+                        <th class="text-end">Grupo</th>
+                        <th>Master</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Clas</th>
+                        <th class="text-end">Costo</th>
+                        <th class="text-end">Stock</th>
+                        <th class="text-end">Disponible</th>
+                        <th>Estado</th>
+                        <th>Actualizado</th>
+                    </tr>
+                </thead>
+                <tbody id="consTbody">
+                    <tr><td colspan="11" class="text-center text-muted py-4">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="cons-pager" id="consPager"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPreviaCons" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <div>
+                    <h5 class="modal-title fw-bold" style="font-size: 1rem;"><i class="bi bi-eye me-2"></i>Vista previa de sincronización</h5>
+                    <div style="font-size: 0.7rem; opacity: .9;">Se muestran solo los artículos que se van a agregar o modificar. Nada se guarda aún.</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-light" id="btnRefrescarPrevia" onclick="verPreviaConsumibles(true)" title="Volver a consultar SAP ignorando el caché">
+                        <i class="bi bi-arrow-clockwise"></i> Refrescar
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-4">
+                <div class="cons-prev-summary">
+                    <div class="cons-prev-box nuevo">
+                        <div class="v" id="prevNuevos">0</div>
+                        <div class="l">Nuevos</div>
+                    </div>
+                    <div class="cons-prev-box actualizar">
+                        <div class="v" id="prevActualizados">0</div>
+                        <div class="l">Actualizar</div>
+                    </div>
+                    <div class="cons-prev-box total">
+                        <div class="v" id="prevTotal">0</div>
+                        <div class="l">Total a procesar</div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <div class="fw-bold" style="font-size: .8rem;">
+                        <i class="bi bi-list-ul me-1"></i>Artículos a agregar / modificar
+                        <span class="badge bg-secondary ms-1" id="prevMostrados">0</span>
+                    </div>
+                    <input type="search" id="prevBuscar" class="form-control form-control-sm" style="min-width: 240px;" placeholder="Buscar SKU o descripción..." oninput="renderPreviaCons()" />
+                </div>
+                <div class="cons-prev-scroll">
+                    <table class="cons-prev-table">
+                        <thead>
+                            <tr>
+                        <th>Acción</th>
+                        <th>SKU</th>
+                        <th>Descripción</th>
+                        <th>Cambios</th>
+                        <th class="text-end">Grupo</th>
+                        <th class="text-end">Costo</th>
+                        <th class="text-end">Stock</th>
+                        <th class="text-end">Disponible</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prevTbody">
+                            <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarPreviaCons" onclick="confirmarPreviaConsumibles()">
+                    <i class="bi bi-cloud-arrow-down"></i> Sincronizar ahora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let consItems = [];
+        let consPage = 1;
+        let consPageSize = 50;
+        let consTotalPaginas = 1;
+        let consTotalFiltrados = 0;
+        let consBuscarTimer = null;
+
+        const urlCargar = '@Url.Action("Cargar", "ConsumiblesSap")';
+        const urlSync = '@Url.Action("Sincronizar", "ConsumiblesSap")';
+        const urlPrevia = '@Url.Action("Previa", "ConsumiblesSap")';
+        let previaConsItems = [];
+
+        const esc = (s) => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const num = (v, d) => (v == null || v === '') ? '—' : Number(v).toFixed(d == null ? 2 : d);
+
+        document.addEventListener('DOMContentLoaded', () => cargarConsumibles(1));
+
+        function mostrarLoadingCons(txt) {
+            const el = document.getElementById('consLoading');
+            const t = document.getElementById('consLoadingTxt');
+            if (t && txt) t.textContent = txt;
+            if (el) el.classList.add('show');
+        }
+
+        function ocultarLoadingCons() {
+            const el = document.getElementById('consLoading');
+            if (el) el.classList.remove('show');
+        }
+
+        function buscarConsumibles() {
+            clearTimeout(consBuscarTimer);
+            consBuscarTimer = setTimeout(() => cargarConsumibles(1), 350);
+        }
+
+        function cambiarTamPaginaCons(valor) {
+            consPageSize = parseInt(valor, 10) || 50;
+            cargarConsumibles(1);
+        }
+
+        async function cargarConsumibles(page) {
+            const q = (document.getElementById('consBuscar')?.value || '').trim();
+            const params = new URLSearchParams({
+                page: String(page || 1),
+                pageSize: String(consPageSize)
+            });
+            if (q) params.set('q', q);
+
+            try {
+                const res = await fetch(`${urlCargar}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+
+                if (!data || !data.ok) {
+                    alert((data && data.mensaje) || 'No se pudo cargar la tabla.');
+                    return;
+                }
+
+                consItems = Array.isArray(data.items) ? data.items : [];
+                consPage = data.page || 1;
+                consPageSize = data.pageSize || consPageSize;
+                consTotalPaginas = data.totalPaginas || 1;
+                consTotalFiltrados = data.totalFiltrados || 0;
+
+                document.getElementById('consTotal').textContent = data.total || 0;
+                document.getElementById('consActivos').textContent = data.activos || 0;
+                document.getElementById('consUltima').textContent =
+                    data.ultima ? new Date(data.ultima).toLocaleString() : '—';
+
+                const sel = document.getElementById('consPageSize');
+                if (sel) sel.value = String(consPageSize);
+
+                renderConsumibles();
+            } catch (e) {
+                console.error(e);
+                alert('Error al cargar consumibles.');
+            }
+        }
+
+        function renderConsumibles() {
+            const tbody = document.getElementById('consTbody');
+            if (!tbody) return;
+
+            if (!consItems.length) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">Sin consumibles.</td></tr>';
+            } else {
+                tbody.innerHTML = consItems.map(m => `
+                    <tr>
+                        <td><b>${esc(m.sku)}</b></td>
+                        <td>${esc(m.nombre)}</td>
+                        <td class="text-end">${m.grupo == null ? '—' : esc(m.grupo)}</td>
+                        <td>${esc(m.master)}</td>
+                        <td>${esc(m.tipo)}</td>
+                        <td class="text-end">${m.clas == null ? '—' : esc(m.clas)}</td>
+                        <td class="text-end">${num(m.costo)}</td>
+                        <td class="text-end">${num(m.stock)}</td>
+                        <td class="text-end">${num(m.disponible)}</td>
+                        <td><span class="cons-badge ${m.activo ? 'on' : 'off'}">${m.activo ? 'Activo' : 'Inactivo'}</span></td>
+                        <td>${m.fecha ? new Date(m.fecha).toLocaleString() : '—'}</td>
+                    </tr>`).join('');
+            }
+
+            const desde = consTotalFiltrados === 0 ? 0 : (consPage - 1) * consPageSize + 1;
+            const hasta = Math.min(consPage * consPageSize, consTotalFiltrados);
+            const cont = document.getElementById('consMostrados');
+            if (cont) cont.textContent = consTotalFiltrados === 0 ? '0' : `${desde}–${hasta} de ${consTotalFiltrados}`;
+
+            renderPagerConsumibles();
+        }
+
+        function renderPagerConsumibles() {
+            const cont = document.getElementById('consPager');
+            if (!cont) return;
+
+            if (consTotalFiltrados === 0) {
+                cont.innerHTML = '';
+                return;
+            }
+
+            const maxBotones = 7;
+            let inicio = Math.max(1, consPage - 3);
+            let fin = Math.min(consTotalPaginas, inicio + maxBotones - 1);
+            inicio = Math.max(1, fin - maxBotones + 1);
+
+            let botones = '';
+            for (let p = inicio; p <= fin; p++) {
+                botones += `<button type="button" class="cons-page-btn ${p === consPage ? 'active' : ''}" onclick="irPaginaCons(${p})">${p}</button>`;
+            }
+
+            cont.innerHTML = `
+                <span class="cons-pager-info">Página ${consPage} de ${consTotalPaginas}</span>
+                <div class="cons-pager-btns">
+                    <button type="button" class="cons-page-btn" ${consPage <= 1 ? 'disabled' : ''} onclick="irPaginaCons(1)">«</button>
+                    <button type="button" class="cons-page-btn" ${consPage <= 1 ? 'disabled' : ''} onclick="irPaginaCons(${consPage - 1})">‹</button>
+                    ${botones}
+                    <button type="button" class="cons-page-btn" ${consPage >= consTotalPaginas ? 'disabled' : ''} onclick="irPaginaCons(${consPage + 1})">›</button>
+                    <button type="button" class="cons-page-btn" ${consPage >= consTotalPaginas ? 'disabled' : ''} onclick="irPaginaCons(${consTotalPaginas})">»</button>
+                </div>`;
+        }
+
+        function irPaginaCons(p) {
+            if (p < 1 || p > consTotalPaginas || p === consPage) return;
+            cargarConsumibles(p);
+            document.querySelector('.cons-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function abrirModalCons(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (window.bootstrap && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(el).show();
+            } else {
+                el.classList.add('show');
+                el.style.display = 'block';
+            }
+        }
+
+        async function verPreviaConsumibles(forzar) {
+            const btn = document.getElementById('btnPreviaCons');
+            const html = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat cons-spin"></i> Cargando...';
+            }
+            mostrarLoadingCons(forzar ? 'Consultando SAP...' : 'Generando vista previa...');
+
+            try {
+                const res = await fetch(urlPrevia + (forzar ? '?forzar=true' : ''), { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+
+                if (!data || !data.ok) {
+                    alert((data && data.mensaje) || 'No se pudo obtener la vista previa.');
+                    return;
+                }
+
+                previaConsItems = Array.isArray(data.items) ? data.items : [];
+
+                document.getElementById('prevNuevos').textContent = data.nuevos || 0;
+                document.getElementById('prevActualizados').textContent = data.actualizados || 0;
+                document.getElementById('prevTotal').textContent =
+                    (data.nuevos || 0) + (data.actualizados || 0);
+
+                const buscar = document.getElementById('prevBuscar');
+                if (buscar) buscar.value = '';
+
+                renderPreviaCons();
+                abrirModalCons('modalPreviaCons');
+            } catch (e) {
+                console.error(e);
+                alert('Error al obtener la vista previa.');
+            } finally {
+                ocultarLoadingCons();
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = html;
+                }
+            }
+        }
+
+        function renderPreviaCons() {
+            const tbody = document.getElementById('prevTbody');
+            if (!tbody) return;
+
+            const q = (document.getElementById('prevBuscar')?.value || '').trim().toLowerCase();
+            const filtrados = previaConsItems.filter(m => {
+                if (!q) return true;
+                return [m.sku, m.nombre].join(' ').toLowerCase().includes(q);
+            });
+
+            if (!filtrados.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No hay artículos nuevos ni por modificar.</td></tr>';
+            } else {
+                tbody.innerHTML = filtrados.map(m => {
+                    const cambios = Array.isArray(m.cambios) ? m.cambios : [];
+                    const detalle = cambios.length
+                        ? `<div class="cons-cambios">${cambios.map(c => `
+                                <span class="cons-cambio">
+                                    <span class="campo">${esc(c.campo)}:</span>
+                                    <span class="antes">${esc(c.antes)}</span>
+                                    <span class="flecha">&rarr;</span>
+                                    <span class="despues">${esc(c.despues)}</span>
+                                </span>`).join('')}</div>`
+                        : '<span class="text-muted">—</span>';
+
+                    return `
+                    <tr>
+                        <td><span class="cons-accion ${m.accion === 'Nuevo' ? 'nuevo' : 'actualizar'}">${esc(m.accion)}</span></td>
+                        <td><b>${esc(m.sku)}</b></td>
+                        <td>${esc(m.nombre)}</td>
+                        <td>${detalle}</td>
+                        <td class="text-end">${m.grupo == null ? '—' : esc(m.grupo)}</td>
+                        <td class="text-end">${num(m.costo)}</td>
+                        <td class="text-end">${num(m.stock)}</td>
+                        <td class="text-end">${num(m.disponible)}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            const cont = document.getElementById('prevMostrados');
+            if (cont) cont.textContent = filtrados.length;
+        }
+
+        async function confirmarPreviaConsumibles() {
+            const btn = document.getElementById('btnConfirmarPreviaCons');
+            const html = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat cons-spin"></i> Sincronizando...';
+            }
+            mostrarLoadingCons('Sincronizando con SAP...');
+
+            try {
+                const res = await fetch(urlSync, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                if (!data || !data.ok) {
+                    alert((data && data.mensaje) || 'No se pudo sincronizar.');
+                    return;
+                }
+
+                const modal = document.getElementById('modalPreviaCons');
+                if (window.bootstrap && bootstrap.Modal) bootstrap.Modal.getInstance(modal)?.hide();
+                else if (modal) modal.style.display = 'none';
+
+                alert(data.mensaje || 'Sincronización completa.');
+                await cargarConsumibles(1);
+            } catch (e) {
+                console.error(e);
+                alert('Error al sincronizar con SAP.');
+            } finally {
+                ocultarLoadingCons();
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = html;
+                }
+            }
+        }
+
+        async function sincronizarConsumibles() {
+            const btn = document.getElementById('btnSyncCons');
+            const html = btn ? btn.innerHTML : '';
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat cons-spin"></i> Sincronizando...';
+            }
+            mostrarLoadingCons('Sincronizando con SAP...');
+
+            try {
+                const res = await fetch(urlSync, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+
+                alert((data && data.mensaje) || 'Sincronización terminada.');
+
+                if (data && data.ok) await cargarConsumibles(1);
+            } catch (e) {
+                console.error(e);
+                alert('Error al sincronizar con SAP. Revisa la conexión.');
+            } finally {
+                ocultarLoadingCons();
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = html;
+                }
+            }
+        }
+    </script>
+}

@@ -679,6 +679,13 @@ namespace Plataforma_CG.Controllers
                             // 2. Guardar Detalles
                             if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
                             {
+                                // Catalogo de metricas: permite resolver Tipo_Valor/Unidad_Medida
+                                // aunque el formulario no los envie (Tipo_Valor es NOT NULL en la BD).
+                                var catalogoValores = (await conn.QueryAsync<CatalogoValorItem>(
+                                    "SELECT ID, Nombre, Unidad_Medida FROM dbo.Catalogo_ValorObjetivo",
+                                    transaction: transaccion))
+                                    .ToDictionary(x => x.ID, x => x);
+
                                 string sqlValor = @"
                                     INSERT INTO dbo.Objetivo_Valor (
                                         ID_Objetivo,
@@ -700,12 +707,43 @@ namespace Plataforma_CG.Controllers
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
+                                    string nombreCatalogo = null;
+                                    string unidadCatalogo = null;
+
+                                    if (val.ID_Catalogo_ValorObjetivo.HasValue &&
+                                        catalogoValores.TryGetValue(val.ID_Catalogo_ValorObjetivo.Value, out var cat))
+                                    {
+                                        nombreCatalogo = cat.Nombre;
+                                        unidadCatalogo = cat.Unidad_Medida;
+                                    }
+
+                                    // Ignorar filas totalmente vacias (metricas que el usuario dejo sin capturar).
+                                    bool filaVacia = !val.ID_Catalogo_ValorObjetivo.HasValue
+                                        && string.IsNullOrWhiteSpace(val.Tipo_Valor)
+                                        && val.Valor_Minimo == null
+                                        && val.Valor_Maximo == null
+                                        && val.Valor_Objetivo == null;
+
+                                    if (filaVacia)
+                                        continue;
+
+                                    // Tipo_Valor es NOT NULL: nunca enviar null.
+                                    string tipoValor = !string.IsNullOrWhiteSpace(val.Tipo_Valor)
+                                        ? val.Tipo_Valor.Trim()
+                                        : (!string.IsNullOrWhiteSpace(nombreCatalogo)
+                                            ? nombreCatalogo + (!string.IsNullOrWhiteSpace(unidadCatalogo) ? " (" + unidadCatalogo + ")" : "")
+                                            : "N/A");
+
+                                    string unidad = !string.IsNullOrWhiteSpace(val.Unidad_Medida)
+                                        ? val.Unidad_Medida.Trim()
+                                        : (unidadCatalogo ?? string.Empty);
+
                                     await conn.ExecuteAsync(sqlValor, new
                                     {
                                         IdObjetivo = nuevoObjetivoId,
                                         ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
-                                        TipoValor = val.Tipo_Valor,
-                                        Unidad = val.Unidad_Medida,
+                                        TipoValor = tipoValor,
+                                        Unidad = unidad,
                                         Minimo = val.Valor_Minimo,
                                         Maximo = val.Valor_Maximo,
                                         Meta = val.Valor_Objetivo
@@ -2220,6 +2258,13 @@ namespace Plataforma_CG.Controllers
                     message = ex.Message
                 });
             }
+        }
+
+        private class CatalogoValorItem
+        {
+            public int ID { get; set; }
+            public string Nombre { get; set; }
+            public string Unidad_Medida { get; set; }
         }
 
         private class ObjetivoCargaRow
