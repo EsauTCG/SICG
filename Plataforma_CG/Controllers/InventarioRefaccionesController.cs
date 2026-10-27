@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data;
 using Plataforma_CG.Data.Entities;
 using Plataforma_CG.Models;
+using Plataforma_CG.Services;
+using Plataforma_CG.ViewModels;
 using QRCoder;
 using System;
 using System.Collections.Generic;
@@ -15,13 +17,17 @@ namespace Plataforma_CG.Controllers
     [Authorize]
     public class InventarioRefaccionesController : Controller
     {
+        private const int GrupoRefacciones = 102;
+
         private readonly AppDbContext _context;
         private readonly AppDbContextUsuarios _dbUsuarios;
+        private readonly IWebHostEnvironment _env;
 
-        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios)
+        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env)
         {
             _context = context;
             _dbUsuarios = dbUsuarios;
+            _env = env;
         }
 
         // =========================================================
@@ -62,7 +68,8 @@ namespace Plataforma_CG.Controllers
                     min = r.StockMinimo,
                     max = r.StockMaximo ?? 0,
                     costo = r.Costo,
-                    codigoEtiqueta = r.CodigoEtiqueta
+                    codigoEtiqueta = r.CodigoEtiqueta,
+                    foto = r.FotoUrl
                 })
                 .ToListAsync();
 
@@ -539,6 +546,363 @@ namespace Plataforma_CG.Controllers
             m.Activo = false;
             await _context.SaveChangesAsync();
             return Json(new { ok = true, mensaje = "Máquina eliminada." });
+        }
+
+        // =========================================================
+        //  SINCRONIZACIÓN CON SAP (refacciones / consumibles)
+        //  Upsert por Sku: inserta nuevas, actualiza Descripcion y Costo.
+        //  Nunca borra ni modifica Stock/Min/Max/Categoria/Ubicacion.
+        // =========================================================
+
+        // Compara descripciones ignorando caracteres que una columna varchar no puede
+        // representar (Ω, ⌀, etc.): si al normalizarlos quedan iguales, no hay cambio real.
+        private static bool DescripcionCambio(string? local, string? sap)
+        {
+            static string Normalizar(string? s)
+            {
+                if (string.IsNullOrEmpty(s)) return "";
+                var sb = new System.Text.StringBuilder(s.Length);
+                foreach (var ch in s)
+                {
+                    switch (ch)
+                    {
+                        case 'Ω': sb.Append('O'); break;  // ohm
+                        case '⌀': sb.Append("?"); break;   // diámetro (literal de la columna varchar)
+                        default:
+                            // Cualquier carácter fuera de Latin-1 se trata como '?', que es
+                            // lo que hace SQL Server al guardar en varchar.
+                            sb.Append(ch <= 0xFF ? ch : '?');
+                            break;
+                    }
+                }
+                return sb.ToString().Trim();
+            }
+
+            return !string.Equals(Normalizar(local), Normalizar(sap), StringComparison.Ordinal);
+        }
+
+        private async Task<List<CatalogoSkuSapViewmodel>> ObtenerConsumiblesLocalesAsync()
+        {
+            var query = _context.ArticuloConsumiblesSap
+                .AsNoTracking()
+                .Where(x => x.Activo && x.ItemsGroupCode == GrupoRefacciones);
+
+            return await query
+                .Select(x => new CatalogoSkuSapViewmodel
+                {
+                    ItemCode = x.ProductoCodigo,
+                    ItemName = x.ProductoNombre,
+                    U_MASTER = x.U_MASTER,
+                    U_TipoporSKU = x.U_TipoporSKU,
+                    U_KilosCaja = x.U_KilosCaja,
+                    U_Clas_Prod = x.U_Clas_Prod,
+                    U_PRESENT = x.U_PRESENT,
+                    U_PorcInye = x.U_PorcInye,
+                    ItemsGroupCode = x.ItemsGroupCode,
+                    AvgPrice = x.Costo,
+                    QuantityOnStock = x.Stock,
+                    QuantityAvailable = x.Disponible
+                })
+                .ToListAsync();
+        }
+
+        // GET: vista previa de consumibles locales. No escribe en la BD.
+        [HttpGet]
+        public async Task<IActionResult> PreviaSap()
+        {
+            try
+            {
+                var itemsSap = await ObtenerConsumiblesLocalesAsync();
+
+                var limpios = itemsSap
+                    .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
+                    .GroupBy(x => x.ItemCode!.Trim().ToUpperInvariant())
+                    .Select(g => g.Last())
+                    .ToList();
+
+                // Refacciones que YA existen localmente, indexadas por SKU (case-insensitive)
+                var locales = await _context.Refacciones
+                    .AsNoTracking()
+                    .ToListAsync();
+                var dicLocales = locales
+                    .GroupBy(r => (r.Sku ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
+
+                // Mismas reglas que SincronizarSap: solo importa cambios reales.
+                static bool DecCambio(decimal a, decimal b) =>
+                    Math.Round(a, 2, MidpointRounding.AwayFromZero) !=
+                    Math.Round(b, 2, MidpointRounding.AwayFromZero);
+
+                var nuevas = new List<object>();
+                var actualizar = new List<object>();
+
+                foreach (var item in limpios)
+                {
+                    var sku = item.ItemCode!.Trim();
+                    var desc = (item.ItemName ?? "").Trim();
+                    var costo = item.AvgPrice;
+
+                    if (!dicLocales.TryGetValue(sku, out var local))
+                    {
+                        nuevas.Add(new
+                        {
+                            sku,
+                            nombre = item.ItemName,
+                            grupo = item.ItemsGroupCode,
+                            costo,
+                            stock = item.QuantityOnStock,
+                            disponible = item.QuantityAvailable,
+                            accion = "Nuevo",
+                            cambios = new List<object>()
+                        });
+                        continue;
+                    }
+
+                    var cambios = new List<object>();
+
+                    if (desc.Length > 0 && DescripcionCambio(local.Descripcion, desc))
+                        cambios.Add(new { campo = "Descripción", antes = local.Descripcion, despues = desc });
+
+                    if (costo.HasValue && DecCambio(local.Costo, costo.Value))
+                        cambios.Add(new { campo = "Costo", antes = local.Costo.ToString("0.##"), despues = costo.Value.ToString("0.##") });
+
+                    if (cambios.Count > 0)
+                    {
+                        actualizar.Add(new
+                        {
+                            sku,
+                            nombre = item.ItemName,
+                            grupo = item.ItemsGroupCode,
+                            costo,
+                            stock = item.QuantityOnStock,
+                            disponible = item.QuantityAvailable,
+                            accion = "Actualizar",
+                            cambios
+                        });
+                    }
+                }
+
+                var pendientes = nuevas.Concat(actualizar).ToList();
+
+                return Json(new
+                {
+                    ok = true,
+                    total = limpios.Count,
+                    nuevos = nuevas.Count,
+                    actualizados = actualizar.Count,
+                    yaExistentes = limpios.Count - nuevas.Count,
+                    nuevas = nuevas.Count,
+                    items = pendientes
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = MensajeErrorSap(ex) });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SincronizarSap()
+        {
+            try
+            {
+                var itemsSap = await ObtenerConsumiblesLocalesAsync();
+
+                // Deduplicar por Sku (case-insensitive)
+                itemsSap = itemsSap
+                    .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
+                    .GroupBy(x => x.ItemCode!.Trim().ToUpperInvariant())
+                    .Select(g => g.Last())
+                    .ToList();
+
+                var login = UsuarioActual();
+
+                int insertadas = 0;
+                int actualizadas = 0;
+                int sinCambio = 0;
+
+                foreach (var item in itemsSap)
+                {
+                    var sku = item.ItemCode!.Trim();
+                    var skuKey = sku.ToUpperInvariant();
+                    var desc = (item.ItemName ?? "").Trim();
+                    var costo = item.AvgPrice;   // puede ser null si SAP no lo trae
+                    var stockInicial = (int)Math.Round(item.QuantityOnStock ?? 0m, MidpointRounding.ToZero);
+
+                    var existente =
+                        _context.Refacciones.Local.FirstOrDefault(x => x.Sku.ToUpper() == skuKey)
+                        ?? await _context.Refacciones.FirstOrDefaultAsync(x => x.Sku.ToUpper() == skuKey);
+
+                    if (existente == null)
+                    {
+                        _context.Refacciones.Add(new Refaccion
+                        {
+                            Sku = sku,
+                            Descripcion = desc,
+                            Stock = stockInicial,
+                            StockMinimo = 0,
+                            StockMaximo = 0,
+                            Costo = costo ?? 0m,
+                            Activo = true,
+                            FechaCreacion = DateTime.Now,
+                            UsuarioCreacion = login
+                        });
+                        insertadas++;
+                    }
+                    else
+                    {
+                        // Sólo se sobrescribe la descripción si SAP trae texto realmente distinto
+                        // (ignora diferencias que la columna varchar no puede representar, ej. Ω, ⌀).
+                        var descCambio = desc.Length > 0
+                            && DescripcionCambio(existente.Descripcion, desc);
+
+                        // Sólo se sobrescribe el costo si SAP trae un valor distinto (a 2 decimales)
+                        var costoCambio = costo.HasValue &&
+                            Math.Round(existente.Costo, 2, MidpointRounding.AwayFromZero) !=
+                            Math.Round(costo.Value, 2, MidpointRounding.AwayFromZero);
+
+                        if (descCambio || costoCambio)
+                        {
+                            if (descCambio) existente.Descripcion = desc;
+                            if (costoCambio) existente.Costo = costo!.Value;
+                            existente.FechaModificacion = DateTime.Now;
+                            existente.UsuarioModificacion = login;
+                            actualizadas++;
+                        }
+                        else
+                        {
+                            sinCambio++;
+                        }
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = $"Sincronización completa. {insertadas} nuevas, {actualizadas} actualizadas, {sinCambio} sin cambios.",
+                    total = itemsSap.Count,
+                    insertadas,
+                    actualizadas,
+                    sinCambio
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = MensajeErrorSap(ex) });
+            }
+        }
+
+        // =========================================================
+        //  MENSAJE DE ERROR AMIGABLE PARA FALLAS DE SAP
+        // =========================================================
+        private static string MensajeErrorSap(Exception ex)
+        {
+            var msg = ex.GetBaseException().Message;
+
+            if (msg.Contains("Invalid login credential", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("\"code\":206", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("\"code\": 206", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SAP rechazó las credenciales o la cuenta está bloqueada temporalmente "
+                     + "por intentos de acceso. Espera unos minutos e inténtalo de nuevo. "
+                     + "Detalle: " + msg;
+            }
+
+            if (msg.Contains("No se pudo asignar", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            {
+                return "No hay conexión con SAP Service Layer. Verifica la VPN y que el servidor "
+                     + "172.120.80.3:50000 esté alcanzable. Detalle: " + msg;
+            }
+
+            return "Error al sincronizar con SAP: " + msg;
+        }
+
+        // =========================================================
+        //  FIN BLOQUE SAP
+        // =========================================================
+
+        // =========================================================
+        //  FOTO DE LA REFACCIÓN
+        // =========================================================
+        private static readonly string[] FotoExtensionesValidas = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+
+        [HttpPost]
+        [RequestSizeLimit(20_000_000)]
+        public async Task<IActionResult> SubirFoto(IFormFile? archivo, int id)
+        {
+            if (id <= 0)
+                return Json(new { ok = false, mensaje = "Refacción inválida." });
+
+            var r = await _context.Refacciones.FirstOrDefaultAsync(x => x.Id == id);
+            if (r == null)
+                return Json(new { ok = false, mensaje = "Refacción no encontrada." });
+
+            if (archivo == null || archivo.Length == 0)
+                return Json(new { ok = false, mensaje = "Selecciona una imagen." });
+
+            var extension = (Path.GetExtension(archivo.FileName) ?? "").ToLowerInvariant();
+            if (!FotoExtensionesValidas.Contains(extension))
+                return Json(new { ok = false, mensaje = "Formato no permitido. Usa JPG, PNG, WEBP o GIF." });
+
+            var carpeta = Path.Combine(_env.WebRootPath, "uploads", "refacciones");
+            Directory.CreateDirectory(carpeta);
+
+            var nombreArchivo = $"ref_{id}_{DateTime.Now:yyyyMMddHHmmss}_{Guid.NewGuid():N}{extension}";
+            var rutaFisica = Path.Combine(carpeta, nombreArchivo);
+
+            await using (var stream = new FileStream(rutaFisica, FileMode.Create))
+            {
+                await archivo.CopyToAsync(stream);
+            }
+
+            // Eliminar la foto anterior si existía
+            EliminarArchivoFoto(r.FotoUrl);
+
+            r.FotoUrl = $"/uploads/refacciones/{nombreArchivo}";
+            r.FechaModificacion = DateTime.Now;
+            r.UsuarioModificacion = UsuarioActual();
+            await _context.SaveChangesAsync();
+
+            return Json(new { ok = true, mensaje = "Foto guardada.", foto = r.FotoUrl });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EliminarFoto([FromBody] CatalogoEliminarRequest req)
+        {
+            var r = await _context.Refacciones.FirstOrDefaultAsync(x => x.Id == req.Id);
+            if (r == null)
+                return Json(new { ok = false, mensaje = "Refacción no encontrada." });
+
+            EliminarArchivoFoto(r.FotoUrl);
+
+            r.FotoUrl = null;
+            r.FechaModificacion = DateTime.Now;
+            r.UsuarioModificacion = UsuarioActual();
+            await _context.SaveChangesAsync();
+
+            return Json(new { ok = true, mensaje = "Foto eliminada." });
+        }
+
+        private void EliminarArchivoFoto(string? fotoUrl)
+        {
+            if (string.IsNullOrWhiteSpace(fotoUrl))
+                return;
+
+            try
+            {
+                var relativa = fotoUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+                var ruta = Path.Combine(_env.WebRootPath, relativa);
+                if (System.IO.File.Exists(ruta))
+                    System.IO.File.Delete(ruta);
+            }
+            catch
+            {
+                // Si no se puede borrar el archivo, no bloqueamos la operación.
+            }
         }
 
         // =========================================================

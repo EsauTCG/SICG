@@ -27,6 +27,7 @@ namespace Plataforma_CG.Data
         public DbSet<Plataforma_CG.Models.PresupuestoCedis> PresupuestoCedis { get; set; } = default!;
 
         public DbSet<ArticuloSap> ArticuloSap { get; set; }
+        public DbSet<ArticuloConsumiblesSap> ArticuloConsumiblesSap { get; set; }
 
         public DbSet<Presentacion> Presentacion { get; set; }
         public DbSet<ClienteSap> ClienteSap { get; set; }
@@ -746,6 +747,7 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Costo).HasColumnType("decimal(18,2)");
                 e.Property(x => x.CodigoEtiqueta).HasMaxLength(80);
+                e.Property(x => x.FotoUrl).HasMaxLength(300);
                 e.Property(x => x.UsuarioCreacion).HasMaxLength(120);
                 e.Property(x => x.UsuarioModificacion).HasMaxLength(120);
                 e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");

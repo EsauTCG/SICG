@@ -1,0 +1,2818 @@
+﻿@model IEnumerable<dynamic>
+@using System.Globalization
+@using System.Text.Json
+
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+}
+
+<style>
+    :root {
+        --pieles-rojo: #b42318;
+        --pieles-rojo-oscuro: #8f1d14;
+        --pieles-rojo-claro: #fef3f2;
+        --pieles-rojo-medio: #fecdca;
+        --pieles-gris-900: #292524;
+        --pieles-gris-700: #57534e;
+        --pieles-gris-500: #78716c;
+        --pieles-gris-300: #d6d3d1;
+        --pieles-gris-200: #e7e5e4;
+        --pieles-gris-100: #f5f5f4;
+        --pieles-blanco: #ffffff;
+        --pieles-radio: 10px;
+        --pieles-sombra: 0 2px 8px rgba(0, 0, 0, .08);
+    }
+
+
+    /* =========================================================
+           PANEL PRINCIPAL
+           ========================================================= */
+
+    .panel-pieles {
+        width: 100%;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+
+    /* =========================================================
+           PANEL DE CONTROL / ORDEN
+           ========================================================= */
+
+    .panel-control-pieles {
+        background: var(--pieles-blanco);
+        border: 1px solid var(--pieles-gris-200);
+        border-radius: var(--pieles-radio);
+        box-shadow: var(--pieles-sombra);
+        margin-bottom: 18px;
+        overflow: hidden;
+    }
+
+    .panel-control-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 18px;
+        background: var(--pieles-rojo);
+        color: white;
+    }
+
+    .panel-control-header-titulo {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .panel-control-header-subtitulo {
+        font-size: 13px;
+        opacity: .85;
+    }
+
+    .panel-control-body {
+        padding: 18px;
+    }
+
+
+    /* =========================================================
+           DATOS DE LA ORDEN
+           ========================================================= */
+
+    .datos-orden-pieles {
+        display: grid;
+        grid-template-columns: minmax(140px, 180px) minmax(220px, 1fr) minmax(160px, 220px);
+        gap: 14px;
+        align-items: end;
+    }
+
+    .campo-pieles {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+        .campo-pieles label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--pieles-gris-700);
+            margin: 0;
+        }
+
+        .campo-pieles input {
+            width: 100%;
+            min-height: 40px;
+            border: 1px solid var(--pieles-gris-300);
+            border-radius: 7px;
+            padding: 8px 11px;
+            background: white;
+            color: var(--pieles-gris-900);
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+            .campo-pieles input:focus {
+                outline: none;
+                border-color: var(--pieles-rojo);
+                box-shadow: 0 0 0 3px rgba(180, 35, 24, .12);
+            }
+
+            .campo-pieles input[readonly] {
+                background: var(--pieles-gris-100);
+                color: var(--pieles-gris-700);
+                cursor: default;
+            }
+
+    .cantidad-pieles {
+        font-weight: 700;
+        text-align: center;
+    }
+
+
+    /* =========================================================
+           BOTONES
+           ========================================================= */
+
+    .acciones-pieles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        align-items: center;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--pieles-gris-200);
+    }
+
+    .btn-pieles {
+        min-height: 40px;
+        border: none;
+        border-radius: 7px;
+        padding: 8px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color .15s, transform .1s, box-shadow .15s;
+    }
+
+        .btn-pieles:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-pieles:active {
+            transform: translateY(0);
+        }
+
+    .btn-consultar-ordenes {
+        background: white;
+        color: var(--pieles-rojo);
+        border: 1px solid var(--pieles-rojo);
+    }
+
+        .btn-consultar-ordenes:hover {
+            background: var(--pieles-rojo-claro);
+        }
+
+    .btn-seleccionar-pieles {
+        background: var(--pieles-rojo);
+        color: white;
+    }
+
+        .btn-seleccionar-pieles:hover {
+            background: var(--pieles-rojo-oscuro);
+        }
+
+    .btn-guardar-pieles {
+        background: #991b1b;
+        color: white;
+    }
+
+        .btn-guardar-pieles:hover {
+            background: #7f1d1d;
+        }
+
+    .btn-cerrar-modal {
+        background: var(--pieles-gris-100);
+        color: var(--pieles-gris-700);
+        border: 1px solid var(--pieles-gris-300);
+    }
+
+    .mensaje-cantidad,
+    .mensaje-guardar {
+        font-size: 13px;
+        min-height: 20px;
+    }
+
+    .mensaje-cantidad {
+        color: var(--pieles-gris-700);
+    }
+
+
+    /* =========================================================
+           RESUMEN DE SELECCIÓN
+           ========================================================= */
+
+    .resumen-seleccion-pieles {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 7px;
+        background: var(--pieles-rojo-claro);
+        border: 1px solid var(--pieles-rojo-medio);
+        color: var(--pieles-rojo-oscuro);
+        font-size: 13px;
+    }
+
+
+    /* =========================================================
+           LOTES
+           ========================================================= */
+
+    .contenedor-lotes {
+        width: 100%;
+    }
+
+    .lote-item {
+        border: 1px solid var(--pieles-gris-200);
+        border-radius: var(--pieles-radio);
+        margin-bottom: 10px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .05);
+    }
+
+    .lote-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        min-height: 68px;
+        padding: 11px 15px;
+        background: var(--pieles-gris-100);
+        border-left: 4px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color .15s, border-color .15s;
+    }
+
+        .lote-header:hover {
+            background: var(--pieles-rojo-claro);
+            border-left-color: var(--pieles-rojo);
+        }
+
+    .lote-header-izquierda {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .lote-datos {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .lote-nombre {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--pieles-gris-900);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .lote-fecha {
+        font-size: 12px;
+        color: var(--pieles-gris-500);
+    }
+
+    .lote-header-derecha {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .lote-checkbox {
+        width: 19px;
+        height: 19px;
+        cursor: pointer;
+        accent-color: var(--pieles-rojo);
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    .lote-flecha {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        color: var(--pieles-rojo);
+        font-size: 15px;
+        transition: transform .2s, background-color .15s;
+    }
+
+        .lote-flecha:hover {
+            background: var(--pieles-rojo-medio);
+        }
+
+    .lote-item.abierto .lote-flecha {
+        transform: rotate(180deg);
+    }
+
+
+    /* =========================================================
+           RESUMEN DEL LOTE
+           ========================================================= */
+
+    .resumen-lote {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--pieles-gris-700);
+        white-space: nowrap;
+    }
+
+    .dato-lote {
+        font-weight: 500;
+    }
+
+        .dato-lote.seleccionadas {
+            color: var(--pieles-rojo);
+            font-weight: 700;
+        }
+
+    .separador-lote {
+        opacity: .45;
+    }
+
+    .contador-pieles {
+        font-size: 12px;
+        color: var(--pieles-gris-500);
+    }
+
+
+    /* =========================================================
+           CONTENIDO DEL LOTE
+           ========================================================= */
+
+    .lote-contenido {
+        display: none;
+        padding: 0;
+        background: white;
+        border-top: 1px solid var(--pieles-gris-200);
+    }
+
+    .lote-item.abierto .lote-contenido {
+        display: block;
+    }
+
+
+    /* =========================================================
+           TABLA DE PIELES
+           ========================================================= */
+
+    .tabla-pieles {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 650px;
+    }
+
+        .tabla-pieles th {
+            background: #fff5f5;
+            color: var(--pieles-gris-700);
+            border-bottom: 1px solid var(--pieles-rojo-medio);
+            padding: 10px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .tabla-pieles td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--pieles-gris-200);
+            font-size: 13px;
+            color: var(--pieles-gris-900);
+        }
+
+        .tabla-pieles tbody tr {
+            transition: background-color .12s;
+        }
+
+            .tabla-pieles tbody tr:hover {
+                background: var(--pieles-rojo-claro);
+            }
+
+    .piel-checkbox {
+        width: 17px;
+        height: 17px;
+        cursor: pointer;
+        accent-color: var(--pieles-rojo);
+    }
+
+    .centrado {
+        text-align: center !important;
+    }
+
+    .peso {
+        text-align: right !important;
+        white-space: nowrap;
+    }
+
+
+    /* =========================================================
+           ESTADOS
+           ========================================================= */
+
+    .sin-pieles,
+    .cargando,
+    .sin-lotes {
+        padding: 30px 20px;
+        text-align: center;
+        color: var(--pieles-gris-500);
+    }
+
+    .sin-pieles {
+        font-style: italic;
+    }
+
+    .sin-lotes {
+        border: 1px dashed var(--pieles-gris-300);
+        border-radius: 8px;
+        background: var(--pieles-gris-100);
+    }
+
+
+    /* =========================================================
+           MODAL DE ÓRDENES
+           ========================================================= */
+
+    #modalOrdenesPieles .modal-content {
+        border: none;
+        border-radius: 11px;
+        overflow: hidden;
+        box-shadow: 0 12px 35px rgba(0, 0, 0, .18);
+    }
+
+    #modalOrdenesPieles .modal-header {
+        background: var(--pieles-rojo);
+        color: white;
+        border-bottom: none;
+        padding: 15px 18px;
+    }
+
+    #modalOrdenesPieles .modal-title {
+        font-weight: 700;
+        font-size: 17px;
+    }
+
+    #modalOrdenesPieles .btn-close {
+        filter: brightness(0) invert(1);
+        opacity: .9;
+    }
+
+    #modalOrdenesPieles .modal-body {
+        padding: 18px;
+    }
+
+    #contenedorOrdenesPieles {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    #tablaOrdenesPieles {
+        margin: 0;
+        min-width: 700px;
+    }
+
+        #tablaOrdenesPieles thead th {
+            background: #fff5f5;
+            color: var(--pieles-gris-700);
+            border-color: var(--pieles-rojo-medio);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        #tablaOrdenesPieles tbody tr {
+            cursor: pointer;
+            transition: background-color .12s;
+        }
+
+            #tablaOrdenesPieles tbody tr:hover {
+                background: var(--pieles-rojo-claro);
+            }
+
+        #tablaOrdenesPieles tbody td {
+            vertical-align: middle;
+            font-size: 13px;
+        }
+
+        #tablaOrdenesPieles tbody tr:active {
+            background: var(--pieles-rojo-medio);
+        }
+
+    #modalOrdenesPieles .modal-footer {
+        border-top: 1px solid var(--pieles-gris-200);
+        padding: 12px 18px;
+    }
+
+
+    /* =========================================================
+           RESPONSIVE - TABLET
+           ========================================================= */
+
+    @@media (max-width: 992px) {
+        .datos-orden-pieles
+
+    {
+        grid-template-columns: minmax(130px, 180px) minmax(180px, 1fr);
+    }
+
+    .campo-solicitud {
+        grid-column: 1 / -1;
+    }
+
+    .lote-header {
+        align-items: flex-start;
+    }
+
+    .lote-header-derecha {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+    }
+
+    .resumen-lote {
+        justify-content: flex-end;
+    }
+
+    }
+
+
+    /* =========================================================
+           RESPONSIVE - CELULAR
+           ========================================================= */
+
+    @@media (max-width: 576px) {
+        .panel-control-body
+
+    {
+        padding: 14px;
+    }
+
+    .datos-orden-pieles {
+        grid-template-columns: 1fr;
+        gap: 11px;
+    }
+
+    .campo-solicitud {
+        grid-column: auto;
+    }
+
+    .acciones-pieles {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-pieles {
+        width: 100%;
+    }
+
+    .mensaje-cantidad,
+    .mensaje-guardar {
+        width: 100%;
+    }
+
+    .lote-header {
+        padding: 11px;
+        gap: 8px;
+    }
+
+    .lote-header-izquierda {
+        gap: 8px;
+    }
+
+    .lote-header-derecha {
+        gap: 3px;
+    }
+
+    .resumen-lote {
+        display: none;
+    }
+
+    .lote-flecha {
+        width: 23px;
+        height: 23px;
+    }
+
+    .tabla-pieles {
+        min-width: 600px;
+    }
+
+    .lote-contenido {
+        overflow-x: auto;
+    }
+
+    #modalOrdenesPieles .modal-body {
+        padding: 10px;
+    }
+
+    }
+</style>
+<div class="container-fluid">
+
+    <div class="panel-pieles">
+
+        <!-- =====================================================
+             PANEL DE CONTROL
+             ===================================================== -->
+
+        <div class="panel-control-pieles">
+
+            <div class="panel-control-header">
+
+                <div>
+                    <div class="panel-control-header-titulo">
+                        Surtido de pieles
+                    </div>
+
+                    <div class="panel-control-header-subtitulo">
+                        Selecciona una orden y posteriormente las pieles
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="panel-control-body">
+
+                <!-- =================================================
+                     DATOS DE LA ORDEN
+                     ================================================= -->
+
+                <div class="datos-orden-pieles">
+
+                    <!-- CANTIDAD -->
+
+                    <div class="campo-pieles">
+
+                        <label for="cantidadPielesGlobal">
+                            Cantidad de pieles
+                        </label>
+
+                        <input type="number"
+                               id="cantidadPielesGlobal"
+                               class="cantidad-pieles"
+                               min="1"
+                               step="1"
+                               placeholder="Cantidad" />
+
+                    </div>
+
+
+                    <!-- CLIENTE -->
+
+                    <div class="campo-pieles">
+
+                        <label for="txtClienteOrden">
+                            Cliente
+                        </label>
+
+                        <input type="text"
+                               id="txtClienteOrden"
+                               readonly
+                               placeholder="Sin orden seleccionada" />
+
+                    </div>
+
+
+                    <!-- SOLICITUD -->
+
+                    <div class="campo-pieles campo-solicitud">
+
+                        <label for="txtSolicitudSurtidoId">
+                            Solicitud
+                        </label>
+
+                        <input type="text"
+                               id="txtSolicitudSurtidoId"
+                               readonly
+                               placeholder="Sin orden seleccionada" />
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     ACCIONES
+                     ================================================= -->
+
+                <div class="acciones-pieles">
+
+                    <!-- CONSULTAR ÓRDENES -->
+
+                    <button type="button"
+                            class="btn-pieles btn-consultar-ordenes"
+                            onclick="abrirModalOrdenesPieles()">
+
+                        Consultar órdenes
+
+                    </button>
+
+
+                    <!-- SELECCIONAR PIELES -->
+
+                    <button type="button"
+                            class="btn-pieles btn-seleccionar-pieles"
+                            onclick="seleccionarPielesAntiguasGlobal()">
+
+                        Seleccionar pieles
+
+                    </button>
+
+
+                    <!-- GUARDAR -->
+
+                    <button type="button"
+                            class="btn-pieles btn-guardar-pieles"
+                            onclick="guardarPielesSeleccionadas()">
+
+                        Guardar
+
+                    </button>
+
+
+                    <!-- MENSAJE SELECCIÓN -->
+
+                    <span id="mensajeCantidadGlobal"
+                          class="mensaje-cantidad">
+                    </span>
+
+
+                    <!-- MENSAJE GUARDADO -->
+
+                    <span id="mensajeGuardarPieles"
+                          class="mensaje-guardar">
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             CONTENEDOR DE LOTES
+             ===================================================== -->
+
+        <div id="contenedorLotes"
+             class="contenedor-lotes">
+
+            <div class="cargando">
+                Cargando lotes...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     MODAL DE ÓRDENES DE SURTIDO
+     ========================================================= -->
+
+<div class="modal fade"
+     id="modalOrdenesPieles"
+     tabindex="-1"
+     aria-labelledby="modalOrdenesPielesLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+        <div class="modal-content">
+
+
+            <!-- =================================================
+                 HEADER
+                 ================================================= -->
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h5 class="modal-title"
+                        id="modalOrdenesPielesLabel">
+
+                        Órdenes de surtido
+
+                    </h5>
+
+                </div>
+
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar">
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 BODY
+                 ================================================= -->
+
+            <div class="modal-body">
+
+
+                <!-- CARGANDO -->
+
+                <div id="cargandoOrdenesPieles"
+                     class="text-center"
+                     style="display:none; padding:30px;">
+
+                    <div class="spinner-border"
+                         style="color:#b42318;"
+                         role="status">
+
+                        <span class="visually-hidden">
+                            Cargando...
+                        </span>
+
+                    </div>
+
+                    <div style="margin-top:10px;">
+                        Cargando órdenes...
+                    </div>
+
+                </div>
+
+
+                <!-- MENSAJE -->
+
+                <div id="mensajeOrdenesPieles"
+                     class="alert alert-info"
+                     style="display:none;">
+                </div>
+
+
+                <!-- =================================================
+                     TABLA DE ÓRDENES
+                     ================================================= -->
+
+                <div id="contenedorOrdenesPieles"
+                     class="table-responsive">
+
+                    <table class="table table-bordered table-hover"
+                           id="tablaOrdenesPieles">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Fecha surtido
+                                </th>
+
+                                <th>
+                                    Folio
+                                </th>
+
+                                <th>
+                                    Cliente
+                                </th>
+
+                                <th class="text-center">
+                                    Unidades
+                                </th>
+
+                                <th class="text-center">
+                                    Capturadas
+                                </th>
+
+                                <th class="text-center">
+                                    Pendientes
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="tbodyOrdenesPieles">
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 FOOTER
+                 ================================================= -->
+
+            <div class="modal-footer">
+
+                <button type="button"
+                        class="btn-pieles btn-cerrar-modal"
+                        data-bs-dismiss="modal">
+
+                    Cerrar
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+<script>
+    const URL_ORDENES_PIELES =
+    '/Operaciones/ConsultarOrdenesPieles';
+    /*
+     * ============================================================
+     * CONFIGURACIÓN DE ENDPOINTS
+     * ============================================================
+     *
+     * Cambia únicamente estas dos URLs por tus controladores.
+     */
+
+    const URL_LOTES = '/Operaciones/ConsultarLotesPieles';
+
+    const URL_PIELES = '/Operaciones/ConsultarPielesLote';
+
+
+    /*
+     * ============================================================
+     * VARIABLES
+     * ============================================================
+     */
+
+    let lotes = [];
+    let todasLasPieles = [];
+
+    /*
+     * ============================================================
+     * CARGA INICIAL
+     * ============================================================
+     */
+
+    document.addEventListener('DOMContentLoaded', function () {
+
+        cargarLotes();
+
+    });
+
+
+    /*
+     * ============================================================
+     * 1. CONSULTAR LOTES
+     * ============================================================
+     */
+
+        async function cargarLotes() {
+
+        const contenedor = document.getElementById('contenedorLotes');
+
+        try {
+
+            contenedor.innerHTML = `
+                <div class="cargando">
+                    Cargando lotes...
+                </div>
+            `;
+
+            const response = await fetch(URL_LOTES, {
+                method: 'GET'
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al consultar los lotes.');
+            }
+
+            const resultado = await response.json();
+
+            console.log('RESPUESTA ORIGINAL LOTES:', resultado);
+            console.log('PRIMER LOTE:', resultado?.[0]);
+
+            if (!resultado || resultado.length === 0) {
+
+                contenedor.innerHTML = `
+                    <div class="sin-lotes">
+                        No existen lotes para mostrar.
+                    </div>
+                `;
+
+                return;
+            }
+
+            /*
+             * Guardamos exactamente lo que devuelve el endpoint.
+             */
+            lotes = resultado;
+
+            contenedor.innerHTML = '';
+
+            /*
+             * Crear cada lote.
+             */
+            lotes.forEach(function (lote, index) {
+
+                console.log(`Lote ${index}:`, lote);
+
+                crearLote(lote);
+
+            });
+
+            /*
+             * Consultar las pieles de cada lote.
+             */
+    for (const lote of lotes) {
+
+        await cargarPielesLote(lote.loteId);
+
+    }
+
+        }
+        catch (error) {
+
+            console.error('Error cargando lotes:', error);
+
+            contenedor.innerHTML = `
+                <div class="sin-lotes">
+                    Ocurrió un error al cargar los lotes.
+                </div>
+            `;
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * CREAR BARRA DEL LOTE
+     * ============================================================
+     */
+
+                function crearLote(lote) {
+
+        const contenedor =
+            document.getElementById('contenedorLotes');
+
+        const loteId =
+            Number(lote.loteId);
+
+        const nombreLote =
+            lote.lote;
+
+        const fechaProduccion =
+            lote.fechaProduccion;
+
+        const divLote =
+            document.createElement('div');
+
+        divLote.className =
+            'lote-item';
+
+        divLote.id =
+            `lote-${loteId}`;
+
+        divLote.innerHTML = `
+
+            <div
+                class="lote-header"
+                onclick="toggleLote(${loteId}, event)"
+            >
+
+                <div class="lote-header-izquierda">
+
+                    <input
+                        type="checkbox"
+                        class="lote-checkbox"
+                        id="check-lote-${loteId}"
+                        data-lote-id="${loteId}"
+                        onclick="seleccionarLote(${loteId}, event)"
+                    />
+
+                    <div class="lote-datos">
+
+                        <div class="lote-nombre">
+                            ${escapeHtml(nombreLote ?? '')}
+                        </div>
+
+                        <div class="lote-fecha">
+                            ${escapeHtml(fechaProduccion ?? '')}
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="lote-header-derecha">
+
+                    <div
+                        id="resumen-lote-${loteId}"
+                        class="resumen-lote"
+                    >
+
+                        <span
+                            id="total-pieles-${loteId}"
+                            class="dato-lote"
+                        >
+                            0 pieles
+                        </span>
+
+                        <span class="separador-lote">
+                            ·
+                        </span>
+
+                        <span
+                            id="total-kg-${loteId}"
+                            class="dato-lote"
+                        >
+                            0.00 kg
+                        </span>
+
+                        <span class="separador-lote">
+                            ·
+                        </span>
+
+                        <span
+                            id="seleccionadas-pieles-${loteId}"
+                            class="dato-lote seleccionadas"
+                        >
+                            0 seleccionadas
+                        </span>
+
+                        <span class="separador-lote">
+                            ·
+                        </span>
+
+                        <span
+                            id="seleccionadas-kg-${loteId}"
+                            class="dato-lote seleccionadas"
+                        >
+                            0.00 kg
+                        </span>
+
+                    </div>
+
+                    <span
+                        id="contador-${loteId}"
+                        class="contador-pieles"
+                        style="display:none;"
+                    >
+                    </span>
+
+                    <span class="lote-flecha">
+                        ▼
+                    </span>
+
+                </div>
+
+            </div>
+
+            <div
+                id="contenido-lote-${loteId}"
+                class="lote-contenido"
+            >
+
+                <div
+                    id="pieles-${loteId}"
+                    class="cargando"
+                >
+                    Cargando pieles...
+                </div>
+
+            </div>
+        `;
+
+        contenedor.appendChild(divLote);
+    }
+
+
+    /*
+     * ============================================================
+     * 2. CONSULTAR PIELES DEL LOTE
+     * ============================================================
+     */
+
+            async function cargarPielesLote(loteId) {
+
+        loteId = Number(loteId);
+
+        const contenedor =
+            document.getElementById(`pieles-${loteId}`);
+
+        if (!contenedor) {
+            console.error(
+                `No existe el contenedor pieles-${loteId}`
+            );
+            return;
+        }
+
+        try {
+
+            const response = await fetch(
+                `${URL_PIELES}?loteId=${encodeURIComponent(loteId)}`
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
+
+            const pieles = await response.json();
+
+            console.log(
+                `Lote ${loteId}:`,
+                pieles
+            );
+
+            // ==========================================
+            // GUARDAR EN EL LOTE
+            // ==========================================
+
+            const lote =
+                lotes.find(
+                    x => Number(x.loteId) === loteId
+                );
+
+            if (lote) {
+                lote.pieles = pieles || [];
+            }
+
+            // ==========================================
+            // GUARDAR EN COLECCIÓN GLOBAL
+            // ==========================================
+
+            // Primero eliminamos las que pudiera haber
+            // previamente de este lote
+            todasLasPieles =
+                todasLasPieles.filter(
+                    x => Number(x.loteId) !== loteId
+                );
+
+            (pieles || []).forEach(function (piel) {
+
+                todasLasPieles.push({
+                    loteId: loteId,
+                    piel: piel
+                });
+
+            });
+
+            console.log(
+                `Total de pieles cargadas: ${todasLasPieles.length}`
+            );
+
+            // ==========================================
+            // CONSTRUIR TABLA
+            // ==========================================
+
+            if (!pieles || pieles.length === 0) {
+
+                contenedor.innerHTML =
+                    '<div class="sin-pieles">No hay pieles para este lote.</div>';
+
+                actualizarContador(loteId, 0);
+
+                return;
+            }
+
+            construirTablaPieles(
+                loteId,
+                pieles
+            );
+            actualizarResumenLote(loteId);
+        }
+        catch (error) {
+
+            console.error(
+                `Error cargando pieles del lote ${loteId}:`,
+                error
+            );
+
+            contenedor.innerHTML =
+                '<div class="sin-pieles">Error al cargar las pieles.</div>';
+        }
+    }
+
+        function actualizarResumenLote(loteId) {
+
+        const lote =
+            lotes.find(
+                x => Number(x.loteId) === Number(loteId)
+            );
+
+        if (!lote) {
+            return;
+        }
+
+        const pieles =
+            lote.pieles || [];
+
+        // ==========================================
+        // TOTAL DEL LOTE
+        // ==========================================
+
+        const totalPieles =
+            pieles.length;
+
+        const totalKg =
+            pieles.reduce(function (total, piel) {
+
+                return total +
+                    (Number(piel.pesoNeto) || 0);
+
+            }, 0);
+
+        // ==========================================
+        // SELECCIONADAS
+        // ==========================================
+
+        const seleccionadas =
+            pieles.filter(
+                piel => piel.seleccionada === true
+            );
+
+        const cantidadSeleccionadas =
+            seleccionadas.length;
+
+        const kgSeleccionados =
+            seleccionadas.reduce(
+                function (total, piel) {
+
+                    return total +
+                        (Number(piel.pesoNeto) || 0);
+
+                },
+                0
+            );
+
+        // ==========================================
+        // ACTUALIZAR HTML
+        // ==========================================
+
+        const totalPielesElement =
+            document.getElementById(
+                `total-pieles-${loteId}`
+            );
+
+        const totalKgElement =
+            document.getElementById(
+                `total-kg-${loteId}`
+            );
+
+        const seleccionadasPielesElement =
+            document.getElementById(
+                `seleccionadas-pieles-${loteId}`
+            );
+
+        const seleccionadasKgElement =
+            document.getElementById(
+                `seleccionadas-kg-${loteId}`
+            );
+
+        if (totalPielesElement) {
+
+            totalPielesElement.textContent =
+                `${totalPieles} pieles`;
+
+        }
+
+        if (totalKgElement) {
+
+            totalKgElement.textContent =
+                `${formatearPeso(totalKg)} kg`;
+
+        }
+
+        if (seleccionadasPielesElement) {
+
+            seleccionadasPielesElement.textContent =
+                `${cantidadSeleccionadas} seleccionadas`;
+
+        }
+
+        if (seleccionadasKgElement) {
+
+            seleccionadasKgElement.textContent =
+                `${formatearPeso(kgSeleccionados)} kg`;
+
+        }
+    }
+    /*
+     * ============================================================
+     * CREAR TABLA DE PIELES
+     * ============================================================
+     */
+
+                function construirTablaPieles(loteId, pieles) {
+
+        const contenedor =
+            document.getElementById(`pieles-${loteId}`);
+
+        if (!contenedor) {
+            console.error(`No existe el contenedor pieles-${loteId}`);
+            return;
+        }
+
+        let html = `
+
+            <table class="tabla-pieles">
+
+                <thead>
+                    <tr>
+                        <th class="centrado" style="width:50px;">#</th>
+                        <th>Código etiqueta</th>
+                        <th>Producción</th>
+                        <th class="peso">Peso neto</th>
+                        <th>Fecha producción</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+        `;
+
+        pieles.forEach(function (piel, index) {
+
+            const pielLoteId = Number(piel.loteId);
+            const produccionId = piel.produccionId;
+            const codigoEtiqueta = piel.codigoEtiqueta;
+            const pesoNeto = Number(piel.pesoNeto) || 0;
+            const fechaProduccion = piel.fechaProduccion;
+
+            html += `
+                <tr>
+                    <td class="centrado">
+                 <input
+        type="checkbox"
+        class="piel-checkbox"
+        data-lote-id="${pielLoteId}"
+        data-produccion-id="${produccionId}"
+        data-codigo="${escapeHtml(codigoEtiqueta ?? '')}"
+        ${piel.seleccionada === true ? 'checked' : ''}
+        onchange="cambioSeleccionPiel(${pielLoteId})"
+    />
+                    </td>
+
+                    <td>${escapeHtml(codigoEtiqueta ?? '')}</td>
+
+                    <td>${escapeHtml(produccionId ?? '')}</td>
+
+                    <td class="peso">
+                        ${formatearPeso(pesoNeto)}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(fechaProduccion ?? '')}
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        contenedor.innerHTML = html;
+
+        actualizarContador(loteId, pieles.length);
+    }
+                    function seleccionarPielesAntiguasGlobal() {
+
+        const input =
+            document.getElementById('cantidadPielesGlobal');
+
+        const mensaje =
+            document.getElementById('mensajeCantidadGlobal');
+
+        if (!input) {
+            return;
+        }
+
+        const cantidad = parseInt(input.value, 10);
+
+        if (!cantidad || cantidad < 1) {
+
+            mensaje.textContent =
+                'Ingresa una cantidad válida.';
+
+            input.focus();
+
+            return;
+        }
+
+        // =====================================================
+        // VALIDAR QUE EXISTAN LOTES Y PIELES
+        // =====================================================
+
+        if (!lotes || lotes.length === 0) {
+
+            mensaje.textContent =
+                'No hay lotes disponibles.';
+
+            return;
+        }
+
+        const totalPieles =
+            todasLasPieles.length;
+
+        if (totalPieles === 0) {
+
+            mensaje.textContent =
+                'No hay pieles disponibles.';
+
+            console.error(
+                'todasLasPieles está vacío'
+            );
+
+            return;
+        }
+
+        if (cantidad > totalPieles) {
+
+            mensaje.textContent =
+                `Solo existen ${totalPieles} pieles disponibles.`;
+
+            return;
+        }
+
+        // =====================================================
+        // LIMPIAR SELECCIÓN ANTERIOR
+        // =====================================================
+
+        todasLasPieles.forEach(function (item) {
+
+            item.piel.seleccionada = false;
+
+        });
+
+        // =====================================================
+        // 1. ORDENAR LOS LOTES POR FECHA/HORA
+        // =====================================================
+
+        const lotesOrdenados =
+            [...lotes].sort(function (a, b) {
+
+                const fechaA =
+                    convertirFechaProduccion(
+                        a.fechaProduccion
+                    );
+
+                const fechaB =
+                    convertirFechaProduccion(
+                        b.fechaProduccion
+                    );
+
+                return fechaA - fechaB;
+
+            });
+
+        // =====================================================
+        // 2. RECORRER LOS LOTES EN ORDEN
+        // =====================================================
+
+        let restantes = cantidad;
+        let seleccionadas = [];
+
+        for (const lote of lotesOrdenados) {
+
+            if (restantes <= 0) {
+                break;
+            }
+
+            // Obtener las pieles de ESTE lote
+            const pielesLote =
+                todasLasPieles.filter(function (item) {
+
+                    return Number(item.loteId) ===
+                           Number(lote.loteId);
+
+                });
+
+            if (pielesLote.length === 0) {
+                continue;
+            }
+
+            // =================================================
+            // 3. ORDENAR LAS PIELES DE ESTE LOTE
+            //    POR SU FECHA/HORA
+            // =================================================
+
+            pielesLote.sort(function (a, b) {
+
+                const fechaA =
+                    convertirFechaProduccion(
+                        a.piel.fechaProduccion
+                    );
+
+                const fechaB =
+                    convertirFechaProduccion(
+                        b.piel.fechaProduccion
+                    );
+
+                return fechaA - fechaB;
+
+            });
+
+            // =================================================
+            // 4. TOMAR SOLO LAS QUE FALTAN
+            // =================================================
+
+            const cantidadLote =
+                Math.min(
+                    restantes,
+                    pielesLote.length
+                );
+
+            const pielesSeleccionadasLote =
+                pielesLote.slice(
+                    0,
+                    cantidadLote
+                );
+
+            // =================================================
+            // 5. MARCARLAS
+            // =================================================
+
+            pielesSeleccionadasLote.forEach(function (item) {
+
+                item.piel.seleccionada = true;
+
+                seleccionadas.push(item);
+
+            });
+
+            // =================================================
+            // 6. RESTAR LAS QUE YA TOMAMOS
+            // =================================================
+
+            restantes -= cantidadLote;
+        }
+
+        // =====================================================
+        // ACTUALIZAR CHECKBOXES DE LAS PIELES QUE YA EXISTAN
+        // EN EL DOM
+        // =====================================================
+
+        document
+            .querySelectorAll('.piel-checkbox')
+            .forEach(function (checkbox) {
+
+                const loteId =
+                    Number(
+                        checkbox.dataset.loteId
+                    );
+
+                const produccionId =
+                    String(
+                        checkbox.dataset.produccionId
+                    );
+
+                const codigo =
+                    String(
+                        checkbox.dataset.codigo
+                    );
+
+                const item =
+                    todasLasPieles.find(function (x) {
+
+                        return (
+                            Number(x.loteId) === loteId &&
+                            String(x.piel.produccionId) === produccionId &&
+                            String(x.piel.codigoEtiqueta) === codigo
+                        );
+
+                    });
+
+                checkbox.checked =
+                    item?.piel.seleccionada === true;
+
+            });
+
+        // =====================================================
+        // ACTUALIZAR CHECKBOXES DE LOS LOTES
+        // =====================================================
+
+        lotes.forEach(function (lote) {
+
+
+     const loteId =
+        Number(lote.loteId);
+
+    actualizarCheckboxLote(loteId);
+
+    actualizarResumenLote(loteId);
+
+        });
+
+        // =====================================================
+        // MOSTRAR RESUMEN
+        // =====================================================
+
+        const resumenLotes = {};
+
+        seleccionadas.forEach(function (item) {
+
+            const loteId =
+                Number(item.loteId);
+
+            if (!resumenLotes[loteId]) {
+                resumenLotes[loteId] = 0;
+            }
+
+            resumenLotes[loteId]++;
+
+        });
+
+        console.table(
+            seleccionadas.map(function (item) {
+
+                return {
+
+                    loteId:
+                        item.loteId,
+
+                    codigo:
+                        item.piel.codigoEtiqueta,
+
+                    produccionId:
+                        item.piel.produccionId,
+
+                    fechaLote:
+                        lotes.find(
+                            x =>
+                                Number(x.loteId) ===
+                                Number(item.loteId)
+                        )?.fechaProduccion,
+
+                    fechaPiel:
+                        item.piel.fechaProduccion
+
+                };
+
+            })
+        );
+
+        console.log(
+            'Distribución por lote:',
+            resumenLotes
+        );
+
+        mensaje.textContent =
+            `Se seleccionaron ${seleccionadas.length} pieles.`;
+
+    }
+        function seleccionarPielesAntiguas(loteId) {
+
+        const input =
+            document.getElementById(
+                `cantidad-pieles-${loteId}`
+            );
+
+        const mensaje =
+            document.getElementById(
+                `mensaje-cantidad-${loteId}`
+            );
+
+
+        if (!input) {
+            return;
+        }
+
+
+        let cantidad =
+            parseInt(input.value, 10);
+
+
+        /*
+         * Obtener el lote.
+         */
+        const lote =
+            lotes.find(
+                x => Number(x.loteId) === Number(loteId)
+            );
+
+
+        if (!lote) {
+
+            console.error(
+                'No se encontró el lote:',
+                loteId
+            );
+
+            return;
+        }
+
+
+        const pieles =
+            lote.pieles || lote.Pieles || [];
+
+
+        /*
+         * Validaciones.
+         */
+        if (!cantidad || cantidad < 1) {
+
+            mensaje.textContent =
+                'Ingresa una cantidad válida.';
+
+            input.focus();
+
+            return;
+        }
+
+
+        if (cantidad > pieles.length) {
+
+            mensaje.textContent =
+                `El lote solamente tiene ${pieles.length} pieles.`;
+
+            input.focus();
+
+            return;
+        }
+
+
+        /*
+         * Ordenamos una COPIA de las pieles.
+         *
+         * No modificamos el orden original.
+         */
+        const pielesOrdenadas =
+            [...pieles].sort(function (a, b) {
+
+                const fechaA =
+                    convertirFechaProduccion(
+                        a.fechaProduccion
+                    );
+
+                const fechaB =
+                    convertirFechaProduccion(
+                        b.fechaProduccion
+                    );
+
+                return fechaA - fechaB;
+
+            });
+
+
+        /*
+         * Primero deseleccionamos todas.
+         */
+        const checkboxes =
+            document.querySelectorAll(
+                `.piel-checkbox[data-lote-id="${loteId}"]`
+            );
+
+
+        checkboxes.forEach(function (checkbox) {
+
+            checkbox.checked = false;
+
+        });
+
+
+        /*
+         * Tomamos las primeras N pieles,
+         * comenzando por las más antiguas.
+         */
+        const seleccionadas =
+            pielesOrdenadas.slice(0, cantidad);
+
+
+        /*
+         * Marcamos cada piel seleccionada.
+         */
+        seleccionadas.forEach(function (piel) {
+
+            const checkbox =
+                document.querySelector(
+                    `.piel-checkbox[data-lote-id="${loteId}"][data-produccion-id="${piel.produccionId}"][data-codigo="${CSS.escape(piel.codigoEtiqueta ?? '')}"]`
+                );
+
+
+            if (checkbox) {
+
+                checkbox.checked = true;
+
+            }
+
+        });
+
+
+        /*
+         * Actualizar checkbox del lote.
+         */
+        cambioSeleccionPiel(loteId);
+
+
+        mensaje.textContent =
+            `Se seleccionaron ${seleccionadas.length} pieles, desde las más antiguas.`;
+
+    }
+        function actualizarCheckboxLote(loteId) {
+
+        const lote =
+            lotes.find(
+                x => Number(x.loteId) === Number(loteId)
+            );
+
+        if (!lote) {
+            return;
+        }
+
+        const pieles =
+            lote.pieles || [];
+
+        const checkbox =
+            document.getElementById(
+                `check-lote-${loteId}`
+            );
+
+        if (!checkbox) {
+            return;
+        }
+
+        const seleccionadas =
+            pieles.filter(
+                x => x.seleccionada === true
+            ).length;
+
+        if (pieles.length === 0) {
+
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+
+            return;
+        }
+
+        if (seleccionadas === 0) {
+
+            checkbox.checked = false;
+            checkbox.indeterminate = false;
+
+        }
+        else if (seleccionadas === pieles.length) {
+
+            checkbox.checked = true;
+            checkbox.indeterminate = false;
+
+        }
+        else {
+
+            checkbox.checked = false;
+            checkbox.indeterminate = true;
+
+        }
+    }
+        function convertirFechaProduccion(fecha) {
+
+        if (!fecha) {
+            return Number.MAX_SAFE_INTEGER;
+        }
+
+
+        /*
+         * Formato esperado:
+         *
+         * 18/09/2026 12:27:02 p. m.
+         *
+         * o
+         *
+         * 18/09/2026 12:27:02 a. m.
+         */
+
+        const regex =
+            /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(a\.\s*m\.|p\.\s*m\.)$/i;
+
+
+        const match =
+            String(fecha).match(regex);
+
+
+        if (!match) {
+
+            console.warn(
+                'Formato de fecha no reconocido:',
+                fecha
+            );
+
+            return Number.MAX_SAFE_INTEGER;
+
+        }
+
+
+        const dia =
+            parseInt(match[1], 10);
+
+        const mes =
+            parseInt(match[2], 10) - 1;
+
+        const anio =
+            parseInt(match[3], 10);
+
+        let hora =
+            parseInt(match[4], 10);
+
+        const minuto =
+            parseInt(match[5], 10);
+
+        const segundo =
+            parseInt(match[6], 10);
+
+        const periodo =
+            match[7].toLowerCase();
+
+
+        /*
+         * Convertir 12 a.m. / 12 p.m.
+         */
+        if (periodo.includes('p') && hora !== 12) {
+            hora += 12;
+        }
+
+        if (periodo.includes('a') && hora === 12) {
+            hora = 0;
+        }
+
+
+        return new Date(
+            anio,
+            mes,
+            dia,
+            hora,
+            minuto,
+            segundo
+        ).getTime();
+
+    }
+    /*
+     * ============================================================
+     * ABRIR / CERRAR LOTE
+     * ============================================================
+     */
+
+    function toggleLote(loteId, event) {
+
+        /*
+         * Si el click vino del checkbox,
+         * no debemos abrir/cerrar el lote.
+         */
+        if (
+            event &&
+            event.target &&
+            event.target.type === 'checkbox'
+        ) {
+            return;
+        }
+
+
+        const lote =
+            document.getElementById(`lote-${loteId}`);
+
+
+        if (!lote) {
+            return;
+        }
+
+
+        lote.classList.toggle('abierto');
+
+    }
+
+
+    /*
+     * ============================================================
+     * SELECCIONAR TODAS LAS PIELES DEL LOTE
+     * ============================================================
+     */
+
+        function seleccionarLote(loteId, event) {
+
+        if (event) {
+            event.stopPropagation();
+        }
+
+        const lote =
+            lotes.find(
+                x => Number(x.loteId) === Number(loteId)
+            );
+
+        if (!lote) {
+            return;
+        }
+
+        const checkboxLote =
+            document.getElementById(
+                `check-lote-${loteId}`
+            );
+
+        if (!checkboxLote) {
+            return;
+        }
+
+        const seleccionado =
+            checkboxLote.checked;
+
+        const pieles =
+            lote.pieles || [];
+
+        // ==========================================
+        // ACTUALIZAR EL ESTADO DE LAS PIELES
+        // ==========================================
+
+        pieles.forEach(function (piel) {
+
+            piel.seleccionada =
+                seleccionado;
+
+        });
+
+        // ==========================================
+        // ACTUALIZAR CHECKBOXES VISIBLES
+        // ==========================================
+
+        const checkboxes =
+            document.querySelectorAll(
+                `.piel-checkbox[data-lote-id="${loteId}"]`
+            );
+
+        checkboxes.forEach(function (checkbox) {
+
+            checkbox.checked =
+                seleccionado;
+
+        });
+
+        // ==========================================
+        // ACTUALIZAR CONTADORES
+        // ==========================================
+
+        actualizarResumenLote(loteId);
+
+        actualizarCheckboxLote(loteId);
+    }
+
+
+    /*
+     * ============================================================
+     * CAMBIO EN UNA PIEL
+     * ============================================================
+     */
+
+        function cambioSeleccionPiel(loteId) {
+
+        const lote =
+            lotes.find(
+                x => Number(x.loteId) === Number(loteId)
+            );
+
+        if (!lote) {
+            return;
+        }
+
+        const pieles =
+            lote.pieles || [];
+
+        const checkboxes =
+            document.querySelectorAll(
+                `.piel-checkbox[data-lote-id="${loteId}"]`
+            );
+
+        // Actualizar el estado de cada piel
+        checkboxes.forEach(function (checkbox) {
+
+            const produccionId =
+                String(checkbox.dataset.produccionId);
+
+            const codigo =
+                String(checkbox.dataset.codigo);
+
+            const piel =
+                pieles.find(function (p) {
+
+                    return (
+                        String(p.produccionId) === produccionId &&
+                        String(p.codigoEtiqueta) === codigo
+                    );
+
+                });
+
+            if (piel) {
+
+                piel.seleccionada =
+                    checkbox.checked;
+
+            }
+
+        });
+
+        actualizarCheckboxLote(loteId);
+        actualizarResumenLote(loteId);
+    }
+
+
+    /*
+     * ============================================================
+     * CONTADOR DEL LOTE
+     * ============================================================
+     */
+
+    function actualizarContador(loteId, cantidad) {
+
+        const contador =
+            document.getElementById(`contador-${loteId}`);
+
+
+        if (!contador) {
+            return;
+        }
+
+
+        contador.textContent =
+            `${cantidad} piel${cantidad === 1 ? '' : 'es'}`;
+
+    }
+
+
+    /*
+     * ============================================================
+     * OBTENER TODAS LAS PIELES SELECCIONADAS
+     * ============================================================
+     *
+     * Esta función te devolverá un arreglo de PielesModel.
+     */
+
+    function obtenerPielesSeleccionadas() {
+
+        const checkboxes =
+            document.querySelectorAll(
+                '.piel-checkbox:checked'
+            );
+
+
+        const seleccionadas = [];
+
+
+        checkboxes.forEach(function (checkbox) {
+
+            const loteId =
+                parseInt(
+                    checkbox.dataset.loteId
+                );
+
+
+            const produccionId =
+                parseInt(
+                    checkbox.dataset.produccionId
+                );
+
+
+            const codigo =
+                checkbox.dataset.codigo;
+
+
+            const lote =
+                lotes.find(
+                    x => x.LoteId == loteId
+                );
+
+
+            const pieles =
+                lote?.Pieles || [];
+
+
+            const piel =
+                pieles.find(
+                    x =>
+                        x.ProduccionId == produccionId &&
+                        x.CodigoEtiqueta == codigo
+                );
+
+
+            if (piel) {
+
+                seleccionadas.push(piel);
+
+            }
+
+        });
+
+
+        return seleccionadas;
+
+    }
+
+
+    /*
+     * ============================================================
+     * EJEMPLO PARA SABER CUÁNTAS ESTÁN SELECCIONADAS
+     * ============================================================
+     */
+
+    function mostrarSeleccion() {
+
+        const seleccionadas =
+            obtenerPielesSeleccionadas();
+
+
+        console.log(
+            'Pieles seleccionadas:',
+            seleccionadas
+        );
+
+        console.log(
+            'Cantidad:',
+            seleccionadas.length
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * UTILIDADES
+     * ============================================================
+     */
+
+        function formatearPeso(peso) {
+
+        if (peso === null || peso === undefined || peso === '') {
+            return '0.00';
+        }
+
+        const valor = Number(peso);
+
+        if (isNaN(valor)) {
+            return '0.00';
+        }
+
+        return valor.toFixed(2);
+    }
+
+
+    function escapeHtml(texto) {
+
+        if (texto === null || texto === undefined) {
+            return '';
+        }
+
+        return String(texto)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+
+    }
+        async function abrirModalOrdenesPieles() {
+
+        const modalElement =
+            document.getElementById('modalOrdenesPieles');
+
+        if (!modalElement) {
+            console.error(
+                'No existe el modal modalOrdenesPieles'
+            );
+            return;
+        }
+
+        const modal =
+            bootstrap.Modal.getOrCreateInstance(
+                modalElement
+            );
+
+        // Mostrar modal inmediatamente
+        modal.show();
+
+        // Cargar información
+        await cargarOrdenesPieles();
+    }
+        async function cargarOrdenesPieles() {
+
+        const loading =
+            document.getElementById(
+                'cargandoOrdenesPieles'
+            );
+
+        const mensaje =
+            document.getElementById(
+                'mensajeOrdenesPieles'
+            );
+
+        const tbody =
+            document.getElementById(
+                'tbodyOrdenesPieles'
+            );
+
+        if (!tbody) {
+            return;
+        }
+
+        // Limpiar contenido anterior
+        tbody.innerHTML = '';
+
+        mensaje.style.display = 'none';
+
+        loading.style.display = 'block';
+
+        try {
+
+            const response =
+                await fetch(
+                    URL_ORDENES_PIELES,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type':
+                                'application/json'
+                        }
+                    }
+                );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+
+            }
+
+            const resultado =
+                await response.json();
+
+            console.log(
+                'Órdenes de pieles:',
+                resultado
+            );
+
+            const ordenes =
+                resultado || [];
+
+            if (ordenes.length === 0) {
+
+                mensaje.textContent =
+                    'No existen órdenes de surtido.';
+
+                mensaje.className =
+                    'alert alert-info';
+
+                mensaje.style.display =
+                    'block';
+
+                return;
+            }
+
+            construirTablaOrdenesPieles(
+                ordenes
+            );
+
+        }
+        catch (error) {
+
+            console.error(
+                'Error al consultar órdenes de pieles:',
+                error
+            );
+
+            mensaje.textContent =
+                'Ocurrió un error al consultar las órdenes de surtido.';
+
+            mensaje.className =
+                'alert alert-danger';
+
+            mensaje.style.display =
+                'block';
+        }
+        finally {
+
+            loading.style.display =
+                'none';
+
+        }
+    }
+            function construirTablaOrdenesPieles(ordenes) {
+
+        const tbody =
+            document.getElementById('tbodyOrdenesPieles');
+
+        if (!tbody) {
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        ordenes.forEach(function (orden) {
+
+            const unidades =
+                Number(orden.unidades) || 0;
+
+            const capturadas =
+                Number(orden.capturadas) || 0;
+
+            const pendientes =
+                Math.max(unidades - capturadas, 0);
+
+            const tr =
+                document.createElement('tr');
+
+            tr.style.cursor = 'pointer';
+
+            tr.dataset.solicitudSurtidoId =
+                orden.solicitudSurtidoId ?? '';
+
+            tr.innerHTML = `
+                <td>${escapeHtml(orden.fechaSurtido ?? '')}</td>
+                <td>${escapeHtml(orden.folio ?? '')}</td>
+                <td>${escapeHtml(orden.cliente ?? '')}</td>
+                <td class="text-center">${unidades}</td>
+                <td class="text-center">${capturadas}</td>
+                <td class="text-center">${pendientes}</td>
+            `;
+
+            tr.addEventListener('dblclick', function () {
+
+                seleccionarOrdenPieles(orden);
+
+            });
+
+            tbody.appendChild(tr);
+        });
+    }
+
+
+        function seleccionarOrdenPieles(orden) {
+
+        const cantidadPieles =
+            document.getElementById('cantidadPielesGlobal');
+
+        const txtCliente =
+            document.getElementById('txtClienteOrden');
+
+        const txtSolicitud =
+            document.getElementById('txtSolicitudSurtidoId');
+
+        if (cantidadPieles) {
+            cantidadPieles.value =
+                Number(orden.unidades) || 0;
+        }
+
+        if (txtCliente) {
+            txtCliente.value =
+                orden.cliente ?? '';
+        }
+
+        if (txtSolicitud) {
+            txtSolicitud.value =
+                orden.solicitudSurtidoId ?? '';
+        }
+
+        // También lo dejamos disponible para JS
+        window.solicitudSurtidoIdSeleccionada =
+            orden.solicitudSurtidoId ?? null;
+
+        // Cerrar modal
+        const modalElement =
+            document.getElementById('modalOrdenesPieles');
+
+        if (modalElement) {
+
+            const modal =
+                bootstrap.Modal.getInstance(modalElement);
+
+            if (modal) {
+                modal.hide();
+            }
+        }
+    }
+        function obtenerPielesSeleccionadas() {
+
+        const seleccionadas = [];
+
+        lotes.forEach(function (lote) {
+
+            (lote.pieles || []).forEach(function (piel) {
+
+                if (piel.seleccionada === true) {
+
+                    seleccionadas.push({
+                        loteId: Number(piel.loteId || lote.loteId),
+
+                        lote:
+                            piel.lote ??
+                            lote.lote ??
+                            '',
+
+                        produccionId:
+                            Number(piel.produccionId) || 0,
+
+                        codigoEtiqueta:
+                            piel.codigoEtiqueta ?? '',
+
+                        pesoNeto:
+                            Number(piel.pesoNeto) || 0,
+
+                        fechaProduccion:
+                            piel.fechaProduccion ?? ''
+                    });
+                }
+
+            });
+
+        });
+
+        return seleccionadas;
+    }
+            async function guardarPielesSeleccionadas() {
+
+        const mensaje =
+            document.getElementById('mensajeGuardarPieles');
+
+        const txtSolicitud =
+            document.getElementById('txtSolicitudSurtidoId');
+
+        const txtCliente =
+            document.getElementById('txtClienteOrden');
+
+        const cantidadPieles =
+            document.getElementById('cantidadPielesGlobal');
+
+        if (!txtSolicitud) {
+            console.error(
+                'No existe txtSolicitudSurtidoId'
+            );
+            return;
+        }
+
+        const solicitudSurtidoId =
+            Number(txtSolicitud.value);
+
+        if (!solicitudSurtidoId) {
+
+            mensaje.textContent =
+                'Primero selecciona una orden de surtido.';
+
+            mensaje.className =
+                'ms-2 text-danger';
+
+            return;
+        }
+
+        const pieles =
+            obtenerPielesSeleccionadas();
+
+        if (pieles.length === 0) {
+
+            mensaje.textContent =
+                'No hay pieles seleccionadas.';
+
+            mensaje.className =
+                'ms-2 text-danger';
+
+            return;
+        }
+
+        const datos = {
+            solicitudSurtidoId: solicitudSurtidoId,
+            pieles: pieles
+        };
+
+        console.log('Datos a guardar:', datos);
+
+        try {
+
+            const response =
+                await fetch(
+                    '/Operaciones/GuardarPielesSurtido',
+                    {
+                        method: 'POST',
+
+                        headers: {
+                            'Content-Type':
+                                'application/json'
+                        },
+
+                        body:
+                            JSON.stringify(datos)
+                    }
+                );
+
+            if (!response.ok) {
+
+                const error =
+                    await response.text();
+
+                throw new Error(
+                    error ||
+                    `HTTP ${response.status}`
+                );
+            }
+
+            // El endpoint ahora devuelve directamente un string
+            const resultado =
+                (await response.text()).trim();
+
+            console.log(
+                'Respuesta guardar:',
+                resultado
+            );
+
+            // ==========================================
+            // VALIDAR RESULTADO
+            // ==========================================
+
+            if (resultado === '') {
+
+                mensaje.textContent =
+                    'El proceso terminó sin generar una remisión.';
+
+                mensaje.className =
+                    'ms-2 text-warning';
+
+                return;
+            }
+
+            // ==========================================
+            // ÉXITO
+            // ==========================================
+
+            alert(
+                `Remisión creada con éxito: ${resultado}`
+            );
+
+            // ==========================================
+            // LIMPIAR TEXTBOX
+            // ==========================================
+
+            if (cantidadPieles) {
+                cantidadPieles.value = '';
+            }
+
+            if (txtCliente) {
+                txtCliente.value = '';
+            }
+
+            if (txtSolicitud) {
+                txtSolicitud.value = '';
+            }
+
+            // Limpiar ID seleccionado
+            window.solicitudSurtidoIdSeleccionada = null;
+
+            // Limpiar mensajes
+            if (mensaje) {
+                mensaje.textContent = '';
+                mensaje.className = 'ms-2 mensaje-guardar';
+            }
+
+            const mensajeCantidad =
+                document.getElementById(
+                    'mensajeCantidadGlobal'
+                );
+
+            if (mensajeCantidad) {
+                mensajeCantidad.textContent = '';
+            }
+
+            // ==========================================
+            // RECARGAR LOTES
+            // ==========================================
+
+            await cargarLotes();
+
+        }
+        catch (error) {
+
+            console.error(
+                'Error al guardar las pieles:',
+                error
+            );
+
+            mensaje.textContent =
+                error.message ||
+                'Ocurrió un error al guardar las pieles.';
+
+            mensaje.className =
+                'ms-2 text-danger';
+        }
+    }
+</script>

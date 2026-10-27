@@ -17,6 +17,16 @@
         public int? U_PRESENT { get; set; }
         public int? U_PorcInye { get; set; }
 
+        // ✅ COSTO (precio promedio del artículo en SAP)
+        public decimal? AvgPrice { get; set; }
+
+        // Grupo de artículos nativo de SAP (OITM.ItmsGrpCod)
+        public int? ItemsGroupCode { get; set; }
+
+        // Stock actual y disponible del artículo en SAP
+        public decimal? QuantityOnStock { get; set; }
+        public decimal? QuantityAvailable { get; set; }
+
 
     }
 }

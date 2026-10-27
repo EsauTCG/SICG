@@ -4,6 +4,7 @@
     {
         private string cadenaSQLVentas = string.Empty;
         private string cadenaSQLSIGO = string.Empty;
+        private string cadenaSQLPrueba = string.Empty;
         private string cadenaSQLVentasViejo = string.Empty;
         private string cadenaSQLTIFVentas = string.Empty;
         private string cadenaODBCSAP = string.Empty;
@@ -13,6 +14,7 @@
             var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.json").Build();
             cadenaSQLVentas += builder.GetSection("ConnectionStringsVentas:CadenaSQL").Value;
             cadenaSQLSIGO += builder.GetSection("ConnectionStrings:CadenaSQLSIGO").Value;
+            cadenaSQLPrueba += builder.GetSection("ConnectionStrings:CadenaSQLPrueba").Value;
             cadenaSQLVentasViejo += builder.GetSection("ConnectionStringsVentas:CadenaSQL.OLD").Value;
             cadenaSQLTIFVentas += builder.GetSection("ConnectionStringsVentas:CadenaSQLTIF").Value;
             cadenaSQLP1 += builder.GetSection("ConnectionStrings:CadenaMeatP1").Value;
@@ -37,6 +39,10 @@
             return cadenaSQLVentasViejo;
         }
         public string GetCadenaSQLTIFVentas()
+        {
+            return cadenaSQLTIFVentas;
+        }
+        public string GetCadenaSQLPrue()
         {
             return cadenaSQLTIFVentas;
         }

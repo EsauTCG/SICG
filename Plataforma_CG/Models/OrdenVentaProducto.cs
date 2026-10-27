@@ -12,7 +12,7 @@ public class OrdenVentaProducto
     public OrdenVenta Pedido { get; set; }
 
     public string ProductoCodigo { get; set; }
-    public string ProductoNombre { get; set; }
+    public string? ProductoNombre { get; set; }
     public decimal Peso { get; set; }
     public decimal Precio { get; set; }
     public int Cajas { get; set; }   

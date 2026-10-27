@@ -1,20 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json.Linq;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
 using Plataforma_CG.ViewModels;
-using System;
 using System.Data;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using static System.Net.WebRequestMethods;
 
 namespace Plataforma_CG.Services
 {
@@ -25,6 +17,11 @@ namespace Plataforma_CG.Services
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _config;
         private readonly SemaphoreSlim _loginGate = new(1, 1);
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
+        private readonly SemaphoreSlim _refaccionesCacheGate = new(1, 1);
+
+        private const string RefaccionesCacheKey = "SapRefacciones_Consumibles_v1";
+        private static readonly TimeSpan RefaccionesCacheTtl = TimeSpan.FromMinutes(5);
 
         //public SapServiceLayerClient(HttpClient httpClient, IConfiguration config)
         //{
@@ -127,12 +124,59 @@ namespace Plataforma_CG.Services
         }
 
 
-        public SapServiceLayerClient(HttpClient httpClient, IConfiguration config, AppDbContext context)
+        public SapServiceLayerClient(
+            HttpClient httpClient,
+            IConfiguration config,
+            AppDbContext context,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
         {
             _httpClient = httpClient;
             _config = config;
             _context = context;
+            _cache = cache;
+        }
 
+        // Devuelve los consumibles de SAP usando un caché en memoria (5 min) para no
+        // golpear SAP repetidamente entre vista previa y sincronización.
+        public Task<List<CatalogoSkuSapViewmodel>> ObtenerRefaccionesCacheAsync()
+            => ObtenerRefaccionesCacheAsync(false);
+
+        private async Task<List<CatalogoSkuSapViewmodel>> ObtenerRefaccionesCacheAsync(bool forzar)
+        {
+            if (!forzar && _cache.TryGetValue(RefaccionesCacheKey, out var cached)
+                         && cached is List<CatalogoSkuSapViewmodel> listaCache)
+            {
+                return listaCache;
+            }
+
+            await _refaccionesCacheGate.WaitAsync();
+            try
+            {
+                if (!forzar && _cache.TryGetValue(RefaccionesCacheKey, out cached)
+                             && cached is List<CatalogoSkuSapViewmodel> listaCache2)
+                {
+                    return listaCache2;
+                }
+
+                var items = await ObtenerRefaccionesAsync();
+
+                _cache.Set(RefaccionesCacheKey, items, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = RefaccionesCacheTtl
+                });
+
+                return items;
+            }
+            finally
+            {
+                _refaccionesCacheGate.Release();
+            }
+        }
+
+        // Invalida el caché de consumibles (se llama al terminar una sincronización real).
+        public void InvalidarCacheRefacciones()
+        {
+            _cache.Remove(RefaccionesCacheKey);
         }
 
         // =========================
@@ -2424,7 +2468,533 @@ namespace Plataforma_CG.Services
             return productos;
         }
 
+        // ============================================================
+        // OBTIENE LOS ARTÍCULOS DE REFACCIÓN / CONSUMIBLE DESDE SAP
+        // Filtro configurable en appsettings.json:
+        //   SapServiceLayer:Refacciones:ClasProd  (U_Clas_Prod, entero)
+        //   SapServiceLayer:Refacciones:TipoPorSku (U_TipoporSKU, texto)
+        //   SapServiceLayer:Refacciones:IncluirTodos (true => sin filtro)
+        // Si no hay ningún filtro configurado, trae TODO el catálogo
+        // (Valid eq 'tYES') para poder analizar los datos; el usuario
+        // decide después qué valor usar como filtro definitivo.
+        // ============================================================
+        public async Task<List<CatalogoSkuSapViewmodel>> ObtenerRefaccionesAsync()
+        {
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
 
+            var settings = _config.GetSection("SapServiceLayer");
+            var refSettings = settings.GetSection("Refacciones");
+
+            bool incluirTodos = string.Equals(
+                refSettings["IncluirTodos"], "true",
+                StringComparison.OrdinalIgnoreCase);
+
+            int? clasProd = int.TryParse(refSettings["ClasProd"], out var cp) ? cp : (int?)null;
+
+            // Consumibles / refacciones: U_TipoporSKU = 0 (por defecto).
+            string tipoPorSku = string.IsNullOrWhiteSpace(refSettings["TipoPorSku"])
+                ? "0"
+                : refSettings["TipoPorSku"]!.Trim();
+
+            // Grupos de artículos NO CÁRNICOS (ItemsGroupCode).
+            // En appsettings.json se acepta "112,115" o [112, 115].
+            var gruposNoCarnicos = new List<int>();
+            var gruposSection = refSettings.GetSection("GruposNoCarnicos");
+            if (!string.IsNullOrWhiteSpace(gruposSection.Value))
+            {
+                foreach (var parte in gruposSection.Value!.Split(
+                             new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (int.TryParse(parte.Trim(), out var g)) gruposNoCarnicos.Add(g);
+                }
+            }
+            foreach (var child in gruposSection.GetChildren())
+            {
+                if (int.TryParse(child.Value, out var g)) gruposNoCarnicos.Add(g);
+            }
+            gruposNoCarnicos = gruposNoCarnicos.Distinct().ToList();
+
+            string filtro;
+            if (incluirTodos)
+            {
+                // Trae TODO el catálogo (usar sólo para diagnóstico)
+                filtro = "Valid eq 'tYES'";
+            }
+            else
+            {
+                var condiciones = new List<string> { "Valid eq 'tYES'" };
+
+                if (clasProd.HasValue)
+                    condiciones.Add($"U_Clas_Prod eq {clasProd.Value}");
+
+                if (!string.IsNullOrWhiteSpace(tipoPorSku))
+                    condiciones.Add($"U_TipoporSKU eq '{tipoPorSku}'");
+
+                // (ItemsGroupCode eq 112 or ItemsGroupCode eq 115)
+                if (gruposNoCarnicos.Count > 0)
+                {
+                    var gruposOd = string.Join(" or ",
+                        gruposNoCarnicos.Select(g => $"ItemsGroupCode eq {g}"));
+                    condiciones.Add($"({gruposOd})");
+                }
+
+                filtro = string.Join(" and ", condiciones);
+            }
+
+            var productos = new List<CatalogoSkuSapViewmodel>();
+            int skip = 0;
+            // SAP Service Layer topa la página en 20 aunque se pida más (responde 200).
+            // Por eso se pagina de 20 en 20.
+            int batchSize = 20;
+            bool more = true;
+
+            static decimal? ParseDecimal(JsonElement el)
+            {
+                if (el.ValueKind == JsonValueKind.Number && el.TryGetDecimal(out var d))
+                    return d;
+
+                if (el.ValueKind == JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                                         System.Globalization.CultureInfo.InvariantCulture, out var d2))
+                        return d2;
+                }
+                return null;
+            }
+
+            static int? ParseInt(JsonElement el)
+            {
+                if (el.ValueKind == JsonValueKind.Number)
+                {
+                    if (el.TryGetInt32(out var i)) return i;
+                    if (el.TryGetDecimal(out var d)) return (int)d;
+                }
+                else if (el.ValueKind == JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (int.TryParse(s, out var i)) return i;
+                    if (decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                                         System.Globalization.CultureInfo.InvariantCulture, out var d))
+                        return (int)d;
+                }
+                return null;
+            }
+
+            // UDF de SAP: puede venir como texto o como número según el tipo del campo.
+            static string? ParseText(JsonElement el)
+            {
+                switch (el.ValueKind)
+                {
+                    case JsonValueKind.String:
+                        var s = el.GetString();
+                        return string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+                    case JsonValueKind.Number:
+                        return el.GetRawText();
+                    case JsonValueKind.True:
+                        return "tYES";
+                    case JsonValueKind.False:
+                        return "tNO";
+                    default:
+                        return null;
+                }
+            }
+
+            while (more)
+            {
+                var url =
+     $"{settings["BaseUrl"].TrimEnd('/')}/Items" +
+     "?$select=ItemCode,ItemName,MovingAveragePrice,ItemsGroupCode,QuantityOnStock,U_MASTER,U_TipoporSKU,U_Clas_Prod,U_KilosCaja,U_PRESENT,U_PorcInye" +
+     $"&$filter={Uri.EscapeDataString(filtro)}" +
+     $"&$top={batchSize}&$skip={skip}";
+                HttpResponseMessage response;
+                try
+                {
+                    response = await GetWithReLoginAsync(url);
+
+                    // Si SAP rechaza la petición (ej. 400 Bad Request)
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        // Leemos la queja exacta de SAP
+                        var errorSap = await response.Content.ReadAsStringAsync();
+                        throw new Exception($"Error {response.StatusCode} de SAP. Detalle: {errorSap}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Si el error es de sintaxis (400), lanzarlo a la pantalla para que lo veas
+                    if (ex.Message.Contains("Error BadRequest de SAP"))
+                        throw;
+
+                    // Si el servidor rechaza el tamaño de página, se reduce a 20 y se reintenta.
+                    if (batchSize > 20)
+                    {
+                        batchSize = 20;
+                        continue;
+                    }
+                    throw;
+                }
+
+                using (response)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+
+                    if (!doc.RootElement.TryGetProperty("value", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                        break;
+
+                    var batch = new List<CatalogoSkuSapViewmodel>(arr.GetArrayLength());
+
+                    foreach (var x in arr.EnumerateArray())
+                    {
+                        string? uMaster = x.TryGetProperty("U_MASTER", out var um) ? ParseText(um) : null;
+
+                        string? tipoSKU = x.TryGetProperty("U_TipoporSKU", out var ts) ? ParseText(ts) : null;
+
+                        decimal? kilosCaja = x.TryGetProperty("U_KilosCaja", out var kc) ? ParseDecimal(kc) : null;
+
+                        // Se cambia AvgPrice a MovingAveragePrice
+                        decimal? avgPrice = x.TryGetProperty("MovingAveragePrice", out var ap) ? ParseDecimal(ap) : null;
+
+                        int? clasProdItem = x.TryGetProperty("U_Clas_Prod", out var cpEl) ? ParseInt(cpEl) : null;
+                        int? present = x.TryGetProperty("U_PRESENT", out var pr) ? ParseInt(pr) : null;
+                        int? porcInye = x.TryGetProperty("U_PorcInye", out var pi) ? ParseInt(pi) : null;
+                        int? itemsGroupCode = x.TryGetProperty("ItemsGroupCode", out var ig) ? ParseInt(ig) : null;
+                        decimal? stock = x.TryGetProperty("QuantityOnStock", out var qs) ? ParseDecimal(qs) : null;
+                        decimal? disponible = x.TryGetProperty("QuantityAvailable", out var qa) ? ParseDecimal(qa) : null;
+                        batch.Add(new CatalogoSkuSapViewmodel
+                        {
+                            ItemCode = x.TryGetProperty("ItemCode", out var ic) ? ic.GetString() : null,
+                            ItemName = x.TryGetProperty("ItemName", out var inm) ? inm.GetString() : null,
+                            ItemsGroupCode = itemsGroupCode,
+                            QuantityOnStock = stock,
+                            QuantityAvailable = disponible,
+                            U_MASTER = uMaster,
+                            U_TipoporSKU = tipoSKU,
+                            U_KilosCaja = kilosCaja,
+                            U_Clas_Prod = clasProdItem,
+                            U_PRESENT = present,
+                            U_PorcInye = porcInye,
+                            AvgPrice = avgPrice
+                        });
+                    }
+
+                    if (batch.Count == 0) break;
+
+                    productos.AddRange(batch);
+                    skip += batch.Count;
+
+                    // Si SAP devolvió una página llena, puede haber más.
+                    // Si devolvió menos de 20, ya terminó.
+                    more = batch.Count >= batchSize;
+                }
+            }
+
+            return productos;
+        }
+
+        public async Task<(int insertados, int actualizados, int desactivados, int total)> SincronizarConsumiblesSapAsync()
+        {
+            // Reutiliza el caché si la vista previa se ejecutó hace poco; evita
+            // volver a pedir todo el catálogo a SAP justo antes de guardar.
+            var itemsSap = await ObtenerRefaccionesCacheAsync();
+
+            itemsSap = itemsSap
+                .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
+                .GroupBy(x => x.ItemCode!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (itemsSap.Count == 0)
+                throw new InvalidOperationException(
+                    "SAP no devolvió consumibles con el filtro actual. No se modificó la tabla local.");
+
+            var locales = await _context.ArticuloConsumiblesSap.ToListAsync();
+            var dicLocales = locales
+                .GroupBy(l => (l.ProductoCodigo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
+
+            int insertados = 0;
+            int actualizados = 0;
+            int desactivados = 0;
+
+            foreach (var item in itemsSap)
+            {
+                var codigo = (item.ItemCode ?? "").Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(codigo))
+                    continue;
+
+                if (!dicLocales.TryGetValue(codigo, out var local))
+                {
+                    _context.ArticuloConsumiblesSap.Add(new ArticuloConsumiblesSap
+                    {
+                        ProductoCodigo = codigo,
+                        ProductoNombre = item.ItemName ?? "",
+                        U_MASTER = item.U_MASTER ?? "",
+                        U_TipoporSKU = item.U_TipoporSKU ?? "",
+                        U_KilosCaja = item.U_KilosCaja,
+                        U_Clas_Prod = item.U_Clas_Prod,
+                        U_PRESENT = item.U_PRESENT,
+                        U_PorcInye = item.U_PorcInye,
+                        ItemsGroupCode = item.ItemsGroupCode,
+                        Costo = item.AvgPrice,
+                        Stock = item.QuantityOnStock,
+                        Disponible = item.QuantityAvailable,
+                        FechaModificacion = DateTime.Now,
+                        Activo = true
+                    });
+                    insertados++;
+                    continue;
+                }
+
+                bool cambio = false;
+
+                if (local.ProductoNombre != (item.ItemName ?? ""))
+                {
+                    local.ProductoNombre = item.ItemName ?? "";
+                    cambio = true;
+                }
+
+                if (local.U_MASTER != (item.U_MASTER ?? ""))
+                {
+                    local.U_MASTER = item.U_MASTER ?? "";
+                    cambio = true;
+                }
+
+                if (local.U_TipoporSKU != (item.U_TipoporSKU ?? ""))
+                {
+                    local.U_TipoporSKU = item.U_TipoporSKU ?? "";
+                    cambio = true;
+                }
+
+                if (item.U_KilosCaja.HasValue && local.U_KilosCaja != item.U_KilosCaja)
+                {
+                    local.U_KilosCaja = item.U_KilosCaja;
+                    cambio = true;
+                }
+
+                if (item.U_Clas_Prod.HasValue && local.U_Clas_Prod != item.U_Clas_Prod)
+                {
+                    local.U_Clas_Prod = item.U_Clas_Prod;
+                    cambio = true;
+                }
+
+                if (item.U_PRESENT.HasValue && local.U_PRESENT != item.U_PRESENT)
+                {
+                    local.U_PRESENT = item.U_PRESENT;
+                    cambio = true;
+                }
+
+                if (item.U_PorcInye.HasValue && local.U_PorcInye != item.U_PorcInye)
+                {
+                    local.U_PorcInye = item.U_PorcInye;
+                    cambio = true;
+                }
+
+                if (item.ItemsGroupCode.HasValue && local.ItemsGroupCode != item.ItemsGroupCode)
+                {
+                    local.ItemsGroupCode = item.ItemsGroupCode;
+                    cambio = true;
+                }
+
+                // Comparación a 2 decimales: evita falsos cambios por los decimales extra de SAP.
+                static bool DecCambio(decimal a, decimal b) =>
+                    Math.Round(a, 2, MidpointRounding.AwayFromZero) !=
+                    Math.Round(b, 2, MidpointRounding.AwayFromZero);
+
+                if (item.AvgPrice.HasValue && DecCambio(local.Costo ?? 0m, item.AvgPrice.Value))
+                {
+                    local.Costo = item.AvgPrice;
+                    cambio = true;
+                }
+
+                if (item.QuantityOnStock.HasValue && DecCambio(local.Stock ?? 0m, item.QuantityOnStock.Value))
+                {
+                    local.Stock = item.QuantityOnStock;
+                    cambio = true;
+                }
+
+                if (item.QuantityAvailable.HasValue && DecCambio(local.Disponible ?? 0m, item.QuantityAvailable.Value))
+                {
+                    local.Disponible = item.QuantityAvailable;
+                    cambio = true;
+                }
+
+                if (!local.Activo)
+                {
+                    local.Activo = true;
+                    cambio = true;
+                }
+
+                if (cambio)
+                {
+                    local.FechaModificacion = DateTime.Now;
+                    actualizados++;
+                }
+            }
+
+            var setSap = new HashSet<string>(
+                itemsSap.Select(x => (x.ItemCode ?? "").Trim()),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var local in locales)
+            {
+                if (local.Activo && !setSap.Contains((local.ProductoCodigo ?? "").Trim()))
+                {
+                    local.Activo = false;
+                    local.FechaModificacion = DateTime.Now;
+                    desactivados++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            InvalidarCacheRefacciones();
+
+            return (insertados, actualizados, desactivados, itemsSap.Count);
+        }
+
+        public sealed class ConsumiblePreviaItem
+        {
+            public string Sku { get; set; } = "";
+            public string Nombre { get; set; } = "";
+            public string U_MASTER { get; set; } = "";
+            public string U_TipoporSKU { get; set; } = "";
+            public int? U_Clas_Prod { get; set; }
+            public int? ItemsGroupCode { get; set; }
+            public decimal? Costo { get; set; }
+            public decimal? Stock { get; set; }
+            public decimal? Disponible { get; set; }
+            public string Accion { get; set; } = "";
+            public List<ConsumibleCambio> Cambios { get; set; } = new();
+        }
+
+        public sealed class ConsumibleCambio
+        {
+            public string Campo { get; set; } = "";
+            public string Antes { get; set; } = "";
+            public string Despues { get; set; } = "";
+        }
+
+        public sealed class ConsumiblePreviaResultado
+        {
+            public int total { get; set; }
+            public int nuevos { get; set; }
+            public int actualizados { get; set; }
+            public int sinCambio { get; set; }
+            public List<ConsumiblePreviaItem> items { get; set; } = new();
+        }
+
+        // Vista previa SIN escribir en la BD: compara SAP vs tabla local y devuelve
+        // únicamente los artículos que se insertarían (Nuevo) o modificarían (Actualizar).
+        public async Task<ConsumiblePreviaResultado> PreviaConsumiblesSapAsync()
+        {
+            var itemsSap = await ObtenerRefaccionesCacheAsync();
+
+            itemsSap = itemsSap
+                .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
+                .GroupBy(x => x.ItemCode!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (itemsSap.Count == 0)
+                throw new InvalidOperationException(
+                    "SAP no devolvió consumibles con el filtro actual. No se modificó la tabla local.");
+
+            var locales = await _context.ArticuloConsumiblesSap.AsNoTracking().ToListAsync();
+            var dicLocales = locales
+                .GroupBy(l => (l.ProductoCodigo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
+
+            var resultado = new ConsumiblePreviaResultado();
+
+            foreach (var item in itemsSap)
+            {
+                var codigo = (item.ItemCode ?? "").Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(codigo))
+                    continue;
+
+                resultado.total++;
+
+                var fila = new ConsumiblePreviaItem
+                {
+                    Sku = codigo,
+                    Nombre = item.ItemName ?? "",
+                    U_MASTER = item.U_MASTER ?? "",
+                    U_TipoporSKU = item.U_TipoporSKU ?? "",
+                    U_Clas_Prod = item.U_Clas_Prod,
+                    ItemsGroupCode = item.ItemsGroupCode,
+                    Costo = item.AvgPrice,
+                    Stock = item.QuantityOnStock,
+                    Disponible = item.QuantityAvailable
+                };
+
+                if (!dicLocales.TryGetValue(codigo, out var local))
+                {
+                    fila.Accion = "Nuevo";
+                    resultado.nuevos++;
+                    resultado.items.Add(fila);
+                    continue;
+                }
+
+                // Comparaciones a 2 decimales (como se muestra en pantalla). Evita
+                // falsos cambios por los decimales extra que trae SAP.
+                static bool DecCambio(decimal a, decimal b) =>
+                    Math.Round(a, 2, MidpointRounding.AwayFromZero) !=
+                    Math.Round(b, 2, MidpointRounding.AwayFromZero);
+
+                static string Fmt(object? v) =>
+                    v == null ? "—"
+                    : (v is decimal d ? d.ToString("0.#####") : v.ToString() ?? "—");
+
+                var cambios = new List<ConsumibleCambio>();
+
+                void Add(string campo, object? antes, object? despues)
+                    => cambios.Add(new ConsumibleCambio { Campo = campo, Antes = Fmt(antes), Despues = Fmt(despues) });
+
+                if (local.ProductoNombre != (item.ItemName ?? ""))
+                    Add("Descripción", local.ProductoNombre, item.ItemName ?? "");
+
+                if (local.U_MASTER != (item.U_MASTER ?? ""))
+                    Add("Master", local.U_MASTER, item.U_MASTER ?? "");
+
+                if (local.U_TipoporSKU != (item.U_TipoporSKU ?? ""))
+                    Add("Tipo", local.U_TipoporSKU, item.U_TipoporSKU ?? "");
+
+                if (item.U_Clas_Prod.HasValue && local.U_Clas_Prod != item.U_Clas_Prod)
+                    Add("Clas", local.U_Clas_Prod, item.U_Clas_Prod);
+
+                if (item.ItemsGroupCode.HasValue && local.ItemsGroupCode != item.ItemsGroupCode)
+                    Add("Grupo", local.ItemsGroupCode, item.ItemsGroupCode);
+
+                if (item.AvgPrice.HasValue && DecCambio(local.Costo ?? 0m, item.AvgPrice.Value))
+                    Add("Costo", local.Costo, item.AvgPrice);
+
+                if (item.QuantityOnStock.HasValue && DecCambio(local.Stock ?? 0m, item.QuantityOnStock.Value))
+                    Add("Stock", local.Stock, item.QuantityOnStock);
+
+                if (item.QuantityAvailable.HasValue && DecCambio(local.Disponible ?? 0m, item.QuantityAvailable.Value))
+                    Add("Disponible", local.Disponible, item.QuantityAvailable);
+
+                if (!local.Activo)
+                    Add("Estado", "Inactivo", "Activo");
+
+                if (cambios.Count > 0)
+                {
+                    fila.Accion = "Actualizar";
+                    fila.Cambios = cambios;
+                    resultado.actualizados++;
+                    resultado.items.Add(fila);
+                }
+                else
+                {
+                    resultado.sinCambio++;
+                }
+            }
+
+            return resultado;
+        }
 
         // -------------------------
         // Sincronización con SQL INSERTAR CATALOGO DE SKU DE SAP A BASE DE DATOS LOCAL ARTICULOSAP

@@ -11,20 +11,18 @@ namespace Plataforma_CG.Services;
 public sealed class ParticipacionValidacionException(string message) : Exception(message);
 public sealed class ParticipacionConflictoException(string message) : Exception(message);
 
-/// <summary>Edición del porcentaje del catálogo, únicamente en SIGO local de Pruebas Esau.</summary>
+/// <summary>Edición del porcentaje del catálogo en la base configurada en CadenaSQLSIGO.</summary>
 public sealed class PlaneadorParticipacionService(IConfiguration configuration)
 {
-    public const string ServidorPruebas = @"DESKTOP-UB7IMQF\SQL2026";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const string Columnas = "p.Id,p.ProductoCodigo Sku,p.fk_Clasificacion ClasificacionId,p.Porcentaje,p.fk_SubClas SubClasificacionId,p.LineaCodigo,p.PartSub";
 
     public static void ValidarDestino(string? cadena)
     {
-        if (string.IsNullOrWhiteSpace(cadena)) throw new InvalidOperationException("Falta CadenaSQLSIGO de Pruebas Esau.");
+        if (string.IsNullOrWhiteSpace(cadena)) throw new InvalidOperationException("Falta configurar CadenaSQLSIGO.");
         var target = new SqlConnectionStringBuilder(cadena);
-        if (!string.Equals(target.DataSource, ServidorPruebas, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(target.InitialCatalog, "SIGO", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Participación sólo está habilitada en SIGO local de Pruebas Esau.");
+        if (string.IsNullOrWhiteSpace(target.DataSource) || string.IsNullOrWhiteSpace(target.InitialCatalog))
+            throw new InvalidOperationException("CadenaSQLSIGO debe indicar el servidor y la base de datos.");
     }
 
     private async Task<SqlConnection> AbrirAsync(CancellationToken ct)
