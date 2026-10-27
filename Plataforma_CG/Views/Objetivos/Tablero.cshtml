@@ -1155,62 +1155,127 @@
             }
 
             // 4. Lógica dinámica para agregar y eliminar Metas (Delegada al body porque el modal es dinámico)
-            var contadorMetaGlobal = 1000;
+                    var contadorMetaGlobal = 1000;
 
-            $(document).on('click', '.btnAgregarMeta', function () {
-                var tbodyId = $(this).attr('data-tbody');
-                var $tbody = $('#' + tbodyId);
-                if (!$tbody.length) return;
+                    $(document).on('click', '.btnAgregarMeta', function () {
 
-                var clave = 'n' + (++contadorMetaGlobal);
+                        var tbodyId = $(this).attr('data-tbody');
+                        var $tbody = $('#' + tbodyId);
 
-                var tr = `<tr>
-                    <input type="hidden" name="ValoresConfigurados.Index" value="${clave}" />
-                    <input type="hidden" name="ValoresConfigurados[${clave}].ID" value="0" />
+                        if (!$tbody.length) return;
 
-                    <td class="align-middle text-start ps-3">
-                        <select name="ValoresConfigurados[${clave}].ID_Catalogo_ValorObjetivo" class="form-select form-select-sm catalogo-editar">
-                            <!-- Este HTML debe generarse desde C# o con JS inyectando opciones -->
-                            <option value="">Seleccione o guarde el objetivo primero</option>
-                        </select>
-                        <input type="hidden" name="ValoresConfigurados[${clave}].Tipo_Valor" class="tipo-valor-editar" value="" />
-                        <input type="hidden" name="ValoresConfigurados[${clave}].Unidad_Medida" class="unidad-medida-editar" value="" />
-                    </td>
+                        // Obtener las opciones de las métricas existentes
+                        var $catalogoOrigen = $tbody.find('.catalogo-editar').first();
 
-                    <td class="align-middle"><span class="unidad-visible-editar"></span></td>
+                        if (!$catalogoOrigen.length ||
+                            $catalogoOrigen.find('option').length <= 1) {
 
-                    <td>
-                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Minimo" class="form-control form-control-sm text-center" placeholder="0.00" />
-                    </td>
-                    <td>
-                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Maximo" class="form-control form-control-sm text-center" placeholder="0.00" />
-                    </td>
-                    <td>
-                        <input type="number" step="0.01" name="ValoresConfigurados[${clave}].Valor_Objetivo" class="form-control form-control-sm text-center fw-bold text-danger" placeholder="0.00" />
-                    </td>
-                    <td class="align-middle">
-                        <button type="button" class="btn btn-outline-danger btn-sm btnEliminarMeta" title="Eliminar meta">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>`;
+                            alert('No fue posible cargar el catálogo de métricas.');
+                            return;
+                        }
 
-                $tbody.append(tr);
-            });
+                        // Clave única para el Model Binder de ASP.NET Core
+                        var clave = 'n' + (++contadorMetaGlobal);
 
-            $(document).on('click', '.btnEliminarMeta', function () {
+                        var tr = `
+                        <tr class="fila-meta">
 
-                var $tbody = $(this).closest('tbody');
+                            <td class="align-middle text-start ps-3">
 
-                if ($tbody.find('tr').length <= 1) {
-                    return;
-                }
+                                <input type="hidden"
+                                       name="ValoresConfigurados.Index"
+                                       value="${clave}" />
 
-                if (confirm('¿Eliminar esta meta?')) {
-                    $(this).closest('tr').remove();
-                }
-            });
+                                <input type="hidden"
+                                       name="ValoresConfigurados[${clave}].ID"
+                                       value="0" />
 
+                                <select
+                                    name="ValoresConfigurados[${clave}].ID_Catalogo_ValorObjetivo"
+                                    class="form-select form-select-sm catalogo-editar">
+                                </select>
+
+                                <input type="hidden"
+                                       name="ValoresConfigurados[${clave}].Tipo_Valor"
+                                       class="tipo-valor-editar"
+                                       value="" />
+
+                                <input type="hidden"
+                                       name="ValoresConfigurados[${clave}].Unidad_Medida"
+                                       class="unidad-medida-editar"
+                                       value="" />
+                            </td>
+
+                            <td class="align-middle">
+                                <span class="unidad-visible-editar"></span>
+                            </td>
+
+                            <td>
+                                <input type="number"
+                                       step="0.01"
+                                       name="ValoresConfigurados[${clave}].Valor_Minimo"
+                                       class="form-control form-control-sm text-center"
+                                       placeholder="0.00" />
+                            </td>
+
+                            <td>
+                                <input type="number"
+                                       step="0.01"
+                                       name="ValoresConfigurados[${clave}].Valor_Maximo"
+                                       class="form-control form-control-sm text-center"
+                                       placeholder="0.00" />
+                            </td>
+
+                            <td>
+                                <input type="number"
+                                       step="0.01"
+                                       name="ValoresConfigurados[${clave}].Valor_Objetivo"
+                                       class="form-control form-control-sm text-center fw-bold text-danger"
+                                       placeholder="0.00" />
+                            </td>
+
+                            <td class="align-middle">
+                                <button type="button"
+                                        class="btn btn-outline-danger btn-sm btnEliminarMeta"
+                                        title="Eliminar meta">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+
+                        </tr>`;
+
+                        // Crear fila
+                        var $filaNueva = $(tr);
+
+                        // Copiar las opciones reales del catálogo
+                        var $selectNuevo = $filaNueva.find('.catalogo-editar');
+
+                        $selectNuevo.append(
+                            $catalogoOrigen.find('option').clone()
+                        );
+
+                        // Quitar cualquier selección heredada
+                        $selectNuevo.find('option').prop('selected', false);
+
+                        // Dejar el selector vacío
+                        $selectNuevo.val('');
+
+                        // Agregar al formulario
+                        $tbody.append($filaNueva);
+                    });
+
+                    $(document).on('click', '.btnEliminarMeta', function () {
+
+                        var $tbody = $(this).closest('tbody');
+
+                        if ($tbody.find('tr').length <= 1) {
+                            return;
+                        }
+
+                        if (confirm('¿Eliminar esta meta?')) {
+                            $(this).closest('tr').remove();
+                        }
+                    });
             // Auto-llenado de Unidad al cambiar métrica (Delegado)
             $(document).on("change", ".catalogo-editar", function (e) {
                 const select = e.target;

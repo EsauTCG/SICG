@@ -35,7 +35,7 @@ namespace Plataforma_CG.Controllers
             string qDesde = "", string qHasta = "", string qVigencia = "")
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -324,7 +324,7 @@ namespace Plataforma_CG.Controllers
             string campoFecha = "creacion", DateTime? desde = null, DateTime? hasta = null,
             string actividad = "", int pagina = 1, int pageSize = 25)
         {
-            string connection = _configuration.GetConnectionString("DefaultConnection");
+            string connection = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
             int perfilIdUsuario = 0;
@@ -487,7 +487,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> VistaParcialEditar(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var objetivo = await ObtenerObjetivoConValoresAsync(id);
 
             if (objetivo == null)
@@ -513,7 +513,7 @@ namespace Plataforma_CG.Controllers
         // Método auxiliar para consultar un solo objetivo
         private async Task<ObjetivoViewModel> ObtenerObjetivoConValoresAsync(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             using (var conn = new SqlConnection(connectionString))
             {
                 string sqlObjetivo = @"
@@ -557,7 +557,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -630,7 +630,7 @@ namespace Plataforma_CG.Controllers
                 }
 
                 string connectionString =
-                    _configuration.GetConnectionString("DefaultConnection");
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString))
                 {
@@ -1089,7 +1089,7 @@ namespace Plataforma_CG.Controllers
             ObjetivoViewModel modelo,
             bool confirmarCoincidencia = false)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -1302,46 +1302,31 @@ namespace Plataforma_CG.Controllers
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
-                                    string nombreCatalogo = null;
-                                    string unidadCatalogo = null;
-
-                                    if(!val.ID_Catalogo_ValorObjetivo.HasValue ||
-                                        !catalogoValores.ContainsKey(
-                                            val.ID_Catalogo_ValorObjetivo.Value))
-                                    {
-                                        throw new Exception(
-                                            "Se encontró una métrica que no existe " +
-                                            "en el catálogo de métricas."
-                                        );
-                                    }
-
-                                    if (val.ID_Catalogo_ValorObjetivo.HasValue &&
-                                        catalogoValores.TryGetValue(val.ID_Catalogo_ValorObjetivo.Value, out var cat))
-                                    {
-                                        nombreCatalogo = cat.Nombre;
-                                        unidadCatalogo = cat.Unidad_Medida;
-                                    }
-
-                                    // Ignorar filas totalmente vacias (metricas que el usuario dejo sin capturar).
-                                    bool filaVacia = !val.ID_Catalogo_ValorObjetivo.HasValue
-                                        && string.IsNullOrWhiteSpace(val.Tipo_Valor)
-                                        && val.Valor_Minimo == null
-                                        && val.Valor_Maximo == null
-                                        && val.Valor_Objetivo == null;
+                                    // Ignorar filas completamente vacías
+                                    bool filaVacia =
+                                        !val.ID_Catalogo_ValorObjetivo.HasValue &&
+                                        string.IsNullOrWhiteSpace(val.Tipo_Valor) &&
+                                        !val.Valor_Minimo.HasValue &&
+                                        !val.Valor_Maximo.HasValue &&
+                                        !val.Valor_Objetivo.HasValue;
 
                                     if (filaVacia)
                                         continue;
 
-                                    // Tipo_Valor es NOT NULL: nunca enviar null.
-                                    string tipoValor = !string.IsNullOrWhiteSpace(val.Tipo_Valor)
-                                        ? val.Tipo_Valor.Trim()
-                                        : (!string.IsNullOrWhiteSpace(nombreCatalogo)
-                                            ? nombreCatalogo + (!string.IsNullOrWhiteSpace(unidadCatalogo) ? " (" + unidadCatalogo + ")" : "")
-                                            : "N/A");
+                                    //Validar que la métrica exista en el catálogo
+                                    if (!val.ID_Catalogo_ValorObjetivo.HasValue ||
+                                        !catalogoValores.TryGetValue(
+                                            val.ID_Catalogo_ValorObjetivo.Value,
+                                            out var metricaCatalogo))
+                                    {
+                                        throw new Exception(
+                                            "La métrica seleccionada no existe en el catálogo."   
+                                        );
+                                    }
 
-                                    string unidad = !string.IsNullOrWhiteSpace(val.Unidad_Medida)
-                                        ? val.Unidad_Medida.Trim()
-                                        : (unidadCatalogo ?? string.Empty);
+                                    string tipoValor = metricaCatalogo.Nombre;
+                                    string unidad = metricaCatalogo.Unidad_Medida ?? string.Empty;
+
 
                                     await conn.ExecuteAsync(sqlValor, new
                                     {
@@ -1485,7 +1470,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1533,7 +1518,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1555,7 +1540,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1592,7 +1577,7 @@ namespace Plataforma_CG.Controllers
             if (dias > 365) dias = 365;
 
             var lista = new List<VencimientoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
             int perfilIdUsuario = 0;
@@ -1666,7 +1651,7 @@ namespace Plataforma_CG.Controllers
             if (dHasta < dDesde)
                 return Json(new { success = false, message = "La fecha final no puede ser anterior a la inicial." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -1798,7 +1783,7 @@ namespace Plataforma_CG.Controllers
         [ValidateAntiForgeryToken]
         public async Task<JsonResult> MarcarInactivo(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -1834,7 +1819,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -1883,7 +1868,7 @@ namespace Plataforma_CG.Controllers
 
                 sql += " ORDER BY p.Nombre, t.Nombre";
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var tipos = await conn.QueryAsync(sql, new { IdPerfil = miPerfilId });
@@ -1934,7 +1919,7 @@ namespace Plataforma_CG.Controllers
                 bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
                 int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1996,7 +1981,7 @@ namespace Plataforma_CG.Controllers
                 if (idTipo <= 0)
                     return Json(new { success = false, message = "No se identificó el tipo de objetivo." });
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var skus = (await conn.QueryAsync<string>(@"
@@ -2035,7 +2020,7 @@ namespace Plataforma_CG.Controllers
                 bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
                 int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -2112,7 +2097,7 @@ namespace Plataforma_CG.Controllers
                 }
 
                 paso = "abriendo conexion";
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString))
                 {
@@ -2154,14 +2139,16 @@ namespace Plataforma_CG.Controllers
                     }
 
                     if (metricasCapturadas.Any(v =>
-                        !v.ID_Catalogo_ValorObjetivo.HasValue))
+                        !v.ID_Catalogo_ValorObjetivo.HasValue &&
+                        v.ID <= 0))
                     {
                         throw new Exception(
-                            "Todas las métricas deben tener una opción del catálogo seleccionada."
+                            "Las métricas nuevas deben tener una opción del catálogo seleccionada."
                         );
                     }
 
                     var idsCatalogo = metricasCapturadas
+                        .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
                         .Select(v => v.ID_Catalogo_ValorObjetivo.Value)
                         .ToList();
 
@@ -2270,6 +2257,15 @@ namespace Plataforma_CG.Controllers
                                 ID = modelo.ID
                             }, transaccion);
 
+                            //Obtener catálogo oficial de métricas
+                            paso = "cargando catálogo de métricas";
+
+                            var catalogoValores = (await conn.QueryAsync<CatalogoValorItem>(
+                                @"SELECT ID, Nombre, Unidad_Medida
+                                    FROM dbo.Catalogo_ValorObjetivo",
+                                transaction: transaccion
+                            )).ToDictionary(x => x.ID, x => x);
+
                             // Detalles: insertar nuevos, actualizar existentes y eliminar los que ya no vienen
                             var idsEnviados = new List<int>();
                             if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
@@ -2279,6 +2275,7 @@ namespace Plataforma_CG.Controllers
                                 var idsExistentes = (await conn.QueryAsync<int>(
                                     "SELECT ID FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
                                     new { IDObjetivo = modelo.ID }, transaccion)).ToList();
+
 
                                 var idsDetallesEnviados = modelo.ValoresConfigurados
                                     .Where(v => v.ID > 0)
@@ -2318,16 +2315,74 @@ namespace Plataforma_CG.Controllers
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
+                                    //Resolver nombre y unidad desde el catálogo de métricas
+                                    string tipoValor;
+                                    string unidad;
+
+                                    if (val.ID_Catalogo_ValorObjetivo.HasValue)
+                                    {
+                                        if(!catalogoValores.TryGetValue(
+                                            val.ID_Catalogo_ValorObjetivo.Value,
+                                            out var metricasCatalogo))
+                                        {
+                                            throw new Exception(
+                                                "La métrica seleccionada no existe en el catálogo."
+                                            );
+                                        }
+
+                                        tipoValor = metricasCatalogo.Nombre;
+                                        unidad = metricasCatalogo.Unidad_Medida ?? string.Empty;
+                                    }
+                                    else
+                                    {
+                                        //Compatibilidad con métricas antiguas sin catálogo
+                                        if (val.ID <= 0)
+                                        {
+                                            throw new Exception(
+                                                "Las métricas nuevas deben seleccionarse del catálogo."
+                                            );
+                                        }
+
+                                        var metricaAnterior = await conn.QueryFirstOrDefaultAsync<ObjetivoValorViewModel>(
+                                            @"SELECT 
+                                                Tipo_Valor, Unidad_Medida
+                                            FROM
+                                                dbo.Objetivo_Valor
+                                            WHERE
+                                                ID = @IDValor
+                                                AND ID_Objetivo = @IDObjetivo
+                                                AND ID_Catalogo_ValorObjetivo IS NULL",
+                                            new
+                                            {
+                                                IDValor = val.ID,
+                                                IDObjetivo = modelo.ID
+                                            },
+                                            transaction: transaccion
+                                        );
+
+                                        if (metricaAnterior == null)
+                                        {
+                                            throw new Exception(
+                                                "No se encontró la métrica histórica del objetivo."
+                                            );
+                                        }
+
+                                        tipoValor = metricaAnterior.Tipo_Valor ?? "";
+                                        unidad = metricaAnterior.Unidad_Medida ?? "";
+                                    }
+
                                     if (val.ID > 0)
                                     {
                                         paso = "actualizando meta " + val.ID;
                                         idsEnviados.Add(val.ID);
+
+
                                         await conn.ExecuteAsync(sqlValor, new
                                         {
                                             IDObjetivo = modelo.ID,
                                             ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
-                                            TipoValor = val.Tipo_Valor ?? "",
-                                            Unidad = val.Unidad_Medida ?? "",
+                                            TipoValor = tipoValor,
+                                            Unidad = unidad,
                                             Minimo = val.Valor_Minimo,
                                             Maximo = val.Valor_Maximo,
                                             Objetivo = val.Valor_Objetivo,
@@ -2341,8 +2396,8 @@ namespace Plataforma_CG.Controllers
                                         {
                                             IDObjetivo = modelo.ID,
                                             ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
-                                            TipoValor = val.Tipo_Valor ?? "",
-                                            Unidad = val.Unidad_Medida ?? "",
+                                            TipoValor = tipoValor,
+                                            Unidad = unidad,
                                             Minimo = val.Valor_Minimo,
                                             Maximo = val.Valor_Maximo,
                                             Objetivo = val.Valor_Objetivo
@@ -2410,7 +2465,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "LEER")]
         public async Task<IActionResult> DescargarPlantillaObjetivos()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var perfiles = new List<dynamic>();
             var tipos = new List<dynamic>();
             var vendedores = new List<dynamic>();
@@ -2494,7 +2549,7 @@ namespace Plataforma_CG.Controllers
             if (archivo == null || archivo.Length == 0)
                 return Json(new { ok = false, mensaje = "Selecciona un archivo Excel (.xlsx)." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var errores = new List<string>();
             int insertados = 0, actualizados = 0, omitidos = 0;
 
@@ -2897,7 +2952,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -2930,7 +2985,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 string connectionString =
-                    _configuration.GetConnectionString("DefaultConnection");
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString)) 
                 {
