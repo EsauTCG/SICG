@@ -2,35 +2,73 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Consumibles SAP";
 }
-
 <style>
-    .cons-page { padding: 16px; }
-    .cons-stats {
+    /* =========================================================
+           1. VARIABLES GLOBALES (MODO CLARO POR DEFECTO)
+           ========================================================= */
+    :root {
+        --cons-bg-card: #ffffff;
+        --cons-border: #e2e8f0;
+        --cons-text-main: #1e293b;
+        --cons-text-muted: #64748b;
+        --cons-bg-th: #f8fafc;
+        --cons-bg-hover: #f1f5f9;
+        --cons-badge-on-bg: #dcfce7;
+        --cons-badge-on-text: #166534;
+        --cons-badge-off-bg: #fee2e2;
+        --cons-badge-off-text: #991b1b;
+        --cons-badge-upd-bg: #fef3c7;
+        --cons-badge-upd-text: #b45309;
+    }
+
+    /* =========================================================
+           2. VARIABLES MODO OSCURO (SELECTOR BLINDADO)
+           ========================================================= */
+    :is([data-theme="dark"], [data-bs-theme="dark"], .dark-mode) {
+        --cons-bg-card: #1e293b !important;
+        --cons-border: #334155 !important;
+        --cons-text-main: #f8fafc !important;
+        --cons-text-muted: #94a3b8 !important;
+        --cons-bg-th: #0f172a !important;
+        --cons-bg-hover: #334155 !important;
+        --cons-badge-on-bg: #064e3b !important;
+        --cons-badge-on-text: #34d399 !important;
+        --cons-badge-off-bg: #7f1d1d !important;
+        --cons-badge-off-text: #f87171 !important;
+        --cons-badge-upd-bg: #78350f !important;
+        --cons-badge-upd-text: #fbbf24 !important;
+    }
+
+    /* =========================================================
+           3. APLICACIÓN DE ESTILOS CON PRIORIDAD
+           ========================================================= */
+    .cons-page {
+        padding: 16px;
+    }
+
+        /* Textos principales para que no queden negros en fondo oscuro */
+        .cons-page h5, .cons-stat .v, .cons-prev-box .total .v {
+            color: var(--cons-text-main) !important;
+        }
+
+        .cons-page .text-muted, .cons-stat .l, .cons-prev-box .l, .cons-pager-info {
+            color: var(--cons-text-muted) !important;
+        }
+
+    .cons-stats, .cons-prev-summary {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
         margin-bottom: 16px;
     }
-    .cons-stat {
-        background: #fff;
-        border: 1px solid #e2e8f0;
+
+    .cons-stat, .cons-card, .cons-prev-box {
+        background: var(--cons-bg-card) !important;
+        border: 1px solid var(--cons-border) !important;
         border-radius: 12px;
         padding: 14px 16px;
     }
-    .cons-stat .v { font-size: 1.4rem; font-weight: 800; color: #1e293b; }
-    .cons-stat .l {
-        font-size: .72rem;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        color: #64748b;
-        font-weight: 700;
-    }
-    .cons-card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 16px;
-    }
+
     .cons-toolbar {
         display: flex;
         flex-wrap: wrap;
@@ -39,40 +77,73 @@
         justify-content: space-between;
         margin-bottom: 12px;
     }
-    .cons-scroll {
+
+    .cons-scroll, .cons-prev-scroll {
         max-height: 62vh;
         overflow: auto;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--cons-border) !important;
         border-radius: 10px;
+        background: var(--cons-bg-card) !important;
     }
-    .cons-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
-    .cons-table th, .cons-table td {
-        padding: 8px 10px;
-        border-bottom: 1px solid #e2e8f0;
-        white-space: nowrap;
+
+    .cons-prev-scroll {
+        max-height: 440px;
     }
-    .cons-table th {
-        position: sticky;
-        top: 0;
-        background: #f8fafc;
-        text-align: left;
-        font-size: .7rem;
-        text-transform: uppercase;
-        color: #475569;
-        z-index: 2;
+
+    /* Tablas blindadas */
+    .cons-table, .cons-prev-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .8rem;
+        color: var(--cons-text-main) !important;
     }
-    .cons-table tbody tr:hover { background: #f8fafc; }
-    .cons-badge {
+
+        .cons-table th, .cons-table td, .cons-prev-table th, .cons-prev-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--cons-border) !important;
+            white-space: nowrap;
+        }
+
+        .cons-table th, .cons-prev-table th {
+            position: sticky;
+            top: 0;
+            background: var(--cons-bg-th) !important;
+            text-align: left;
+            font-size: .7rem;
+            text-transform: uppercase;
+            color: var(--cons-text-muted) !important;
+            z-index: 2;
+        }
+
+        .cons-table tbody tr:hover td, .cons-prev-table tbody tr:hover td {
+            background: var(--cons-bg-hover) !important;
+        }
+
+    /* Badges */
+    .cons-badge, .cons-accion {
         display: inline-block;
         padding: 2px 8px;
         border-radius: 999px;
         font-size: .68rem;
         font-weight: 700;
     }
-    .cons-badge.on { background: #dcfce7; color: #166534; }
-    .cons-badge.off { background: #fee2e2; color: #991b1b; }
-    .cons-spin { animation: cons-spin 1s linear infinite; }
-    @@keyframes cons-spin { to { transform: rotate(360deg); } }
+
+        .cons-badge.on, .cons-accion.nuevo, .cons-prev-box.nuevo .v {
+            background: var(--cons-badge-on-bg) !important;
+            color: var(--cons-badge-on-text) !important;
+        }
+
+        .cons-badge.off {
+            background: var(--cons-badge-off-bg) !important;
+            color: var(--cons-badge-off-text) !important;
+        }
+
+        .cons-accion.actualizar, .cons-prev-box.actualizar .v {
+            background: var(--cons-badge-upd-bg) !important;
+            color: var(--cons-badge-upd-text) !important;
+        }
+
+    /* Paginación y Selects */
     .cons-pager {
         display: flex;
         flex-wrap: wrap;
@@ -81,124 +152,129 @@
         gap: 10px;
         margin-top: 12px;
     }
-    .cons-pager-info { font-size: .76rem; color: #64748b; }
-    .cons-pager-btns { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+    .cons-pager-btns {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .cons-page-btn, .cons-page-size, .form-control {
+        background: var(--cons-bg-card) !important;
+        color: var(--cons-text-main) !important;
+        border: 1px solid var(--cons-border) !important;
+    }
+
     .cons-page-btn {
         min-width: 32px;
         height: 32px;
         padding: 0 8px;
-        border: 1px solid #e2e8f0;
         border-radius: 8px;
-        background: #fff;
-        color: #1e293b;
         font-size: .76rem;
         font-weight: 700;
     }
-    .cons-page-btn:hover:not(:disabled) { background: #f1f5f9; }
-    .cons-page-btn.active { background: #b30000; border-color: #8b0000; color: #fff; }
-    .cons-page-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+        .cons-page-btn:hover:not(:disabled) {
+            background: var(--cons-bg-hover) !important;
+        }
+
+        .cons-page-btn.active {
+            background: #b30000 !important;
+            border-color: #8b0000 !important;
+            color: #fff !important;
+        }
+
+        .cons-page-btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
     .cons-page-size {
         height: 32px;
-        border: 1px solid #e2e8f0;
         border-radius: 8px;
         padding: 0 8px;
         font-size: .76rem;
-        background: #fff;
-        color: #1e293b;
     }
-    .cons-prev-summary {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 14px;
+
+    /* Animaciones y utilidades */
+    .cons-spin {
+        animation: cons-spin 1s linear infinite;
     }
-    .cons-prev-box {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 12px 14px;
-        text-align: center;
+    @@keyframes cons-spin {
+        to
+
+    {
+        transform: rotate(360deg);
     }
-    .cons-prev-box .v { font-size: 1.3rem; font-weight: 800; }
-    .cons-prev-box .l {
-        font-size: .7rem;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        color: #64748b;
-        font-weight: 700;
+
     }
-    .cons-prev-box.nuevo .v { color: #166534; }
-    .cons-prev-box.actualizar .v { color: #b45309; }
-    .cons-prev-box.total .v { color: #1e293b; }
-    .cons-prev-scroll {
-        max-height: 440px;
-        overflow: auto;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
+
+    .cons-cambios {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
-    .cons-prev-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
-    .cons-prev-table th, .cons-prev-table td {
-        padding: 8px 10px;
-        border-bottom: 1px solid #e2e8f0;
-        white-space: nowrap;
-    }
-    .cons-prev-table th {
-        position: sticky;
-        top: 0;
-        background: #f8fafc;
-        text-align: left;
-        font-size: .7rem;
-        text-transform: uppercase;
-        color: #475569;
-        z-index: 2;
-    }
-    .cons-accion {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 999px;
-        font-size: .68rem;
-        font-weight: 700;
-    }
-    .cons-accion.nuevo { background: #dcfce7; color: #166534; }
-    .cons-accion.actualizar { background: #fef3c7; color: #b45309; }
-    .cons-cambios { display: flex; flex-direction: column; gap: 2px; }
+
     .cons-cambio {
         display: inline-flex;
         align-items: center;
         gap: 4px;
         font-size: .72rem;
     }
-    .cons-cambio .campo { font-weight: 700; color: #475569; }
-    .cons-cambio .antes { color: #b91c1c; text-decoration: line-through; }
-    .cons-cambio .flecha { color: #94a3b8; }
-    .cons-cambio .despues { color: #166534; font-weight: 700; }
 
+        .cons-cambio .campo {
+            font-weight: 700;
+            color: var(--cons-text-muted) !important;
+        }
+
+        .cons-cambio .antes {
+            color: var(--cons-badge-off-text) !important;
+            text-decoration: line-through;
+        }
+
+        .cons-cambio .flecha {
+            color: var(--cons-text-muted) !important;
+        }
+
+        .cons-cambio .despues {
+            color: var(--cons-badge-on-text) !important;
+            font-weight: 700;
+        }
+
+    /* Pantalla de Carga (Loading) */
     .cons-loading {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, .55);
+        background: rgba(15, 23, 42, .65);
         display: none;
         align-items: center;
         justify-content: center;
         flex-direction: column;
         gap: 12px;
         z-index: 20000;
-        backdrop-filter: blur(2px);
+        backdrop-filter: blur(3px);
     }
-    .cons-loading.show { display: flex; }
-    .cons-loading img {
-        width: 180px;
-        max-width: 60vw;
-        border-radius: 14px;
-        background: #fff;
-        padding: 6px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
-    }
-    .cons-loading .txt {
-        color: #fff;
-        font-weight: 700;
-        font-size: .9rem;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
-    }
+
+        .cons-loading.show {
+            display: flex;
+        }
+
+        .cons-loading img {
+            width: 180px;
+            max-width: 60vw;
+            border-radius: 14px;
+            background: var(--cons-bg-card) !important;
+            padding: 6px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+        }
+
+        .cons-loading .txt {
+            color: #fff;
+            font-weight: 700;
+            font-size: .9rem;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+        }
 </style>
 
 <div class="cons-loading" id="consLoading">

@@ -8740,78 +8740,82 @@
 
         function limpiarFiltros() { $('#filtroGeneral, #filtroTipo, #filtroPlanta, #filtroEstado').val(''); aplicarFiltros(); }
 
-        function renderTabla(datos) {
-            const hoy = new Date();
-            let tbody = '';
-            if(datos.length === 0) { $('#tbodyInventario').html('<tr><td colspan="6" class="text-center py-4">Sin datos</td></tr>'); return; }
+           function renderTabla(datos) {
+                const hoy = new Date();
+                let tbody = '';
+                if(datos.length === 0) { $('#tbodyInventario').html('<tr><td colspan="6" class="text-center py-4">Sin datos</td></tr>'); return; }
 
-            datos.forEach(item => {
-                let fCompraStr = item.fechaCompra ? new Date(item.fechaCompra).toLocaleDateString('es-MX') : '-';
-                let vidaStr = '<span class="text-muted">N/A</span>';
-                let garantiaBadge = '-';
+                datos.forEach(item => {
+                    let fCompraStr = item.fechaCompra ? new Date(item.fechaCompra).toLocaleDateString('es-MX') : '-';
+                    let vidaStr = '<span class="text-muted">N/A</span>';
+                    let garantiaBadge = '-';
 
-                let aniosVida = parseInt(item.tiempoVida) || 4;
-                let fBaseVida = item.fechaCompra ? new Date(item.fechaCompra) : (item.fechaEntrada ? new Date(item.fechaEntrada) : null);
+                    let aniosVida = parseInt(item.tiempoVida) || 4;
+                    let fBaseVida = item.fechaCompra ? new Date(item.fechaCompra) : (item.fechaEntrada ? new Date(item.fechaEntrada) : null);
 
-                if (fBaseVida) {
-                    let fFinVida = new Date(fBaseVida.getTime());
-                    fFinVida.setFullYear(fFinVida.getFullYear() + aniosVida);
-                    vidaStr = `<span style="color:var(--brand-main); font-weight:bold;">Expira: ${fFinVida.toLocaleDateString('es-MX')}</span>`;
-                }
+                    if (fBaseVida) {
+                        let fFinVida = new Date(fBaseVida.getTime());
+                        fFinVida.setFullYear(fFinVida.getFullYear() + aniosVida);
+                        vidaStr = `<span style="color:var(--brand-main); font-weight:bold;">Expira: ${fFinVida.toLocaleDateString('es-MX')}</span>`;
+                    }
 
-                if (item.fechaCompra && item.diasGarantia) {
-                    let finGarantia = new Date(item.fechaCompra);
-                    finGarantia.setDate(finGarantia.getDate() + item.diasGarantia);
-                    let dias = Math.ceil((finGarantia - hoy) / (1000 * 60 * 60 * 24));
-                    garantiaBadge = dias < 0 ? `<span class="text-danger fw-bold">Vencida</span>` : `<span class="text-success">${dias} d. rest.</span>`;
-                }
+                    if (item.fechaCompra && item.diasGarantia) {
+                        let finGarantia = new Date(item.fechaCompra);
+                        finGarantia.setDate(finGarantia.getDate() + item.diasGarantia);
+                        let dias = Math.ceil((finGarantia - hoy) / (1000 * 60 * 60 * 24));
+                        garantiaBadge = dias < 0 ? `<span class="text-danger fw-bold">Vencida</span>` : `<span class="text-success">${dias} d. rest.</span>`;
+                    }
 
-                let stockStr = `<div style="font-size:1.1rem; font-weight:bold;">${item.stock}</div>`;
-                if(item.tipoArticulo === 'Consumible') {
-                    stockStr += `<small class="text-muted">Mín: ${item.stockMinimo}</small>`;
-                    if (item.stock <= item.stockMinimo) stockStr += `<br><span class="text-danger fw-bold" style="font-size:0.7rem;">¡Bajo!</span>`;
-                } else {
-                    stockStr += `<small class="text-muted">Fijo</small>`;
-                }
+                    let stockStr = `<div style="font-size:1.1rem; font-weight:bold;">${item.stock}</div>`;
+                    if(item.tipoArticulo === 'Consumible') {
+                        stockStr += `<small class="text-muted">Mín: ${item.stockMinimo}</small>`;
+                        if (item.stock <= item.stockMinimo) stockStr += `<br><span class="text-danger fw-bold" style="font-size:0.7rem;">¡Bajo!</span>`;
+                    } else {
+                        stockStr += `<small class="text-muted">Fijo</small>`;
+                    }
 
-                let btnBaja = (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS')
-                    ? `<button class="btn-sm-action explorer-action-icon text-muted" style="background:#eee; cursor:not-allowed;" disabled title="Dado de baja"><i class="bi bi-slash-circle"></i></button>`
-                    : `<button class="btn-sm-action explorer-action-icon" onclick="darDeBajaArticulo(${item.id})" title="Dar de baja"><i class="bi bi-trash3"></i></button>`;
+                    let usuarioBadge = '';
+                    if (item.enRecuperacion) {
+                        usuarioBadge = `<span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> En Recuperación</span><br><small class="text-muted">${item.asignacion}</small>`;
+                    } else if (item.asignacion && item.asignacion.trim() !== '') {
+                        usuarioBadge = `<b>${item.asignacion}</b>`;
+                    } else {
+                        usuarioBadge = `<span class="badge bg-success px-2 py-1">Disponible</span>`;
+                    }
 
-                let usuarioBadge = '';
-                if (item.enRecuperacion) {
-                    usuarioBadge = `<span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> En Recuperación</span><br><small class="text-muted">${item.asignacion}</small>`;
-                } else if (item.asignacion && item.asignacion.trim() !== '') {
-                    usuarioBadge = `<b>${item.asignacion}</b>`;
-                } else {
-                    usuarioBadge = `<span class="badge bg-success px-2 py-1">Disponible</span>`;
-                }
+                    let badgeClase = "bg-secondary";
+                    if (item.tipoArticulo === 'Activo Fijo') badgeClase = "bg-primary";
+                    else if (item.tipoArticulo === 'Consumible') badgeClase = "bg-success";
+                    else if (item.tipoArticulo === 'Herramienta') badgeClase = "bg-warning text-dark";
 
-                let badgeClase = "bg-secondary";
-                if (item.tipoArticulo === 'Activo Fijo') badgeClase = "bg-primary";
-                else if (item.tipoArticulo === 'Consumible') badgeClase = "bg-success";
-                else if (item.tipoArticulo === 'Herramienta') badgeClase = "bg-warning text-dark";
+                    // AQUI CONDICIONAMOS EL BOTON: Solo aparece si NO estamos en auditoría
+                    let btnBaja = '';
+                    if (!SOLO_LECTURA) {
+                        btnBaja = (item.asignacion === 'BAJA DEFINITIVA' || item.asignacion === 'PARA PIEZAS')
+                            ? `<button class="btn-sm-action explorer-action-icon text-muted" style="background:#eee; cursor:not-allowed;" disabled title="Dado de baja"><i class="bi bi-slash-circle"></i></button>`
+                            : `<button class="btn-sm-action explorer-action-icon" onclick="darDeBajaArticulo(${item.id})" title="Dar de baja"><i class="bi bi-trash3"></i></button>`;
+                    }
 
-                tbody += `<tr>
-                    <td>
-                        <strong style="color:var(--brand-main); font-size:1rem;">${item.idArticuloSap}</strong><br>
-                        <span class="fw-bold">${item.nombre}</span><br>
-                        <span class="badge ${badgeClase} px-2 py-1 mt-1" style="font-size:0.65rem; font-weight:600;">${item.tipoArticulo || 'N/A'}</span>
-                    </td>
-                    <td><span class="text-muted">Usuario:</span> ${usuarioBadge}<br><span class="text-muted" style="font-family:monospace;">Serie: ${item.numeroSerie || '-'}</span></td>
-                    <td><strong>${item.planta || 'N/A'}</strong><br><small class="text-muted">${item.ubicacion || ''}</small></td>
-                    <td><small class="text-muted">Compra:</small> ${fCompraStr}<br>${vidaStr}</td>
-                    <td class="text-center">${stockStr}<br><small class="text-muted">Gar:</small> <small>${garantiaBadge}</small></td>
-                    <td class="text-center explorer-actions-cell">
-                        <button class="btn-sm-action explorer-action-icon" onclick="consultarArticulo(${item.id})" title="Detalles"><i class="bi bi-eye"></i></button>
-                        <button class="btn-sm-action explorer-action-icon" onclick="imprimirEtiquetaPequena(${item.id})" title="Etiqueta compacta"><i class="bi bi-tag"></i></button>
-                        <button class="btn-sm-action explorer-action-icon" onclick="imprimirQR(${item.id})" title="Imprimir QR"><i class="bi bi-printer"></i></button>
-                        ${btnBaja}
-                    </td>
-                </tr>`;
-            });
-            $('#tbodyInventario').html(tbody);
-        }
+                    tbody += `<tr>
+                        <td>
+                            <strong style="color:var(--brand-main); font-size:1rem;">${item.idArticuloSap}</strong><br>
+                            <span class="fw-bold">${item.nombre}</span><br>
+                            <span class="badge ${badgeClase} px-2 py-1 mt-1" style="font-size:0.65rem; font-weight:600;">${item.tipoArticulo || 'N/A'}</span>
+                        </td>
+                        <td><span class="text-muted">Usuario:</span> ${usuarioBadge}<br><span class="text-muted" style="font-family:monospace;">Serie: ${item.numeroSerie || '-'}</span></td>
+                        <td><strong>${item.planta || 'N/A'}</strong><br><small class="text-muted">${item.ubicacion || ''}</small></td>
+                        <td><small class="text-muted">Compra:</small> ${fCompraStr}<br>${vidaStr}</td>
+                        <td class="text-center">${stockStr}<br><small class="text-muted">Gar:</small> <small>${garantiaBadge}</small></td>
+                        <td class="text-center explorer-actions-cell">
+                            <button class="btn-sm-action explorer-action-icon" onclick="consultarArticulo(${item.id})" title="Detalles"><i class="bi bi-eye"></i></button>
+                            <button class="btn-sm-action explorer-action-icon" onclick="imprimirEtiquetaPequena(${item.id})" title="Etiqueta compacta"><i class="bi bi-tag"></i></button>
+                            <button class="btn-sm-action explorer-action-icon" onclick="imprimirQR(${item.id})" title="Imprimir QR"><i class="bi bi-printer"></i></button>
+                            ${btnBaja}
+                        </td>
+                    </tr>`;
+                });
+                $('#tbodyInventario').html(tbody);
+            }
 
         function llenarSelects() {
             let optionsTodos = '<option value="">Selecciona un artículo...</option>';
