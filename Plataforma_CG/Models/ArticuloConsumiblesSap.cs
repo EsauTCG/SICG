@@ -9,6 +9,7 @@ namespace Plataforma_CG.Models
         [Key]
         public string ProductoCodigo { get; set; } = "";
         public string ProductoNombre { get; set; } = "";
+        public string UnidadMedidaInventario { get; set; } = "";
         public string U_MASTER { get; set; } = "";
         public string U_TipoporSKU { get; set; } = "";
         public decimal? U_KilosCaja { get; set; }

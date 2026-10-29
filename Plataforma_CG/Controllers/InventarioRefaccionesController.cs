@@ -53,6 +53,7 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> Cargar()
         {
             var refacciones = await _context.Refacciones
+                .AsNoTracking()
                 .Where(r => r.Activo)
                 .OrderBy(r => r.Descripcion)
                 .Select(r => new
@@ -60,6 +61,10 @@ namespace Plataforma_CG.Controllers
                     id = r.Id,
                     sku = r.Sku,
                     desc = r.Descripcion,
+                    unidadMedidaInventario = _context.ArticuloConsumiblesSap
+                        .Where(a => a.ProductoCodigo == r.Sku)
+                        .Select(a => a.UnidadMedidaInventario)
+                        .FirstOrDefault(),
                     catId = r.CategoriaId,
                     cat = r.Categoria != null ? r.Categoria.Nombre : "",
                     ubiId = r.UbicacionId,
@@ -74,30 +79,35 @@ namespace Plataforma_CG.Controllers
                 .ToListAsync();
 
             var categorias = await _context.RefaccionCategorias
+                .AsNoTracking()
                 .Where(c => c.Activo)
                 .OrderBy(c => c.Nombre)
                 .Select(c => new { id = c.Id, nombre = c.Nombre })
                 .ToListAsync();
 
             var ubicaciones = await _context.RefaccionUbicaciones
+                .AsNoTracking()
                 .Where(u => u.Activo)
                 .OrderBy(u => u.Nombre)
                 .Select(u => new { id = u.Id, nombre = u.Nombre })
                 .ToListAsync();
 
             var maquinas = await _context.RefaccionMaquinas
+                .AsNoTracking()
                 .Where(m => m.Activo)
                 .OrderBy(m => m.Nombre)
                 .Select(m => new { id = m.Id, nombre = m.Nombre })
                 .ToListAsync();
 
             var usoCat = await _context.Refacciones
+                .AsNoTracking()
                 .Where(r => r.Activo && r.CategoriaId != null)
                 .GroupBy(r => r.CategoriaId!.Value)
                 .Select(g => new { id = g.Key, uso = g.Count() })
                 .ToListAsync();
 
             var usoUbi = await _context.Refacciones
+                .AsNoTracking()
                 .Where(r => r.Activo && r.UbicacionId != null)
                 .GroupBy(r => r.UbicacionId!.Value)
                 .Select(g => new { id = g.Key, uso = g.Count() })
@@ -107,6 +117,7 @@ namespace Plataforma_CG.Controllers
             var dictUsoUbi = usoUbi.ToDictionary(x => x.id, x => x.uso);
 
             var usoMaq = await _context.RefaccionMovimientos
+                .AsNoTracking()
                 .Where(m => m.MaquinaDestino != null && m.MaquinaDestino != "")
                 .GroupBy(m => m.MaquinaDestino!)
                 .Select(g => new { nombre = g.Key, uso = g.Count() })
@@ -115,6 +126,7 @@ namespace Plataforma_CG.Controllers
             var dictUsoMaq = usoMaq.ToDictionary(x => x.nombre, x => x.uso, StringComparer.OrdinalIgnoreCase);
 
             var movimientos = await _context.RefaccionMovimientos
+                .AsNoTracking()
                 .OrderByDescending(m => m.Fecha)
                 .ThenByDescending(m => m.Id)
                 .Take(100)
@@ -592,6 +604,7 @@ namespace Plataforma_CG.Controllers
                 {
                     ItemCode = x.ProductoCodigo,
                     ItemName = x.ProductoNombre,
+                    InventoryUOM = x.UnidadMedidaInventario,
                     U_MASTER = x.U_MASTER,
                     U_TipoporSKU = x.U_TipoporSKU,
                     U_KilosCaja = x.U_KilosCaja,
@@ -648,6 +661,7 @@ namespace Plataforma_CG.Controllers
                         {
                             sku,
                             nombre = item.ItemName,
+                            unidadMedidaInventario = item.InventoryUOM,
                             grupo = item.ItemsGroupCode,
                             costo,
                             stock = item.QuantityOnStock,
@@ -672,6 +686,7 @@ namespace Plataforma_CG.Controllers
                         {
                             sku,
                             nombre = item.ItemName,
+                            unidadMedidaInventario = item.InventoryUOM,
                             grupo = item.ItemsGroupCode,
                             costo,
                             stock = item.QuantityOnStock,
