@@ -2605,7 +2605,7 @@ namespace Plataforma_CG.Services
             {
                 var url =
      $"{settings["BaseUrl"].TrimEnd('/')}/Items" +
-     "?$select=ItemCode,ItemName,MovingAveragePrice,ItemsGroupCode,QuantityOnStock,U_MASTER,U_TipoporSKU,U_Clas_Prod,U_KilosCaja,U_PRESENT,U_PorcInye" +
+     "?$select=ItemCode,ItemName,InventoryUOM,MovingAveragePrice,ItemsGroupCode,QuantityOnStock,U_MASTER,U_TipoporSKU,U_Clas_Prod,U_KilosCaja,U_PRESENT,U_PorcInye" +
      $"&$filter={Uri.EscapeDataString(filtro)}" +
      $"&$top={batchSize}&$skip={skip}";
                 HttpResponseMessage response;
@@ -2667,6 +2667,7 @@ namespace Plataforma_CG.Services
                         {
                             ItemCode = x.TryGetProperty("ItemCode", out var ic) ? ic.GetString() : null,
                             ItemName = x.TryGetProperty("ItemName", out var inm) ? inm.GetString() : null,
+                            InventoryUOM = x.TryGetProperty("InventoryUOM", out var iuom) ? ParseText(iuom) : null,
                             ItemsGroupCode = itemsGroupCode,
                             QuantityOnStock = stock,
                             QuantityAvailable = disponible,
@@ -2731,6 +2732,7 @@ namespace Plataforma_CG.Services
                     {
                         ProductoCodigo = codigo,
                         ProductoNombre = item.ItemName ?? "",
+                        UnidadMedidaInventario = item.InventoryUOM ?? "",
                         U_MASTER = item.U_MASTER ?? "",
                         U_TipoporSKU = item.U_TipoporSKU ?? "",
                         U_KilosCaja = item.U_KilosCaja,
@@ -2749,6 +2751,12 @@ namespace Plataforma_CG.Services
                 }
 
                 bool cambio = false;
+
+                if (local.UnidadMedidaInventario != (item.InventoryUOM ?? ""))
+                {
+                    local.UnidadMedidaInventario = item.InventoryUOM ?? "";
+                    cambio = true;
+                }
 
                 if (local.ProductoNombre != (item.ItemName ?? ""))
                 {
@@ -2859,6 +2867,7 @@ namespace Plataforma_CG.Services
         {
             public string Sku { get; set; } = "";
             public string Nombre { get; set; } = "";
+            public string UnidadMedidaInventario { get; set; } = "";
             public string U_MASTER { get; set; } = "";
             public string U_TipoporSKU { get; set; } = "";
             public int? U_Clas_Prod { get; set; }
@@ -2921,6 +2930,7 @@ namespace Plataforma_CG.Services
                 {
                     Sku = codigo,
                     Nombre = item.ItemName ?? "",
+                    UnidadMedidaInventario = item.InventoryUOM ?? "",
                     U_MASTER = item.U_MASTER ?? "",
                     U_TipoporSKU = item.U_TipoporSKU ?? "",
                     U_Clas_Prod = item.U_Clas_Prod,
@@ -2955,6 +2965,9 @@ namespace Plataforma_CG.Services
 
                 if (local.ProductoNombre != (item.ItemName ?? ""))
                     Add("Descripción", local.ProductoNombre, item.ItemName ?? "");
+
+                if (local.UnidadMedidaInventario != (item.InventoryUOM ?? ""))
+                    Add("Unidad de medida inventario", local.UnidadMedidaInventario, item.InventoryUOM ?? "");
 
                 if (local.U_MASTER != (item.U_MASTER ?? ""))
                     Add("Master", local.U_MASTER, item.U_MASTER ?? "");

@@ -7,6 +7,7 @@
 
         public string? ItemCode { get; set; }
         public string? ItemName { get; set; }
+        public string? InventoryUOM { get; set; }
         public string? U_MASTER { get; set; }
         public string? U_TipoporSKU { get; set; }
 

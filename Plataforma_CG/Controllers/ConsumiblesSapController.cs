@@ -57,6 +57,7 @@ namespace Plataforma_CG.Controllers
                 {
                     sku = x.ProductoCodigo,
                     nombre = x.ProductoNombre,
+                    unidadMedidaInventario = x.UnidadMedidaInventario,
                     grupo = x.ItemsGroupCode,
                     master = x.U_MASTER,
                     tipo = x.U_TipoporSKU,
@@ -107,6 +108,7 @@ namespace Plataforma_CG.Controllers
                     {
                         sku = x.Sku,
                         nombre = x.Nombre,
+                        unidadMedidaInventario = x.UnidadMedidaInventario,
                         grupo = x.ItemsGroupCode,
                         master = x.U_MASTER,
                         tipo = x.U_TipoporSKU,

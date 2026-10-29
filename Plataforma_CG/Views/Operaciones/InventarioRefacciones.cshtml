@@ -2057,6 +2057,7 @@
                 <th>Acción</th>
                 <th>SKU</th>
                 <th>Descripción</th>
+                <th>Unidad inventario</th>
                 <th>Cambios</th>
                 <th class="text-end">Grupo</th>
                 <th class="text-end">Costo</th>
@@ -2584,12 +2585,12 @@
                             </div>
                             <h3 class="ref-name">${escapeHtml(item.desc)}</h3>
                             <p class="ref-desc"><i class="bi bi-geo-alt"></i> ${escapeHtml(item.loc)}</p>
-                            ${item.foto ? `<img class="ref-foto-thumb" src="${escapeHtml(item.foto)}" alt="${escapeHtml(item.desc)}" title="Ver foto" onclick="verFoto(${item.id})" />` : ''}
+                            ${item.foto ? `<img class="ref-foto-thumb" src="${escapeHtml(item.foto)}" loading="lazy" decoding="async" alt="${escapeHtml(item.desc)}" title="Ver foto" onclick="verFoto(${item.id})" />` : ''}
 
                             <div class="ref-card-bottom">
                                 <div class="ref-stock-info">
                                     <p>STOCK ACTUAL</p>
-                                    <div class="ref-stock-qty ${qtyClass}">${item.stock} <span style="font-size:0.7rem; color:var(--ref-text-muted);">PZAS</span></div>
+                            <div class="ref-stock-qty ${qtyClass}">${item.stock} <span style="font-size:0.7rem; color:var(--ref-text-muted);">${escapeHtml(item.unidadMedidaInventario || 'PZAS')}</span></div>
                                     <div class="ref-minmax">Mín ${item.min} · Máx ${item.max > 0 ? item.max : '—'}</div>
                                 </div>
                                 <div class="d-flex gap-1">
@@ -2704,10 +2705,11 @@
                     return `
                         <tr data-ref-id="${item.id}">
                             <td>
-                                ${item.foto ? `<img class="ref-foto-thumb-sm" src="${escapeHtml(item.foto)}" alt="${escapeHtml(item.desc)}" title="Ver foto" onclick="verFoto(${item.id})" />` : ''}
+                                ${item.foto ? `<img class="ref-foto-thumb-sm" src="${escapeHtml(item.foto)}" loading="lazy" decoding="async" alt="${escapeHtml(item.desc)}" title="Ver foto" onclick="verFoto(${item.id})" />` : ''}
                                 <span class="ref-sku-badge" title="Costo Unitario: ${fmtMoneda.format(item.costo)}">${escapeHtml(item.sku)}</span>
                             </td>
                             <td>${escapeHtml(item.desc)}</td>
+                            <td class="d-none d-md-table-cell">${escapeHtml(item.unidadMedidaInventario || '—')}</td>
                             <td class="d-none d-md-table-cell">${escapeHtml(item.cat || '')}</td>
                             <td><i class="bi bi-geo-alt" style="color:var(--ref-text-muted);"></i> ${escapeHtml(item.loc)}</td>
                             <td class="d-none d-md-table-cell text-center">${item.min}</td>
@@ -2743,6 +2745,7 @@
                             <tr>
                                 <th>SKU</th>
                                 <th>Descripción</th>
+                                <th class="d-none d-md-table-cell">Unidad inventario</th>
                                 <th class="d-none d-md-table-cell">Categoría</th>
                                 <th>Ubicación</th>
                                 <th class="d-none d-md-table-cell text-center">Mín.</th>
@@ -3349,7 +3352,7 @@
                 const tbody = document.getElementById('prevMuestra');
                 if (tbody) {
                     if (!filtrados.length) {
-                        tbody.innerHTML = '<tr><td colspan="8">No hay refacciones nuevas ni por modificar.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="9">No hay refacciones nuevas ni por modificar.</td></tr>';
                     } else {
                         tbody.innerHTML = filtrados.map(m => {
                             const cambios = Array.isArray(m.cambios) ? m.cambios : [];
@@ -3368,6 +3371,7 @@
                                 <td><span class="ref-prev-accion ${m.accion === 'Nuevo' ? 'nuevo' : 'actualizar'}">${esc(m.accion)}</span></td>
                                 <td><b>${esc(m.sku)}</b></td>
                                 <td>${esc(m.nombre)}</td>
+                                <td>${esc(m.unidadMedidaInventario || '—')}</td>
                                 <td>${detalle}</td>
                                 <td class="text-end">${m.grupo == null ? '—' : esc(m.grupo)}</td>
                                 <td class="text-end">${num(m.costo)}</td>
@@ -3389,12 +3393,12 @@
                     const s = (v == null ? '' : String(v));
                     return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
                 };
-                const cab = ['Accion', 'SKU', 'Descripcion', 'Cambios', 'Grupo', 'Costo', 'Stock', 'Disponible'];
+                const cab = ['Accion', 'SKU', 'Descripcion', 'Unidad inventario', 'Cambios', 'Grupo', 'Costo', 'Stock', 'Disponible'];
                 const lineas = [cab.join(',')];
                 for (const m of previaSapItems) {
                     const cambiosTxt = (m.cambios || []).map(c => `${c.campo}: ${c.antes} -> ${c.despues}`).join(' | ');
                     lineas.push([
-                        escCsv(m.accion), escCsv(m.sku), escCsv(m.nombre), escCsv(cambiosTxt),
+                        escCsv(m.accion), escCsv(m.sku), escCsv(m.nombre), escCsv(m.unidadMedidaInventario), escCsv(cambiosTxt),
                         escCsv(m.grupo), escCsv(m.costo), escCsv(m.stock), escCsv(m.disponible)
                     ].join(','));
                 }
@@ -3528,6 +3532,7 @@
                             ${img}
                             <div class="sku">${escapeHtml(item.sku)}</div>
                             <div class="desc">${escapeHtml(item.desc)}</div>
+                            <div class="desc" style="font-size:.68rem; opacity:.75;">Unidad: ${escapeHtml(item.unidadMedidaInventario || '—')}</div>
                         </div>
                     `);
                 });
