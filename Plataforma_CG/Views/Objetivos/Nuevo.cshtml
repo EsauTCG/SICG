@@ -187,7 +187,7 @@
                     Periodo de cumplimiento
                 </label>
 
-                <select asp-for="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm">
+                <select asp-for="Tipo_Periodo_Cumplimiento" class="form-select form-select-sm" required>
                     <option value="">Seleccione un periodo</option>
                     <option value="Diario">Diario</option>
                     <option value="Semanal">Semanal</option>
@@ -448,10 +448,80 @@
                 <i class="bi bi-save me-1"></i> Guardar Objetivo
             </button>
         </div>
+
+        <input type="hidden"
+            id="confirmarCoincidencia"
+            name="confirmarCoincidencia"
+            value="false" />
     </form>
+
+    <!-- Modal de coicidencias de objetivos -->
+    <div class="modal fade"
+        id="modalCoincidenciasObjetivos"
+        tabindex="-1"
+        aria-labelledby="tituloModalCoincidencias"
+        aria-hidden="true">
+
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+
+                <div class="modal-header bg-warning-subtle">
+
+                    <h5 class="modal-title" id="tituloModalCoincidencias">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Posibles Coincidencias detectadas
+                    </h5>
+
+                    <button type="button"
+                        class="btn-closed"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p class="mb-3">
+                        Encontramos objetivos con características similares
+                        al que intentas registrar
+                    </p>
+
+                    <div id="listaCoincidenciasObjetivos"></div>
+
+                    <div class="alert alert-loght border mt-3 mb-0">
+                        <small>
+                            Puedes regresar y modificar los datos o continuar 
+                            con la creación del objetivo bajo tu creiterio
+                        </small>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                        Revisar datos 
+                    </button>
+
+                    <button type="button"
+                        class="btn btn-danger"
+                                    id="btnConfirmarObjetivoDuplicado">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Crear bajo mi criterio
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 </div>
 </div>
     </div>
+
+
 
 <!-- Modal para Crear Nuevo KPI -->
 <div class="modal fade" id="modalNuevoKpi" tabindex="-1" aria-hidden="true">
@@ -757,6 +827,8 @@
     </script>
     <script>
         $(document).ready(function () {
+
+            console.log('SIGO OBJETIVOS: DOCUMENT READY EJECUTADO');
 
             $('#btnAbrirNuevoTipo').on('click', function () {
 
@@ -1319,7 +1391,224 @@
                     $btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Guardar');
                 });
             });
-        });
+
+            
+    
+            // ===== Validación de coincidencias de objetivos =====
+
+            var consultandoCoincidencias = false;
+
+            function enviarObjetivoConfirmado(confirmado) {
+
+                var form = document.getElementById('formNuevoObjetivo');
+
+                if (!form) {
+                    console.error('No se encontró el formulario.');
+                    alert('Error: No se encontró el formulario.');
+                    return;
+                }
+
+                var $confirmacion = $('#confirmarCoincidencia');
+
+                if ($confirmacion.length !== 1 ||
+                    $confirmacion[0].form !== form) {
+
+                    console.error(
+                        'El campo confirmarCoincidencia no está dentro del formulario.'
+                    );
+
+                    alert('Error en el campo de confirmación.');
+                    return;
+                }
+
+                $confirmacion.val(confirmado ? 'true' : 'false');
+
+                console.log('===== GUARDANDO OBJETIVO =====');
+                console.log('Confirmación:', $confirmacion.val());
+                console.log('URL destino:', form.action);
+                console.log('Método:', form.method);
+
+                try {
+                    HTMLFormElement.prototype.submit.call(form);
+                } catch (error) {
+                    console.error('Error al enviar formulario:', error);
+                    $('#btnConfirmarObjetivoDuplicado').prop('disabled', false);
+                    alert('No se pudo enviar el formulario.');
+                }
+            }
+
+            $('#formNuevoObjetivo').on('submit', function (e) {
+
+                e.preventDefault();
+
+                if (!this.checkValidity()) {
+                    this.reportValidity();
+                    return;
+                }
+
+                if (consultandoCoincidencias) return;
+
+                consultandoCoincidencias = true;
+
+                var $form = $(this);
+                var $btnGuardar = $form.find('button[type="submit"]');
+
+                $btnGuardar.prop('disabled', true);
+
+                $('#confirmarCoincidencia').val('false');
+
+                $.ajax({
+                    url: '@Url.Action("ConsultarCoincidencias", "Objetivos")',
+                    type: 'POST',
+                    data: $form.serialize(),
+
+                    success: function (respuesta) {
+
+                        if (!respuesta || !respuesta.success) {
+                            alert('No se pudo validar el objetivo.');
+                            return;
+                        }
+
+                        var coincidencias = (respuesta.candidatos || [])
+                            .filter(function (c) {
+                                return c.mostrarAdvertencia === true;
+                            });
+
+                        if (coincidencias.length === 0) {
+                            enviarObjetivoConfirmado(false);
+                            return;
+                        }
+
+                        var $lista = $('#listaCoincidenciasObjetivos');
+                        $lista.empty();
+
+                        coincidencias.forEach(function (c) {
+
+                            var $card = $('<div>')
+                                .addClass('card mb-3 border-warning');
+
+                            var $body = $('<div>').addClass('card-body');
+
+                            $('<h6>')
+                                .addClass('fw-bold')
+                                .text('Objetivo #' + c.id)
+                                .appendTo($body);
+
+                            $('<p>')
+                                .addClass('small mb-2')
+                                .text(c.descripcion || 'Sin descripción')
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text('Estado: ' + (c.estado || 'Sin estado'))
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text('Clasificación: ' + c.clasificacion)
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text(
+                                    'Características: ' +
+                                    c.porcentajeCaracteristicas + '%'
+                                )
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text(
+                                    'Métricas: ' +
+                                    c.porcentajeMetricas + '%'
+                                )
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text(
+                                    'Valores: ' +
+                                    (c.valoresComparados > 0
+                                        ? c.porcentajeValores + '%'
+                                        : 'No comparables')
+                                )
+                                .appendTo($body);
+
+                            $('<div>')
+                                .addClass('small mb-1')
+                                .text('Fechas: ' + c.coincidenciaFechas)
+                                .appendTo($body);
+
+                            if (c.coincidencias && c.coincidencias.length) {
+                                $('<div>')
+                                    .addClass('small text-success mt-2')
+                                    .text(
+                                        'Coinciden: ' +
+                                        c.coincidencias.join(', ')
+                                    )
+                                    .appendTo($body);
+                            }
+
+                            if (c.diferencias && c.diferencias.length) {
+                                $('<div>')
+                                    .addClass('small text-muted')
+                                    .text(
+                                        'Diferencias: ' +
+                                        c.diferencias.join(', ')
+                                    )
+                                    .appendTo($body);
+                            }
+
+                            $card.append($body);
+                            $lista.append($card);
+                        });
+
+                        var modal = document.getElementById(
+                            'modalCoincidenciasObjetivos'
+                        );
+
+                        if (!modal) {
+                            console.error(
+                                'No existe modalCoincidenciasObjetivos.'
+                            );
+                            alert('No se encontró el modal de coincidencias.');
+                            return;
+                        }
+
+                        bootstrap.Modal.getOrCreateInstance(modal).show();
+                    },
+
+                    error: function (xhr) {
+
+                        console.error(
+                            'Error de coincidencias:',
+                            xhr.status,
+                            xhr.responseText
+                        );
+
+                        alert(
+                            'No fue posible comprobar las coincidencias. ' +
+                            'El objetivo no se ha guardado.'
+                        );
+                    },
+
+                    complete: function () {
+                        consultandoCoincidencias = false;
+                        $btnGuardar.prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#btnConfirmarObjetivoDuplicado').on('click', function () {
+
+                $(this).prop('disabled', true);
+
+                enviarObjetivoConfirmado(true);
+            });
+
+        }); // Cierre de $(document).ready(function () { ... });
+
 
         // Logica de Filas Dinamicas
         let indiceValor = 1;

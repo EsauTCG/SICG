@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using Dapper;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Plataforma_CG.Data;
@@ -34,7 +35,7 @@ namespace Plataforma_CG.Controllers
             string qDesde = "", string qHasta = "", string qVigencia = "")
         {
             var listaObjetivos = new List<ObjetivoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             // Validar perfil
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
@@ -323,7 +324,7 @@ namespace Plataforma_CG.Controllers
             string campoFecha = "creacion", DateTime? desde = null, DateTime? hasta = null,
             string actividad = "", int pagina = 1, int pageSize = 25)
         {
-            string connection = _configuration.GetConnectionString("DefaultConnection");
+            string connection = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
             int perfilIdUsuario = 0;
@@ -486,7 +487,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> VistaParcialEditar(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var objetivo = await ObtenerObjetivoConValoresAsync(id);
 
             if (objetivo == null)
@@ -512,7 +513,7 @@ namespace Plataforma_CG.Controllers
         // Método auxiliar para consultar un solo objetivo
         private async Task<ObjetivoViewModel> ObtenerObjetivoConValoresAsync(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             using (var conn = new SqlConnection(connectionString))
             {
                 string sqlObjetivo = @"
@@ -556,7 +557,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
         public async Task<IActionResult> Nuevo()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -610,14 +611,608 @@ namespace Plataforma_CG.Controllers
             return View(modeloNuevo);
         }
 
+
+        // Funcion para Algoritmo de coicidencias
         [HttpPost]
         [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
-        public async Task<IActionResult> GuardarNuevo(ObjetivoViewModel modelo)
+        public async Task<IActionResult> ConsultarCoincidencias(
+            ObjetivoViewModel modelo)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            try
+            {
+                if (modelo.ID_Perfil <= 0 || modelo.ID_Tipo_Objetivo <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Selecciona un perfil y un tipo de objetivo."
+                    });
+                }
+
+                string connectionString =
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
+
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    await conn.OpenAsync();
+
+                    //Obtener los campos visibles del tipo de objetivo seleccionado
+                    string? camposVisibles = await conn.QuerySingleOrDefaultAsync<string>(
+                        @"SELECT Campos_Visibles
+                            FROM
+                                dbo.Tipo_Objetivo
+                            WHERE
+                                ID = @ID_Tipo_Objetivo",
+                        new
+                        {
+                            modelo.ID_Tipo_Objetivo
+                        }
+                    );
+
+                    var camposAplicables = string.IsNullOrWhiteSpace(camposVisibles)
+                        ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            "Cliente",
+                            "Vendedor",
+                            "Proveedor",
+                            "SKU",
+                            "CC",
+                            "Linea"
+                        }
+                        : new HashSet<string>(
+                            camposVisibles.Split(',',
+                            StringSplitOptions.RemoveEmptyEntries |
+                            StringSplitOptions.TrimEntries),
+                            StringComparer.OrdinalIgnoreCase
+                        );
+
+                    string sql = @"
+                            SELECT
+                                o.ID,
+                                o.ID_Perfil,
+                                o.ID_Tipo_Objetivo,
+                                o.Descripcion_Objetivo,
+                                o.Estado,
+                                o.Fecha_Desde,
+                                o.Fecha_Hasta,
+                                o.Tipo_Periodo_Cumplimiento,
+                                o.SKU,
+                                o.ID_Cliente,
+                                o.UsuarioID_Vendedor,
+                                o.Proveedor,
+                                o.CC,
+                                o.LINEA
+                            FROM 
+                                dbo.Objetivos o
+                            WHERE 
+                                o.ID_Perfil = @ID_Perfil
+                                AND o.ID_Tipo_Objetivo = @ID_Tipo_Objetivo
+                            ORDER BY 
+                                o.Fecha_Creacion DESC,
+                                o.ID DESC;";
+
+                    var candidatos = (await conn.QueryAsync<ObjetivoViewModel>(
+                        sql,
+                        new
+                        {
+                            modelo.ID_Perfil,
+                            modelo.ID_Tipo_Objetivo
+                        }
+                    )).ToList();
+
+                    // ==== Obtener métricas de los objetivos candidatos ====
+                    var idsCandidatos = candidatos.Select(c => c.ID).ToArray();
+
+                    var valoresCandidatos = idsCandidatos.Length > 0
+                        ? (await conn.QueryAsync<ObjetivoValorViewModel>(
+                            @"SELECT
+                                ID,
+                                ID_Objetivo,
+                                ID_Catalogo_ValorObjetivo,
+                                Tipo_Valor,
+                                Unidad_Medida,
+                                Valor_Minimo,
+                                Valor_Maximo,
+                                Valor_Objetivo
+                            FROM
+                                dbo.Objetivo_Valor
+                            WHERE
+                                ID_Objetivo IN @Ids",
+
+                            new { Ids = idsCandidatos }
+                        )).ToList()
+                        : new List<ObjetivoValorViewModel>();
+
+                    var metricasPorObjetivo = valoresCandidatos
+                        .GroupBy(v => v.ID_Objetivo)
+                        .ToDictionary(g => g.Key, g => g.ToList());
+
+
+                    var resultadosCoincidencias = candidatos.Select(candidato =>
+                    {
+
+                        // ===== Comparación métricas por catalogo =====
+
+                        //Métricas del objetivo que se intentan registrar
+                        var metricasNuevas = (modelo.ValoresConfigurados
+                            ?? new List<ObjetivoValorViewModel>())
+                            .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
+                            .Select(v => v.ID_Catalogo_ValorObjetivo!.Value)
+                            .ToHashSet();
+
+                        // Métricas del objetivo existente.
+                        var metricasRegistradas = metricasPorObjetivo.TryGetValue(
+                            candidato.ID,
+                            out var valoresExistentes
+                        )
+                            ? valoresExistentes
+                                .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
+                                .Select(v => v.ID_Catalogo_ValorObjetivo!.Value)
+                                .ToHashSet()
+                            : new HashSet<int>();
+
+                        // Métricas que aparecen en ambos objetivos.
+                        var metricasCoincidentes = metricasNuevas
+                            .Intersect(metricasRegistradas)
+                            .OrderBy(id => id)
+                            .ToList();
+
+                        // Yoyal de métricas distintas entre ambos conjuntos.
+                        var totalMetricasDistintas = metricasNuevas
+                            .Union(metricasRegistradas)
+                            .Count();
+
+                        // Porcentaje de coincidencia de métricas (indice de Jaccard)
+                        decimal porcentajeMetricas = totalMetricasDistintas > 0
+                         ? Math.Round(
+                            (decimal)metricasCoincidentes.Count * 100
+                            / totalMetricasDistintas,
+                            2
+                         )
+                         : 0m;
+
+
+                        // ===== Comparación de valores métricas =====
+
+                        int valoresComparados = 0;
+                        int valoresCoincidentes = 0;
+
+                        var diferenciasValores = new List<string>();
+
+                        // Recuperamos los objetos completos de las métricas nuevas.
+                        var valoresNuevosPorId = (modelo.ValoresConfigurados
+                            ?? new List<ObjetivoValorViewModel>())
+                            .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
+                            .GroupBy(v => v.ID_Catalogo_ValorObjetivo!.Value)
+                            .ToDictionary(g => g.Key, g => g.First());
+
+                        // Recuperamos las métricas completas del objetivo existente.
+                        var valoresExistentesPorId = (valoresExistentes
+                            ?? new List<ObjetivoValorViewModel>())
+                            .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
+                            .GroupBy(v => v.ID_Catalogo_ValorObjetivo!.Value)
+                            .ToDictionary(g => g.Key, g => g.First());
+
+                        void CompararValor(string nombre, decimal? nuevo, decimal? existente)
+                        {
+                            // Si ambos son NULL, no existe un valor que comparar.
+                            if (!nuevo.HasValue && !existente.HasValue)
+                                return;
+
+                            valoresComparados++;
+
+                            if (nuevo == existente)
+                            {
+                                valoresCoincidentes++;
+                            }
+                            else
+                            {
+                                diferenciasValores.Add(nombre);
+                            }
+                        }
+
+                        // Solo comparamos valores de métricas presentes en ambos objetivos.
+                        foreach (int idMetrica in metricasCoincidentes)
+                        {
+                            var nueva = valoresNuevosPorId[idMetrica];
+                            var existente = valoresExistentesPorId[idMetrica];
+
+                            CompararValor(
+                                $"Métrica {idMetrica} - Mínimo",
+                                nueva.Valor_Minimo,
+                                existente.Valor_Minimo
+                            );
+
+                            CompararValor(
+                                $"Métrica {idMetrica} - Máximo",
+                                nueva.Valor_Maximo,
+                                existente.Valor_Maximo
+                            );
+
+                            CompararValor(
+                                $"Métrica {idMetrica} - Objetivo",
+                                nueva.Valor_Objetivo,
+                                existente.Valor_Objetivo
+                            );
+                        }
+
+                        decimal porcentajeValores = valoresComparados > 0
+                            ? Math.Round(
+                                (decimal)valoresCoincidentes * 100 / valoresComparados,
+                                2
+                            )
+                            : 0m;
+
+                        // Indicadores preliminares de igualdad completa.
+                        bool metricasCompletamenteIguales =
+                            totalMetricasDistintas > 0 &&
+                            metricasNuevas.SetEquals(metricasRegistradas) &&
+                            (modelo.ValoresConfigurados?.Count(v =>
+                                v.ID_Catalogo_ValorObjetivo.HasValue) ?? 0) == metricasNuevas.Count &&
+                            (valoresExistentes?.Count(v =>
+                                v.ID_Catalogo_ValorObjetivo.HasValue) ?? 0) == metricasRegistradas.Count;
+
+                        bool valoresCompletamenteIguales =
+                            metricasCompletamenteIguales &&
+                            valoresComparados > 0 &&
+                            diferenciasValores.Count == 0;
+
+
+
+
+                        int camposComparados = 0;
+                        int camposCoincidentes = 0;
+
+                        var coincidencias = new List<string>();
+                        var diferencias = new List<string>();
+
+                        void Comparar(string nombreCampo, string? nuevo, string? existente)
+                        {
+                            string valorNuevo = NormalizarCoincidencias(nuevo);
+                            string valorExistente = NormalizarCoincidencias(existente);
+
+                            //Si ambos está vacíos, no aportarn informacion
+                            if (valorNuevo == "" && valorExistente == "")
+                                return;
+
+                            camposComparados++;
+
+                            if (valorNuevo == valorExistente)
+                            {
+                                camposCoincidentes++;
+                                coincidencias.Add(nombreCampo);
+                            }
+                            else
+                            {
+                                diferencias.Add(nombreCampo);
+                            }
+                        }
+
+                        //Periodicidad: siempre es una característica del objetivo.
+                        Comparar(
+                            "Periodicidad",
+                            modelo.Tipo_Periodo_Cumplimiento,
+                            candidato.Tipo_Periodo_Cumplimiento
+                        );
+
+                        if (camposAplicables.Contains("Cliente"))
+                            Comparar("Cliente", modelo.ID_Cliente, candidato.ID_Cliente);
+
+                        if (camposAplicables.Contains("Vendedor"))
+                            Comparar(
+                                "Vendedor",
+                                modelo.UsuarioID_Vendedor?.ToString(),
+                                candidato.UsuarioID_Vendedor?.ToString()
+                            );
+
+                        if (camposAplicables.Contains("Proveedor"))
+                            Comparar("Proveedor", modelo.Proveedor, candidato.Proveedor);
+
+                        if (camposAplicables.Contains("SKU"))
+                            Comparar("SKU", modelo.SKU, candidato.SKU);
+
+                        if (camposAplicables.Contains("CC"))
+                            Comparar("CC", modelo.CC, candidato.CC);
+
+                        if (camposAplicables.Contains("Linea"))
+                            Comparar("Línea", modelo.Linea, candidato.Linea);
+
+                        decimal porcentaje = camposComparados > 0
+                                ? Math.Round(
+                                    (decimal)camposCoincidentes * 100 / camposComparados,
+                                    2
+                                )
+                                : 0m;
+
+                        // ===== Comparación de fechas =====
+
+                        DateTime inicioNuevo = modelo.Fecha_Desde.Date;
+                        DateTime? finNuevo = modelo.Fecha_Hasta?.Date;
+
+                        DateTime inicioExistente = candidato.Fecha_Desde.Date;
+                        DateTime? finExistente = candidato.Fecha_Hasta?.Date;
+
+                        // Coincidencia exacta de vigencia
+                        bool mismoPeriodo =
+                            inicioNuevo == inicioExistente &&
+                            finNuevo == finExistente;
+
+                        //NULL Significa que no hay una fecha final definida
+                        DateTime limiteNuevo = finNuevo ?? DateTime.MaxValue;
+                        DateTime limiteExistente = finExistente ?? DateTime.MaxValue;
+
+                        // Los intervalos comparten al menos un día. 
+                        bool periodosTraslapados =
+                            inicioNuevo <= limiteExistente &&
+                            inicioExistente <= limiteNuevo;
+
+                        string coincidenciaFechas = mismoPeriodo
+                            ? "Mismo periodo"
+                            : periodosTraslapados
+                                ? "Traslapado"
+                                : "Periodo diferente";
+
+                        // ===== Clasificación final de coicidencias =====
+                        // No declaramos una coicidencia completa si existe métricas
+                        // sin identificar por ca´tálogo o valores sin comparación suficiente
+                        bool metricasEvaluadasCompletamente =
+                            metricasCompletamenteIguales &&
+                            valoresExistentes != null &&
+                            valoresExistentes.Count == metricasRegistradas.Count &&
+                            (modelo.ValoresConfigurados?.Count ?? 0) == metricasNuevas.Count;
+
+                        // Coicidencia exacta de configuración y vigencia.
+                        bool coincidenciaCompleta  =
+                            porcentaje == 100m &&
+                            metricasEvaluadasCompletamente &&
+                            valoresCompletamenteIguales &&
+                            mismoPeriodo;
+
+                        // Misma configuración, pero distinta vigencia
+                        bool posibleRenovacion =
+                            porcentaje == 100m &&
+                            metricasEvaluadasCompletamente &&
+                            valoresCompletamenteIguales &&
+                            !mismoPeriodo &&
+                            !periodosTraslapados;
+
+                        // Similitud significativa, pero con diferencias.
+                        bool coincidenciaParcial  =
+                            porcentaje >= 75m &&
+                            porcentajeMetricas >= 50m &&
+                            !coincidenciaCompleta  &&
+                            !posibleRenovacion;
+
+                        string clasificacion =
+                            coincidenciaCompleta ? "Completa" :
+                            posibleRenovacion ? "Posible renovación" :
+                            coincidenciaParcial ? "Parcial" :
+                            "baja";
+
+                        bool mostrarAdvertencia =
+                            coincidenciaCompleta ||
+                            posibleRenovacion ||
+                            coincidenciaParcial;
+
+                        return new
+                        {
+                            id = candidato.ID,
+
+                            porcentajeMetricas,
+                            totalMetricasNuevas = metricasNuevas.Count,
+                            totalMetricasRegistradas = metricasRegistradas.Count,
+                            metricasCoincidentes,
+
+                            //Resultados de comparación de valores
+                            porcentajeValores,
+                            valoresComparados,
+                            valoresCoincidentes,
+                            diferenciasValores,
+                            metricasCompletamenteIguales,
+                            valoresCompletamenteIguales,
+
+                            totalMetricasExistentes = metricasPorObjetivo.TryGetValue(
+                                candidato.ID,
+                                out var metricasExistentes
+                            ) ? metricasExistentes.Count : 0,
+
+                            descripcion = candidato.Descripcion_Objetivo,
+                            estado = candidato.Estado,
+                            fechaDesde = candidato.Fecha_Desde,
+                            fechaHasta = candidato.Fecha_Hasta,
+
+                            mismoPeriodo,
+                            periodosTraslapados,
+                            coincidenciaFechas,
+
+                            porcentajeCaracteristicas = porcentaje,
+                            camposComparados,
+                            camposCoincidentes,
+                            coincidencias,
+                            diferencias,
+
+                            clasificacion,
+                            mostrarAdvertencia,
+                            coincidenciaCompleta,
+                            posibleRenovacion
+
+                        };
+                    })
+                        .OrderByDescending(x => x.mostrarAdvertencia)
+                        .ThenByDescending(x => x.coincidenciaCompleta)
+                        .ThenByDescending(x => x.posibleRenovacion)
+                        .ThenByDescending(x => x.porcentajeCaracteristicas)
+                        .ThenByDescending(x => x.porcentajeMetricas)
+                        .ToList();
+
+
+                    return Json(new
+                    {
+                        success = true,
+                        perfil = modelo.ID_Perfil,
+                        tipoObjetivo = modelo.ID_Tipo_Objetivo,
+                        totalMetricas = modelo.ValoresConfigurados?.Count ?? 0,
+                        totalCandidatos = candidatos.Count,
+                        camposAplicables = camposAplicables.OrderBy(c => c).ToArray(),
+
+                        candidatos = resultadosCoincidencias,
+
+                        totalAdvertencias = resultadosCoincidencias.Count(
+                            x => x.mostrarAdvertencia
+                        )
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                //Diagnóstico temporal; evitamos enviar detalles internos al navegador
+                System.Diagnostics.Debug.WriteLine(
+                    "Error en Consultar Coincidencias : " + ex
+                );
+
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Ocurrió un error al consultar coicidencias."
+                });
+            }
+        }
+
+        private static string NormalizarCoincidencias(string? valor)
+        {
+            return (valor ?? string.Empty).Trim().ToUpperInvariant();
+        }
+
+        [HttpPost]
+        [RevisarPermiso("OBJETIVOS", "ESCRIBIR")]
+        public async Task<IActionResult> GuardarNuevo(
+            ObjetivoViewModel modelo,
+            bool confirmarCoincidencia = false)
+        {
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
+
+                //============================================
+                //VALIDACIONES DE MÉTRICAS DEL OBJETIVO
+                //============================================
+
+
+                if(modelo.ValoresConfigurados == null ||
+                    !modelo.ValoresConfigurados.Any())
+                {
+                    throw new Exception(
+                        "Debes agregar al menos una métrica al objetivo."
+                    );
+                }
+
+                var metricasCapturadas = modelo.ValoresConfigurados
+                    .Where(v =>
+                        v.ID_Catalogo_ValorObjetivo.HasValue ||
+                        !string.IsNullOrWhiteSpace(v.Tipo_Valor) ||
+                        v.Valor_Minimo.HasValue ||
+                        v.Valor_Maximo.HasValue ||
+                        v.Valor_Objetivo.HasValue
+                    )
+                    .ToList();
+
+                if (!metricasCapturadas.Any())
+                {
+                    throw new Exception(
+                        "El objetivo debe contener al menos una métrica válida."
+                    );
+                }
+
+
+                if (metricasCapturadas.Any(v =>
+                    !v.ID_Catalogo_ValorObjetivo.HasValue))
+                {
+                    throw new Exception(
+                        "Todas las métricas capturdas deben tener una métrica " +
+                        "del catálogo seleccionada."
+                    );
+                }
+
+                var idsMetricas = metricasCapturadas
+                    .Select(v => v.ID_Catalogo_ValorObjetivo.Value)
+                    .ToList();
+
+                if (idsMetricas.Count != idsMetricas.Distinct().Count())
+                {
+                    throw new Exception(
+                        "No puedes agregar dos veces la misma métrica " +
+                        "dentro de un mismo objetivo."
+                    );
+                }
+
+                foreach (var metrica in metricasCapturadas)
+                {
+                    bool tieneValor =
+                        metrica.Valor_Maximo.HasValue ||
+                        metrica.Valor_Minimo.HasValue ||
+                        metrica.Valor_Objetivo.HasValue;
+
+                    if (!tieneValor)
+                    {
+                        throw new Exception(
+                            "Todas las métricas seleccionadas deben tener " +
+                            "al menos un valor numérico."
+                        );
+                    }
+
+                    if (metrica.Valor_Minimo.HasValue &&
+                        metrica.Valor_Maximo.HasValue &&
+                        metrica.Valor_Minimo.Value > metrica.Valor_Maximo.Value)
+                    {
+                        throw new Exception(
+                            "El vlaor mínimo no puede ser mayor " +
+                            "que el valor máximo."
+                        );
+                    }
+                }
+
+                modelo.ValoresConfigurados = metricasCapturadas;
+
+                if (!confirmarCoincidencia)
+                {
+                    IActionResult resultadoValidacion =
+                        await ConsultarCoincidencias(modelo);
+
+                    if(resultadoValidacion is not JsonResult jsonResultado)
+                    {
+                        throw new Exception(
+                            "No fue posible verificar las coincidencias del objetivo."
+                        );
+                    }
+
+                    string contenidoJson =
+                        System.Text.Json.JsonSerializer.Serialize(jsonResultado.Value);
+
+                    using var documento =
+                        System.Text.Json.JsonDocument.Parse(contenidoJson);
+
+                    var raiz = documento.RootElement;
+
+                    if (!raiz.TryGetProperty("success" , out var exito) ||
+                        !exito.GetBoolean())
+                    {
+                        throw new Exception(
+                            "La validación de coincidencias no fue satisfactoria."
+                        );
+                    }
+
+                    if(raiz.GetProperty("totalAdvertencias").GetInt32() > 0)
+                    {
+                        throw new Exception(
+                            "Se encontraron objetivos similares. " +
+                            "Revisa las coincidencias y confirma la creación."
+                        );
+                    }
+                }
+
+
+
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -707,36 +1302,31 @@ namespace Plataforma_CG.Controllers
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
-                                    string nombreCatalogo = null;
-                                    string unidadCatalogo = null;
-
-                                    if (val.ID_Catalogo_ValorObjetivo.HasValue &&
-                                        catalogoValores.TryGetValue(val.ID_Catalogo_ValorObjetivo.Value, out var cat))
-                                    {
-                                        nombreCatalogo = cat.Nombre;
-                                        unidadCatalogo = cat.Unidad_Medida;
-                                    }
-
-                                    // Ignorar filas totalmente vacias (metricas que el usuario dejo sin capturar).
-                                    bool filaVacia = !val.ID_Catalogo_ValorObjetivo.HasValue
-                                        && string.IsNullOrWhiteSpace(val.Tipo_Valor)
-                                        && val.Valor_Minimo == null
-                                        && val.Valor_Maximo == null
-                                        && val.Valor_Objetivo == null;
+                                    // Ignorar filas completamente vacías
+                                    bool filaVacia =
+                                        !val.ID_Catalogo_ValorObjetivo.HasValue &&
+                                        string.IsNullOrWhiteSpace(val.Tipo_Valor) &&
+                                        !val.Valor_Minimo.HasValue &&
+                                        !val.Valor_Maximo.HasValue &&
+                                        !val.Valor_Objetivo.HasValue;
 
                                     if (filaVacia)
                                         continue;
 
-                                    // Tipo_Valor es NOT NULL: nunca enviar null.
-                                    string tipoValor = !string.IsNullOrWhiteSpace(val.Tipo_Valor)
-                                        ? val.Tipo_Valor.Trim()
-                                        : (!string.IsNullOrWhiteSpace(nombreCatalogo)
-                                            ? nombreCatalogo + (!string.IsNullOrWhiteSpace(unidadCatalogo) ? " (" + unidadCatalogo + ")" : "")
-                                            : "N/A");
+                                    //Validar que la métrica exista en el catálogo
+                                    if (!val.ID_Catalogo_ValorObjetivo.HasValue ||
+                                        !catalogoValores.TryGetValue(
+                                            val.ID_Catalogo_ValorObjetivo.Value,
+                                            out var metricaCatalogo))
+                                    {
+                                        throw new Exception(
+                                            "La métrica seleccionada no existe en el catálogo."   
+                                        );
+                                    }
 
-                                    string unidad = !string.IsNullOrWhiteSpace(val.Unidad_Medida)
-                                        ? val.Unidad_Medida.Trim()
-                                        : (unidadCatalogo ?? string.Empty);
+                                    string tipoValor = metricaCatalogo.Nombre;
+                                    string unidad = metricaCatalogo.Unidad_Medida ?? string.Empty;
+
 
                                     await conn.ExecuteAsync(sqlValor, new
                                     {
@@ -775,10 +1365,31 @@ namespace Plataforma_CG.Controllers
                     ViewBag.Perfiles = conn.Query("SELECT Id, Nombre FROM dbo.Perfiles");
                     await CargarVendedoresYClientesAsync(conn);
                     ViewBag.Articulos = conn.Query("SELECT ProductoCodigo, ProductoNombre FROM dbo.ArticuloSap ORDER BY ProductoCodigo");
+                    ViewBag.CatalogoValores = await conn.QueryAsync(@"
+                        SELECT
+                            ID,
+                            Nombre,
+                            Unidad_Medida
+                        FROM
+                            dbo.Catalogo_ValorObjetivo
+                        WHERE 
+                            Activo = 1
+                        ORDER BY 
+                            Nombre
+                    ");
 
                     try { ViewBag.TiposObjetivo = conn.Query("SELECT ID, Nombre FROM dbo.Tipo_Objetivo WHERE Activo = 1"); }
                     catch { ViewBag.TiposObjetivo = new List<dynamic>(); }
                 }
+
+                var (_, _, puedeEliminar) =
+                    await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                        _db,
+                        User.Identity.Name,
+                        "OBJETIVOS"
+                    );
+
+                ViewBag.PuedeEliminarObjetivos = puedeEliminar;
 
                 return View("Nuevo", modelo);
             }
@@ -859,7 +1470,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -907,7 +1518,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -929,7 +1540,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -966,7 +1577,7 @@ namespace Plataforma_CG.Controllers
             if (dias > 365) dias = 365;
 
             var lista = new List<VencimientoViewModel>();
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
             int perfilIdUsuario = 0;
@@ -1040,7 +1651,7 @@ namespace Plataforma_CG.Controllers
             if (dHasta < dDesde)
                 return Json(new { success = false, message = "La fecha final no puede ser anterior a la inicial." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -1172,7 +1783,7 @@ namespace Plataforma_CG.Controllers
         [ValidateAntiForgeryToken]
         public async Task<JsonResult> MarcarInactivo(int id)
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
             try
             {
@@ -1208,7 +1819,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql;
@@ -1257,7 +1868,7 @@ namespace Plataforma_CG.Controllers
 
                 sql += " ORDER BY p.Nombre, t.Nombre";
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var tipos = await conn.QueryAsync(sql, new { IdPerfil = miPerfilId });
@@ -1308,7 +1919,7 @@ namespace Plataforma_CG.Controllers
                 bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
                 int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1370,7 +1981,7 @@ namespace Plataforma_CG.Controllers
                 if (idTipo <= 0)
                     return Json(new { success = false, message = "No se identificó el tipo de objetivo." });
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     var skus = (await conn.QueryAsync<string>(@"
@@ -1409,7 +2020,7 @@ namespace Plataforma_CG.Controllers
                 bool esAdmin = User.IsInRole("Administrador") || User.IsInRole("Sistemas");
                 int.TryParse(User.FindFirst("PerfilID")?.Value, out int miPerfilId);
 
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     await conn.OpenAsync();
@@ -1486,7 +2097,7 @@ namespace Plataforma_CG.Controllers
                 }
 
                 paso = "abriendo conexion";
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString))
                 {
@@ -1495,14 +2106,85 @@ namespace Plataforma_CG.Controllers
                     paso = "resolviendo usuario";
                     int usuarioModId = await ObtenerIdUsuarioAsync(conn) ?? 1;
 
-            
 
 
-                    if (modelo.ValoresConfigurados == null || !modelo.ValoresConfigurados.Any())
+
+                    //=====================================
+                    // VALIDACIONES DE METRICAS EN EDICION
+                    //=====================================
+
+                    if (modelo.ValoresConfigurados == null ||
+                        !modelo.ValoresConfigurados.Any())
                     {
-                        TempData["ErrorObjetivos"] = "El objetivo debe tener al menos un valor configurado.";
-                        return RedirectToAction("Tablero");
+                        throw new Exception(
+                            "El objetivo debe contener al menos una métrica."
+                        );
                     }
+
+                    var metricasCapturadas = modelo.ValoresConfigurados
+                        .Where(v =>
+                            v.ID_Catalogo_ValorObjetivo.HasValue ||
+                            !string.IsNullOrWhiteSpace(v.Tipo_Valor) ||
+                            v.Valor_Minimo.HasValue ||
+                            v.Valor_Maximo.HasValue ||
+                            v.Valor_Objetivo.HasValue
+                        )
+                        .ToList();
+
+                    if (!metricasCapturadas.Any())
+                    {
+                        throw new Exception(
+                            "No puedes dejar un objetivo sin métricas válidas."
+                        );
+                    }
+
+                    if (metricasCapturadas.Any(v =>
+                        !v.ID_Catalogo_ValorObjetivo.HasValue &&
+                        v.ID <= 0))
+                    {
+                        throw new Exception(
+                            "Las métricas nuevas deben tener una opción del catálogo seleccionada."
+                        );
+                    }
+
+                    var idsCatalogo = metricasCapturadas
+                        .Where(v => v.ID_Catalogo_ValorObjetivo.HasValue)
+                        .Select(v => v.ID_Catalogo_ValorObjetivo.Value)
+                        .ToList();
+
+                    if (idsCatalogo.Count != idsCatalogo.Distinct().Count())
+                    {
+                        throw new Exception(
+                            "No puedes agregar dos veces la misma métrica al objetivo"
+                        );
+                    }
+
+                    foreach (var metrica in metricasCapturadas)
+                    {
+                        bool tieneValor =
+                            metrica.Valor_Minimo.HasValue ||
+                            metrica.Valor_Maximo.HasValue ||
+                            metrica.Valor_Objetivo.HasValue;
+
+                        if (!tieneValor)
+                        {
+                            throw new Exception(
+                                "Todas las métricas deben tener al menos un valor numérivo."
+                            );
+
+                        }
+
+                        if (metrica.Valor_Minimo.HasValue &&
+                            metrica.Valor_Maximo.HasValue &&
+                            metrica.Valor_Minimo.Value > metrica.Valor_Maximo.Value)
+                        {
+                            throw new Exception(
+                                "El valor mínimo n puede ser mayor en el maximo"
+                            );
+                        }
+                    }
+
+                    modelo.ValoresConfigurados = metricasCapturadas;
 
                     var estadosValidos = new[] { "Pendiente", "Activo", "Inactivo", "Cancelado" };
 
@@ -1575,6 +2257,15 @@ namespace Plataforma_CG.Controllers
                                 ID = modelo.ID
                             }, transaccion);
 
+                            //Obtener catálogo oficial de métricas
+                            paso = "cargando catálogo de métricas";
+
+                            var catalogoValores = (await conn.QueryAsync<CatalogoValorItem>(
+                                @"SELECT ID, Nombre, Unidad_Medida
+                                    FROM dbo.Catalogo_ValorObjetivo",
+                                transaction: transaccion
+                            )).ToDictionary(x => x.ID, x => x);
+
                             // Detalles: insertar nuevos, actualizar existentes y eliminar los que ya no vienen
                             var idsEnviados = new List<int>();
                             if (modelo.ValoresConfigurados != null && modelo.ValoresConfigurados.Any())
@@ -1585,6 +2276,26 @@ namespace Plataforma_CG.Controllers
                                     "SELECT ID FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
                                     new { IDObjetivo = modelo.ID }, transaccion)).ToList();
 
+
+                                var idsDetallesEnviados = modelo.ValoresConfigurados
+                                    .Where(v => v.ID > 0)
+                                    .Select(v => v.ID)
+                                    .ToList();
+
+                                if (idsDetallesEnviados.Count != idsDetallesEnviados.Distinct().Count())
+                                {
+                                    throw new Exception(
+                                        "Se detectaron identificdores de métricas repartidos.");
+                                }
+
+                                if (idsDetallesEnviados.Except(idsExistentes).Any())
+                                {
+                                    throw new Exception(
+                                        "Una o más métricas no pertenecen al objetivo que se está editando."
+                                    );
+                                }
+
+
                                 string sqlValor = @"
                                     UPDATE dbo.Objetivo_Valor 
                                     SET ID_Catalogo_ValorObjetivo = @ID_Catalogo_ValorObjetivo,
@@ -1593,7 +2304,8 @@ namespace Plataforma_CG.Controllers
                                         Valor_Minimo = @Minimo,
                                         Valor_Maximo = @Maximo,
                                         Valor_Objetivo = @Objetivo
-                                    WHERE ID = @IDValor";
+                                    WHERE ID = @IDValor
+                                    AND ID_Objetivo = @IDObjetivo";
 
                                 string sqlNuevo = @"
                                     INSERT INTO dbo.Objetivo_Valor 
@@ -1603,15 +2315,74 @@ namespace Plataforma_CG.Controllers
 
                                 foreach (var val in modelo.ValoresConfigurados)
                                 {
+                                    //Resolver nombre y unidad desde el catálogo de métricas
+                                    string tipoValor;
+                                    string unidad;
+
+                                    if (val.ID_Catalogo_ValorObjetivo.HasValue)
+                                    {
+                                        if(!catalogoValores.TryGetValue(
+                                            val.ID_Catalogo_ValorObjetivo.Value,
+                                            out var metricasCatalogo))
+                                        {
+                                            throw new Exception(
+                                                "La métrica seleccionada no existe en el catálogo."
+                                            );
+                                        }
+
+                                        tipoValor = metricasCatalogo.Nombre;
+                                        unidad = metricasCatalogo.Unidad_Medida ?? string.Empty;
+                                    }
+                                    else
+                                    {
+                                        //Compatibilidad con métricas antiguas sin catálogo
+                                        if (val.ID <= 0)
+                                        {
+                                            throw new Exception(
+                                                "Las métricas nuevas deben seleccionarse del catálogo."
+                                            );
+                                        }
+
+                                        var metricaAnterior = await conn.QueryFirstOrDefaultAsync<ObjetivoValorViewModel>(
+                                            @"SELECT 
+                                                Tipo_Valor, Unidad_Medida
+                                            FROM
+                                                dbo.Objetivo_Valor
+                                            WHERE
+                                                ID = @IDValor
+                                                AND ID_Objetivo = @IDObjetivo
+                                                AND ID_Catalogo_ValorObjetivo IS NULL",
+                                            new
+                                            {
+                                                IDValor = val.ID,
+                                                IDObjetivo = modelo.ID
+                                            },
+                                            transaction: transaccion
+                                        );
+
+                                        if (metricaAnterior == null)
+                                        {
+                                            throw new Exception(
+                                                "No se encontró la métrica histórica del objetivo."
+                                            );
+                                        }
+
+                                        tipoValor = metricaAnterior.Tipo_Valor ?? "";
+                                        unidad = metricaAnterior.Unidad_Medida ?? "";
+                                    }
+
                                     if (val.ID > 0)
                                     {
                                         paso = "actualizando meta " + val.ID;
                                         idsEnviados.Add(val.ID);
+
+
                                         await conn.ExecuteAsync(sqlValor, new
                                         {
+                                            IDObjetivo = modelo.ID,
                                             ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
-                                            TipoValor = val.Tipo_Valor ?? "",
-                                            Unidad = val.Unidad_Medida ?? "",
+                                            TipoValor = tipoValor,
+                                            Unidad = unidad,
                                             Minimo = val.Valor_Minimo,
                                             Maximo = val.Valor_Maximo,
                                             Objetivo = val.Valor_Objetivo,
@@ -1625,8 +2396,8 @@ namespace Plataforma_CG.Controllers
                                         {
                                             IDObjetivo = modelo.ID,
                                             ID_Catalogo_ValorObjetivo = val.ID_Catalogo_ValorObjetivo,
-                                            TipoValor = val.Tipo_Valor ?? "",
-                                            Unidad = val.Unidad_Medida ?? "",
+                                            TipoValor = tipoValor,
+                                            Unidad = unidad,
                                             Minimo = val.Valor_Minimo,
                                             Maximo = val.Valor_Maximo,
                                             Objetivo = val.Valor_Objetivo
@@ -1643,13 +2414,7 @@ namespace Plataforma_CG.Controllers
                                         new { Ids = idsAEliminar }, transaccion);
                                 }
                             }
-                            else
-                            {
-                                // No viene ninguna meta de la forma -> eliminar todas las existentes
-                                paso = "eliminando todas las metas";
-                                await conn.ExecuteAsync("DELETE FROM dbo.Objetivo_Valor WHERE ID_Objetivo = @IDObjetivo",
-                                    new { IDObjetivo = modelo.ID }, transaccion);
-                            }
+                            
 
                             paso = "confirmando transaccion";
                             transaccion.Commit();
@@ -1700,7 +2465,7 @@ namespace Plataforma_CG.Controllers
         [RevisarPermiso("OBJETIVOS", "LEER")]
         public async Task<IActionResult> DescargarPlantillaObjetivos()
         {
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var perfiles = new List<dynamic>();
             var tipos = new List<dynamic>();
             var vendedores = new List<dynamic>();
@@ -1784,7 +2549,7 @@ namespace Plataforma_CG.Controllers
             if (archivo == null || archivo.Length == 0)
                 return Json(new { ok = false, mensaje = "Selecciona un archivo Excel (.xlsx)." });
 
-            string connectionString = _configuration.GetConnectionString("DefaultConnection");
+            string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
             var errores = new List<string>();
             int insertados = 0, actualizados = 0, omitidos = 0;
 
@@ -2187,7 +2952,7 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                string connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string connectionString = _configuration.GetConnectionString("CadenaSQLSIGO");
                 using (var conn = new SqlConnection(connectionString))
                 {
                     string sql = @"
@@ -2220,7 +2985,7 @@ namespace Plataforma_CG.Controllers
             try
             {
                 string connectionString =
-                    _configuration.GetConnectionString("DefaultConnection");
+                    _configuration.GetConnectionString("CadenaSQLSIGO");
 
                 using (var conn = new SqlConnection(connectionString)) 
                 {
