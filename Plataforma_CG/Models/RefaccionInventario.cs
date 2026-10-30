@@ -23,6 +23,9 @@ namespace Plataforma_CG.Models
         public string? UsuarioCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
         public string? UsuarioModificacion { get; set; }
+        public bool SolicitudStockActiva { get; set; }
+        public DateTime? FechaSolicitudStock { get; set; }
+        public string? UsuarioSolicitudStock { get; set; }
 
         public RefaccionCategoria? Categoria { get; set; }
         public RefaccionUbicacion? Ubicacion { get; set; }
@@ -76,6 +79,25 @@ namespace Plataforma_CG.Models
         public Refaccion? Refaccion { get; set; }
     }
 
+    [Table("RefaccionSapSalida")]
+    public class RefaccionSapSalida
+    {
+        public int Id { get; set; }
+        public string Folio { get; set; } = "";
+        public string Estado { get; set; } = "PENDIENTE";
+        public DateTime FechaCreacion { get; set; }
+        public string Usuario { get; set; } = "";
+        public string? Referencia { get; set; }
+        public string? Comentario { get; set; }
+        public int CantidadLineas { get; set; }
+        public string JsonSap { get; set; } = "{}";
+        public int? SapDocEntry { get; set; }
+        public int? SapDocNum { get; set; }
+        public DateTime? FechaEnvio { get; set; }
+        public string? Error { get; set; }
+        public string? RespuestaSap { get; set; }
+    }
+
     // ==========================
     // DTOs de petición (pantalla)
     // ==========================
@@ -90,6 +112,17 @@ namespace Plataforma_CG.Models
         public int Min { get; set; }
         public int Max { get; set; }
         public decimal Costo { get; set; }
+    }
+
+    public class RefaccionSolicitudStockRequest
+    {
+        public int Id { get; set; }
+        public bool Solicitada { get; set; }
+    }
+
+    public class RefaccionSapEnviarRequest
+    {
+        public string Folio { get; set; } = "";
     }
 
     public class CatalogoGuardarRequest
@@ -111,6 +144,7 @@ namespace Plataforma_CG.Models
         public string? Referencia { get; set; }
         public string? Maquina { get; set; }
         public string? Comentario { get; set; }
+        public RefaccionSapSalidaDatos? Sap { get; set; }
     }
 
     public class SalidaPosLinea
@@ -118,6 +152,7 @@ namespace Plataforma_CG.Models
         public int Id { get; set; }
         public int Cantidad { get; set; }
         public string? Maquina { get; set; }   // máquina destino por línea (modo por artículo)
+        public RefaccionSapSalidaDatos? Sap { get; set; }
     }
 
     public class SalidaPosRequest
@@ -125,7 +160,19 @@ namespace Plataforma_CG.Models
         public string? Referencia { get; set; }
         public string? Maquina { get; set; }
         public string? Comentario { get; set; }
+        public RefaccionSapSalidaDatos? Sap { get; set; }
         public List<SalidaPosLinea> Lineas { get; set; } = new();
+    }
+
+    public class RefaccionSapSalidaDatos
+    {
+        public string? WarehouseCode { get; set; }
+        public string? AccountCode { get; set; }
+        public string? CostingCode { get; set; }
+        public string? CostingCode2 { get; set; }
+        public string? CostingCode3 { get; set; }
+        public string? CostingCode4 { get; set; }
+        public string? CostingCode5 { get; set; }
     }
 
     public class VistaModoRequest

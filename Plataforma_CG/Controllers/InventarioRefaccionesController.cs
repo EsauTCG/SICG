@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ClosedXML.Excel;
 using Plataforma_CG.Data;
 using Plataforma_CG.Data.Entities;
 using Plataforma_CG.Models;
@@ -10,6 +11,7 @@ using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Plataforma_CG.Controllers
@@ -22,12 +24,14 @@ namespace Plataforma_CG.Controllers
         private readonly AppDbContext _context;
         private readonly AppDbContextUsuarios _dbUsuarios;
         private readonly IWebHostEnvironment _env;
+        private readonly RefaccionSapSalidaService _sapSalidas;
 
-        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env)
+        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas)
         {
             _context = context;
             _dbUsuarios = dbUsuarios;
             _env = env;
+            _sapSalidas = sapSalidas;
         }
 
         // =========================================================
@@ -74,7 +78,10 @@ namespace Plataforma_CG.Controllers
                     max = r.StockMaximo ?? 0,
                     costo = r.Costo,
                     codigoEtiqueta = r.CodigoEtiqueta,
-                    foto = r.FotoUrl
+                    foto = r.FotoUrl,
+                    solicitudStockActiva = r.SolicitudStockActiva,
+                    fechaSolicitudStock = r.FechaSolicitudStock,
+                    usuarioSolicitudStock = r.UsuarioSolicitudStock
                 })
                 .ToListAsync();
 
@@ -146,6 +153,11 @@ namespace Plataforma_CG.Controllers
                 .ToListAsync();
 
             var vista = await ObtenerVistaAsync();
+            var cuentasContablesSap = await _context.CuentasContablesSap
+                .AsNoTracking()
+                .Where(x => x.Activa)
+                .OrderBy(x => x.CodigoCuenta)
+                .ToListAsync();
 
             return Json(new
             {
@@ -155,8 +167,104 @@ namespace Plataforma_CG.Controllers
                 categorias = categorias.Select(c => new { c.id, c.nombre, uso = dictUsoCat.ContainsKey(c.id) ? dictUsoCat[c.id] : 0 }),
                 ubicaciones = ubicaciones.Select(u => new { u.id, u.nombre, uso = dictUsoUbi.ContainsKey(u.id) ? dictUsoUbi[u.id] : 0 }),
                 maquinas = maquinas.Select(m => new { m.id, m.nombre, uso = dictUsoMaq.ContainsKey(m.nombre) ? dictUsoMaq[m.nombre] : 0 }),
-                movimientos
+                movimientos,
+                sap = _sapSalidas.ObtenerConfiguracion(cuentasContablesSap)
             });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> MarcarSolicitudStock([FromBody] RefaccionSolicitudStockRequest req)
+        {
+            if (req == null || req.Id <= 0)
+                return Json(new { ok = false, mensaje = "Refacción inválida." });
+
+            var refaccion = await _context.Refacciones.FirstOrDefaultAsync(r => r.Id == req.Id && r.Activo);
+            if (refaccion == null)
+                return Json(new { ok = false, mensaje = "No se encontró la refacción." });
+
+            refaccion.SolicitudStockActiva = req.Solicitada;
+            refaccion.FechaSolicitudStock = req.Solicitada ? DateTime.Now : null;
+            refaccion.UsuarioSolicitudStock = req.Solicitada ? UsuarioActual() : null;
+            refaccion.FechaModificacion = DateTime.Now;
+            refaccion.UsuarioModificacion = UsuarioActual();
+
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true, solicitada = refaccion.SolicitudStockActiva });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportarPendientesExcel()
+        {
+            var articulos = await _context.Refacciones
+                .AsNoTracking()
+                .Where(r => r.Activo)
+                .Select(r => new
+                {
+                    r.Sku,
+                    r.Descripcion,
+                    Unidad = _context.ArticuloConsumiblesSap
+                        .Where(a => a.ProductoCodigo == r.Sku)
+                        .Select(a => a.UnidadMedidaInventario)
+                        .FirstOrDefault(),
+                    Ubicacion = r.Ubicacion != null ? r.Ubicacion.Nombre : "",
+                    r.Stock,
+                    r.StockMinimo,
+                    StockMaximo = r.StockMaximo ?? 0,
+                    r.SolicitudStockActiva,
+                    r.FechaSolicitudStock,
+                    r.UsuarioSolicitudStock
+                })
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Pendientes refacciones");
+            var headers = new[] { "Estado solicitud", "Prioridad", "SKU", "Descripción", "Unidad inventario", "Ubicación", "Stock", "Mínimo", "Máximo", "Cantidad sugerida", "Fecha solicitud", "Solicitado por" };
+            for (var i = 0; i < headers.Length; i++)
+                ws.Cell(1, i + 1).Value = headers[i];
+
+            var row = 2;
+            foreach (var item in articulos)
+            {
+                var nivel = item.Stock == 0 ? "AGOTADO"
+                    : item.StockMinimo > 0 && item.Stock <= item.StockMinimo ? "BAJO MÍNIMO"
+                    : item.StockMaximo > 0 && item.Stock > item.StockMaximo ? "SOBRE MÁXIMO"
+                    : null;
+                if (nivel == null) continue;
+
+                var objetivo = item.StockMaximo > 0 ? item.StockMaximo : Math.Max(item.StockMinimo * 2, item.StockMinimo + 1);
+                var sugerido = nivel == "SOBRE MÁXIMO"
+                    ? item.Stock - item.StockMaximo
+                    : Math.Max(objetivo - item.Stock, 1);
+
+                ws.Cell(row, 1).Value = item.SolicitudStockActiva ? "YA SOLICITADO" : "PENDIENTE";
+                ws.Cell(row, 2).Value = nivel;
+                ws.Cell(row, 3).Value = item.Sku;
+                ws.Cell(row, 4).Value = item.Descripcion;
+                ws.Cell(row, 5).Value = item.Unidad ?? "";
+                ws.Cell(row, 6).Value = item.Ubicacion;
+                ws.Cell(row, 7).Value = item.Stock;
+                ws.Cell(row, 8).Value = item.StockMinimo;
+                ws.Cell(row, 9).Value = item.StockMaximo;
+                ws.Cell(row, 10).Value = sugerido;
+                if (item.FechaSolicitudStock.HasValue)
+                    ws.Cell(row, 11).Value = item.FechaSolicitudStock.Value;
+                ws.Cell(row, 12).Value = item.UsuarioSolicitudStock ?? "";
+                row++;
+            }
+
+            var encabezado = ws.Range(1, 1, 1, headers.Length);
+            encabezado.Style.Font.Bold = true;
+            encabezado.Style.Font.FontColor = XLColor.White;
+            encabezado.Style.Fill.BackgroundColor = XLColor.DarkRed;
+            ws.SheetView.FreezeRows(1);
+            if (row > 2) ws.Range(1, 1, row - 1, headers.Length).SetAutoFilter();
+            ws.Columns().AdjustToContents();
+            ws.Column(4).Width = Math.Min(ws.Column(4).Width, 55);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var nombre = $"Pendientes_Refacciones_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+            return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nombre);
         }
 
         // =========================================================
@@ -310,6 +418,9 @@ namespace Plataforma_CG.Controllers
             {
                 if (string.IsNullOrWhiteSpace(req.Maquina))
                     return Json(new { ok = false, mensaje = "Selecciona la máquina o equipo de destino." });
+                var errorSap = await _sapSalidas.ValidarSeleccionAsync(req.Sap);
+                if (errorSap != null)
+                    return Json(new { ok = false, mensaje = errorSap });
                 delta = -Math.Abs(req.Cantidad);
             }
             else if (tipo == "ENTRADA")
@@ -330,12 +441,17 @@ namespace Plataforma_CG.Controllers
 
             r.Stock += delta;
 
+            var folioSalida = tipo == "SALIDA"
+                ? "SAL-" + DateTime.Now.ToString("yyyyMMddHHmmss") + "-" + Guid.NewGuid().ToString("N")[..8]
+                : null;
+
             _context.RefaccionMovimientos.Add(new RefaccionMovimiento
             {
                 RefaccionId = r.Id,
                 Tipo = tipo,
                 Cantidad = delta,
                 StockResultante = r.Stock,
+                Folio = folioSalida,
                 Referencia = string.IsNullOrWhiteSpace(req.Referencia) ? "Sin documento" : req.Referencia.Trim(),
                 MaquinaDestino = (tipo == "SALIDA") ? (req.Maquina ?? "").Trim() : null,
                 Comentario = req.Comentario,
@@ -343,9 +459,41 @@ namespace Plataforma_CG.Controllers
                 Fecha = DateTime.Now
             });
 
+            if (folioSalida != null)
+            {
+                var referencia = string.IsNullOrWhiteSpace(req.Referencia) ? "Sin documento" : req.Referencia.Trim();
+                var comentario = ConstruirComentarioSap(req.Comentario, new[] { req.Maquina });
+                _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+                {
+                    Folio = folioSalida,
+                    Estado = "PENDIENTE",
+                    FechaCreacion = DateTime.Now,
+                    Usuario = UsuarioActual(),
+                    Referencia = referencia,
+                    Comentario = comentario,
+                    CantidadLineas = 1,
+                    JsonSap = _sapSalidas.CrearDocumentoJson(
+                        folioSalida,
+                        DateTime.Today,
+                        referencia,
+                        comentario,
+                        new[] { (r, Math.Abs(delta)) },
+                        req.Sap)
+                });
+            }
+
             await _context.SaveChangesAsync();
 
-            return Json(new { ok = true, mensaje = "Movimiento registrado.", stock = r.Stock });
+            return Json(new
+            {
+                ok = true,
+                mensaje = folioSalida == null
+                    ? "Movimiento registrado."
+                    : $"Salida registrada en Sigo y pendiente de envío a SAP. Folio: {folioSalida}.",
+                stock = r.Stock,
+                folio = folioSalida,
+                sapPendiente = folioSalida != null
+            });
         }
 
         // =========================================================
@@ -363,6 +511,12 @@ namespace Plataforma_CG.Controllers
             var items = await _context.Refacciones
                 .Where(r => ids.Contains(r.Id))
                 .ToDictionaryAsync(r => r.Id);
+            var cuentasSapPermitidas = (await _context.CuentasContablesSap
+                    .AsNoTracking()
+                    .Where(x => x.Activa)
+                    .Select(x => x.CodigoCuenta)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Validación previa (no aplica nada si algo falla)
             foreach (var linea in req.Lineas)
@@ -379,10 +533,14 @@ namespace Plataforma_CG.Controllers
                 var maquinaLinea = string.IsNullOrWhiteSpace(linea.Maquina) ? maquinaGlobal : linea.Maquina.Trim();
                 if (string.IsNullOrWhiteSpace(maquinaLinea))
                     return Json(new { ok = false, mensaje = $"Asigna la máquina o equipo de destino para \"{r.Descripcion}\"." });
+
+                var errorSap = await _sapSalidas.ValidarSeleccionAsync(linea.Sap ?? req.Sap, cuentasSapPermitidas);
+                if (errorSap != null)
+                    return Json(new { ok = false, mensaje = $"{r.Descripcion}: {errorSap}" });
             }
 
             var login = UsuarioActual();
-            var folio = "SAL-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            var folio = "SAL-" + DateTime.Now.ToString("yyyyMMddHHmmss") + "-" + Guid.NewGuid().ToString("N")[..8];
 
             foreach (var linea in req.Lineas)
             {
@@ -406,8 +564,109 @@ namespace Plataforma_CG.Controllers
                 });
             }
 
+            var referenciaPos = string.IsNullOrWhiteSpace(req.Referencia) ? "Ticket POS" : req.Referencia.Trim();
+            var comentarioPos = ConstruirComentarioSap(
+                req.Comentario,
+                req.Lineas.Select(linea => string.IsNullOrWhiteSpace(linea.Maquina) ? maquinaGlobal : linea.Maquina));
+            _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+            {
+                Folio = folio,
+                Estado = "PENDIENTE",
+                FechaCreacion = DateTime.Now,
+                Usuario = login,
+                Referencia = referenciaPos,
+                Comentario = comentarioPos,
+                CantidadLineas = req.Lineas.Count,
+                JsonSap = _sapSalidas.CrearDocumentoJsonPorLinea(
+                    folio,
+                    DateTime.Today,
+                    referenciaPos,
+                    comentarioPos,
+                    req.Lineas.Select(linea => (items[linea.Id], linea.Cantidad, linea.Sap ?? req.Sap)))
+            });
+
             await _context.SaveChangesAsync();
-            return Json(new { ok = true, mensaje = "Salida registrada.", folio });
+            return Json(new
+            {
+                ok = true,
+                mensaje = $"Salida registrada en Sigo y pendiente de envío a SAP. Folio: {folio}.",
+                folio,
+                sapPendiente = true
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SalidasSapPendientes()
+        {
+            var items = await _context.RefaccionSapSalidas
+                .AsNoTracking()
+                .Where(x => x.Estado != "ENVIADO")
+                .OrderByDescending(x => x.FechaCreacion)
+                .Select(x => new
+                {
+                    folio = x.Folio,
+                    estado = x.Estado,
+                    fecha = x.FechaCreacion,
+                    usuario = x.Usuario,
+                    referencia = x.Referencia,
+                    cantidadLineas = x.CantidadLineas,
+                    error = x.Error
+                })
+                .ToListAsync();
+
+            return Json(new { ok = true, items, sap = _sapSalidas.ObtenerConfiguracion() });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SalidasSapEnviadas()
+        {
+            var salidas = await _context.RefaccionSapSalidas
+                .AsNoTracking()
+                .Where(x => x.Estado == "ENVIADO")
+                .OrderByDescending(x => x.FechaEnvio ?? x.FechaCreacion)
+                .Take(30)
+                .Select(x => new
+                {
+                    x.Folio,
+                    x.SapDocNum,
+                    x.FechaEnvio,
+                    x.FechaCreacion,
+                    x.Usuario,
+                    x.Referencia,
+                    x.CantidadLineas,
+                    x.JsonSap
+                })
+                .ToListAsync();
+
+            var items = salidas.Select(x => new
+            {
+                folio = x.Folio,
+                documentoSap = x.SapDocNum,
+                fecha = x.FechaEnvio ?? x.FechaCreacion,
+                usuario = x.Usuario,
+                referencia = x.Referencia,
+                cantidadLineas = x.CantidadLineas,
+                articulos = ExtraerLineasSalidaSap(x.JsonSap)
+            });
+
+            return Json(new { ok = true, items });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EnviarSalidaSap([FromBody] RefaccionSapEnviarRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Folio))
+                return Json(new { ok = false, mensaje = "Folio de salida inválido." });
+
+            var resultado = await _sapSalidas.EnviarAsync(req.Folio.Trim());
+            return Json(new
+            {
+                ok = resultado.Ok,
+                yaEnviada = resultado.YaEnviada,
+                mensaje = resultado.Mensaje,
+                docEntry = resultado.DocEntry,
+                docNum = resultado.DocNum
+            });
         }
 
         // =========================================================
@@ -955,7 +1214,71 @@ namespace Plataforma_CG.Controllers
         // =========================================================
         //  HELPERS
         // =========================================================
+        private static string? ConstruirComentarioSap(string? comentario, IEnumerable<string?> maquinas)
+        {
+            var partes = new List<string>();
+            if (!string.IsNullOrWhiteSpace(comentario))
+                partes.Add(comentario.Trim());
+
+            var equipos = maquinas
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (equipos.Count > 0)
+                partes.Add("Equipo(s) destino: " + string.Join(", ", equipos));
+
+            var texto = string.Join(" | ", partes);
+            if (texto.Length == 0) return null;
+            return texto.Length <= 254 ? texto : texto[..254];
+        }
+
         private string UsuarioActual() => (User?.Identity?.Name ?? "").Trim();
+
+        private static List<Dictionary<string, object?>> ExtraerLineasSalidaSap(string? json)
+        {
+            var resultado = new List<Dictionary<string, object?>>();
+            if (string.IsNullOrWhiteSpace(json)) return resultado;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("DocumentLines", out var lineas) ||
+                    lineas.ValueKind != JsonValueKind.Array)
+                    return resultado;
+
+                foreach (var linea in lineas.EnumerateArray())
+                {
+                    var resumen = new Dictionary<string, object?>
+                    {
+                        ["itemCode"] = LeerTextoJson(linea, "ItemCode"),
+                        ["quantity"] = LeerDecimalJson(linea, "Quantity"),
+                        ["warehouseCode"] = LeerTextoJson(linea, "WarehouseCode"),
+                        ["accountCode"] = LeerTextoJson(linea, "AccountCode"),
+                        ["planta"] = LeerTextoJson(linea, "CostingCode"),
+                        ["unidadNegocio"] = LeerTextoJson(linea, "CostingCode2"),
+                        ["departamento"] = LeerTextoJson(linea, "CostingCode3")
+                    };
+                    resultado.Add(resumen);
+                }
+            }
+            catch (JsonException)
+            {
+                // Mantiene visible la salida enviada aunque el detalle histórico no pueda interpretarse.
+            }
+
+            return resultado;
+        }
+
+        private static string? LeerTextoJson(JsonElement elemento, string propiedad) =>
+            elemento.TryGetProperty(propiedad, out var valor) && valor.ValueKind == JsonValueKind.String
+                ? valor.GetString()
+                : null;
+
+        private static decimal? LeerDecimalJson(JsonElement elemento, string propiedad) =>
+            elemento.TryGetProperty(propiedad, out var valor) && valor.ValueKind == JsonValueKind.Number && valor.TryGetDecimal(out var numero)
+                ? numero
+                : null;
 
         // Clave en AppSettings para la vista preferida de cada usuario
         private string ClaveVista() => "RefVista:" + UsuarioActual();

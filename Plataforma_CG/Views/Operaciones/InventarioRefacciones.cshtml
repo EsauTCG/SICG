@@ -899,17 +899,24 @@
 
   .ref-pos-layout {
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
+    grid-template-rows: 250px minmax(0, 1fr);
     gap: 16px;
     flex: 1;
     min-height: 0; /* Importante para el scroll interno */
   }
 
- @@media (max-width: 991px) {
+ @@media (max-width: 1100px) {
         .ref-pos-layout {
             grid-template-columns: 1fr;
-            grid-template-rows: minmax(300px, 1fr) auto;
+            grid-template-rows: 250px auto minmax(360px, 1fr);
+            overflow-y: auto;
+            align-content: start;
         }
+
+        .ref-pos-catalog { grid-column: 1; grid-row: 1; min-height: 250px; }
+        .ref-pos-config { grid-column: 1; grid-row: 2; height: auto; min-height: 220px; }
+        .ref-pos-ticket-wrap { grid-column: 1; grid-row: 3; min-height: 420px; max-height: calc(100vh - 180px); }
     }
 
   /* Columna Izquierda: Buscador y Catálogo Visual */
@@ -917,8 +924,28 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    grid-column: 1;
+    grid-row: 1;
+    height: 250px;
     min-height: 0;
   }
+
+  .ref-pos-config {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    height: 250px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--ref-card);
+    border: 1px solid var(--ref-border);
+    border-radius: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  }
+
+  .ref-pos-config .ref-pos-campos { margin-bottom: 0; }
+  .ref-pos-config .ref-pos-mode { margin-bottom: 8px; }
+  .ref-pos-config .form-label { margin-bottom: 3px; }
 
   .ref-pos-scan {
     background: var(--ref-card);
@@ -956,8 +983,12 @@
         grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
         gap: 12px;
         overflow-y: auto;
+        flex: 1;
+        min-height: 0;
         padding: 4px;
         align-content: flex-start;
+        overscroll-behavior: contain;
+        max-height: 185px;
     }
 
     .ref-pos-item {
@@ -1247,6 +1278,10 @@
     .ref-pos-ticket-wrap {
         display: flex;
         flex-direction: column;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-height: 0;
+        overflow: hidden;
         background: var(--ref-card);
         border: 1px solid var(--ref-border);
         border-radius: 14px;
@@ -1256,6 +1291,7 @@
 
     .ref-pos-campos {
         margin-bottom: 16px;
+        flex: 0 0 auto;
     }
 
     /* Botones de seleccion de modo */
@@ -1293,6 +1329,7 @@
         padding-bottom: 10px;
         border-bottom: 1px solid var(--ref-border);
         margin-bottom: 10px;
+        flex: 0 0 auto;
     }
 
         .ref-pos-ticket-header h6 {
@@ -1302,10 +1339,47 @@
         }
 
     #posLista {
-        flex: 1;
-        overflow-y: auto;
-        min-height: 200px;
+        flex: 1 1 0;
+        overflow: auto;
+        min-height: 0;
+        overscroll-behavior: contain;
     }
+
+    .pos-sap-table {
+        width: 100%;
+        min-width: 1040px;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.76rem;
+    }
+
+    .pos-sap-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--ref-bg);
+        color: var(--ref-text-muted);
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 8px 7px;
+        border-bottom: 1px solid var(--ref-border);
+        white-space: nowrap;
+    }
+
+    .pos-sap-table td {
+        padding: 8px 7px;
+        border-bottom: 1px solid var(--ref-border);
+        vertical-align: middle;
+    }
+
+    .pos-sap-table tbody tr:last-child td { border-bottom: 0; }
+    .pos-sap-table .pos-articulo-cell { width: 260px; min-width: 260px; max-width: 260px; overflow: hidden; }
+    .pos-sap-table .pos-articulo-cell .d-flex > div { min-width: 0; overflow: hidden; }
+    .pos-sap-table .pos-select-cell { width: 120px; min-width: 120px; }
+    .pos-sap-table .pos-select-cell select { width: 100%; min-width: 0; font-size: 0.75rem; }
+    .pos-sap-table .pos-qty-cell { width: 120px; min-width: 120px; white-space: nowrap; }
+    .pos-sap-table .pos-machine-cell { width: 165px; min-width: 165px; }
 
     /* Footer y boton principal */
     .ref-pos-footer {
@@ -1315,6 +1389,7 @@
         padding-top: 16px;
         border-top: 1px dashed var(--ref-border);
         margin-top: auto;
+        flex: 0 0 auto;
     }
 
     .ref-btn-brand {
@@ -1652,6 +1727,10 @@
       <button type="button" class="ref-more-btn" onclick="abrirPos()" title="Punto de venta: salida por escaneo">
         <i class="bi bi-upc-scan"></i> Salida
       </button>
+      <button type="button" class="ref-more-btn position-relative" onclick="abrirSalidasSapPendientes()" title="Consultar y enviar salidas pendientes a SAP">
+        <i class="bi bi-cloud-upload"></i> SAP
+        <span id="badgeSalidasSap" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size:.62rem;">0</span>
+      </button>
       <button type="button" class="ref-more-btn" onclick="abrirModal('modalCatalogos')">
         <i class="bi bi-sliders"></i> Catálogos
       </button>
@@ -1740,9 +1819,8 @@
         <div class="ref-pos-grid" id="posGridCatalog"></div>
       </div>
 
-      <!-- DERECHA: El Ticket -->
-      <div class="ref-pos-ticket-wrap">
-        <!-- Configuración de destino -->
+      <!-- ARRIBA A LA DERECHA: Datos generales de la salida -->
+      <div class="ref-pos-config">
         <div class="ref-pos-campos">
           <div class="ref-pos-mode" role="group">
             <button type="button" id="btnPosModoUnica" class="active" onclick="cambiarModoMaquina('unica')">
@@ -1770,7 +1848,10 @@
             </div>
           </div>
         </div>
+      </div>
 
+      <!-- ABAJO: Lista de salida a todo lo ancho -->
+      <div class="ref-pos-ticket-wrap">
         <div class="ref-pos-ticket-header">
           <h6><i class="bi bi-cart3 me-1"></i> Lista de Salida</h6>
           <span id="posResumen" class="badge" style="background: var(--ref-brand); font-size: 0.75rem;">0 piezas</span>
@@ -1825,6 +1906,10 @@
             <select id="adjMachine" class="form-select">
               <option value="">Selecciona una máquina...</option>
             </select>
+          </div>
+          <div class="col-12" id="divSapSalida">
+            <div class="small fw-bold text-muted mb-2">Datos para SAP</div>
+            <div id="adjSapSelectors" class="row g-2"></div>
           </div>
           <div class="col-6">
             <label class="form-label">Cantidad</label>
@@ -1977,6 +2062,21 @@
           <div class="ref-alert-summary-card c-sobre"><span>Sobre máximo</span><strong id="refAlertSobre">0</strong></div>
         </div>
 
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <input type="search" id="alertasBuscar" class="form-control form-control-sm" style="max-width:360px;" placeholder="Buscar por SKU o descripción..." oninput="renderCentroAlertasRef()" />
+          <div class="d-flex align-items-center gap-2">
+            <label for="alertasFiltroSolicitud" class="small mb-0">Estado:</label>
+            <select id="alertasFiltroSolicitud" class="form-select form-select-sm" style="width:auto; min-width:150px;" onchange="renderCentroAlertasRef()">
+              <option value="pendientes" selected>Pendientes</option>
+              <option value="solicitados">Solicitados</option>
+              <option value="todos">Todos</option>
+            </select>
+          </div>
+          <a class="btn btn-sm btn-outline-success" id="btnExportarPendientesExcel" href="#">
+            <i class="bi bi-file-earmark-excel me-1"></i>Descargar Excel
+          </a>
+        </div>
+
         <div class="table-responsive" style="max-height: 58vh; overflow: auto;">
           <table class="ref-alert-table">
             <thead>
@@ -1988,7 +2088,7 @@
                 <th style="text-align:center;">Mín</th>
                 <th style="text-align:center;">Máx</th>
                 <th style="text-align:center;">Sugerencia</th>
-                <th style="text-align:center;">Acción</th>
+                <th style="text-align:center;">Solicitud / acción</th>
               </tr>
             </thead>
             <tbody id="tbodyAlertasRef">
@@ -2009,6 +2109,61 @@
 
 <!-- Input oculto para cargar/tomar foto -->
 <input type="file" id="refFotoInput" accept="image/*" style="display:none;" onchange="onFotoSeleccionada(this)" />
+
+<!-- Modal: salidas locales pendientes de enviar a SAP -->
+<div class="modal fade modal-ref" id="modalSalidasSap" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="bi bi-cloud-upload me-2"></i>Salidas pendientes de SAP</h5>
+          <div id="salidasSapConfiguracion" style="font-size:.7rem; opacity:.85;">Las salidas primero quedan registradas en Sigo. El envío a SAP se hace desde aquí.</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="table-responsive" style="max-height:60vh; overflow:auto;">
+          <table class="ref-alert-table">
+            <thead><tr><th>Folio Sigo</th><th>Fecha</th><th>Referencia</th><th>Artículos</th><th>Estado</th><th>Error / acción</th></tr></thead>
+            <tbody id="tbodySalidasSap"><tr><td colspan="6" class="text-center">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-outline-primary me-auto" onclick="abrirSalidasSapEnviadas()"><i class="bi bi-clock-history me-1"></i>Últimas enviadas</button>
+        <button type="button" class="btn btn-light" onclick="cargarSalidasSapPendientes()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal secundario: historial reciente de salidas enviadas a SAP -->
+<div class="modal fade modal-ref" id="modalSalidasSapEnviadas" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title fw-bold" style="font-size:1rem;"><i class="bi bi-clock-history me-2"></i>Últimas salidas enviadas a SAP</h5>
+          <div style="font-size:.7rem; opacity:.85;">Se muestran las 30 salidas enviadas más recientes con su número de documento SAP.</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="table-responsive" style="max-height:65vh; overflow:auto;">
+          <table class="ref-alert-table">
+            <thead><tr><th>Folio Sigo</th><th>Documento SAP</th><th>Fecha de envío</th><th>Referencia</th><th>Artículos enviados</th></tr></thead>
+            <tbody id="tbodySalidasSapEnviadas"><tr><td colspan="5" class="text-center">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-light" onclick="cargarSalidasSapEnviadas()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Volver a pendientes</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Vista previa de sincronización SAP -->
 <div class="modal fade modal-ref" id="modalPreviaSap" tabindex="-1" aria-hidden="true">
@@ -2118,6 +2273,7 @@
             let categorias = [];
             let ubicaciones = [];
             let maquinas = [];
+            let sapSalidaConfig = {};
 
             let filtroActual = 'Todos';
             let verTodosMovimientos = false;
@@ -2131,8 +2287,13 @@
 
             const URL_CARGAR = '@Url.Action("Cargar", "InventarioRefacciones")' || '/InventarioRefacciones/Cargar';
             const URL_GUARDAR_REF = '@Url.Action("GuardarRefaccion", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarRefaccion';
+            const URL_MARCAR_SOLICITUD_STOCK = '@Url.Action("MarcarSolicitudStock", "InventarioRefacciones")' || '/InventarioRefacciones/MarcarSolicitudStock';
+            const URL_EXPORTAR_PENDIENTES_EXCEL = '@Url.Action("ExportarPendientesExcel", "InventarioRefacciones")' || '/InventarioRefacciones/ExportarPendientesExcel';
             const URL_MOVIMIENTO = '@Url.Action("RegistrarMovimiento", "InventarioRefacciones")' || '/InventarioRefacciones/RegistrarMovimiento';
             const URL_SALIDA_POS = '@Url.Action("RegistrarSalidaPos", "InventarioRefacciones")' || '/InventarioRefacciones/RegistrarSalidaPos';
+            const URL_SALIDAS_SAP_PENDIENTES = '@Url.Action("SalidasSapPendientes", "InventarioRefacciones")' || '/InventarioRefacciones/SalidasSapPendientes';
+            const URL_SALIDAS_SAP_ENVIADAS = '@Url.Action("SalidasSapEnviadas", "InventarioRefacciones")' || '/InventarioRefacciones/SalidasSapEnviadas';
+            const URL_ENVIAR_SALIDA_SAP = '@Url.Action("EnviarSalidaSap", "InventarioRefacciones")' || '/InventarioRefacciones/EnviarSalidaSap';
             const URL_GUARDAR_CAT = '@Url.Action("GuardarCategoria", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarCategoria';
             const URL_ELIMINAR_CAT = '@Url.Action("EliminarCategoria", "InventarioRefacciones")' || '/InventarioRefacciones/EliminarCategoria';
             const URL_GUARDAR_UBI = '@Url.Action("GuardarUbicacion", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarUbicacion';
@@ -2187,6 +2348,7 @@
                     ubicaciones = data.ubicaciones || [];
                     maquinas = data.maquinas || [];
                     movimientos = data.movimientos || [];
+                    sapSalidaConfig = data.sap || {};
 
                     modoVista = data.vista === 'table' ? 'table' : 'grid';
                     aplicarModoVistaUI();
@@ -2195,6 +2357,7 @@
                     renderSelectsCatalogos();
                     renderCatalogos();
                     renderUI();
+                    cargarSalidasSapPendientes();
                 } catch (e) {
                     console.error(e);
                     alert('Error al cargar la información.');
@@ -2206,6 +2369,137 @@
             function abrirModal(id) {
                 const el = document.getElementById(id);
                 if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+            }
+
+            async function abrirSalidasSapPendientes() {
+                abrirModal('modalSalidasSap');
+                await cargarSalidasSapPendientes();
+            }
+
+            let volverAlModalSalidasSap = false;
+
+            async function abrirSalidasSapEnviadas() {
+                await cargarSalidasSapEnviadas();
+                const pendientes = document.getElementById('modalSalidasSap');
+                const enviadas = document.getElementById('modalSalidasSapEnviadas');
+                if (pendientes && pendientes.classList.contains('show')) {
+                    volverAlModalSalidasSap = true;
+                    pendientes.addEventListener('hidden.bs.modal', function abrirHistorial() {
+                        abrirModal('modalSalidasSapEnviadas');
+                    }, { once: true });
+                    bootstrap.Modal.getOrCreateInstance(pendientes).hide();
+                } else if (enviadas) {
+                    abrirModal('modalSalidasSapEnviadas');
+                }
+            }
+
+            document.getElementById('modalSalidasSapEnviadas')?.addEventListener('hidden.bs.modal', async function () {
+                if (!volverAlModalSalidasSap) return;
+                volverAlModalSalidasSap = false;
+                abrirModal('modalSalidasSap');
+                await cargarSalidasSapPendientes();
+            });
+
+            async function cargarSalidasSapEnviadas() {
+                const tbody = document.getElementById('tbodySalidasSapEnviadas');
+                if (!tbody) return;
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Cargando...</td></tr>';
+
+                try {
+                    const res = await getJson(URL_SALIDAS_SAP_ENVIADAS);
+                    if (!res || !res.ok) throw new Error('No se pudo consultar el historial de salidas enviadas.');
+                    const items = res.items || [];
+                    if (!items.length) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Todavía no hay salidas enviadas a SAP.</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = items.map(s => {
+                        const articulos = (s.articulos || []).map(a => {
+                            const sapInfo = [
+                                a.warehouseCode ? `Almacén ${a.warehouseCode}` : '',
+                                a.planta ? `Planta ${a.planta}` : ''
+                            ].filter(Boolean).join(' · ');
+                            return `<div><strong>${escapeHtml(a.itemCode || 'Artículo')}</strong> × ${a.quantity ?? '—'}${sapInfo ? `<br><small class="text-muted">${escapeHtml(sapInfo)}</small>` : ''}</div>`;
+                        }).join('') || `${s.cantidadLineas || 0} línea(s)`;
+
+                        return `<tr>
+                            <td><strong>${escapeHtml(s.folio || '')}</strong><br><small>${escapeHtml(s.usuario || '')}</small></td>
+                            <td><strong>${s.documentoSap ?? '—'}</strong></td>
+                            <td>${s.fecha ? new Date(s.fecha).toLocaleString() : '—'}</td>
+                            <td>${escapeHtml(s.referencia || '—')}</td>
+                            <td>${articulos}</td>
+                        </tr>`;
+                    }).join('');
+                } catch (e) {
+                    console.error(e);
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">No se pudo cargar el historial de salidas enviadas.</td></tr>';
+                }
+            }
+
+            async function cargarSalidasSapPendientes() {
+                try {
+                    const res = await getJson(URL_SALIDAS_SAP_PENDIENTES);
+                    if (!res || !res.ok) throw new Error('No se pudieron consultar las salidas pendientes.');
+
+                    const items = res.items || [];
+                    const badge = document.getElementById('badgeSalidasSap');
+                    if (badge) {
+                        badge.textContent = items.length > 99 ? '99+' : String(items.length);
+                        badge.style.display = items.length ? '' : 'none';
+                    }
+
+                    const config = res.sap || {};
+                    const textoConfig = config.habilitado
+                        ? `Prueba configurada: almacén ${config.almacen}, cuenta ${config.cuenta}, dimensiones ${config.dimensiones.filter(Boolean).join(' / ')}.`
+                        : 'El envío a SAP está deshabilitado en esta configuración.';
+                    document.getElementById('salidasSapConfiguracion').textContent =
+                        `Las salidas quedan registradas en Sigo antes del envío. ${textoConfig}`;
+
+                    const tbody = document.getElementById('tbodySalidasSap');
+                    if (!tbody) return;
+                    if (!items.length) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">No hay salidas pendientes de SAP.</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = items.map(s => `
+                        <tr>
+                            <td><strong>${escapeHtml(s.folio)}</strong><br><small>${escapeHtml(s.usuario || '')}</small></td>
+                            <td>${s.fecha ? new Date(s.fecha).toLocaleString() : '—'}</td>
+                            <td>${escapeHtml(s.referencia || '—')}</td>
+                            <td class="text-center">${s.cantidadLineas || 0}</td>
+                            <td><span class="badge ${s.estado === 'ERROR' ? 'bg-danger' : 'bg-warning text-dark'}">${escapeHtml(s.estado)}</span></td>
+                            <td>${s.error ? `<small class="text-danger d-block mb-1">${escapeHtml(s.error)}</small>` : ''}
+                                <button type="button" class="btn btn-sm btn-outline-primary" ${config.habilitado ? '' : 'disabled'} onclick="enviarSalidaSap('${escapeHtml(s.folio)}')">
+                                    <i class="bi bi-cloud-upload me-1"></i>${s.estado === 'PENDIENTE' ? 'Enviar a SAP' : 'Reintentar'}
+                                </button>
+                            </td>
+                        </tr>`).join('');
+                } catch (e) {
+                    console.error(e);
+                    const tbody = document.getElementById('tbodySalidasSap');
+                    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">No se pudieron cargar las salidas pendientes.</td></tr>';
+                }
+            }
+
+            async function enviarSalidaSap(folio) {
+                if (!confirm(`¿Enviar la salida ${folio} a SAP? Sigo no volverá a descontar el stock.`)) return;
+                const botones = document.querySelectorAll('#tbodySalidasSap button');
+                botones.forEach(b => b.disabled = true);
+                try {
+                    const res = await postJson(URL_ENVIAR_SALIDA_SAP, { folio });
+                    const mensaje = (res && res.mensaje) || 'No se recibió respuesta del envío a SAP.';
+                    const referenciaSap = res && res.ok && (res.docNum || res.docEntry)
+                        ? `\nDocumento SAP: ${res.docNum || '—'} (DocEntry ${res.docEntry || '—'}).`
+                        : '';
+                    alert(mensaje + referenciaSap);
+                    await cargarSalidasSapPendientes();
+                } catch (e) {
+                    console.error(e);
+                    alert('No se pudo procesar el envío a SAP. La salida sigue registrada en Sigo.');
+                    await cargarSalidasSapPendientes();
+                }
             }
 
             function cerrarModal(id) {
@@ -2302,8 +2596,10 @@
                 $('#adjType').on('change', function() {
                     if($(this).val() === 'salida') {
                         $('#divMaquinaDestino').show();
+                        $('#divSapSalida').show();
                     } else {
                         $('#divMaquinaDestino').hide();
+                        $('#divSapSalida').hide();
                         $('#adjMachine').val('');
                     }
                     actualizarValidacionCantidad();
@@ -2384,9 +2680,11 @@
                     if (actual && maquinas.some(m => m.nombre === actual)) selPosMaq.value = actual;
                 }
 
+                renderSapSelectors('adj');
+
                 // === AQUI SE INICIALIZA SELECT2 ===
                 // Inicializa en los modales y en el POS global
-                $('#newCat, #newLoc, #adjMachine, #posMaquina').select2({
+                $('#newCat, #newLoc, #adjMachine, #posMaquina, #adjSapSelectors select').select2({
                     width: '100%',
                     dropdownParent: function () {
                         // Ayuda a que el buscador del select no quede oculto detrás de los modales
@@ -2394,6 +2692,72 @@
                         return modals.length ? modals.last() : $(document.body);
                     }()
                 });
+            }
+
+            const camposSapSalida = [
+                { key: 'WarehouseCode', label: 'Almacén', requerido: true },
+                { key: 'AccountCode', label: 'Cuenta contable', requerido: true },
+                { key: 'CostingCode', label: 'Planta', requerido: true },
+                { key: 'CostingCode2', label: 'Unidad de negocio' },
+                { key: 'CostingCode3', label: 'Departamento' },
+                { key: 'CostingCode4', label: 'Área' },
+                { key: 'CostingCode5', label: 'Empleado' }
+            ];
+
+            function valorConfigSap(obj, key) {
+                if (!obj) return undefined;
+                const lower = key.charAt(0).toLowerCase() + key.slice(1);
+                return obj[key] !== undefined ? obj[key] : obj[lower];
+            }
+
+            function etiquetaOpcionSap(campo, valor) {
+                const mapa = valorConfigSap(sapSalidaConfig.etiquetas || {}, campo);
+                return (mapa && (mapa[valor] || mapa[String(valor).toLowerCase()])) || valor;
+            }
+
+            function renderSapSelectors(prefix) {
+                const cont = document.getElementById(prefix + 'SapSelectors');
+                if (!cont) return;
+                const opciones = sapSalidaConfig.opciones || {};
+                const valores = sapSalidaConfig.valores || {};
+                cont.innerHTML = camposSapSalida.map(campo => {
+                    const lista = valorConfigSap(opciones, campo.key) || [];
+                    if (!lista.length) return '';
+                    const actual = valorConfigSap(valores, campo.key) || '';
+                    const id = prefix + campo.key;
+                    const optionsHtml = lista.map(valor =>
+                        `<option value="${escapeHtml(valor)}" ${String(valor) === String(actual) ? 'selected' : ''}>${escapeHtml(etiquetaOpcionSap(campo.key, valor))}</option>`
+                    ).join('');
+                    return `<div class="col-6"><label class="form-label small mb-1" for="${id}">${campo.label}${campo.requerido ? ' *' : ''}</label><select class="form-select form-select-sm" id="${id}">${optionsHtml}</select></div>`;
+                }).join('');
+            }
+
+            function leerSeleccionSap(prefix) {
+                const datos = {};
+                for (const campo of camposSapSalida) {
+                    const select = document.getElementById(prefix + campo.key);
+                    if (select) datos[campo.key] = select.value || '';
+                }
+                return datos;
+            }
+
+            function valoresPredeterminadosSap() {
+                const valores = sapSalidaConfig.valores || {};
+                const datos = {};
+                for (const campo of camposSapSalida) {
+                    const valor = valorConfigSap(valores, campo.key);
+                    datos[campo.key] = valor === undefined ? '' : valor;
+                }
+                return datos;
+            }
+
+            function restaurarSeleccionSap(prefix) {
+                const valores = sapSalidaConfig.valores || {};
+                for (const campo of camposSapSalida) {
+                    const select = document.getElementById(prefix + campo.key);
+                    const valor = valorConfigSap(valores, campo.key);
+                    if (select && valor !== undefined) $(select).val(valor).trigger('change.select2');
+                }
             }
 
             function renderCatalogos() {
@@ -2880,7 +3244,10 @@
                         objetivo: objetivo,
                         sugerido: sugerido,
                         tipoSugerencia: tipoSugerencia,
-                        nivel: nivel
+                        nivel: nivel,
+                        solicitudStockActiva: item.solicitudStockActiva === true,
+                        fechaSolicitudStock: item.fechaSolicitudStock,
+                        usuarioSolicitudStock: item.usuarioSolicitudStock
                     });
                 });
 
@@ -2892,10 +3259,11 @@
             function renderCentroAlertasRef() {
                 alertasRefActuales = calcularAlertasRef();
 
-                const agotados = alertasRefActuales.filter(x => x.nivel === 'AGOTADO').length;
-                const bajos = alertasRefActuales.filter(x => x.nivel === 'BAJO').length;
-                const sobre = alertasRefActuales.filter(x => x.nivel === 'SOBRE').length;
-                const total = alertasRefActuales.length;
+                const pendientesSolicitud = alertasRefActuales.filter(x => !x.solicitudStockActiva);
+                const agotados = pendientesSolicitud.filter(x => x.nivel === 'AGOTADO').length;
+                const bajos = pendientesSolicitud.filter(x => x.nivel === 'BAJO').length;
+                const sobre = pendientesSolicitud.filter(x => x.nivel === 'SOBRE').length;
+                const total = pendientesSolicitud.length;
 
                 $('#refAlertAgotados').text(agotados);
                 $('#refAlertBajos').text(bajos);
@@ -2914,10 +3282,20 @@
                     btn.setAttribute('aria-label', texto);
                 }
 
+                const q = ($('#alertasBuscar').val() || '').trim().toLowerCase();
+                const filtroSolicitud = $('#alertasFiltroSolicitud').val() || 'pendientes';
+                const visibles = alertasRefActuales.filter(a =>
+                    (filtroSolicitud === 'todos' ||
+                        (filtroSolicitud === 'solicitados' ? a.solicitudStockActiva : !a.solicitudStockActiva)) &&
+                    (!q || `${a.sku} ${a.desc}`.toLowerCase().includes(q)));
+
                 let rows = '';
-                alertasRefActuales.forEach(a => {
+                visibles.forEach(a => {
                     const clase = a.nivel === 'AGOTADO' ? 'agotado' : (a.nivel === 'BAJO' ? 'bajo' : 'sobre');
                     const etiqueta = a.nivel === 'AGOTADO' ? 'Agotado' : (a.nivel === 'BAJO' ? 'Bajo mínimo' : 'Sobre máximo');
+                    const solicitud = a.solicitudStockActiva
+                        ? `<div><strong>Ya solicitado</strong><br><small>${escapeHtml(a.usuarioSolicitudStock || '')}${a.fechaSolicitudStock ? ' · ' + new Date(a.fechaSolicitudStock).toLocaleDateString() : ''}</small><br><button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="marcarSolicitudStock(${a.id}, false)">Quitar marca</button></div>`
+                        : (a.nivel === 'SOBRE' ? '—' : `<button type="button" class="btn btn-sm btn-outline-primary" onclick="marcarSolicitudStock(${a.id}, true)"><i class="bi bi-check2-circle me-1"></i>Marcar solicitado</button>`);
 
                     rows += `<tr>
                         <td><span class="ref-alert-level ${clase}">${etiqueta}</span></td>
@@ -2928,6 +3306,7 @@
                         <td style="text-align:center;">${a.max > 0 ? a.max : '—'}</td>
                         <td style="text-align:center;"><strong>${a.sugerido}</strong><br><small style="color: var(--ref-text-muted);">${a.tipoSugerencia}</small></td>
                         <td style="text-align:center;">
+                            ${solicitud}
                             <button type="button" class="ref-icon-btn" title="Ajustar stock" onclick="ajustarDesdeAlertaRef(${a.id})">
                                 <i class="bi bi-arrow-left-right"></i>
                             </button>
@@ -2935,13 +3314,38 @@
                     </tr>`;
                 });
 
-                $('#tbodyAlertasRef').html(rows || '<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--ref-success); font-weight:700;"><i class="bi bi-check-circle-fill me-1"></i>Sin pendientes de stock.</td></tr>');
+                $('#tbodyAlertasRef').html(rows || `<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--ref-success); font-weight:700;">${q ? 'No hay coincidencias.' : 'Sin pendientes de stock.'}</td></tr>`);
+            }
+
+            async function marcarSolicitudStock(id, solicitada) {
+                try {
+                    const res = await postJson(URL_MARCAR_SOLICITUD_STOCK, { id, solicitada });
+                    if (!res || !res.ok) {
+                        alert((res && res.mensaje) || 'No se pudo actualizar la marca de solicitud.');
+                        return;
+                    }
+                    const item = inventario.find(x => x.id === id);
+                    if (item) {
+                        item.solicitudStockActiva = solicitada;
+                        item.fechaSolicitudStock = solicitada ? new Date().toISOString() : null;
+                        item.usuarioSolicitudStock = solicitada ? usuarioSesion : null;
+                    }
+                    renderCentroAlertasRef();
+                } catch (e) {
+                    console.error(e);
+                    alert('Error al guardar la marca de solicitud.');
+                }
             }
 
             function abrirAlertasRef() {
                 renderCentroAlertasRef();
                 abrirModal('modalAlertasRef');
             }
+
+            document.getElementById('btnExportarPendientesExcel')?.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.location.href = URL_EXPORTAR_PENDIENTES_EXCEL;
+            });
 
             function ajustarDesdeAlertaRef(id) {
                 cerrarModal('modalAlertasRef');
@@ -3045,6 +3449,7 @@
 
                 $('#adjType').val('salida').trigger('change');
                 $('#adjMachine').val('');
+                restaurarSeleccionSap('adj');
                 actualizarValidacionCantidad();
 
                 abrirModal('modalAjuste');
@@ -3077,7 +3482,8 @@
                     cantidad: valor,
                     referencia: ($('#adjRef').val() || '').trim(),
                     maquina: tipo === 'SALIDA' ? maquina : null,
-                    comentario: ($('#adjComment').val() || '').trim()
+                    comentario: ($('#adjComment').val() || '').trim(),
+                    sap: tipo === 'SALIDA' ? leerSeleccionSap('adj') : null
                 };
 
                 const res = await postJson(URL_MOVIMIENTO, datos);
@@ -3569,7 +3975,7 @@
                         $('#posScan').val('').trigger('focus');
                         return;
                     }
-                    posLineas.push({ id: item.id, sku: item.sku, desc: item.desc, stock: item.stock, cantidad: 1, maquina: '', foto: item.foto });
+                    posLineas.push({ id: item.id, sku: item.sku, desc: item.desc, stock: item.stock, cantidad: 1, maquina: '', sap: valoresPredeterminadosSap(), foto: item.foto });
                 }
 
                 // Bip auditivo
@@ -3609,6 +4015,13 @@
             function setMaquinaPos(id, valor) {
                 const linea = posLineas.find(l => l.id === id);
                 if (linea) linea.maquina = valor;
+            }
+
+            function setSapPos(id, campo, valor) {
+                const linea = posLineas.find(l => l.id === id);
+                if (!linea) return;
+                linea.sap = linea.sap || valoresPredeterminadosSap();
+                linea.sap[campo] = valor;
             }
 
             function cerrarPos() {
@@ -3653,51 +4066,55 @@
                     return;
                 }
 
+                const camposVisibles = camposSapSalida.filter(campo =>
+                    (valorConfigSap(sapSalidaConfig.opciones || {}, campo.key) || []).length > 0);
+                const maquinaColumna = posModoMaquina === 'porArticulo' ? '<th class="pos-machine-cell">Máquina / Equipo</th>' : '';
+                const encabezadosSap = camposVisibles.map(campo => `<th class="pos-select-cell">${campo.label}</th>`).join('');
+                let filas = '';
+
                 posLineas.forEach(l => {
                     const opcionesMaquina = '<option value="">Seleccionar máquina...</option>' +
                         maquinas.map(m => {
                             const sel = (l.maquina || '') === m.nombre ? ' selected' : '';
                             return `<option value="${escapeHtml(m.nombre)}"${sel}>${escapeHtml(m.nombre)}</option>`;
                         }).join('');
-
-                    const maquinaInput = posModoMaquina === 'porArticulo'
-                        ? `<div class="mt-2"><select class="form-select form-select-sm select2-dinamico" style="font-size:0.75rem; background:var(--ref-bg);"
-                                   onchange="setMaquinaPos(${l.id}, this.value)">${opcionesMaquina}</select></div>`
+                    const maquinaCelda = posModoMaquina === 'porArticulo'
+                        ? `<td class="pos-machine-cell"><select class="form-select form-select-sm select2-dinamico" onchange="setMaquinaPos(${l.id}, this.value)">${opcionesMaquina}</select></td>`
                         : '';
 
-                    const fotoHtml = l.foto ? `<img src="${escapeHtml(l.foto)}" style="width:36px; height:36px; border-radius:6px; object-fit:cover; border:1px solid var(--ref-border); flex-shrink:0;">` : `<div style="width:36px; height:36px; border-radius:6px; background:var(--ref-bg); border:1px dashed var(--ref-border); display:flex; align-items:center; justify-content:center; color:var(--ref-text-muted); flex-shrink:0;"><i class="bi bi-box"></i></div>`;
+                    const fotoHtml = l.foto
+                        ? `<img src="${escapeHtml(l.foto)}" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--ref-border);flex-shrink:0;">`
+                        : `<span class="d-inline-flex align-items-center justify-content-center" style="width:34px;height:34px;border-radius:6px;background:var(--ref-bg);border:1px dashed var(--ref-border);color:var(--ref-text-muted);flex-shrink:0;"><i class="bi bi-box"></i></span>`;
+                    const sapCeldas = camposVisibles.map(campo => {
+                        const lista = valorConfigSap(sapSalidaConfig.opciones || {}, campo.key) || [];
+                        const valorActual = l.sap && l.sap[campo.key] !== undefined
+                            ? l.sap[campo.key]
+                            : (valorConfigSap(sapSalidaConfig.valores || {}, campo.key) || '');
+                        const seleccionado = valorActual || (campo.requerido ? lista[0] : '');
+                        l.sap = l.sap || {};
+                        l.sap[campo.key] = seleccionado;
+                        const opcionVacia = campo.requerido ? '' : '<option value="">(Sin asignar)</option>';
+                        const opciones = lista.map(valor =>
+                            `<option value="${escapeHtml(valor)}" ${String(valor) === String(seleccionado) ? 'selected' : ''}>${escapeHtml(etiquetaOpcionSap(campo.key, valor))}</option>`
+                        ).join('');
+                        return `<td class="pos-select-cell"><select class="form-select form-select-sm" aria-label="${campo.label} para ${escapeHtml(l.sku)}" onchange="setSapPos(${l.id}, '${campo.key}', this.value)">${opcionVacia}${opciones}</select></td>`;
+                    }).join('');
 
-                    let html = `
-                        <div class="ref-pos-line">
-                            ${fotoHtml}
-                            <div class="ref-pos-line-info">
-                                <p class="name" title="${escapeHtml(l.desc)}">${escapeHtml(l.desc)}</p>
-                                <p class="meta">${escapeHtml(l.sku)} • Disponible: ${l.stock}</p>
-                                ${maquinaInput}
-                            </div>
-                            <div class="ref-pos-line-controls">
-                                <button type="button" title="Quitar 1" onclick="cambiarCantidadPos(${l.id}, -1)">
-                                    <i class="bi bi-dash"></i>
-                                </button>
-                                <span>${l.cantidad}</span>
-                                <button type="button" title="Agregar 1" onclick="cambiarCantidadPos(${l.id}, 1)">
-                                    <i class="bi bi-plus"></i>
-                                </button>
-                            </div>
-                            <button class="btn btn-link text-danger p-1 ms-1 border-0" title="Quitar línea" onclick="quitarLineaPos(${l.id})">
-                                <i class="bi bi-x-circle-fill fs-5"></i>
-                            </button>
-                        </div>
-                    `;
-                    cont.append(html);
+                    filas += `<tr>
+                        <td class="pos-articulo-cell"><div class="d-flex align-items-center gap-2">${fotoHtml}<div class="min-w-0"><div class="fw-bold text-truncate" title="${escapeHtml(l.desc)}">${escapeHtml(l.desc)}</div><small class="text-muted">${escapeHtml(l.sku)} · Disponible: ${l.stock}</small></div></div></td>
+                        <td class="pos-qty-cell"><div class="ref-pos-line-controls"><button type="button" title="Quitar 1" onclick="cambiarCantidadPos(${l.id}, -1)"><i class="bi bi-dash"></i></button><span>${l.cantidad}</span><button type="button" title="Agregar 1" onclick="cambiarCantidadPos(${l.id}, 1)"><i class="bi bi-plus"></i></button></div><button class="btn btn-link text-danger p-0 ms-1 border-0" title="Quitar artículo" onclick="quitarLineaPos(${l.id})"><i class="bi bi-x-circle-fill"></i></button></td>
+                        ${maquinaCelda}${sapCeldas}
+                    </tr>`;
                 });
+
+                cont.html(`<table class="pos-sap-table"><thead><tr><th class="pos-articulo-cell">Artículo</th><th class="pos-qty-cell">Cantidad</th>${maquinaColumna}${encabezadosSap}</tr></thead><tbody>${filas}</tbody></table>`);
 
                 // === INICIALIZAR SELECT2 EN LAS LÍNEAS DEL POS DUAL ===
                 if (posModoMaquina === 'porArticulo') {
                      $('.select2-dinamico').select2({
                         width: '100%',
                         dropdownParent: $('#vistaPos') // Esto evita que el panel flote raro en la vista POS
-                     });
+                    });
                 }
             }
 
@@ -3732,7 +4149,8 @@
                     lineas: posLineas.map(l => ({
                         id: l.id,
                         cantidad: l.cantidad,
-                        maquina: posModoMaquina === 'porArticulo' ? (l.maquina || '').trim() : ''
+                        maquina: posModoMaquina === 'porArticulo' ? (l.maquina || '').trim() : '',
+                        sap: l.sap || valoresPredeterminadosSap()
                     })),
                     maquina: maquina,
                     referencia: ($('#posRef').val() || '').trim(),

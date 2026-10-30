@@ -28,6 +28,7 @@ namespace Plataforma_CG.Data
 
         public DbSet<ArticuloSap> ArticuloSap { get; set; }
         public DbSet<ArticuloConsumiblesSap> ArticuloConsumiblesSap { get; set; }
+        public DbSet<CuentaContableSap> CuentasContablesSap { get; set; }
 
         public DbSet<Presentacion> Presentacion { get; set; }
         public DbSet<ClienteSap> ClienteSap { get; set; }
@@ -127,6 +128,7 @@ namespace Plataforma_CG.Data
         public DbSet<RefaccionUbicacion> RefaccionUbicaciones { get; set; }
 public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
         public DbSet<RefaccionMovimiento> RefaccionMovimientos { get; set; }
+        public DbSet<RefaccionSapSalida> RefaccionSapSalidas { get; set; }
 
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
@@ -783,6 +785,27 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                     .WithMany()
                     .HasForeignKey(x => x.RefaccionId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<RefaccionSapSalida>(e =>
+            {
+                e.ToTable("RefaccionSapSalida");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Folio).HasMaxLength(50).IsRequired();
+                e.Property(x => x.Estado).HasMaxLength(20).IsRequired();
+                e.Property(x => x.Usuario).HasMaxLength(120).IsRequired();
+                e.Property(x => x.Referencia).HasMaxLength(250);
+                e.Property(x => x.Comentario).HasMaxLength(1000);
+                e.Property(x => x.JsonSap).IsRequired();
+                e.Property(x => x.Error);
+                e.Property(x => x.RespuestaSap);
+                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaEnvio).HasColumnType("datetime2(0)");
+                e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)");
+                e.Property(x => x.Error).HasColumnType("nvarchar(max)");
+                e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
+                e.HasIndex(x => x.Folio).IsUnique();
+                e.HasIndex(x => new { x.Estado, x.FechaCreacion });
             });
 
         }

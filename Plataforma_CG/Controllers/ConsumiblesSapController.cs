@@ -132,16 +132,21 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
+                var cuentas = await _sap.SincronizarCuentasContablesSapAsync();
                 var r = await _sap.SincronizarConsumiblesSapAsync();
 
                 return Json(new
                 {
                     ok = true,
-                    mensaje = $"Sincronización completa. {r.insertados} nuevos, {r.actualizados} actualizados, {r.desactivados} desactivados.",
+                    mensaje = $"Sincronización completa. Consumibles: {r.insertados} nuevos, {r.actualizados} actualizados, {r.desactivados} desactivados. Cuentas contables: {cuentas.total} sincronizadas ({cuentas.insertadas} nuevas, {cuentas.actualizadas} actualizadas).",
                     insertados = r.insertados,
                     actualizados = r.actualizados,
                     desactivados = r.desactivados,
-                    total = r.total
+                    total = r.total,
+                    cuentasInsertadas = cuentas.insertadas,
+                    cuentasActualizadas = cuentas.actualizadas,
+                    cuentasDesactivadas = cuentas.desactivadas,
+                    totalCuentas = cuentas.total
                 });
             }
             catch (Exception ex)

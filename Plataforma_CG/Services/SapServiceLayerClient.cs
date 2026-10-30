@@ -2863,6 +2863,93 @@ namespace Plataforma_CG.Services
             return (insertados, actualizados, desactivados, itemsSap.Count);
         }
 
+        public async Task<(int insertadas, int actualizadas, int desactivadas, int total)> SincronizarCuentasContablesSapAsync()
+        {
+            var baseUrl = (_config["SapServiceLayer:BaseUrl"] ?? "").TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException("No está configurado SapServiceLayer:BaseUrl.");
+
+            const int batchSize = 20;
+            var cuentasSap = new List<(string Codigo, string Nombre)>();
+            var skip = 0;
+
+            while (true)
+            {
+                var url = $"{baseUrl}/ChartOfAccounts?$select=Code,Name&$orderby=Code&$top={batchSize}&$skip={skip}";
+                using var response = await GetWithReLoginAsync(url);
+                var body = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                    throw new InvalidOperationException($"SAP no pudo consultar el catálogo de cuentas contables. HTTP {(int)response.StatusCode}. {body}");
+
+                using var doc = JsonDocument.Parse(body);
+                if (!doc.RootElement.TryGetProperty("value", out var values) || values.ValueKind != JsonValueKind.Array)
+                    throw new InvalidOperationException("SAP devolvió una respuesta sin la lista de cuentas contables.");
+
+                var lote = values.EnumerateArray()
+                    .Select(x => (
+                        Codigo: x.TryGetProperty("Code", out var code) ? (code.ValueKind == JsonValueKind.String ? code.GetString() : code.ToString())?.Trim() ?? "" : "",
+                        Nombre: x.TryGetProperty("Name", out var name) ? (name.ValueKind == JsonValueKind.String ? name.GetString() : name.ToString())?.Trim() ?? "" : ""))
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Codigo))
+                    .ToList();
+
+                if (lote.Count == 0) break;
+                cuentasSap.AddRange(lote);
+                skip += lote.Count;
+                if (lote.Count < batchSize) break;
+            }
+
+            cuentasSap = cuentasSap
+                .GroupBy(x => x.Codigo, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (cuentasSap.Count == 0)
+                throw new InvalidOperationException("SAP no devolvió cuentas contables. No se modificó la tabla local.");
+
+            var locales = await _context.CuentasContablesSap.ToListAsync();
+            var porCodigo = locales.ToDictionary(x => x.CodigoCuenta, StringComparer.OrdinalIgnoreCase);
+            var codigosSap = new HashSet<string>(cuentasSap.Select(x => x.Codigo), StringComparer.OrdinalIgnoreCase);
+            var ahora = DateTime.Now;
+            var insertadas = 0;
+            var actualizadas = 0;
+            var desactivadas = 0;
+
+            foreach (var cuenta in cuentasSap)
+            {
+                if (!porCodigo.TryGetValue(cuenta.Codigo, out var local))
+                {
+                    _context.CuentasContablesSap.Add(new CuentaContableSap
+                    {
+                        CodigoCuenta = cuenta.Codigo,
+                        NombreCuenta = cuenta.Nombre,
+                        FechaSincronizacion = ahora,
+                        Activa = true
+                    });
+                    insertadas++;
+                    continue;
+                }
+
+                if (local.NombreCuenta != cuenta.Nombre || !local.Activa)
+                    actualizadas++;
+                local.NombreCuenta = cuenta.Nombre;
+                local.FechaSincronizacion = ahora;
+                local.Activa = true;
+            }
+
+            foreach (var local in locales)
+            {
+                if (local.Activa && !codigosSap.Contains(local.CodigoCuenta))
+                {
+                    local.Activa = false;
+                    local.FechaSincronizacion = ahora;
+                    desactivadas++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return (insertadas, actualizadas, desactivadas, cuentasSap.Count);
+        }
+
         public sealed class ConsumiblePreviaItem
         {
             public string Sku { get; set; } = "";
