@@ -14589,45 +14589,19 @@ WHERE
  * Último inventario almacenado disponible al cierre anterior al mes.
  */
 SELECT
-    @FechaInventarioReal = MAX(CAST(i.FechaInventario AS DATE))
+    @FechaInventarioReal = MAX(i.FechaInventario)
 FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
 WHERE
-    CAST(i.FechaInventario AS DATE) <= @FechaInventarioObjetivo;
+    i.FechaInventario <= @FechaInventarioObjetivo;
 
-;WITH Articulos AS
+
+/* SIGO MIN/MAX OPTIMIZADO: materializacion por etapas.
+   Todas las tablas temporales pertenecen exclusivamente a esta peticion. */
+SET NOCOUNT ON;
+
+;WITH Etapa AS
 (
-    SELECT
-        UPPER(LTRIM(RTRIM(a.ProductoCodigo))) AS Sku,
-        MAX(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), '')) AS Producto,
-        MAX(a.U_Clas_Prod) AS ClasificacionId
-    FROM dbo.ArticuloSap a WITH (NOLOCK)
-    WHERE
-        NULLIF(LTRIM(RTRIM(a.ProductoCodigo)), '') IS NOT NULL
-    GROUP BY
-        UPPER(LTRIM(RTRIM(a.ProductoCodigo)))
-),
-CatalogoMaster AS
-(
-    SELECT
-        UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
-        MAX(NULLIF(LTRIM(RTRIM(c.Articulo)), '')) AS Producto,
-        MAX(
-            CASE
-                WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
-                    THEN 'SIN MASTER'
-                ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
-            END
-        ) AS Master
-    FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
-    WHERE
-        c.Activo = 1
-        AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
-    GROUP BY
-        UPPER(LTRIM(RTRIM(c.Sku)))
-),
-Produccion AS
-(
-    /*
+/*
      * PLAN MENSUAL
      * La producción objetivo del mes se toma de PlanDetalle.
      *
@@ -14662,6 +14636,137 @@ Produccion AS
 
     HAVING
         SUM(ISNULL(pd.Peso, 0)) > 0
+)
+SELECT * INTO #MM_Produccion FROM Etapa OPTION (RECOMPILE);
+
+;WITH Etapa AS
+(
+/*
+     * ÓRDENES ACTIVAS DEL MES.
+     * Solamente órdenes pertenecientes a la sucursal MATRIZ,
+     * según el catálogo dbo.Series.
+     */
+    SELECT
+        o.Id
+    FROM dbo.OrdenVenta o WITH (NOLOCK)
+    WHERE
+        o.Estatus <> 0
+        AND o.FechaEntrega >= @FechaDesde
+        AND o.FechaEntrega < @FechaHasta
+
+        AND EXISTS
+        (
+            SELECT 1
+            FROM dbo.Series sr WITH (NOLOCK)
+            WHERE
+                UPPER(LTRIM(RTRIM(ISNULL(sr.NombreSerie, '')))) =
+                UPPER(LTRIM(RTRIM(ISNULL(o.Serie, ''))))
+
+                AND UPPER(LTRIM(RTRIM(ISNULL(sr.Sucursal, '')))) = 'MATRIZ'
+        )
+)
+SELECT * INTO #MM_OVMes FROM Etapa OPTION (RECOMPILE);
+
+/* Consolidar solo las solicitudes surtidas de las OV del mes. */
+SELECT
+    se.SolicitudSurtidoId,
+    MAX(CASE
+          WHEN se.FechaValidacion IS NOT NULL
+            OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
+          THEN 1 ELSE 0 END) AS EsCerrado
+INTO #MM_EstadoSurtido
+FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+INNER JOIN
+(
+    SELECT DISTINCT TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')) AS SolicitudSurtidoId
+    FROM dbo.Subpedido sp WITH (NOLOCK)
+    INNER JOIN #MM_OVMes ov ON ov.Id = sp.OrdenVentaId
+    WHERE TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')) IS NOT NULL
+) refs ON refs.SolicitudSurtidoId = se.SolicitudSurtidoId
+GROUP BY se.SolicitudSurtidoId OPTION (RECOMPILE);
+
+;WITH Etapa AS
+(
+SELECT
+        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku,
+        SUM(ISNULL(i.PesoNeto, 0)) AS KgInventarioInicial
+    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
+    WHERE
+        @FechaInventarioReal IS NOT NULL
+        AND i.FechaInventario = @FechaInventarioReal
+        AND NULLIF(LTRIM(RTRIM(i.SkuNorm)), '') IS NOT NULL
+        AND ISNULL(i.PesoNeto, 0) <> 0
+    GROUP BY
+        UPPER(LTRIM(RTRIM(i.SkuNorm)))
+    HAVING
+        SUM(ISNULL(i.PesoNeto, 0)) > 0
+)
+SELECT * INTO #MM_InventarioInicial FROM Etapa OPTION (RECOMPILE);
+
+;WITH Etapa AS
+(
+SELECT
+        UPPER(LTRIM(RTRIM(s.ProductoCodigo))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(s.ProductoNombre)), '')) AS Producto,
+        SUM(ISNULL(s.Kg, 0)) AS KgActual,
+        SUM(ISNULL(s.Cajas, 0)) AS CajasActuales,
+        COUNT(
+            DISTINCT ISNULL(
+                NULLIF(LTRIM(RTRIM(s.Lote)), ''),
+                '-'
+            )
+        ) AS Lotes
+    FROM dbo.InventarioSigo s WITH (NOLOCK)
+    WHERE
+        @FechaActualizacion IS NOT NULL
+        AND s.FechaActualizacion = @FechaActualizacion
+        AND ISNULL(s.Kg, 0) <> 0
+        AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
+        AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(s.Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))))
+        AND NULLIF(LTRIM(RTRIM(s.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(s.ProductoCodigo)))
+    HAVING
+        SUM(ISNULL(s.Kg, 0)) > 0
+)
+SELECT * INTO #MM_InventarioActual FROM Etapa OPTION (RECOMPILE);
+
+
+
+;WITH Articulos AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(a.ProductoNombre)), '')) AS Producto,
+        MAX(a.U_Clas_Prod) AS ClasificacionId
+    FROM dbo.ArticuloSap a WITH (NOLOCK)
+    WHERE
+        NULLIF(LTRIM(RTRIM(a.ProductoCodigo)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(a.ProductoCodigo)))
+),
+CatalogoMaster AS
+(
+    SELECT
+        UPPER(LTRIM(RTRIM(c.Sku))) AS Sku,
+        MAX(NULLIF(LTRIM(RTRIM(c.Articulo)), '')) AS Producto,
+        MAX(
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(c.MasterProducto)), '') IS NULL
+                    THEN 'SIN MASTER'
+                ELSE UPPER(LTRIM(RTRIM(c.MasterProducto)))
+            END
+        ) AS Master
+    FROM dbo.InventarioInicialCatalogo c WITH (NOLOCK)
+    WHERE
+        c.Activo = 1
+        AND NULLIF(LTRIM(RTRIM(c.Sku)), '') IS NOT NULL
+    GROUP BY
+        UPPER(LTRIM(RTRIM(c.Sku)))
+),
+Produccion AS
+(
+    SELECT * FROM #MM_Produccion
 ),
 ProduccionReal AS
 (
@@ -14687,29 +14792,7 @@ ProduccionReal AS
 ),
 OVMes AS
 (
-    /*
-     * ÓRDENES ACTIVAS DEL MES.
-     * Solamente órdenes pertenecientes a la sucursal MATRIZ,
-     * según el catálogo dbo.Series.
-     */
-    SELECT
-        o.Id
-    FROM dbo.OrdenVenta o WITH (NOLOCK)
-    WHERE
-        o.Estatus <> 0
-        AND o.FechaEntrega >= @FechaDesde
-        AND o.FechaEntrega < @FechaHasta
-
-        AND EXISTS
-        (
-            SELECT 1
-            FROM dbo.Series sr WITH (NOLOCK)
-            WHERE
-                UPPER(LTRIM(RTRIM(ISNULL(sr.NombreSerie, '')))) =
-                UPPER(LTRIM(RTRIM(ISNULL(o.Serie, ''))))
-
-                AND UPPER(LTRIM(RTRIM(ISNULL(sr.Sucursal, '')))) = 'MATRIZ'
-        )
+    SELECT * FROM #MM_OVMes
 ),
 OVPesoMes AS
 (
@@ -14748,21 +14831,7 @@ OVValidacionMes AS
     FROM dbo.Subpedido sp WITH (NOLOCK)
     INNER JOIN OVMes ov
         ON ov.Id = sp.OrdenVentaId
-    LEFT JOIN
-    (
-        SELECT
-            se.SolicitudSurtidoId,
-            MAX(
-                CASE
-                    WHEN se.FechaValidacion IS NOT NULL
-                      OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
-                        THEN 1
-                    ELSE 0
-                END
-            ) AS EsCerrado
-        FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
-        GROUP BY se.SolicitudSurtidoId
-    ) sev
+    LEFT JOIN #MM_EstadoSurtido sev
         ON sev.SolicitudSurtidoId = TRY_CONVERT(
             INT,
             NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
@@ -14790,16 +14859,12 @@ OVCerradoSkuMes AS
         AND EXISTS
         (
             SELECT 1
-            FROM dbo.SurtidoEncabezado se WITH (NOLOCK)
+            FROM #MM_EstadoSurtido se
             WHERE se.SolicitudSurtidoId = TRY_CONVERT(
                       INT,
                       NULLIF(LTRIM(RTRIM(sp.U_DocMeat)), '')
                   )
-              AND
-              (
-                  se.FechaValidacion IS NOT NULL
-                  OR NULLIF(LTRIM(RTRIM(ISNULL(se.Remision, ''))), '') IS NOT NULL
-              )
+              AND se.EsCerrado = 1
         )
     GROUP BY
         sp.OrdenVentaId,
@@ -14841,45 +14906,11 @@ PedidosMes AS
 ),
 InventarioInicial AS
 (
-    SELECT
-        UPPER(LTRIM(RTRIM(i.SkuNorm))) AS Sku,
-        SUM(ISNULL(i.PesoNeto, 0)) AS KgInventarioInicial
-    FROM dbo.InventarioAlmacenado_Meat i WITH (NOLOCK)
-    WHERE
-        @FechaInventarioReal IS NOT NULL
-        AND CAST(i.FechaInventario AS DATE) = @FechaInventarioReal
-        AND NULLIF(LTRIM(RTRIM(i.SkuNorm)), '') IS NOT NULL
-        AND ISNULL(i.PesoNeto, 0) <> 0
-    GROUP BY
-        UPPER(LTRIM(RTRIM(i.SkuNorm)))
-    HAVING
-        SUM(ISNULL(i.PesoNeto, 0)) > 0
+    SELECT * FROM #MM_InventarioInicial
 ),
 InventarioActual AS
 (
-    SELECT
-        UPPER(LTRIM(RTRIM(s.ProductoCodigo))) AS Sku,
-        MAX(NULLIF(LTRIM(RTRIM(s.ProductoNombre)), '')) AS Producto,
-        SUM(ISNULL(s.Kg, 0)) AS KgActual,
-        SUM(ISNULL(s.Cajas, 0)) AS CajasActuales,
-        COUNT(
-            DISTINCT ISNULL(
-                NULLIF(LTRIM(RTRIM(s.Lote)), ''),
-                '-'
-            )
-        ) AS Lotes
-    FROM dbo.InventarioSigo s WITH (NOLOCK)
-    WHERE
-        @FechaActualizacion IS NOT NULL
-        AND s.FechaActualizacion = @FechaActualizacion
-        AND ISNULL(s.Kg, 0) <> 0
-        AND (@Sucursal = '' OR UPPER(LTRIM(RTRIM(s.Sucursal))) = UPPER(LTRIM(RTRIM(@Sucursal))))
-        AND (@Almacen = '' OR UPPER(LTRIM(RTRIM(s.Almacen))) = UPPER(LTRIM(RTRIM(@Almacen))))
-        AND NULLIF(LTRIM(RTRIM(s.ProductoCodigo)), '') IS NOT NULL
-    GROUP BY
-        UPPER(LTRIM(RTRIM(s.ProductoCodigo)))
-    HAVING
-        SUM(ISNULL(s.Kg, 0)) > 0
+    SELECT * FROM #MM_InventarioActual
 ),
 Skus AS
 (
@@ -15116,7 +15147,8 @@ WHERE
 ORDER BY
     u.ClasificacionOrden,
     u.Master,
-    u.Sku;";
+    u.Sku
+OPTION (RECOMPILE);";
 
                 var cn = _db.Database.GetDbConnection();
                 var shouldClose = cn.State == ConnectionState.Closed;
@@ -15126,16 +15158,18 @@ ORDER BY
 
                 try
                 {
+                    // Parámetros tipados explícitamente para el indicador Min/Max.
+                    // No modifica el SQL, los cálculos ni la respuesta del endpoint.
+                    var parametros = new DynamicParameters();
+                    parametros.Add("@FechaDesde", fechaDesde, DbType.Date);
+                    parametros.Add("@FechaHasta", fechaHasta, DbType.Date);
+                    parametros.Add("@FechaInventarioObjetivo", fechaInventarioObjetivo, DbType.Date);
+                    parametros.Add("@Sucursal", sucursal, DbType.String, size: 100);
+                    parametros.Add("@Almacen", almacen, DbType.String, size: 100);
+
                     var rows = (await cn.QueryAsync<InventarioMinMaxRowVM>(
                         sql,
-                        new
-                        {
-                            FechaDesde = fechaDesde,
-                            FechaHasta = fechaHasta,
-                            FechaInventarioObjetivo = fechaInventarioObjetivo,
-                            Sucursal = sucursal,
-                            Almacen = almacen
-                        },
+                        parametros,
                         commandTimeout: 180
                     )).ToList();
 

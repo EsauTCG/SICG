@@ -8,6 +8,41 @@
 <link rel="stylesheet" href="~/css/ordenes-ov-grid.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/ordenes-ov-erp-legible.css" asp-append-version="true" />
 
+<style>
+    /* Listado OV: mantener legible la fecha aun con las columnas SAP y Meat. */
+    .ordenes-ov-app .section .table-wrap:has(> table.orders-grid) {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ordenes-ov-app table.orders-grid {
+        width: 100%;
+        min-width: 1830px;
+        table-layout: auto !important;
+    }
+
+        .ordenes-ov-app table.orders-grid th:nth-child(11),
+        .ordenes-ov-app table.orders-grid td:nth-child(11),
+        .ordenes-ov-app table.orders-grid .td-fecha-embarcar {
+            width: 155px !important;
+            min-width: 155px !important;
+            max-width: none !important;
+            white-space: nowrap !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+        }
+
+        .ordenes-ov-app table.orders-grid th:nth-child(9),
+        .ordenes-ov-app table.orders-grid td:nth-child(9),
+        .ordenes-ov-app table.orders-grid th:nth-child(10),
+        .ordenes-ov-app table.orders-grid td:nth-child(10) {
+            min-width: 135px !important;
+            white-space: nowrap !important;
+        }
+</style>
+
 <div class="window ordenes-ov-app">
     <div class="titlebar">
         <div class="ov-main-title">
@@ -212,6 +247,8 @@
                                 <th class="num" data-sort-col="kg" data-sort-type="num">Kilogramos</th>
                                 <th class="num" data-sort-col="importe" data-sort-type="num">Importe</th>
                                 <th data-sort-col="estatus" data-sort-type="text">Estatus</th>
+                                <th data-sort-col="docsap" data-sort-type="text">Documento SAP</th>
+                                <th data-sort-col="docmeat" data-sort-type="text">Documento Meat</th>
                                 <th data-sort-col="fent" data-sort-type="date">Fecha Embarcar</th>
                                 <th data-sort-col="usuario" data-sort-type="text">Solicita</th>
                                 <th class="ov-pdf-col">PDF</th>
@@ -263,7 +300,9 @@
                                             }
                                             <span class="badge-est @estClass">@texto</span>
                                         </td>
-                                        <td>@(r?.FechaEntrega?.ToString("yyyy-MM-dd") ?? "")</td>
+                                        <td class="ov-doc-sap" title="Consultando subpedidos...">...</td>
+                                        <td class="ov-doc-meat" title="Consultando subpedidos...">...</td>
+                                        <td class="td-fecha-embarcar">@(r?.FechaEntrega?.ToString("yyyy-MM-dd") ?? "")</td>
                                         <td>@(r?.UsuarioRegistro ?? "")</td>
                                         <td class="ov-pdf-col">
                                             <a asp-controller="Comercial"
@@ -285,7 +324,7 @@
                             else
                             {
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted">Sin resultados.</td>
+                                    <td colspan="13" class="text-center text-muted">Sin resultados.</td>
                                 </tr>
                             }
                         </tbody>
@@ -487,9 +526,9 @@
             background: rgba(0, 0, 0, .38);
         }
 
-        .sigo-confirm-overlay.d-none {
-            display: none !important;
-        }
+            .sigo-confirm-overlay.d-none {
+                display: none !important;
+            }
 
         .sigo-confirm-card {
             width: min(440px, calc(100vw - 36px));
@@ -537,9 +576,9 @@
             line-height: 1.45;
         }
 
-        .sigo-confirm-body strong {
-            color: #7f1d28;
-        }
+            .sigo-confirm-body strong {
+                color: #7f1d28;
+            }
 
         .sigo-confirm-actions {
             display: flex;
@@ -550,25 +589,26 @@
             background: #fff;
         }
 
-        .sigo-confirm-actions .btn {
-            min-width: 95px;
-            font-weight: 700;
-        }
+            .sigo-confirm-actions .btn {
+                min-width: 95px;
+                font-weight: 700;
+            }
 
         @@keyframes sigoConfirmIn {
             from {
                 opacity: 0;
                 transform: translateY(-8px) scale(.985);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0) scale(1);
             }
         }
         /* =====================================================
-           TABLA DETALLE DEL MODAL OV
-           Descripción amplia SIN aplastar las demás columnas
-           ===================================================== */
+                   TABLA DETALLE DEL MODAL OV
+                   Descripción amplia SIN aplastar las demás columnas
+                   ===================================================== */
 
         #ovModal .modal-dialog.modal-ov-wide {
             width: 96vw;
@@ -603,9 +643,9 @@
                 }
 
                 /* DESCRIPCIÓN
-           NO darle width:100%.
-           Esta columna toma automáticamente el espacio sobrante.
-        */
+                   NO darle width:100%.
+                   Esta columna toma automáticamente el espacio sobrante.
+                */
                 #ovModal .ovm-detalle-table th:nth-child(3),
                 #ovModal .ovm-detalle-table td:nth-child(3) {
                     width: auto;
@@ -648,177 +688,169 @@
                 }
 
 
-                /* =========================================================
-   ENCABEZADO MODAL OV - COMPACTO Y EN UNA SOLA FILA
-   ========================================================= */
+        /* =========================================================
+           ENCABEZADO MODAL OV - COMPACTO Y EN UNA SOLA FILA
+           ========================================================= */
 
-#ovModal .header-row {
-    display: grid !important;
-    grid-template-columns:
-        minmax(290px, 1.6fr)   /* Cliente */
-        minmax(220px, 1.15fr)  /* Vendedor */
-        minmax(160px, .75fr)   /* Serie */
-        minmax(190px, .9fr)    /* Fecha registro */
-        minmax(230px, 1fr)     /* Embarcar */
-        minmax(150px, .7fr)    /* Estatus */
-        minmax(300px, 1.5fr);  /* Observación */
+        #ovModal .header-row {
+            display: grid !important;
+            grid-template-columns: minmax(290px, 1.6fr) /* Cliente */
+            minmax(220px, 1.15fr) /* Vendedor */
+            minmax(160px, .75fr) /* Serie */
+            minmax(190px, .9fr) /* Fecha registro */
+            minmax(230px, 1fr) /* Embarcar */
+            minmax(150px, .7fr) /* Estatus */
+            minmax(300px, 1.5fr); /* Observación */
 
-    gap: 8px !important;
-    align-items: stretch;
-    width: 100%;
-}
+            gap: 8px !important;
+            align-items: stretch;
+            width: 100%;
+        }
 
-/* Ignorar anchos anteriores */
-#ovModal .header-row > .ov-col-4,
-#ovModal .header-row > .ov-col-3,
-#ovModal .header-row > .ov-col-2,
-#ovModal .header-row > .ov-col-obs {
-    width: auto !important;
-    max-width: none !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-}
+            /* Ignorar anchos anteriores */
+            #ovModal .header-row > .ov-col-4,
+            #ovModal .header-row > .ov-col-3,
+            #ovModal .header-row > .ov-col-2,
+            #ovModal .header-row > .ov-col-obs {
+                width: auto !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+            }
 
-/* Caja de cada dato */
-#ovModal .header-row > div {
-    padding: 7px 8px !important;
-    min-height: 62px;
-    box-sizing: border-box;
-}
+            /* Caja de cada dato */
+            #ovModal .header-row > div {
+                padding: 7px 8px !important;
+                min-height: 62px;
+                box-sizing: border-box;
+            }
 
-/* Títulos */
-#ovModal .header-row > div > strong {
-    display: block;
-    margin-bottom: 3px;
-    font-size: 12px;
-    line-height: 1.1;
-    white-space: nowrap;
-}
+                /* Títulos */
+                #ovModal .header-row > div > strong {
+                    display: block;
+                    margin-bottom: 3px;
+                    font-size: 12px;
+                    line-height: 1.1;
+                    white-space: nowrap;
+                }
 
-/* Valores */
-#ovModal .header-row > div > span,
-#ovModal .header-row > div > div {
-    line-height: 1.2;
-}
+                /* Valores */
+                #ovModal .header-row > div > span,
+                #ovModal .header-row > div > div {
+                    line-height: 1.2;
+                }
 
-/* CLIENTE */
-#ovModal .header-row > div:nth-child(1) > span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-}
+                /* CLIENTE */
+                #ovModal .header-row > div:nth-child(1) > span {
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    display: block;
+                }
 
-/* VENDEDOR */
-#ovModal #ovm-vendedor {
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+        /* VENDEDOR */
+        #ovModal #ovm-vendedor {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-/* SERIE */
-#ovModal #ovm-serie {
-    width: 100%;
-    height: 34px;
-    padding: 3px 7px;
-}
+        /* SERIE */
+        #ovModal #ovm-serie {
+            width: 100%;
+            height: 34px;
+            padding: 3px 7px;
+        }
 
-/* FECHA REG */
-#ovModal #ovm-fecha-reg {
-    display: block;
-    white-space: nowrap;
-}
+        /* FECHA REG */
+        #ovModal #ovm-fecha-reg {
+            display: block;
+            white-space: nowrap;
+        }
 
-/* EMBARCAR */
-#ovModal #ovm-fecha-ent {
-    display: block;
-    white-space: nowrap;
-    cursor: pointer;
-}
+        /* EMBARCAR */
+        #ovModal #ovm-fecha-ent {
+            display: block;
+            white-space: nowrap;
+            cursor: pointer;
+        }
 
-/* ESTATUS */
-#ovModal #ovm-estatus {
-    display: block;
-    white-space: nowrap;
-}
+        /* ESTATUS */
+        #ovModal #ovm-estatus {
+            display: block;
+            white-space: nowrap;
+        }
 
-/* OBSERVACIÓN */
-#ovModal .ov-col-obs {
-    position: relative;
-}
+        /* OBSERVACIÓN */
+        #ovModal .ov-col-obs {
+            position: relative;
+        }
 
-#ovModal .observacion-vista {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-}
+        #ovModal .observacion-vista {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
 
-#ovModal #ovm-observacion {
-    flex: 1 1 auto;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+        #ovModal #ovm-observacion {
+            flex: 1 1 auto;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-/* Botón editar compacto */
-#ovModal #ovm-observacion-editar {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    padding: 5px 10px;
-}
+        /* Botón editar compacto */
+        #ovModal #ovm-observacion-editar {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            padding: 5px 10px;
+        }
 
-/* =========================================================
-   EDICIÓN DE FECHA
-   ========================================================= */
+        /* =========================================================
+           EDICIÓN DE FECHA
+           ========================================================= */
 
-#ovModal #ovm-entrega-actions:not(.d-none) {
-    display: flex !important;
-    align-items: center;
-    gap: 4px;
-    margin-top: 4px;
-    white-space: nowrap;
-}
+        #ovModal #ovm-entrega-actions:not(.d-none) {
+            display: flex !important;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            white-space: nowrap;
+        }
 
-#ovModal #ovm-entrega-input {
-    width: 135px;
-    min-width: 135px;
-    height: 32px;
-    padding: 3px 6px;
-}
+        #ovModal #ovm-entrega-input {
+            width: 135px;
+            min-width: 135px;
+            height: 32px;
+            padding: 3px 6px;
+        }
 
-#ovModal #ovm-entrega-guardar,
-#ovModal #ovm-entrega-cancelar {
-    height: 32px;
-    padding: 3px 8px;
-    white-space: nowrap;
-}
+        #ovModal #ovm-entrega-guardar,
+        #ovModal #ovm-entrega-cancelar {
+            height: 32px;
+            padding: 3px 8px;
+            white-space: nowrap;
+        }
 
-/* Modal suficientemente ancho */
-#ovModal .modal-dialog.modal-ov-wide {
-    width: 98vw !important;
-    max-width: 98vw !important;
-}
+        /* Modal suficientemente ancho */
+        #ovModal .modal-dialog.modal-ov-wide {
+            width: 98vw !important;
+            max-width: 98vw !important;
+        }
 
-/* =========================================================
-   RESPONSIVE
-   Solo bajar filas cuando realmente no haya espacio
-   ========================================================= */
+        /* =========================================================
+           RESPONSIVE
+           Solo bajar filas cuando realmente no haya espacio
+           ========================================================= */
 
-@@media (max-width: 1500px) {
-    #ovModal .header-row {
-        grid-template-columns:
-            minmax(250px, 1.4fr)
-            minmax(190px, 1fr)
-            150px
-            185px
-            220px
-            145px
-            minmax(260px, 1.3fr);
-    }
-}
+        @@media (max-width: 1500px) {
+            #ovModal .header-row {
+                grid-template-columns: minmax(250px, 1.4fr) minmax(190px, 1fr) 150px 185px 220px 145px minmax(260px, 1.3fr);
+            }
+        }
     </style>
 
     <div id="cancelConfirmOverlay"
@@ -1031,6 +1063,69 @@
                     }
 
        
+
+                    // DOCUMENTOS SAP / MEAT DEL LISTADO DE ORDENES DE VENTA
+                    // Fuente: misma API que utiliza el modal de subpedidos.
+                    // Una OV puede tener varios subpedidos: se muestran todos los
+                    // valores únicos separados por coma, sin descartar ninguno.
+                    const ovDocumentosCache = new Map();
+
+                    async function consultarDocumentosOV(consecutivo, forzar = false) {
+                        if (!consecutivo) return { sap: '', meat: '' };
+                        if (forzar) ovDocumentosCache.delete(consecutivo);
+                        if (!ovDocumentosCache.has(consecutivo)) {
+                            const promesa = fetch(`/Comercial/SubpedidosPorOV2?consecutivoOV=${encodeURIComponent(consecutivo)}`, { cache: 'no-store' })
+                                .then(async resp => {
+                                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                                    const datos = await resp.json();
+                                    if (!Array.isArray(datos)) throw new Error('Respuesta inesperada');
+                                    const unicos = fn => [...new Set(datos.map(fn).map(v => String(v ?? '').trim()).filter(Boolean))].join(', ');
+                                    return {
+                                        sap: unicos(sp => sp.documentoSAP),
+                                        meat: unicos(sp => sp.u_DocMeat)
+                                    };
+                                })
+                                .catch(err => {
+                                    ovDocumentosCache.delete(consecutivo);
+                                    throw err;
+                                });
+                            ovDocumentosCache.set(consecutivo, promesa);
+                        }
+                        return ovDocumentosCache.get(consecutivo);
+                    }
+
+                    async function pintarDocumentosOV(tr, forzar = false) {
+                        const consecutivo = tr.querySelector('a.ver-ov')?.dataset.cons;
+                        const sapCell = tr.querySelector('.ov-doc-sap');
+                        const meatCell = tr.querySelector('.ov-doc-meat');
+                        if (!consecutivo || !sapCell || !meatCell) return;
+                        try {
+                            const docs = await consultarDocumentosOV(consecutivo, forzar);
+                            if (!tr.isConnected) return;
+                            sapCell.textContent = docs.sap || '—';
+                            meatCell.textContent = docs.meat || '—';
+                            sapCell.title = docs.sap || 'Sin documento SAP';
+                            meatCell.title = docs.meat || 'Sin documento Meat';
+                        } catch (e) {
+                            console.error('Error al consultar documentos OV ' + consecutivo, e);
+                            sapCell.textContent = 'No disponible';
+                            meatCell.textContent = 'No disponible';
+                            sapCell.title = meatCell.title = 'No se pudo consultar subpedidos';
+                        }
+                    }
+
+                    async function cargarDocumentosListadoOV() {
+                        const filas = [...document.querySelectorAll('.orders-grid tbody tr[data-index]')];
+                        let siguiente = 0;
+                        // Máximo 5 consultas simultáneas para no saturar SIGO.
+                        const workers = Array.from({ length: Math.min(5, filas.length) }, async () => {
+                            while (siguiente < filas.length) {
+                                const fila = filas[siguiente++];
+                                await pintarDocumentosOV(fila);
+                            }
+                        });
+                        await Promise.all(workers);
+                    }
 
                     let catalogoSeries = [];
 
@@ -1331,7 +1426,7 @@
                           const link = document.querySelector(`a.ver-ov[data-id="${ordenIdActual}"]`);
                           if (link) {
                             const tr = link.closest('tr');
-                            const td = tr ? tr.children[1] : null;
+                            const td = tr ? tr.querySelector('.td-fecha-embarcar') : null;
                             if (td) td.textContent = (json.fechaEntrega || inputEntrega.value);
                           }
 
@@ -1536,6 +1631,14 @@
                                 input.value = json.u_DocMeat;
                             }
 
+                            // Refrescar en el listado el documento Meat modificado en el modal.
+                            const consecutivo = document.getElementById('ovm-consecutivo')?.textContent?.trim();
+                            if (consecutivo) {
+                                const fila = [...document.querySelectorAll('.orders-grid tbody tr[data-index]')]
+                                    .find(tr => tr.querySelector('a.ver-ov')?.dataset.cons === consecutivo);
+                                if (fila) await pintarDocumentosOV(fila, true);
+                                else ovDocumentosCache.delete(consecutivo);
+                            }
                             showMsg('success', 'U_DocMeat actualizado.');
                             setTimeout(() => { showMsg(); }, 2500);
                         } catch (e) {
@@ -1864,7 +1967,7 @@
                                     return ia - ib;
                                 });
                             } else {
-                                const type = ths[index].dataset.sortType || 'text';
+                                const type = table.querySelectorAll('thead th')[index]?.dataset.sortType || 'text';
                                 rows.sort((a, b) => {
                                     const va = parseValue(getCellValue(a, index), type);
                                     const vb = parseValue(getCellValue(b, index), type);
@@ -1878,7 +1981,8 @@
                             rows.forEach(r => tbody.appendChild(r));
                         }
 
-                        ths.forEach((th, index) => {
+                        ths.forEach((th) => {
+                            const index = Array.from(table.querySelectorAll('thead th')).indexOf(th);
                             th.style.cursor = 'pointer';
 
                             th.addEventListener('click', () => {
@@ -1915,6 +2019,7 @@
             initMultiDropdownSearch('dd-estatus');
 
             initHeaderSorting();
+            cargarDocumentosListadoOV();
 
             const frm = document.getElementById('frmPedidos');
             if (frm) {

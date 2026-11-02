@@ -378,7 +378,7 @@ async function actualizarPlaneacionSemanal(btn) {
         document.getElementById("contenidoPlantillaSemanal").innerHTML = html;
 
         // 🔥 MUY IMPORTANTE
-        inicializarPlanSemanal();
+        await inicializarPlanSemanal();
 
     } catch (error) {
         console.error("Error:", error);
@@ -427,7 +427,7 @@ function guardarPlanSemanal() {
 
     });
 
-    fetch("/Operaciones/GuardarPlanSemanal", {
+    return fetch("/Operaciones/GuardarPlanSemanal", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -564,9 +564,10 @@ document.addEventListener("input", function (e) {
 
 
 // ================= INIT =================
-function recalcularTodoSemanal() {
+async function recalcularTodoSemanal() {
 
     const filas = document.querySelectorAll("#tablaPlanSemanal .fila-producto");
+    const cargas = [];
 
     filas.forEach(fila => {
 
@@ -579,17 +580,19 @@ function recalcularTodoSemanal() {
         recalcularFilaSemanal(fila);
 
         // 🔥 NUEVO: cargar total guardado
-        cargarTotalSemanalFila(fila);
+        cargas.push(cargarTotalSemanalFila(fila));
     });
+
+    await Promise.all(cargas);
 
 }
 
 
 // 🔥 ESTA ES LA QUE TE ESTABA FALLANDO
-function inicializarPlanSemanal() {
+async function inicializarPlanSemanal() {
 
     console.log("Inicializando plan semanal...");
 
-    recalcularTodoSemanal();
+    await recalcularTodoSemanal();
 
 }
