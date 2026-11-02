@@ -1125,6 +1125,66 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        public IActionResult ObtenerAreasControlRed()
+        {
+            try
+            {
+                var areas = _context.AreasControlRed.Where(a => a.Activa)
+                    .OrderBy(a => a.Nombre).Select(a => new { id = a.Id, nombre = a.Nombre }).ToList();
+                return Json(new { ok = true, areas });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("MODULOIPS", "ESCRIBIR")]
+        public IActionResult AgregarAreaControlRed([FromBody] AreaControlRed modelo)
+        {
+            try
+            {
+                var nombre = modelo?.Nombre?.Trim();
+                if (string.IsNullOrWhiteSpace(nombre)) return Json(new { ok = false, mensaje = "Escribe el nombre del área." });
+                if (_context.AreasControlRed.Any(a => a.Nombre.ToLower() == nombre.ToLower()))
+                    return Json(new { ok = false, mensaje = "El área ya está registrada." });
+                var area = new AreaControlRed { Nombre = nombre };
+                _context.AreasControlRed.Add(area);
+                _context.SaveChanges();
+                return Json(new { ok = true, id = area.Id, nombre = area.Nombre });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpGet]
+        public IActionResult ObtenerAreasIpControlRed()
+        {
+            try
+            {
+                var areas = _context.AreasIpControlRed.Where(a => a.Activa)
+                    .OrderBy(a => a.Nombre).Select(a => new { id = a.Id, nombre = a.Nombre }).ToList();
+                return Json(new { ok = true, areas });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpPost]
+        [RevisarPermiso("MODULOIPS", "ESCRIBIR")]
+        public IActionResult AgregarAreaIpControlRed([FromBody] AreaIpControlRed modelo)
+        {
+            try
+            {
+                var nombre = modelo?.Nombre?.Trim();
+                if (string.IsNullOrWhiteSpace(nombre)) return Json(new { ok = false, mensaje = "Escribe el nombre del área IP." });
+                if (_context.AreasIpControlRed.Any(a => a.Nombre.ToLower() == nombre.ToLower()))
+                    return Json(new { ok = false, mensaje = "El área IP ya está registrada." });
+                var area = new AreaIpControlRed { Nombre = nombre };
+                _context.AreasIpControlRed.Add(area);
+                _context.SaveChanges();
+                return Json(new { ok = true, id = area.Id, nombre = area.Nombre });
+            }
+            catch (Exception ex) { return Json(new { ok = false, mensaje = ex.Message }); }
+        }
+
+        [HttpGet]
         public IActionResult VerificarPing(string ipAddress)
         {
             try
@@ -1178,6 +1238,9 @@ namespace Plataforma_CG.Controllers
                     original.ModificadoPor = usuarioReal;
                     original.Usuario = modelo.Usuario ?? "";
                     original.Area = modelo.Area ?? "";
+                    original.Puerto = modelo.Puerto ?? "";
+                    original.NumeroEmpleado = modelo.NumeroEmpleado ?? "";
+                    original.AreaIPs = modelo.AreaIPs ?? "";
                 }
 
                 _context.SaveChanges();

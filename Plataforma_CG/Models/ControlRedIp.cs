@@ -19,6 +19,27 @@ namespace Plataforma_CG.Models
         public string Observaciones { get; set; }
         public string? Usuario { get; set; }
         public string? Area { get; set; }
+        public string? Puerto { get; set; }
+        public string? NumeroEmpleado { get; set; }
+        public string? AreaIPs { get; set; }
+    }
+
+    public class AreaControlRed
+    {
+        [Key]
+        public int Id { get; set; }
+        [Required, MaxLength(100)]
+        public string Nombre { get; set; } = string.Empty;
+        public bool Activa { get; set; } = true;
+    }
+
+    public class AreaIpControlRed
+    {
+        [Key]
+        public int Id { get; set; }
+        [Required, MaxLength(100)]
+        public string Nombre { get; set; } = string.Empty;
+        public bool Activa { get; set; } = true;
     }
 
     // TABLA 2: LAS VLANs
