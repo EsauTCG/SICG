@@ -129,11 +129,14 @@ namespace Plataforma_CG.Data
 public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
         public DbSet<RefaccionMovimiento> RefaccionMovimientos { get; set; }
         public DbSet<RefaccionSapSalida> RefaccionSapSalidas { get; set; }
+        public DbSet<RefaccionSapSolicitudCompra> RefaccionSapSolicitudesCompra { get; set; }
 
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
 
         public DbSet<ControlRedIp> ControlIPs { get; set; }
+        public DbSet<AreaControlRed> AreasControlRed { get; set; }
+        public DbSet<AreaIpControlRed> AreasIpControlRed { get; set; }
         public DbSet<VlanRed> VlanRedes { get; set; }
         public DbSet<LogMovimientoRed> LogsMovimientoRed { get; set; }
         public DbSet<PrecioCompetenciaSemana> PrecioCompetenciaSemana { get; set; }
@@ -804,6 +807,24 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)");
                 e.Property(x => x.Error).HasColumnType("nvarchar(max)");
                 e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
+                e.HasIndex(x => x.Folio).IsUnique();
+                e.HasIndex(x => new { x.Estado, x.FechaCreacion });
+            });
+
+            modelBuilder.Entity<RefaccionSapSolicitudCompra>(e =>
+            {
+                e.ToTable("RefaccionSapSolicitudCompra");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Folio).HasMaxLength(50).IsRequired();
+                e.Property(x => x.Estado).HasMaxLength(20).IsRequired();
+                e.Property(x => x.Usuario).HasMaxLength(120).IsRequired();
+                e.Property(x => x.Comentario).HasMaxLength(1000);
+                e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)").IsRequired();
+                e.Property(x => x.Error).HasColumnType("nvarchar(max)");
+                e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
+                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
+                e.Property(x => x.FechaNecesaria).HasColumnType("date");
+                e.Property(x => x.FechaEnvio).HasColumnType("datetime2(0)");
                 e.HasIndex(x => x.Folio).IsUnique();
                 e.HasIndex(x => new { x.Estado, x.FechaCreacion });
             });

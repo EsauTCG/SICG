@@ -98,6 +98,25 @@ namespace Plataforma_CG.Models
         public string? RespuestaSap { get; set; }
     }
 
+    [Table("RefaccionSapSolicitudCompra")]
+    public class RefaccionSapSolicitudCompra
+    {
+        public int Id { get; set; }
+        public string Folio { get; set; } = "";
+        public string Estado { get; set; } = "PENDIENTE";
+        public DateTime FechaCreacion { get; set; }
+        public DateTime FechaNecesaria { get; set; }
+        public string Usuario { get; set; } = "";
+        public string? Comentario { get; set; }
+        public int CantidadLineas { get; set; }
+        public string JsonSap { get; set; } = "{}";
+        public int? SapDocEntry { get; set; }
+        public int? SapDocNum { get; set; }
+        public DateTime? FechaEnvio { get; set; }
+        public string? Error { get; set; }
+        public string? RespuestaSap { get; set; }
+    }
+
     // ==========================
     // DTOs de petición (pantalla)
     // ==========================
@@ -123,6 +142,26 @@ namespace Plataforma_CG.Models
     public class RefaccionSapEnviarRequest
     {
         public string Folio { get; set; } = "";
+    }
+
+    public class RefaccionSapSolicitudCompraCrearRequest
+    {
+        public DateTime? FechaNecesaria { get; set; }
+        public string? Comentario { get; set; }
+        public List<RefaccionSapSolicitudCompraLineaRequest> Lineas { get; set; } = new();
+    }
+
+    public class RefaccionSapEnviarSolicitudRequest
+    {
+        public int Id { get; set; }
+    }
+
+    public class RefaccionSapSolicitudCompraLineaRequest
+    {
+        public int Id { get; set; }
+        public decimal Cantidad { get; set; }
+        public string? WarehouseCode { get; set; }
+        public string? AccountCode { get; set; }
     }
 
     public class CatalogoGuardarRequest

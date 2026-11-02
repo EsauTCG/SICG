@@ -3649,6 +3649,41 @@ body[data-theme="dark"] .vlan-nav-stats {
 
         </div>
 
+        <div class="row g-2 mt-2 align-items-end" aria-label="Filtros por campo">
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroUsuarioIP">Usuario</label>
+                <input type="text" class="form-control form-control-sm" id="filtroUsuarioIP" placeholder="Filtrar usuario" oninput="renderTabla()">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroAreaIP">Área</label>
+                <input type="text" class="form-control form-control-sm" id="filtroAreaIP" placeholder="Filtrar área" oninput="renderTabla()">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroPuertoIP">Puerto</label>
+                <input type="text" class="form-control form-control-sm" id="filtroPuertoIP" placeholder="Filtrar puerto" oninput="renderTabla()">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroAreaIPs">Área IP</label>
+                <input type="text" class="form-control form-control-sm" id="filtroAreaIPs" placeholder="Filtrar área IP" oninput="renderTabla()">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroNumeroEmpleadoIP">No. empleado</label>
+                <input type="text" class="form-control form-control-sm" id="filtroNumeroEmpleadoIP" placeholder="Filtrar empleado" oninput="renderTabla()">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1" for="filtroTipoIP">Tipo de conexión</label>
+                <select class="form-select form-select-sm" id="filtroTipoIP" onchange="renderTabla()">
+                    <option value="">Todos</option>
+                    <option value="Cable">Cable</option>
+                    <option value="WiFi">WiFi</option>
+                    <option value="-">Sin asignar</option>
+                </select>
+            </div>
+            <div class="col-12 text-end">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltrosIPs()"><i class="bi bi-x-circle me-1"></i>Limpiar filtros</button>
+            </div>
+        </div>
+
         <section class="vlan-navigation" aria-label="VLAN de la planta activa">
             <div class="vlan-navigation__header">
                 <div>
@@ -3674,6 +3709,9 @@ body[data-theme="dark"] .vlan-nav-stats {
                             <th style="width: 15%;">Dirección IP</th>
                             <th style="width: 20%;">Equipo Asignado</th>
                             <th style="width: 15%;">Usuario / Área</th>
+                            <th>Puerto</th>
+                            <th>Área IP</th>
+                            <th>No. empleado</th>
                             <th style="width: 10%;">Tipo</th>
                             <th style="width: 15%;">Fechas (Alta / Modif)</th>
                             <th style="width: 10%;">Modificado Por</th>
@@ -3963,7 +4001,28 @@ body[data-theme="dark"] .vlan-nav-stats {
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ÁREA / DEPTO (Opcional)</label>
-                            <input type="text" class="form-control" id="editAreaIP" placeholder="Ej. Finanzas">
+                            <div class="input-group">
+                                <select class="form-select" id="editAreaIP"><option value="">Sin área</option></select>
+                                <button type="button" class="btn btn-outline-secondary" onclick="agregarAreaControlRed()" title="Agregar área">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">PUERTO (Opcional)</label>
+                            <input type="text" class="form-control" id="editPuertoIP" placeholder="Ej. 12 / SW-01:24">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">ÁREA IP (Opcional)</label>
+                            <div class="input-group">
+                                <select class="form-select" id="editAreaIPs"><option value="">Sin área IP</option></select>
+                                <button type="button" class="btn btn-outline-secondary" onclick="agregarAreaIpControlRed()" title="Agregar área IP">+</button>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label text-muted fw-bold" style="font-size: 0.7rem;">NÚMERO DE EMPLEADO (Opcional)</label>
+                            <input type="text" class="form-control" id="editNumeroEmpleadoIP" placeholder="Número de empleado">
                         </div>
                     </div>
 
@@ -4141,6 +4200,8 @@ body[data-theme="dark"] .vlan-nav-stats {
 
             let baseVlans = [];
             let baseIPs = [];
+            let areasControlRed = [];
+            let areasIpControlRed = [];
             let historialLogs = [];
                         let permisosIPs = { puedeLeer: false, puedeEscribir: false, puedeEliminar: false };
 
@@ -4185,6 +4246,22 @@ body[data-theme="dark"] .vlan-nav-stats {
 
             async function cargarTodoDesdeServidor() {
                 try {
+                    const responseAreas = await fetch('@Url.Action("ObtenerAreasControlRed", "InventariosSistemas")');
+                    const dataAreas = await responseAreas.json();
+                    if (dataAreas.ok) {
+                        areasControlRed = dataAreas.areas || [];
+                        const actual = $('#editAreaIP').val() || '';
+                        $('#editAreaIP').html('<option value="">Sin área</option>' + areasControlRed.map(a => `<option value="${$('<div>').text(a.nombre).html()}">${$('<div>').text(a.nombre).html()}</option>`).join(''));
+                        if (actual) $('#editAreaIP').val(actual);
+                    }
+                    const responseAreasIp = await fetch('@Url.Action("ObtenerAreasIpControlRed", "InventariosSistemas")');
+                    const dataAreasIp = await responseAreasIp.json();
+                    if (dataAreasIp.ok) {
+                        areasIpControlRed = dataAreasIp.areas || [];
+                        const actualAreaIp = $('#editAreaIPs').val() || '';
+                        $('#editAreaIPs').html('<option value="">Sin área IP</option>' + areasIpControlRed.map(a => `<option value="${$('<div>').text(a.nombre).html()}">${$('<div>').text(a.nombre).html()}</option>`).join(''));
+                        if (actualAreaIp) $('#editAreaIPs').val(actualAreaIp);
+                    }
                     // 1. Cargar VLANs
                     const responseVlans = await fetch('@Url.Action("GetVlans", "InventariosSistemas")');
                     const dataVlans = await responseVlans.json();
@@ -4213,6 +4290,9 @@ body[data-theme="dark"] .vlan-nav-stats {
                             i.equipo = i.equipoAsignado;
                             i.usuario = i.usuario || i.Usuario || '';
                             i.area = i.area || i.Area || '';
+                            i.puerto = i.puerto || i.Puerto || '';
+                            i.numeroEmpleado = i.numeroEmpleado || i.NumeroEmpleado || '';
+                            i.areaIPs = i.areaIPs || i.AreaIPs || '';
                             i.tipo = i.tipoConexion;
                             i.modPor = i.modificadoPor;
                             i.vlan = i.vlanId;
@@ -4493,6 +4573,12 @@ body[data-theme="dark"] .vlan-nav-stats {
                     let plantaActiva = $('#selectPlanta').val();
                     let textoFiltro = ($('#buscadorIP').val() || '').toLowerCase();
                     let estatusFiltro = $('#filtroEstatus').val();
+                    let usuarioFiltro = ($('#filtroUsuarioIP').val() || '').trim().toLowerCase();
+                    let areaFiltro = ($('#filtroAreaIP').val() || '').trim().toLowerCase();
+                    let puertoFiltro = ($('#filtroPuertoIP').val() || '').trim().toLowerCase();
+                    let areaIpFiltro = ($('#filtroAreaIPs').val() || '').trim().toLowerCase();
+                    let empleadoFiltro = ($('#filtroNumeroEmpleadoIP').val() || '').trim().toLowerCase();
+                    let tipoFiltro = ($('#filtroTipoIP').val() || '').toLowerCase();
                     let tbody = '';
 
                     let filtrados = baseIPs.filter(i => {
@@ -4500,14 +4586,26 @@ body[data-theme="dark"] .vlan-nav-stats {
                         let coincideVlan = i.vlan === vlanActiva;
                         let eq = (i.equipo || '').toLowerCase();
                         let ip = (i.ip || '').toLowerCase();
-                        let coincideTexto = !textoFiltro || ip.includes(textoFiltro) || eq.includes(textoFiltro);
+                        let usuario = (i.usuario || '').toLowerCase();
+                        let area = (i.area || '').toLowerCase();
+                        let puerto = (i.puerto || '').toLowerCase();
+                        let areaIp = (i.areaIPs || '').toLowerCase();
+                        let empleado = (i.numeroEmpleado || '').toLowerCase();
+                        let tipo = (i.tipo || '').toLowerCase();
+                        let coincideTexto = !textoFiltro || [ip, eq, usuario, area, puerto, areaIp, empleado, tipo].some(valor => valor.includes(textoFiltro));
+                        let coincidenFiltros = (!usuarioFiltro || usuario.includes(usuarioFiltro))
+                            && (!areaFiltro || area.includes(areaFiltro))
+                            && (!puertoFiltro || puerto.includes(puertoFiltro))
+                            && (!areaIpFiltro || areaIp.includes(areaIpFiltro))
+                            && (!empleadoFiltro || empleado.includes(empleadoFiltro))
+                            && (!tipoFiltro || tipo === tipoFiltro);
 
                         let estaLibre = !i.equipo || i.equipo.trim() === '';
                         let coincideEstatus = true;
                         if (estatusFiltro === "DISPONIBLE") coincideEstatus = estaLibre;
                         if (estatusFiltro === "ASIGNADO") coincideEstatus = !estaLibre;
 
-                        return coincidePlanta && coincideVlan && coincideTexto && coincideEstatus;
+                        return coincidePlanta && coincideVlan && coincideTexto && coincidenFiltros && coincideEstatus;
                     });
                     filtrados.sort((a, b) => {
                 let numA = (a.ip || "0.0.0.0").split('.').reduce((acc, octeto) => acc * 256 + parseInt(octeto || 0), 0);
@@ -4527,7 +4625,7 @@ body[data-theme="dark"] .vlan-nav-stats {
                     // ---------------------------
 
                     if(filtrados.length === 0) {
-                        $('#tbodyIPs').html('<tr><td colspan="6" class="text-center py-4 text-muted">No se encontraron registros con los filtros aplicados.</td></tr>');
+                        $('#tbodyIPs').html('<tr><td colspan="10" class="text-center py-4 text-muted">No se encontraron registros con los filtros aplicados.</td></tr>');
                         return;
                     }
 
@@ -4556,7 +4654,11 @@ body[data-theme="dark"] .vlan-nav-stats {
                 <tr>
                     <td><span class="ip-badge ip-clickable" onclick="verHistorialEspecifico('${i.ip}')">${i.ip}</span></td>
                     <td>${equipoDisplay}</td>
-                    <td>${usuarioAreaDisplay}</td> <td>${badgeTipo}</td>
+                    <td>${usuarioAreaDisplay}</td>
+                    <td>${i.puerto || '-'}</td>
+                    <td>${i.areaIPs || '-'}</td>
+                    <td>${i.numeroEmpleado || '-'}</td>
+                    <td>${badgeTipo}</td>
                     <td>
                         <small class="text-muted d-block" style="font-size:0.7rem;">Alta: ${i.fAlta}</small>
                         <small class="fw-bold d-block" style="font-size:0.7rem;">Mod: ${i.fMod}</small>
@@ -4579,6 +4681,13 @@ body[data-theme="dark"] .vlan-nav-stats {
             $('#tbodyIPs').html(tbody);
                 }
 
+            function limpiarFiltrosIPs() {
+                $('#buscadorIP, #filtroUsuarioIP, #filtroAreaIP, #filtroPuertoIP, #filtroAreaIPs, #filtroNumeroEmpleadoIP').val('');
+                $('#filtroTipoIP').val('');
+                $('#filtroEstatus').val('TODOS');
+                renderTabla();
+            }
+
             function abrirNuevaIP() {
                 modoCreacion = true;
                 $('#tituloModalIP').text("Registrar Nueva IP");
@@ -4595,6 +4704,9 @@ body[data-theme="dark"] .vlan-nav-stats {
                 $('#editEquipo').val('');
                 $('#editUsuarioIP').val('');
                 $('#editAreaIP').val('');
+                $('#editPuertoIP').val('');
+                $('#editAreaIPs').val('');
+                $('#editNumeroEmpleadoIP').val('');
                 $('#editTipo').val('-');
                 $('#editNotas').val('');
                 modalEditar.show();
@@ -4612,11 +4724,50 @@ body[data-theme="dark"] .vlan-nav-stats {
                 $('#editEquipo').val(ipObj.equipo);
                 $('#editUsuarioIP').val(ipObj.usuario || '');
                 $('#editAreaIP').val(ipObj.area || '');
+                if (ipObj.area && !areasControlRed.some(a => a.nombre === ipObj.area)) $('#editAreaIP').append(new Option(ipObj.area, ipObj.area));
+                $('#editPuertoIP').val(ipObj.puerto || '');
+                if (ipObj.areaIPs && !areasIpControlRed.some(a => a.nombre === ipObj.areaIPs)) $('#editAreaIPs').append(new Option(ipObj.areaIPs, ipObj.areaIPs));
+                $('#editAreaIPs').val(ipObj.areaIPs || '');
+                $('#editNumeroEmpleadoIP').val(ipObj.numeroEmpleado || '');
                 $('#editTipo').val(ipObj.tipo);
                 $('#editNotas').val('');
                 if(!ipObj.equipo || ipObj.equipo.trim() === '') $('#btnLiberarIP').hide();
                 $('#modalEditarIP .btn-brand').attr('data-id-editar', id);
                 modalEditar.show();
+            }
+
+            async function agregarAreaControlRed() {
+                const nombre = prompt('Nombre del área nueva:');
+                if (!nombre || !nombre.trim()) return;
+                try {
+                    const res = await fetch('@Url.Action("AgregarAreaControlRed", "InventariosSistemas")', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ nombre: nombre.trim() })
+                    });
+                    const data = await res.json();
+                    if (!data.ok) { alert(data.mensaje || 'No se pudo agregar el área.'); return; }
+                    areasControlRed.push({ id: data.id, nombre: data.nombre });
+                    areasControlRed.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                    $('#editAreaIP').html('<option value="">Sin área</option>' + areasControlRed.map(a => `<option value="${$('<div>').text(a.nombre).html()}">${$('<div>').text(a.nombre).html()}</option>`).join(''));
+                    $('#editAreaIP').val(data.nombre);
+                } catch (e) { alert('Error al agregar el área: ' + e.message); }
+            }
+
+            async function agregarAreaIpControlRed() {
+                const nombre = prompt('Nombre de la nueva área IP:');
+                if (!nombre || !nombre.trim()) return;
+                try {
+                    const res = await fetch('@Url.Action("AgregarAreaIpControlRed", "InventariosSistemas")', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ nombre: nombre.trim() })
+                    });
+                    const data = await res.json();
+                    if (!data.ok) { alert(data.mensaje || 'No se pudo agregar el área IP.'); return; }
+                    areasIpControlRed.push({ id: data.id, nombre: data.nombre });
+                    areasIpControlRed.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                    $('#editAreaIPs').html('<option value="">Sin área IP</option>' + areasIpControlRed.map(a => `<option value="${$('<div>').text(a.nombre).html()}">${$('<div>').text(a.nombre).html()}</option>`).join(''));
+                    $('#editAreaIPs').val(data.nombre);
+                } catch (e) { alert('Error al agregar el área IP: ' + e.message); }
             }
 
             async function guardarIP() {
@@ -4630,7 +4781,10 @@ body[data-theme="dark"] .vlan-nav-stats {
                     TipoConexion: tipo,
                     Observaciones: $('#editNotas').val(),
                     Usuario: $('#editUsuarioIP').val().trim(),
-                    Area: $('#editAreaIP').val().trim()
+                    Area: $('#editAreaIP').val().trim(),
+                    Puerto: $('#editPuertoIP').val().trim(),
+                    NumeroEmpleado: $('#editNumeroEmpleadoIP').val().trim()
+                    , AreaIPs: $('#editAreaIPs').val().trim()
                 };
 
                 // Determinar si es nueva o edición
@@ -4740,6 +4894,9 @@ body[data-theme="dark"] .vlan-nav-stats {
                             Observaciones: "Liberación validada (Ping fallido)",
                             Usuario: "",
                             Area: ""
+                            , Puerto: ""
+                            , NumeroEmpleado: ""
+                            , AreaIPs: ""
                         };
 
                         const resGuardar = await fetch('@Url.Action("GuardarIP", "InventariosSistemas")', {

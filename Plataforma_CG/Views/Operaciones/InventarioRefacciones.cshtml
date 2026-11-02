@@ -2071,6 +2071,9 @@
               <option value="solicitados">Solicitados</option>
               <option value="todos">Todos</option>
             </select>
+            <button type="button" class="btn btn-sm btn-primary" onclick="abrirNuevaSolicitudCompraSap()">
+              <i class="bi bi-cart-plus me-1"></i>Crear solicitud SAP <span id="refSolicitudSeleccionCount">0</span>
+            </button>
           </div>
           <a class="btn btn-sm btn-outline-success" id="btnExportarPendientesExcel" href="#">
             <i class="bi bi-file-earmark-excel me-1"></i>Descargar Excel
@@ -2081,6 +2084,7 @@
           <table class="ref-alert-table">
             <thead>
               <tr>
+                <th style="width:38px;text-align:center;"><input type="checkbox" id="refSeleccionarAlertas" title="Seleccionar visibles" /></th>
                 <th>Prioridad</th>
                 <th>Refacción</th>
                 <th>Ubicación</th>
@@ -2092,12 +2096,13 @@
               </tr>
             </thead>
             <tbody id="tbodyAlertasRef">
-              <tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--ref-text-muted);">Sin pendientes de stock.</td></tr>
+              <tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--ref-text-muted);">Sin pendientes de stock.</td></tr>
             </tbody>
           </table>
         </div>
       </div>
       <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-outline-primary me-auto" onclick="abrirSolicitudesCompraSapRefacciones()"><i class="bi bi-clock-history me-1"></i>Solicitudes SAP</button>
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
         <button type="button" class="ref-btn-brand" onclick="verBajoStockDesdeAlertas()">
           <i class="bi bi-funnel"></i> Ver bajo stock
@@ -2105,6 +2110,46 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Crear solicitud de compra desde refacciones -->
+<div class="modal fade modal-ref" id="modalNuevaSolicitudCompraSap" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div><h5 class="modal-title fw-bold"><i class="bi bi-cart-plus me-2"></i>Nueva solicitud de compra</h5>
+          <div style="font-size:.75rem;opacity:.85;">SIGO la enviará a SAP. Compras continuará la autorización y el pedido desde SAP.</div></div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4"><label class="form-label">Fecha necesaria</label><input type="date" class="form-control" id="refSolicitudFecha" /></div>
+          <div class="col-md-8"><label class="form-label">Comentarios</label><input class="form-control" id="refSolicitudComentario" maxlength="140" placeholder="Motivo o detalle de la compra" /></div>
+        </div>
+        <div class="table-responsive" style="max-height:55vh;overflow:auto;">
+          <table class="table table-sm table-bordered align-middle"><thead class="table-light"><tr><th>Artículo</th><th style="width:130px">Cantidad</th><th style="width:150px">Almacén</th><th style="width:250px">Cuenta contable</th></tr></thead>
+            <tbody id="refSolicitudLineas"><tr><td colspan="4" class="text-center text-muted">Selecciona artículos desde Alertas de stock.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="crearSolicitudCompraSapRefacciones()"><i class="bi bi-cloud-upload me-1"></i>Enviar solicitud a SAP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Solicitudes de compra de refacciones -->
+<div class="modal fade modal-ref" id="modalSolicitudesCompraSapRefacciones" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Solicitudes de compra SAP</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><div class="table-responsive" style="max-height:65vh;overflow:auto;"><table class="ref-alert-table">
+      <thead><tr><th>Folio SIGO</th><th>Fecha</th><th>Necesaria</th><th>Artículos</th><th>Estado</th><th>Documento SAP / acción</th></tr></thead>
+      <tbody id="tbodySolicitudesCompraSapRefacciones"><tr><td colspan="6" class="text-center">Cargando...</td></tr></tbody>
+    </table></div></div>
+    <div class="modal-footer bg-light"><button type="button" class="btn btn-light" onclick="cargarSolicitudesCompraSapRefacciones()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button></div>
+  </div></div>
 </div>
 
 <!-- Input oculto para cargar/tomar foto -->
@@ -2282,6 +2327,7 @@
             let tamPaginaRef = 24;
             let totalPaginasRef = 1;
             let alertasRefActuales = [];
+            let alertasSeleccionadasSolicitud = new Set();
             let scanBuffer = '';
             let lastScanKeyTime = 0;
 
@@ -2294,6 +2340,9 @@
             const URL_SALIDAS_SAP_PENDIENTES = '@Url.Action("SalidasSapPendientes", "InventarioRefacciones")' || '/InventarioRefacciones/SalidasSapPendientes';
             const URL_SALIDAS_SAP_ENVIADAS = '@Url.Action("SalidasSapEnviadas", "InventarioRefacciones")' || '/InventarioRefacciones/SalidasSapEnviadas';
             const URL_ENVIAR_SALIDA_SAP = '@Url.Action("EnviarSalidaSap", "InventarioRefacciones")' || '/InventarioRefacciones/EnviarSalidaSap';
+            const URL_CREAR_SOLICITUD_COMPRA_SAP = '@Url.Action("CrearSolicitudCompraSap", "InventarioRefacciones")' || '/InventarioRefacciones/CrearSolicitudCompraSap';
+            const URL_LISTAR_SOLICITUDES_COMPRA_SAP = '@Url.Action("SolicitudesCompraSapRefacciones", "InventarioRefacciones")' || '/InventarioRefacciones/SolicitudesCompraSapRefacciones';
+            const URL_ENVIAR_SOLICITUD_COMPRA_SAP = '@Url.Action("EnviarSolicitudCompraSapRefacciones", "InventarioRefacciones")' || '/InventarioRefacciones/EnviarSolicitudCompraSapRefacciones';
             const URL_GUARDAR_CAT = '@Url.Action("GuardarCategoria", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarCategoria';
             const URL_ELIMINAR_CAT = '@Url.Action("EliminarCategoria", "InventarioRefacciones")' || '/InventarioRefacciones/EliminarCategoria';
             const URL_GUARDAR_UBI = '@Url.Action("GuardarUbicacion", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarUbicacion';
@@ -3289,6 +3338,15 @@
                         (filtroSolicitud === 'solicitados' ? a.solicitudStockActiva : !a.solicitudStockActiva)) &&
                     (!q || `${a.sku} ${a.desc}`.toLowerCase().includes(q)));
 
+                const totalSeleccionadas = alertasSeleccionadasSolicitud.size;
+                $('#refSolicitudSeleccionCount').text(totalSeleccionadas ? `(${totalSeleccionadas})` : '');
+                const checkAll = document.getElementById('refSeleccionarAlertas');
+                const elegiblesVisibles = visibles.filter(a => a.tipoSugerencia === 'faltante');
+                if (checkAll) {
+                    checkAll.checked = elegiblesVisibles.length > 0 && elegiblesVisibles.every(a => alertasSeleccionadasSolicitud.has(a.id));
+                    checkAll.indeterminate = elegiblesVisibles.some(a => alertasSeleccionadasSolicitud.has(a.id)) && !checkAll.checked;
+                }
+
                 let rows = '';
                 visibles.forEach(a => {
                     const clase = a.nivel === 'AGOTADO' ? 'agotado' : (a.nivel === 'BAJO' ? 'bajo' : 'sobre');
@@ -3298,6 +3356,7 @@
                         : (a.nivel === 'SOBRE' ? '—' : `<button type="button" class="btn btn-sm btn-outline-primary" onclick="marcarSolicitudStock(${a.id}, true)"><i class="bi bi-check2-circle me-1"></i>Marcar solicitado</button>`);
 
                     rows += `<tr>
+                        <td style="text-align:center;">${a.tipoSugerencia === 'faltante' ? `<input type="checkbox" class="ref-alerta-seleccion" data-id="${a.id}" ${alertasSeleccionadasSolicitud.has(a.id) ? 'checked' : ''} aria-label="Agregar ${escapeHtml(a.sku)} a solicitud" />` : '—'}</td>
                         <td><span class="ref-alert-level ${clase}">${etiqueta}</span></td>
                         <td><strong style="color: var(--ref-brand);">${escapeHtml(a.sku)}</strong><br><small>${escapeHtml(a.desc)}</small></td>
                         <td>${escapeHtml(a.loc || 'Sin ubicación')}</td>
@@ -3314,7 +3373,124 @@
                     </tr>`;
                 });
 
-                $('#tbodyAlertasRef').html(rows || `<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--ref-success); font-weight:700;">${q ? 'No hay coincidencias.' : 'Sin pendientes de stock.'}</td></tr>`);
+                $('#tbodyAlertasRef').html(rows || `<tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--ref-success); font-weight:700;">${q ? 'No hay coincidencias.' : 'Sin pendientes de stock.'}</td></tr>`);
+            }
+
+            async function abrirNuevaSolicitudCompraSap() {
+                const seleccion = alertasRefActuales.filter(a => alertasSeleccionadasSolicitud.has(a.id) && a.tipoSugerencia === 'faltante');
+                if (!seleccion.length) {
+                    alert('Selecciona uno o más artículos agotados o bajo mínimo.');
+                    return;
+                }
+
+                const fecha = new Date();
+                fecha.setDate(fecha.getDate() + 7);
+                document.getElementById('refSolicitudFecha').value = fecha.toLocaleDateString('en-CA');
+                document.getElementById('refSolicitudComentario').value = '';
+                const cuentas = sapSalidaConfig?.opciones?.AccountCode || [];
+                const etiquetas = sapSalidaConfig?.etiquetas?.AccountCode || {};
+                const cuentaDefecto = sapSalidaConfig?.valores?.AccountCode || cuentas[0] || '';
+                const filas = seleccion.map(a => {
+                    const opcionesCuenta = cuentas.map(c => `<option value="${escapeHtml(c)}" ${String(c) === String(cuentaDefecto) ? 'selected' : ''}>${escapeHtml(etiquetas[c] || c)}</option>`).join('');
+                    return `<tr data-id="${a.id}">
+                        <td><strong>${escapeHtml(a.sku)}</strong><br><small>${escapeHtml(a.desc)}</small><br><small>Stock ${a.stock} · sugerido ${a.sugerido}</small></td>
+                        <td><input type="number" class="form-control form-control-sm ref-solicitud-cantidad" min="0.01" step="0.01" value="${a.sugerido}" /></td>
+                        <td><select class="form-select form-select-sm ref-solicitud-almacen"><option>MAN001</option><option>MAN002</option><option>MAN003</option></select></td>
+                        <td><select class="form-select form-select-sm ref-solicitud-cuenta"><option value="">Usar cuenta predeterminada de SAP</option>${opcionesCuenta}</select></td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('refSolicitudLineas').innerHTML = filas;
+                const modalAlertas = document.getElementById('modalAlertasRef');
+                modalAlertas.addEventListener('hidden.bs.modal', function abrirFormulario() {
+                    abrirModal('modalNuevaSolicitudCompraSap');
+                }, { once: true });
+                bootstrap.Modal.getOrCreateInstance(modalAlertas).hide();
+            }
+
+            async function crearSolicitudCompraSapRefacciones() {
+                const lineas = Array.from(document.querySelectorAll('#refSolicitudLineas tr[data-id]')).map(row => ({
+                    id: Number(row.dataset.id),
+                    cantidad: Number(row.querySelector('.ref-solicitud-cantidad')?.value || 0),
+                    warehouseCode: row.querySelector('.ref-solicitud-almacen')?.value || '',
+                    accountCode: row.querySelector('.ref-solicitud-cuenta')?.value || ''
+                }));
+                if (!lineas.length || lineas.some(x => !Number.isFinite(x.cantidad) || x.cantidad <= 0)) {
+                    alert('Verifica que todas las cantidades sean mayores a cero.');
+                    return;
+                }
+                const payload = {
+                    fechaNecesaria: document.getElementById('refSolicitudFecha').value,
+                    comentario: document.getElementById('refSolicitudComentario').value.trim(),
+                    lineas
+                };
+                mostrarLoadingRef('Guardando y enviando solicitud a SAP...');
+                try {
+                    const creada = await postJson(URL_CREAR_SOLICITUD_COMPRA_SAP, payload);
+                    if (!creada?.ok) throw new Error(creada?.mensaje || 'No se pudo guardar la solicitud.');
+                    const enviada = await postJson(URL_ENVIAR_SOLICITUD_COMPRA_SAP, { id: creada.solicitudId });
+                    alertasSeleccionadasSolicitud.clear();
+                    cerrarModal('modalNuevaSolicitudCompraSap');
+                    await cargarDatos();
+                    if (enviada?.ok) {
+                        alert(`Solicitud SAP creada. Folio SIGO: ${creada.folio}. Documento SAP: ${enviada.docNum || '—'} (DocEntry ${enviada.docEntry || '—'}). Compras continuará el proceso en SAP.`);
+                    } else {
+                        alert(`La solicitud ${creada.folio} quedó guardada en SIGO, pero SAP no confirmó el envío. Puedes reintentar desde Solicitudes SAP. ${enviada?.mensaje || ''}`);
+                    }
+                    await abrirSolicitudesCompraSapRefacciones();
+                } catch (error) {
+                    alert(error.message || 'No se pudo enviar la solicitud. Puedes reintentar desde Solicitudes SAP.');
+                    await cargarDatos();
+                } finally { ocultarLoadingRef(); }
+            }
+
+            async function abrirSolicitudesCompraSapRefacciones() {
+                const solicitudes = document.getElementById('modalSolicitudesCompraSapRefacciones');
+                const alertas = document.getElementById('modalAlertasRef');
+                if (alertas?.classList.contains('show')) {
+                    alertas.addEventListener('hidden.bs.modal', async function abrirLista() {
+                        abrirModal('modalSolicitudesCompraSapRefacciones');
+                        await cargarSolicitudesCompraSapRefacciones();
+                    }, { once: true });
+                    bootstrap.Modal.getOrCreateInstance(alertas).hide();
+                    return;
+                }
+                abrirModal('modalSolicitudesCompraSapRefacciones');
+                await cargarSolicitudesCompraSapRefacciones();
+            }
+
+            async function cargarSolicitudesCompraSapRefacciones() {
+                const tbody = document.getElementById('tbodySolicitudesCompraSapRefacciones');
+                if (!tbody) return;
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Cargando...</td></tr>';
+                try {
+                    const res = await getJson(URL_LISTAR_SOLICITUDES_COMPRA_SAP);
+                    const items = res?.items || [];
+                    if (!res?.ok || !items.length) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4">${res?.ok ? 'Aún no hay solicitudes.' : 'No se pudieron consultar las solicitudes.'}</td></tr>`;
+                        return;
+                    }
+                    tbody.innerHTML = items.map(s => `<tr>
+                        <td><strong>${escapeHtml(s.folio)}</strong><br><small>${escapeHtml(s.usuario || '')}</small></td>
+                        <td>${s.fechaCreacion ? new Date(s.fechaCreacion).toLocaleString() : '—'}</td>
+                        <td>${s.fechaNecesaria ? new Date(s.fechaNecesaria).toLocaleDateString() : '—'}</td>
+                        <td>${s.cantidadLineas || 0}</td>
+                        <td><span class="badge ${s.estado === 'ENVIADO' ? 'bg-success' : s.estado === 'ERROR' ? 'bg-danger' : 'bg-warning text-dark'}">${escapeHtml(s.estado)}</span>${s.error ? `<small class="d-block text-danger mt-1">${escapeHtml(s.error)}</small>` : ''}</td>
+                        <td>${s.estado === 'ENVIADO' ? `<strong>${s.sapDocNum || 'Enviado'}</strong>` : `<button class="btn btn-sm btn-outline-primary" onclick="reintentarSolicitudCompraSap(${s.id})">Reintentar envío</button>`}</td>
+                    </tr>`).join('');
+                } catch (error) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(error.message || 'Error de consulta.')}</td></tr>`;
+                }
+            }
+
+            async function reintentarSolicitudCompraSap(id) {
+                if (!confirm('¿Enviar o reintentar esta solicitud de compra en SAP?')) return;
+                mostrarLoadingRef('Comprobando solicitud y enviando a SAP...');
+                try {
+                    const res = await postJson(URL_ENVIAR_SOLICITUD_COMPRA_SAP, { id });
+                    alert(res?.mensaje || 'No se recibió respuesta del envío.');
+                    await cargarSolicitudesCompraSapRefacciones();
+                } catch (error) { alert(error.message || 'No se pudo reintentar.'); }
+                finally { ocultarLoadingRef(); }
             }
 
             async function marcarSolicitudStock(id, solicitada) {
@@ -3345,6 +3521,28 @@
             document.getElementById('btnExportarPendientesExcel')?.addEventListener('click', function (e) {
                 e.preventDefault();
                 window.location.href = URL_EXPORTAR_PENDIENTES_EXCEL;
+            });
+
+            document.getElementById('tbodyAlertasRef')?.addEventListener('change', function (e) {
+                const input = e.target.closest('.ref-alerta-seleccion');
+                if (!input) return;
+                const id = Number(input.dataset.id);
+                if (input.checked) alertasSeleccionadasSolicitud.add(id);
+                else alertasSeleccionadasSolicitud.delete(id);
+                renderCentroAlertasRef();
+            });
+
+            document.getElementById('refSeleccionarAlertas')?.addEventListener('change', function (e) {
+                const q = ($('#alertasBuscar').val() || '').trim().toLowerCase();
+                const filtroSolicitud = $('#alertasFiltroSolicitud').val() || 'pendientes';
+                const visibles = alertasRefActuales.filter(a => a.tipoSugerencia === 'faltante' &&
+                    (filtroSolicitud === 'todos' ||
+                        (filtroSolicitud === 'solicitados' ? a.solicitudStockActiva : !a.solicitudStockActiva)) &&
+                    (!q || `${a.sku} ${a.desc}`.toLowerCase().includes(q)));
+                visibles.forEach(a => e.target.checked
+                    ? alertasSeleccionadasSolicitud.add(a.id)
+                    : alertasSeleccionadasSolicitud.delete(a.id));
+                renderCentroAlertasRef();
             });
 
             function ajustarDesdeAlertaRef(id) {

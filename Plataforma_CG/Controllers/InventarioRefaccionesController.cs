@@ -25,13 +25,15 @@ namespace Plataforma_CG.Controllers
         private readonly AppDbContextUsuarios _dbUsuarios;
         private readonly IWebHostEnvironment _env;
         private readonly RefaccionSapSalidaService _sapSalidas;
+        private readonly RefaccionSapSolicitudCompraService _sapCompras;
 
-        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas)
+        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas, RefaccionSapSolicitudCompraService sapCompras)
         {
             _context = context;
             _dbUsuarios = dbUsuarios;
             _env = env;
             _sapSalidas = sapSalidas;
+            _sapCompras = sapCompras;
         }
 
         // =========================================================
@@ -190,6 +192,48 @@ namespace Plataforma_CG.Controllers
 
             await _context.SaveChangesAsync();
             return Json(new { ok = true, solicitada = refaccion.SolicitudStockActiva });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CrearSolicitudCompraSap([FromBody] RefaccionSapSolicitudCompraCrearRequest req)
+        {
+            if (req == null)
+                return Json(new { ok = false, mensaje = "No se recibieron datos de la solicitud." });
+
+            var resultado = await _sapCompras.CrearAsync(req, UsuarioActual());
+            if (!resultado.Ok || resultado.Solicitud == null)
+                return BadRequest(new { ok = false, mensaje = resultado.Mensaje });
+
+            return Json(new
+            {
+                ok = true,
+                solicitudId = resultado.Solicitud.Id,
+                folio = resultado.Solicitud.Folio,
+                mensaje = resultado.Mensaje
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SolicitudesCompraSapRefacciones()
+        {
+            return Json(await _sapCompras.ObtenerEstadoAsync());
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EnviarSolicitudCompraSapRefacciones([FromBody] RefaccionSapEnviarSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0)
+                return BadRequest(new { ok = false, mensaje = "Solicitud inválida." });
+
+            var resultado = await _sapCompras.EnviarAsync(req.Id);
+            return Json(new
+            {
+                ok = resultado.Ok,
+                yaEnviada = resultado.YaEnviada,
+                mensaje = resultado.Mensaje,
+                docEntry = resultado.DocEntry,
+                docNum = resultado.DocNum
+            });
         }
 
         [HttpGet]
