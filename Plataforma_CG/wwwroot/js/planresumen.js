@@ -8,7 +8,6 @@
 
     contenedor.innerHTML = `
         <div class="text-center p-4">
-            <div class="spinner-border"></div>
             <div class="mt-2">
                 Cargando Resumen de Planeación...
             </div>
@@ -121,7 +120,6 @@ async function refrescarResumenPlaneacion() {
     tbody.innerHTML = `
         <tr>
             <td colspan="9" class="text-center p-4">
-                <div class="spinner-border"></div>
                 <div class="mt-2">
                     Cargando información...
                 </div>

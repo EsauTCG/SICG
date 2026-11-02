@@ -369,41 +369,46 @@ namespace Plataforma_CG.Controllers
             return Ok(true);
         }
         [HttpPost]
-        public IActionResult GuardarDistribucion([FromBody] List<DistribucionDiaRequest> lista)
+        public IActionResult GuardarDistribucion([FromBody] List<DistribucionDiaRequest>? lista)
         {
-            CanalPlaneacionModel cpm;
-            foreach (var item in lista)
+            if (!ModelState.IsValid || lista == null || lista.Count == 0 ||
+                lista.Any(x => x?.Distribucion == null))
+                return BadRequest(new { ok = false, mensaje = "La distribución no es válida." });
+
+            var distribucion = lista.SelectMany(x => x.Distribucion).ToList();
+            if (distribucion.Count == 0)
+                return BadRequest(new { ok = false, mensaje = "No hay datos para guardar." });
+
+            foreach (var item in distribucion)
             {
-                foreach (var item2 in item.Distribucion)
-                {
-                    int pld = apd.ConsultarPlan(item2.Fecha, item2.Clasificacion).PlaneacionId;
-                    if (pld == 0)
-                    {
-                        pld = apd.InsertarPlan(new PlaneacionProduccionModel
-                        {
-                            FechaPlan = item2.Fecha,
-                            TipoPlan = item2.Clasificacion,
-                            Notas = "",
-                            CreadoPor = User.Identity.Name
-                        });
-                    }
-                    int subc = apd.ConsultarSubId(item2.SubClasificacion);
-                    double pprom = apd.ConsultarPesoProm(item2.SubClasificacion);
-                    cpm = new CanalPlaneacionModel
-                    {
-                        PlaneacionId = pld,
-                        fk_SubClas = subc,
-                        KgCanalCompleta = pprom,
-                        NoCanalCompleta = item2.Cantidad
-
-                    };
-                    apd.InsertarCanales(cpm);
-
-
-                }
+                if (item == null || string.IsNullOrWhiteSpace(item.Clasificacion) ||
+                    string.IsNullOrWhiteSpace(item.SubClasificacion) || item.Cantidad < 0 ||
+                    !DateTime.TryParseExact(item.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out _) ||
+                    (item.PesoPromedio.HasValue && (!double.IsFinite(item.PesoPromedio.Value) || item.PesoPromedio < 0)) ||
+                    (item.Cantidad > 0 && (!item.PesoPromedio.HasValue || item.PesoPromedio <= 0)))
+                    return BadRequest(new { ok = false, mensaje = "Captura un peso promedio diario mayor a cero para cada subclasificación con canales. Revisa también las fechas y cantidades." });
             }
 
-            return Ok(true);
+            if (distribucion.GroupBy(x => (x.Fecha, Clasificacion: x.Clasificacion.ToUpperInvariant(),
+                    SubClasificacion: x.SubClasificacion.ToUpperInvariant())).Any(g => g.Count() > 1))
+                return BadRequest(new { ok = false, mensaje = "Hay subclasificaciones repetidas para el mismo día." });
+
+            try
+            {
+                apd.GuardarDistribucion(distribucion, User.Identity?.Name);
+                return Ok(new { ok = true });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { ok = false, mensaje = ex.Message });
+            }
+            catch (SqlException ex)
+            {
+                HttpContext.RequestServices.GetRequiredService<ILogger<OperacionesController>>()
+                    .LogError(ex, "No se pudo guardar la distribución diaria.");
+                return StatusCode(500, new { ok = false, mensaje = "No se pudo guardar la distribución. No se aplicaron cambios; vuelve a intentarlo." });
+            }
         }
         [HttpGet]
         public IActionResult ObtenerDistribucionDia(string clasificacion, string fecha)
@@ -411,6 +416,29 @@ namespace Plataforma_CG.Controllers
             var cantidad = apd.ContarTotales(clasificacion, fecha);
 
             return Ok(cantidad);
+        }
+        [HttpPost]
+        public IActionResult ExportarPlanDiarioExcel([FromBody] PlanDiarioExcelRequest? model)
+        {
+            if (!ModelState.IsValid || model == null)
+                return BadRequest(new { mensaje = "Los datos del plan diario no son válidos. Actualiza el plan y vuelve a exportar." });
+            try
+            {
+                var contenido = PlanDiarioExcelService.Generar(model);
+                var fecha = DateTime.ParseExact(model.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                return File(contenido, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    $"PLAN {model.TipoPlan} {fecha:dd-MM-yyyy}.xlsx");
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensaje = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                HttpContext.RequestServices.GetRequiredService<ILogger<OperacionesController>>()
+                    .LogError(ex, "No se pudo exportar el plan diario a Excel.");
+                return StatusCode(500, new { mensaje = "No se pudo generar el Excel del plan diario. Vuelve a intentarlo." });
+            }
         }
         [HttpGet]
         public IActionResult ObtenerResumenMensual(string anio, string mes)
@@ -547,6 +575,15 @@ namespace Plataforma_CG.Controllers
 
             return PartialView("~/Views/Operaciones/PlaneadorProduccion.cshtml", model);
             //return View("~/Views/Operaciones/Planeacion/Mensual.cshtml");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ObtenerCatalogosPlanDiario([FromBody] List<string>? productos, CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid || productos == null || productos.Count > 1000 ||
+                productos.Any(s => string.IsNullOrWhiteSpace(s) || s.Length > 50))
+                return BadRequest(new { mensaje = "La lista de productos del plan diario no es válida." });
+            return Json(await ape.ObtenerCatalogosDiaAsync(productos, cancellationToken));
         }
 
         [HttpPost]

@@ -15,6 +15,9 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
         private string _cadena = new Conexion().GetCadenaSQLSIGO();
         private string _cadenatif = new Conexion().GetCadenaSQLTIFVentas();
         SqlConnection _conn;
+        public Task<List<CatalogoProductoDia>> ObtenerCatalogosDiaAsync(List<string> productos, CancellationToken cancellationToken = default)
+            => new AccesoCatalogosPlanDiario(_cadena, _cadenatif).ObtenerAsync(productos, cancellationToken);
+
         public List<Models.Operaciones.Planeacion.Diaria.ParticipacionModel> ListarParticipacion(int clasid, string fecha)
         {
             var lista = new List<Models.Operaciones.Planeacion.Diaria.ParticipacionModel>();

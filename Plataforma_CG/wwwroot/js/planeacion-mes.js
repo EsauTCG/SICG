@@ -209,7 +209,7 @@ function guardarPlantillaMensual() {
 
     console.log("📦 Enviando planeación mensual:", lista);
 
-    fetch("/Operaciones/GuardarPlanMensual", {
+    return fetch("/Operaciones/GuardarPlanMensual", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

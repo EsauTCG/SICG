@@ -8,6 +8,7 @@
         public string Fecha { get; set; }
 
         public int Cantidad { get; set; }
+        public double? PesoPromedio { get; set; }
     }
     public class DistribucionDiaRequest
     {

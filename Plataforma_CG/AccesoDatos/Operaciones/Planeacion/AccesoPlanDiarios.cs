@@ -65,23 +65,6 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
             _conn.Close();
             return res;
         }
-        public double ConsultarPesoProm(string nom)
-        {
-            double res = 0.0;
-            _conn = new SqlConnection(_cadena);
-            string query = $"select PesoPromedio from PlanProduccion where fk_Clasificacion='{nom}'";
-            SqlCommand cmd = new SqlCommand(query, _conn);
-            _conn.Open();
-            try
-            {
-                res = Convert.ToDouble(cmd.ExecuteScalar());
-            }
-            catch (Exception)
-            {
-            }
-            _conn.Close();
-            return res;
-        }
         public int InsertarPlan(PlaneacionProduccionModel model)
         {
             _conn = new SqlConnection(_cadena);
@@ -103,8 +86,19 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
         {
             _conn = new SqlConnection(_cadena);
             var res = false;
-            string query = $"insert into CanalPlaneacion select {model.PlaneacionId}, a.Id,0,a.PesoPromedio from SubClasif a where a.fk_Clasificacion='{model.TipoPlan}'";
+            // Un día nuevo queda pendiente de captura; no hereda pesos del catálogo o del mes.
+            string query = @"
+INSERT INTO dbo.CanalPlaneacion (PlaneacionId, fk_SubClas, NoCanalCompleta, KgCanalCompleta)
+SELECT @planId, s.Id, 0, 0
+FROM dbo.SubClasif s
+WHERE s.fk_Clasificacion = @tipoPlan
+  AND NOT EXISTS (
+      SELECT 1 FROM dbo.CanalPlaneacion cp
+      WHERE cp.PlaneacionId = @planId AND cp.fk_SubClas = s.Id
+  );";
             var cmd = new SqlCommand(query, _conn);
+            cmd.Parameters.Add("@planId", SqlDbType.Int).Value = model.PlaneacionId;
+            cmd.Parameters.Add("@tipoPlan", SqlDbType.NVarChar).Value = model.TipoPlan;
             _conn.Open();
             try
             {
@@ -118,37 +112,90 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
         }
         public List<CanalPlaneacionModel> ListarCanales(int planid)
         {
-            _conn = new SqlConnection(_cadena);
             var lista = new List<CanalPlaneacionModel>();
-            string query = $"select a.PlaneacionId,a.fk_SubClas,a.NoCanalCompleta,d.PesoPromedio as KgCanalCompleta from CanalPlaneacion a " +
-                $"inner join SubClasif b on b.Id=a.fk_SubClas " +
-                $"inner join PlaneacionProduccion c on c.PlaneacionId=a.PlaneacionId " +
-                $"inner join PlanProduccion d on FORMAT(CONVERT(date,CONCAT(d.Anio,'-',d.Mes,'-1')),'yyyy-MM') = FORMAT(c.FechaPlan,'yyyy-MM') and d.fk_Clasificacion=b.Nombre " +
-                $"where a.PlaneacionId={planid}";
-            var cmd = new SqlCommand(query,_conn);
-            _conn.Open();
+            using var conn = new SqlConnection(_cadena);
+            const string query = @"
+SELECT cp.PlaneacionId, cp.fk_SubClas, sc.Nombre, cp.NoCanalCompleta,
+       ISNULL(cp.KgCanalCompleta, 0) AS KgCanalCompleta
+FROM dbo.CanalPlaneacion cp
+INNER JOIN dbo.SubClasif sc ON sc.Id = cp.fk_SubClas
+WHERE cp.PlaneacionId = @planId
+ORDER BY sc.Id;";
+            using var cmd = new SqlCommand(query, conn);
+            cmd.Parameters.Add("@planId", SqlDbType.Int).Value = planid;
+            conn.Open();
+            using var dr = cmd.ExecuteReader();
+            while (dr.Read())
+            {
+                lista.Add(new CanalPlaneacionModel
+                {
+                    PlaneacionId = Convert.ToInt32(dr["PlaneacionId"]),
+                    fk_SubClas = Convert.ToInt32(dr["fk_SubClas"]),
+                    Nombre = dr["Nombre"].ToString(),
+                    NoCanalCompleta = Convert.ToInt32(dr["NoCanalCompleta"]),
+                    KgCanalCompleta = Convert.ToDouble(dr["KgCanalCompleta"])
+                });
+            }
+            return lista;
+        }
+        public void GuardarDistribucion(List<DistribucionDiaModel> distribucion, string? usuario)
+        {
+            using var conn = new SqlConnection(_cadena);
+            conn.Open();
+            using var transaction = conn.BeginTransaction();
             try
             {
-                using (var dr = cmd.ExecuteReader())
+                foreach (var item in distribucion)
                 {
-                    while (dr.Read())
+                    using var subCommand = new SqlCommand(@"
+SELECT Id FROM dbo.SubClasif
+WHERE Nombre = @subclasificacion AND fk_Clasificacion = @clasificacion;", conn, transaction);
+                    subCommand.Parameters.Add("@subclasificacion", SqlDbType.NVarChar).Value = item.SubClasificacion;
+                    subCommand.Parameters.Add("@clasificacion", SqlDbType.NVarChar).Value = item.Clasificacion;
+                    var subId = subCommand.ExecuteScalar();
+                    if (subId == null)
+                        throw new ArgumentException($"La subclasificación {item.SubClasificacion} no pertenece a {item.Clasificacion}.");
+
+                    using var planCommand = new SqlCommand(@"
+SELECT TOP (1) PlaneacionId FROM dbo.PlaneacionProduccion WITH (UPDLOCK, HOLDLOCK)
+WHERE FechaPlan = @fecha AND TipoPlan = @clasificacion;", conn, transaction);
+                    planCommand.Parameters.Add("@fecha", SqlDbType.Date).Value = DateTime.ParseExact(item.Fecha, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    planCommand.Parameters.Add("@clasificacion", SqlDbType.NVarChar).Value = item.Clasificacion;
+                    var planId = planCommand.ExecuteScalar();
+                    if (planId == null)
                     {
-                        lista.Add(new CanalPlaneacionModel
-                        {
-                            PlaneacionId = Convert.ToInt32(dr["PlaneacionId"]),
-                            fk_SubClas = Convert.ToInt32(dr["fk_SubClas"]),
-                            Nombre=NombreCanal(Convert.ToInt32(dr["fk_SubClas"])),
-                            NoCanalCompleta = Convert.ToInt32(dr["NoCanalCompleta"]),
-                            KgCanalCompleta = Convert.ToDouble(dr["KgCanalCompleta"])
-                        });
+                        using var insertPlan = new SqlCommand(@"
+INSERT INTO dbo.PlaneacionProduccion (FechaPlan, TipoPlan, Notas, CreadoPor)
+VALUES (@fecha, @clasificacion, '', @usuario);
+SELECT CAST(SCOPE_IDENTITY() AS int);", conn, transaction);
+                        insertPlan.Parameters.Add("@fecha", SqlDbType.Date).Value = planCommand.Parameters["@fecha"].Value;
+                        insertPlan.Parameters.Add("@clasificacion", SqlDbType.NVarChar).Value = item.Clasificacion;
+                        insertPlan.Parameters.Add("@usuario", SqlDbType.NVarChar).Value = usuario ?? "";
+                        planId = insertPlan.ExecuteScalar();
                     }
+
+                    using var saveCommand = new SqlCommand(@"
+IF EXISTS (SELECT 1 FROM dbo.CanalPlaneacion WITH (UPDLOCK, HOLDLOCK)
+           WHERE PlaneacionId = @planId AND fk_SubClas = @subId)
+    UPDATE dbo.CanalPlaneacion
+    SET NoCanalCompleta = @canales, KgCanalCompleta = @peso
+    WHERE PlaneacionId = @planId AND fk_SubClas = @subId;
+ELSE
+    INSERT INTO dbo.CanalPlaneacion (PlaneacionId, fk_SubClas, NoCanalCompleta, KgCanalCompleta)
+    VALUES (@planId, @subId, @canales, @peso);", conn, transaction);
+                    saveCommand.Parameters.Add("@planId", SqlDbType.Int).Value = Convert.ToInt32(planId);
+                    saveCommand.Parameters.Add("@subId", SqlDbType.Int).Value = Convert.ToInt32(subId);
+                    saveCommand.Parameters.Add("@canales", SqlDbType.Int).Value = item.Cantidad;
+                    saveCommand.Parameters.Add("@peso", SqlDbType.Float).Value = item.PesoPromedio ?? 0;
+                    saveCommand.ExecuteNonQuery();
                 }
+                transaction.Commit();
             }
-            catch (Exception)
+            catch
             {
+                transaction.Rollback();
+                throw;
             }
-            _conn.Close();
-            return lista;
         }
         public int IdCanal(string sku)
         {
@@ -230,8 +277,10 @@ cmd.Parameters.AddWithValue("@KgCanalCompleta", model.KgCanalCompleta);
         public List<ParticipacionModel> ListarParticipacion(int clasid,int planid)
         {
             var lista = new List<ParticipacionModel>();
-            _conn= new SqlConnection(_cadena);
-            string query = @"SELECT 
+            using var connection = new SqlConnection(_cadena);
+            string query = @"SELECT participaciones.*, ISNULL(articulo.ProductoNombre, '') AS Nombre
+FROM (
+SELECT
     p.Id,
     p.ProductoCodigo,
 
@@ -375,12 +424,14 @@ WHERE ps.PlanId = @plid
     AND pMatch.Id IS NULL
 
 
-ORDER BY Master, ProductoCodigo;";
-            SqlCommand cmd = new SqlCommand(query, _conn);
+ ) AS participaciones
+LEFT JOIN dbo.ArticuloSap articulo ON articulo.ProductoCodigo = participaciones.ProductoCodigo
+ORDER BY participaciones.Master, participaciones.ProductoCodigo;";
+            using var cmd = new SqlCommand(query, connection);
             cmd.Parameters.AddWithValue("@clasid", clasid);
             cmd.Parameters.AddWithValue("@plid", planid);
             
-            _conn.Open();
+            connection.Open();
             try
             {
                 using (var dr = cmd.ExecuteReader())
@@ -391,7 +442,7 @@ ORDER BY Master, ProductoCodigo;";
                         {
                             Id = Convert.ToInt32(dr["Id"]),
                             ProductoCodigo = Convert.ToString(dr["ProductoCodigo"]),
-                            Nombre = NombreProducto(Convert.ToString(dr["ProductoCodigo"])),
+                            Nombre = Convert.ToString(dr["Nombre"]),
                             fk_Clasificacion = Convert.ToInt32(dr["fk_Clasificacion"]),
                             Porcentaje = Convert.ToDouble(dr["Porcentaje"]),
                             fk_SubClas = Convert.ToInt32(dr["fk_SubClas"]),
@@ -409,7 +460,6 @@ ORDER BY Master, ProductoCodigo;";
             catch (Exception)
             {
             }
-            _conn.Close();
             return lista;
         }
         public List<ParticipacionModel> ListarParticipacionSem(int clasid, string fechaIn, string fechaFin)
@@ -695,14 +745,19 @@ where a.ProductoCodigo=@productocod  and b.FechaPlan between @FechaInicio and @F
 SELECT  
     sc.Id AS SubClasificacionId,
     sc.Nombre AS SubClasificacion,
-    ISNULL(SUM(b.NoCanalCompleta), 0) AS Canales
+    ISNULL(SUM(b.NoCanalCompleta), 0) AS Canales,
+    CASE WHEN SUM(b.NoCanalCompleta) > 0
+         THEN SUM(b.NoCanalCompleta * b.KgCanalCompleta) / SUM(b.NoCanalCompleta)
+         ELSE MAX(b.KgCanalCompleta)
+    END AS PesoPromedio
 FROM SubClasif sc
 INNER JOIN Clasificacion c 
     ON c.Nombre = sc.fk_Clasificacion
 LEFT JOIN (
     SELECT  
         b.fk_SubClas,
-        b.NoCanalCompleta
+        b.NoCanalCompleta,
+        b.KgCanalCompleta
     FROM PlaneacionProduccion a
     INNER JOIN CanalPlaneacion b  
         ON b.PlaneacionId = a.PlaneacionId
@@ -729,7 +784,9 @@ ORDER BY sc.Nombre
                         {
                             SubClasificacionId = Convert.ToInt32(reader["SubClasificacionId"]),
                             SubClasificacion = reader["SubClasificacion"].ToString(),
-                            Canales = Convert.ToInt32(reader["Canales"])
+                            Canales = Convert.ToInt32(reader["Canales"]),
+                            PesoPromedio = reader["PesoPromedio"] == DBNull.Value
+                                ? null : Convert.ToDouble(reader["PesoPromedio"])
                         });
                     }
                 }

@@ -8,7 +8,7 @@
 
 <link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
 
-<div class="container-principal pp-sigo pp-page">
+<div id="planeadorContenido" class="container-principal pp-sigo pp-page" tabindex="-1">
     <header class="pp-titlebar">
         <div>
             <span class="pp-eyebrow">Operaciones · SIGO</span>
@@ -120,6 +120,17 @@
 
 </div>
 
+<div id="planeadorCarga" class="pp-loading-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="planeadorCargaTitulo" aria-describedby="planeadorCargaDetalle" tabindex="-1" hidden>
+    <div class="pp-loading-card">
+        <img src="~/images/vaquita-comiendo.gif" asp-append-version="true" class="pp-loading-cow"
+             width="184" height="180" alt="" draggable="false" />
+        <span class="pp-loading-label">Planeador de producción</span>
+        <h2 id="planeadorCargaTitulo" role="status" aria-live="polite" aria-atomic="true">Cargando información…</h2>
+        <p id="planeadorCargaDetalle">Un momento, estamos preparando tu información.</p>
+    </div>
+</div>
+
 <div class="modal fade pp-sigo" id="modalDistribucion" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -139,7 +150,7 @@
     </div>
 </div>
 <div class="modal fade pp-sigo" id="modalSubclas" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
 
             <div class="modal-header">
@@ -148,6 +159,7 @@
             </div>
 
             <div class="modal-body">
+                <p class="text-muted small">Fecha: <strong id="fechaSubclasDia"></strong>. El peso capturado se usará en el plan diario de esta fecha.</p>
 
                 <table class="table table-sm table-bordered text-center" id="tablaSubclasDia">
 
@@ -156,6 +168,7 @@
                             <th>Subclasificación</th>
                             <th>%</th>
                             <th>Canales</th>
+                            <th>Peso promedio diario (kg/canal)</th>
                         </tr>
                     </thead>
 
@@ -166,6 +179,7 @@
                             <th>Total</th>
                             <th></th>
                             <th id="totalSubclasDia">0</th>
+                            <th><span id="pesoPromedioSubclasDia">0.00</span> kg/canal</th>
                         </tr>
                     </tfoot>
 
@@ -256,11 +270,13 @@
                     let clasificacionActual = "";
 
                         let overridesSubclas = {};
+                        let pesosPromedioDia = {};
+                        let diasDistribucionModificados = new Set();
 
 
 
 
-                            function abrirPlantillaSemanal(fechaInicio, fechaFin) {
+                            async function abrirPlantillaSemanal(fechaInicio, fechaFin) {
 
         const tipo = "NOV"; // 🔥 como pediste
 
@@ -270,11 +286,11 @@
 
         contenedor.innerHTML = "<div class='text-center'>Cargando...</div>";
 
-        fetch(url)
+        const carga = fetch(url)
             .then(res => res.text())
-            .then(html => {
+            .then(async html => {
                 contenedor.innerHTML = html;
-                inicializarPlanSemanal();
+                await inicializarPlanSemanal();
             })
             .catch(err => {
                 console.error(err);
@@ -286,11 +302,14 @@
         );
 
         modal.show();
+        await carga;
         
     }
-                    function abrirModalDistribucion(clasificacion, btn) {
+                    async function abrirModalDistribucion(clasificacion, btn) {
 
             overridesSubclas = {};
+            pesosPromedioDia = {};
+            diasDistribucionModificados = new Set();
             clasificacionActual = clasificacion;
 
             const card = btn.closest(".card");
@@ -387,12 +406,14 @@
 
             modal.show();
 
-            // 🔥 IMPORTANTE: esperar a que el DOM del modal exista
-            setTimeout(() => {
-                console.log("modal listo, consultando datos...");
-                consultarValoresExistentes(clasificacion);
-                actualizarGraficaSemana();
-            }, 200);
+            const controles = contenedor.querySelectorAll("input, button");
+            controles.forEach(control => control.disabled = true);
+            const cargado = await consultarValoresExistentes(clasificacion);
+            if (cargado) {
+                controles.forEach(control => control.disabled = false);
+            } else if (contenedor.contains(controles[0])) {
+                alert("No se pudo cargar la distribución completa. Cierra esta ventana y vuelve a abrirla antes de editar.");
+            }
         }
                                         async function consultarValoresExistentes(clasificacion) {
 
@@ -409,29 +430,29 @@
                     const res = await fetch(`/Operaciones/ObtenerDistribucionDia?clasificacion=${clasificacion}&fecha=${fecha}`);
 
                     if (!res.ok) {
-                        console.error("Error HTTP:", res.status);
-                        input.value = 0;
-                        continue;
+                        throw new Error("No se pudo consultar la distribución diaria.");
                     }
 
                     const data = await res.json();
-                        console.log("DATA CRUDA:", data);
-                            data.forEach(x => console.log("ITEM:", x));
-                    // 🔥 ASEGURAR ARRAY
-                    const lista = Array.isArray(data) ? data : [];
+                    if (!Array.isArray(data)) throw new Error("La distribución recibida no es válida.");
+                    if (!input.isConnected || clasificacion !== clasificacionActual) return false;
+                    const lista = data;
 
                     // 🔥 GUARDAR DETALLE REAL
                     overridesSubclas[fecha] = {};
+                    pesosPromedioDia[fecha] = {};
 
                     let total = 0;
 
                     lista.forEach(item => {
 
-                        const sub = item.subclasificacion ?? item.Subclasificacion;
+                        const sub = (item.subClasificacion ?? item.SubClasificacion ?? item.subclasificacion ?? item.Subclasificacion ?? "").trim();
                         const val = item.canales ?? item.Canales ?? 0;
+                        const peso = item.pesoPromedio ?? item.PesoPromedio ?? null;
 
                         if (sub) {
                             overridesSubclas[fecha][sub] = val;
+                            pesosPromedioDia[fecha][sub] = peso;
                         }
 
                         total += val;
@@ -443,7 +464,7 @@
                 } catch (e) {
 
                     console.error("ERROR fetch:", e);
-                    input.value = 0;
+                    return false;
 
                 }
             }
@@ -451,24 +472,27 @@
             if (inputs.length > 0) {
                 validarTotalDiario(inputs[0]);
             }
+            return true;
         }
 
             function recalcularSubclas(){
 
-            const inputs = document.querySelectorAll(".input-subclas");
-
             let suma = 0;
-
-            inputs.forEach(i=>{
-                suma += parseInt(i.value) || 0;
+            let kilos = 0;
+            document.querySelectorAll("#tablaSubclasDia tbody tr").forEach(fila => {
+                const canales = Number(fila.querySelector(".input-subclas").value) || 0;
+                const peso = Number(fila.querySelector(".input-peso-diario").value) || 0;
+                suma += canales;
+                kilos += canales * peso;
             });
 
             document.getElementById("totalSubclasDia").innerText = suma;
+            document.getElementById("pesoPromedioSubclasDia").innerText = (suma > 0 ? kilos / suma : 0).toFixed(2);
 
         }
             let inputDiaActual = null;
 
-                    async function abrirDetalleDia(btn){
+                    function abrirDetalleDia(btn){
 
             const input = btn.closest("td").querySelector(".input-dia");
             inputDiaActual = input;
@@ -479,35 +503,12 @@
             const tbody = document.querySelector("#tablaSubclasDia tbody");
             tbody.innerHTML = "";
 
-            let suma = 0;
-
-            let listaBackend = [];
-
-            try {
-
-                const res = await fetch(`/Operaciones/ObtenerDistribucionDia?clasificacion=${clasificacionActual}&fecha=${fecha}`);
-                const data = await res.json();
-
-                listaBackend = Array.isArray(data) ? data : [];
-
-            } catch (e) {
-                console.error("Error obteniendo detalle día:", e);
-            }
-
-            // 🔥 Convertir backend a diccionario rápido
-            const mapaBackend = {};
-
-            listaBackend.forEach(item => {
-
-                const key = (item.subClasificacion || item.Subclasificacion || "").trim();
-
-                mapaBackend[key] = item.canales ?? item.Canales ?? 0;
-
-            });
-
-            // 🔥 RECORRER CATÁLOGO BASE
-                console.log("Mapa backend:", mapaBackend);
-            Object.entries(distribucionClasificacion).forEach(([subclas, porcentaje]) => {
+            document.getElementById("fechaSubclasDia").innerText = fecha;
+            const subclasificaciones = new Set([
+                ...Object.keys(distribucionClasificacion), ...Object.keys(overridesSubclas[fecha] || {})
+            ]);
+            subclasificaciones.forEach(subclas => {
+                const porcentaje = distribucionClasificacion[subclas] || 0;
 
                 let canales = 0;
 
@@ -517,12 +518,6 @@
                     canales = overridesSubclas[fecha][subclas];
 
                 }
-                // 🟢 PRIORIDAD 2: backend
-                else if (mapaBackend[subclas] !== undefined) {
-
-                    canales = mapaBackend[subclas];
-
-                }
                 // ⚪ PRIORIDAD 3: cálculo por porcentaje
                 else {
 
@@ -530,23 +525,31 @@
 
                 }
 
-                suma += canales;
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${subclas}</td>
+                const peso = pesosPromedioDia[fecha]?.[subclas];
+                const fila = document.createElement("tr");
+                fila.dataset.subclasificacion = subclas;
+                fila.innerHTML = `
+                        <td class="nombre-subclas"></td>
                         <td>${porcentaje.toFixed(2)}%</td>
                         <td>
                             <input type="number"
                                 class="form-control form-control-sm input-subclas"
+                                min="0" step="1" required aria-label="Canales"
                                 value="${canales}"
                                 oninput="recalcularSubclas()">
                         </td>
-                    </tr>
+                        <td>
+                            <input type="number" class="form-control form-control-sm input-peso-diario"
+                                min="0" step="any" inputmode="decimal" aria-label="Peso promedio diario en kg por canal"
+                                placeholder="Captura el peso del día" value="${peso > 0 ? peso : ''}"
+                                oninput="this.setCustomValidity(''); recalcularSubclas()">
+                        </td>
                 `;
+                fila.querySelector(".nombre-subclas").textContent = subclas;
+                tbody.appendChild(fila);
             });
 
-            document.getElementById("totalSubclasDia").innerText = suma;
+            recalcularSubclas();
 
             const modal = new bootstrap.Modal(
                 document.getElementById("modalSubclas")
@@ -643,55 +646,51 @@
             return distribucion;
         }
 
-                                    function guardarDistribucion() {
+                                    async function guardarDistribucion() {
 
-            const inputs = document.querySelectorAll(".input-dia");
+            const inputs = document.querySelectorAll("#modalDistribucionBody .input-dia");
 
             const distribucion = [];
 
             let total = 0;
             let totalSemana = 0;
+            let error = "";
 
             inputs.forEach(input => {
 
-                const cantidad = parseInt(input.value) || 0;
+                const cantidad = Number(input.value);
                 const fecha = input.dataset.fecha;
+                if (!Number.isInteger(cantidad) || cantidad < 0) {
+                    error = `Revisa la cantidad de canales del ${fecha}.`;
+                    return;
+                }
 
                 total += cantidad;
                 totalSemana = parseInt(input.dataset.totalSemana);
 
-                if (cantidad > 0) {
+                if (cantidad === 0 && !diasDistribucionModificados.has(fecha) &&
+                    !Object.values(pesosPromedioDia[fecha] || {}).some(peso => peso > 0)) return;
 
-                    // 🔥 USAR SOLO DATOS REALES SI EXISTEN
-                    if (overridesSubclas[fecha]) {
-
-                        for (const subClas in overridesSubclas[fecha]) {
-
-                            distribucion.push({
-                                Clasificacion: clasificacionActual,
-                                Subclasificacion: subClas,
-                                Fecha: fecha,
-                                Cantidad: overridesSubclas[fecha][subClas]
-                            });
-
-                        }
-
-                    } else {
-
-                        // 🟡 fallback SOLO si no hay override
-                        for (const subClas in distribucionClasificacion) {
-
-                            distribucion.push({
-                                Clasificacion: clasificacionActual,
-                                Subclasificacion: subClas,
-                                Fecha: fecha,
-                                Cantidad: 0
-                            });
-
-                        }
+                const detalle = overridesSubclas[fecha] || {};
+                for (const subClas of new Set([...Object.keys(distribucionClasificacion), ...Object.keys(detalle)])) {
+                    const canales = detalle[subClas] ?? Math.round(cantidad * (distribucionClasificacion[subClas] || 0) / 100);
+                    const peso = pesosPromedioDia[fecha]?.[subClas] ?? null;
+                    if (!Number.isInteger(canales) || canales < 0 ||
+                        (peso !== null && (!Number.isFinite(peso) || peso < 0)) || (canales > 0 && !(peso > 0))) {
+                        error = `Captura un peso promedio diario mayor a cero y canales válidos para ${subClas} el ${fecha}.`;
                     }
+                    distribucion.push({
+                        Clasificacion: clasificacionActual,
+                        Subclasificacion: subClas,
+                        Fecha: fecha,
+                        Cantidad: canales,
+                        PesoPromedio: peso
+                    });
                 }
             });
+
+            if (error) { alert(error); return; }
+            if (distribucion.length === 0) { alert("No hay datos para guardar."); return; }
 
             // ⚠️ SOLO AVISO (NO BLOQUEO)
             if (total > totalSemana) {
@@ -702,7 +701,8 @@
                 Distribucion: distribucion
             }];
 
-            fetch("/Operaciones/GuardarDistribucion", {
+            try {
+                const response = await fetch("/Operaciones/GuardarDistribucion", {
 
                 method: "POST",
                 headers: {
@@ -710,19 +710,15 @@
                 },
                 body: JSON.stringify(payload)
 
-            })
-            .then(r => r.json())
-            .then(data => {
-
-                if (data.ok) {
-                    alert("Guardado correctamente");
-                }
-
-            })
-            .catch(err => {
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.mensaje || "No se pudo guardar la distribución.");
+                diasDistribucionModificados.clear();
+                alert("Distribución y pesos diarios guardados correctamente.");
+            } catch (err) {
                 console.error(err);
-                alert("Error al guardar");
-            });
+                alert(err.message || "Error al guardar");
+            }
         }
             function obtenerDiaSemana(fechaStr) {
 
@@ -854,7 +850,8 @@
 
             const nuevaDistribucion = {};
 
-            Object.entries(distribucionClasificacion).forEach(([subclas, porcentaje]) => {
+            new Set([...Object.keys(distribucionClasificacion), ...Object.keys(overridesSubclas[fecha] || {})]).forEach(subclas => {
+                const porcentaje = distribucionClasificacion[subclas] || 0;
 
                 const canales = Math.round((totalDia * porcentaje) / 100);
 
@@ -863,6 +860,7 @@
 
             // 🔥 sobrescribe TODO (incluye backend y overrides)
             overridesSubclas[fecha] = nuevaDistribucion;
+            diasDistribucionModificados.add(fecha);
 
         }
         // ================= RESUMEN MENSUAL =================
@@ -1292,6 +1290,8 @@
                     `/Operaciones/PlaneacionDia?plan=${planActivo}&fecha=${fecha}`
                 );
 
+                if (!response.ok) throw new Error("No se pudo cargar el plan diario.");
+
                 const html = await response.text();
 
                 contenedorPlaneador.innerHTML = html;
@@ -1301,10 +1301,16 @@
 
                 contenedorPlaneador.style.display = "block";
                 document.getElementById("barra-dia").style.display = "block";
-                recalcularTodoDia();
+                await recalcularTodoDia();
 
             } catch (error) {
                 console.error("Error cargando planeación día:", error);
+                contenedorPlaneador.innerHTML = `<div class="alert alert-danger" role="alert">
+                    No se pudo completar la carga del plan diario. Vuelve a intentarlo.
+                    <button type="button" class="btn btn-outline-danger btn-sm ms-2"
+                            onclick="seleccionarDia(null, fechaActual)">Reintentar</button>
+                </div>`;
+                contenedorPlaneador.style.display = "block";
             }
         }
             function actualizarPlaneacionDia() {
@@ -1320,7 +1326,7 @@
                 return;
             }
 
-            seleccionarDia(
+            return seleccionarDia(
                 document.querySelector(".dia-card.selected"),
                 fechaActual
             );
@@ -1478,20 +1484,35 @@
 
             const filas = document.querySelectorAll("#tablaSubclasDia tbody tr");
 
-            overridesSubclas[fecha] = {};
+            const cantidades = {};
+            const pesos = {};
+            for (const fila of filas) {
+                const canalesInput = fila.querySelector(".input-subclas");
+                const pesoInput = fila.querySelector(".input-peso-diario");
+                pesoInput.required = Number(canalesInput.value) > 0;
+                pesoInput.setCustomValidity(pesoInput.required && !(Number(pesoInput.value) > 0)
+                    ? "Captura un peso promedio diario mayor a cero." : "");
+                if (!canalesInput.reportValidity() || !pesoInput.reportValidity()) return;
+            }
 
             let total = 0;
 
             filas.forEach(fila => {
 
-                const subclas = fila.children[0].innerText;
-                const valor = parseInt(fila.querySelector("input").value) || 0;
+                const subclas = fila.dataset.subclasificacion;
+                const valor = Number(fila.querySelector(".input-subclas").value);
+                const peso = fila.querySelector(".input-peso-diario").value;
 
-                overridesSubclas[fecha][subclas] = valor;
+                cantidades[subclas] = valor;
+                pesos[subclas] = peso === "" ? null : Number(peso);
                 total += valor;
             });
 
+            overridesSubclas[fecha] = cantidades;
+            pesosPromedioDia[fecha] = pesos;
+            diasDistribucionModificados.add(fecha);
             inputDiaActual.value = total;
+            esCambioManual = false;
             validarTotalDiario(inputDiaActual);
 
             bootstrap.Modal.getInstance(
@@ -1513,7 +1534,9 @@
     <script src="~/js/planpro.js"></script>
     <script src="~/js/planeacion-mes.js" asp-append-version="true"></script>
     <script src="~/js/plandetalle-mes.js" asp-append-version="true"></script>
+    <script src="~/js/plan-diario-excel.js" asp-append-version="true"></script>
      <script src="~/js/planDiario.js" asp-append-version="true"></script> 
     <script src="~/js/planSemanal.js" asp-append-version="true"></script>
     <script src="~/js/planresumen.js" asp-append-version="true"></script>
+    <script src="~/js/planeador-carga.js" asp-append-version="true"></script>
 }

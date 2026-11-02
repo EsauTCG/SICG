@@ -1,11 +1,35 @@
-﻿let resultadosBusquedaDia = [];
+let resultadosBusquedaDia = [];
 let indiceActualDia = -1;
 let ultimoTextoDia = "";
 async function recalcularConversionFila(fila) {
+    await Promise.all([cargarInyeccionFila(fila), cargarEtiquetacionFila(fila)]);
+}
+const claveCatalogoDiario = sku => (sku || "").trim().toUpperCase();
+const skuConversionDiaria = select => select?.dataset.catalogoDiarioCargado === "true"
+    ? select.value : (select?.dataset.skuConvertido || select?.value);
 
-    await cargarInyeccionFila(fila);
-    await cargarEtiquetacionFila(fila);
+async function consultarCatalogosDiarios(skus) {
+    const productos = [...new Set(skus.filter(Boolean))];
+    if (!productos.length) return new Map();
+    const response = await fetch("/Operaciones/ObtenerCatalogosPlanDiario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(productos),
+        cache: "no-store"
+    });
+    if (!response.ok) throw new Error("No se pudieron cargar los catálogos del plan diario. Vuelve a abrir el día.");
+    return new Map((await response.json()).map(item => [claveCatalogoDiario(item.productoCodigo), item]));
+}
 
+function aplicarInyeccionFila(fila, item) {
+    fila.querySelector(".td-iny-porcentaje").innerText = item?.porcentaje ?? 0;
+    fila.querySelector(".td-iny-tipo").innerText = item?.tipo ?? "";
+    fila.querySelector(".td-iny-nombre").innerText = item?.nombre ?? "";
+}
+
+function aplicarEtiquetacionFila(fila, item) {
+    fila.querySelector(".td-etiq").innerText = item?.nombre ?? "";
+    fila.querySelector(".td-caduc").innerText = item?.diasCaducidad ?? "";
 }
 async function cargarInyeccionFila(fila) {
 
@@ -19,7 +43,7 @@ async function cargarInyeccionFila(fila) {
             select?.value || fila.dataset.sku;
 
         const response = await fetch(
-            `/Operaciones/ObtenerInyeccion?sku=${sku}`
+            `/Operaciones/ObtenerInyeccion?sku=${encodeURIComponent(sku)}`
         );
 
         if (!response.ok)
@@ -61,7 +85,7 @@ async function cargarEtiquetacionFila(fila) {
     try {
 
         const response = await fetch(
-            `/Operaciones/ObtenerEtiquetacionSku?sku=${sku}`
+            `/Operaciones/ObtenerEtiquetacionSku?sku=${encodeURIComponent(sku)}`
         );
 
         if (!response.ok)
@@ -85,20 +109,12 @@ async function cargarEtiquetacionFila(fila) {
 
     }
 }
-async function cargarCatalogoConversiones() {
+async function cargarCatalogoConversiones(catalogos) {
 
     const selects =
         document.querySelectorAll(".select-conversion");
 
-    console.log(
-        "Selects encontrados:",
-        selects.length
-    );
-
-    console.log(
-        "Tabla existe:",
-        !!document.querySelector("#tablaPlan")
-    );
+    catalogos ??= await consultarCatalogosDiarios([...selects].map(select => select.dataset.skuOriginal));
 
     for (const select of selects) {
 
@@ -106,30 +122,9 @@ async function cargarCatalogoConversiones() {
             select.dataset.skuOriginal;
 
         const skuConvertidoGuardado =
-            select.dataset.skuConvertido;
+            skuConversionDiaria(select);
 
-        console.log(
-            "Consultando SKU:",
-            skuOriginal
-        );
-
-        const resp = await fetch(
-            `/Operaciones/ObtenerConversiones?sku=${encodeURIComponent(skuOriginal)}&soloActivas=true`,
-            { cache: "no-store" }
-        );
-
-        console.log(
-            "Status:",
-            resp.status
-        );
-
-        const conversiones =
-            await resp.json();
-
-        console.log(
-            "Resultado:",
-            conversiones
-        );
+        const conversiones = catalogos.get(claveCatalogoDiario(skuOriginal))?.conversiones ?? [];
 
         select.replaceChildren();
         select.removeAttribute("title");
@@ -170,6 +165,7 @@ async function cargarCatalogoConversiones() {
                     skuConvertidoGuardado;
             }
         }
+        select.dataset.catalogoDiarioCargado = "true";
     }
 }
 document.addEventListener(
@@ -380,488 +376,35 @@ function actualizarContador() {
         : "Sin resultados";
 }
 
-function exportarExcel() {
-
-    const tabla = document.getElementById("tablaPlan");
-
-    if (!tabla)
-        return;
-
-    const tituloBase =
-        document.querySelector("h3")?.innerText || "Plan Diario";
-
-    const tipoPlan =
-        document.getElementById("comboTipoPlan")?.value || "PLAN";
-
-    const nombreArchivo =
-        `${tituloBase} - ${tipoPlan}`;
-
-    const tablaClon =
-        tabla.cloneNode(true);
-
-    // ==========================
-    // INPUTS -> TEXTO
-    // ==========================
-
-    tablaClon.querySelectorAll("input").forEach(input => {
-
-        const td = input.closest("td");
-
-        if (td)
-            td.innerText = input.value;
-
-    });
-
-    // ==========================
-    // SELECTS -> TEXTO
-    // ==========================
-
-    const selectsOriginales =
-        tabla.querySelectorAll(".select-conversion");
-
-    const selectsClon =
-        tablaClon.querySelectorAll(".select-conversion");
-
-    selectsClon.forEach((selectClon, i) => {
-
-        const valorSeleccionado =
-            selectsOriginales[i]?.value || "";
-
-        const td =
-            selectClon.closest("td");
-
-        if (td)
-            td.innerText = valorSeleccionado;
-
-    });
-
-    // ==========================
-    // BOTONES + -> 0
-    // ==========================
-
-    tablaClon
-        .querySelectorAll(".btn-agregar-participacion")
-        .forEach(btn => {
-
-            const td = btn.closest("td");
-
-            if (td)
-                td.innerText = "0.00";
-
-        });
-
-    // ==========================
-    // BOTÓN ELIMINAR EXTRA
-    // ==========================
-
-    tablaClon
-        .querySelectorAll(".btn-eliminar-extra")
-        .forEach(btn => {
-
-            const td = btn.closest("td");
-
-            if (td)
-                td.innerText = "";
-
-        });
-
-    // ==========================
-    // ELIMINAR HEADERS DE MASTER
-    // ==========================
-
-    tablaClon
-        .querySelectorAll(".master-header")
-        .forEach(fila => fila.remove());
-
-    // ==========================
-    // FILTRAR PRODUCTOS
-    // ==========================
-
-    tablaClon.querySelectorAll("tbody tr").forEach(fila => {
-
-        const esDerivado =
-            fila.classList.contains("fila-derivado");
-
-        const esExtra =
-            !!fila.querySelector(".btn-eliminar-extra");
-
-        const totalCanales =
-            parseFloat(
-                fila.querySelector(".total-canales")
-                    ?.innerText
-            ) || 0;
-
-        if (
-            totalCanales <= 0 &&
-            !esDerivado &&
-            !esExtra
-        ) {
-            fila.remove();
-        }
-
-    });
-
-    const wb =
-        XLSX.utils.book_new();
-
-    const ws =
-        XLSX.utils.table_to_sheet(tablaClon);
-
-    // ==========================
-    // INSERTAR TÍTULO
-    // ==========================
-
-    XLSX.utils.sheet_add_aoa(
-        ws,
-        [[nombreArchivo]],
-        { origin: "A1" }
-    );
-
-    const rango =
-        XLSX.utils.decode_range(ws["!ref"]);
-
-    for (let R = rango.e.r; R >= 0; --R) {
-
-        for (let C = rango.e.c; C >= 0; --C) {
-
-            const oldCell =
-                XLSX.utils.encode_cell({ r: R, c: C });
-
-            const newCell =
-                XLSX.utils.encode_cell({ r: R + 2, c: C });
-
-            ws[newCell] = ws[oldCell];
-
-        }
-
+async function exportarExcel() {
+    try {
+        await PlanDiarioExcel.exportar();
+    } catch (error) {
+        console.error(error);
+        alert(error.message || "No se pudo exportar el plan diario.");
     }
-
-    ws["!ref"] =
-        XLSX.utils.encode_range({
-            s: { r: 0, c: 0 },
-            e: { r: rango.e.r + 2, c: rango.e.c }
-        });
-
-    // ==========================
-    // LOCALIZAR COLUMNAS
-    // ==========================
-
-    const encabezados =
-        tabla.querySelectorAll("thead tr:nth-child(2) th");
-
-    let colInyInicio = -1;
-
-    encabezados.forEach((th, i) => {
-
-        if (
-            th.innerText.trim()
-                .toUpperCase() === "SKU"
-        ) {
-            colInyInicio = i;
-        }
-
-    });
-
-    if (colInyInicio >= 0) {
-
-        colInyInicio += 3;
-
-        ws["!merges"] = ws["!merges"] || [];
-
-        ws["!merges"].push({
-
-            s: {
-                r: 2,
-                c: colInyInicio
-            },
-
-            e: {
-                r: 2,
-                c: colInyInicio + 4
-            }
-
-        });
-
-        ws["!merges"].push({
-
-            s: {
-                r: 2,
-                c: colInyInicio + 5
-            },
-
-            e: {
-                r: 2,
-                c: colInyInicio + 6
-            }
-
-        });
-
-    }
-
-    // ==========================
-    // ESTILOS
-    // ==========================
-
-    const filas =
-        [...tablaClon.querySelectorAll("tbody tr")];
-
-    filas.forEach((fila, i) => {
-
-        const celdas =
-            fila.querySelectorAll("td");
-
-        celdas.forEach((td, j) => {
-
-            const r = i + 5;
-            const c = j;
-
-            const ref =
-                XLSX.utils.encode_cell({
-                    r,
-                    c
-                });
-
-            if (!ws[ref])
-                return;
-
-            let color = null;
-
-            if (
-                td.classList.contains("td-0")
-            )
-                color = "F8B26A";
-
-            else if (
-                td.classList.contains("td-1")
-            )
-                color = "58D68D";
-
-            else if (
-                td.classList.contains("td-parcial")
-            )
-                color = "5DADE2";
-
-            else if (
-                td.classList.contains("td-codigo")
-            )
-                color = "FDF2D0";
-
-            else if (
-                td.classList.contains("col-gris")
-            )
-                color = "E5E7E9";
-
-            else if (
-                td.classList.contains("col-iny")
-            )
-                color = "D6EAF8";
-
-            if (
-                fila.classList.contains(
-                    "fila-derivado"
-                )
-            ) {
-                color = "D6ECFF";
-            }
-
-            ws[ref].s = {
-
-                fill: color
-                    ? {
-                        fgColor: {
-                            rgb: color
-                        }
-                    }
-                    : undefined,
-
-                border: {
-
-                    top: {
-                        style: "thin"
-                    },
-
-                    bottom: {
-                        style: "thin"
-                    },
-
-                    left: {
-                        style: "thin"
-                    },
-
-                    right: {
-                        style: "thin"
-                    }
-
-                }
-
-            };
-
-        });
-
-    });
-
-    // ==========================
-    // ENCABEZADOS
-    // ==========================
-
-    for (let r = 2; r <= 4; r++) {
-
-        for (let c = 0; c <= rango.e.c; c++) {
-
-            const ref =
-                XLSX.utils.encode_cell({
-                    r,
-                    c
-                });
-
-            if (!ws[ref])
-                continue;
-
-            ws[ref].s = {
-
-                fill: {
-                    fgColor: {
-                        rgb: "D5D8DC"
-                    }
-                },
-
-                font: {
-                    bold: true
-                },
-
-                alignment: {
-                    horizontal: "center",
-                    vertical: "center"
-                },
-
-                border: {
-
-                    top: {
-                        style: "thin"
-                    },
-
-                    bottom: {
-                        style: "thin"
-                    },
-
-                    left: {
-                        style: "thin"
-                    },
-
-                    right: {
-                        style: "thin"
-                    }
-
-                }
-
-            };
-
-        }
-
-    }
-
-    // ==========================
-    // TÍTULO
-    // ==========================
-
-    ws["A1"] = {
-
-        t: "s",
-
-        v: nombreArchivo,
-
-        s: {
-
-            font: {
-                bold: true,
-                sz: 16
-            }
-
-        }
-
-    };
-
-    // ==========================
-    // ANCHOS
-    // ==========================
-
-    const cols = [];
-
-    for (
-        let i = 0;
-        i <= rango.e.c;
-        i++
-    ) {
-
-        cols.push({
-            wch: 18
-        });
-
-    }
-
-    ws["!cols"] = cols;
-
-    // ==========================
-    // FREEZE
-    // ==========================
-
-    ws["!freeze"] = {
-
-        xSplit: 2,
-        ySplit: 5
-
-    };
-
-    XLSX.utils.book_append_sheet(
-        wb,
-        ws,
-        "Plan Diario"
-    );
-
-    XLSX.writeFile(
-        wb,
-        `${nombreArchivo}.xlsx`
-    );
-
 }
 
-
-
 async function recalcularTodoDia() {
-
-
-
     const filas =
         [...document.querySelectorAll(".fila-producto")];
-
+    if (!filas.length) return;
+    // Una lectura por apertura. No se reutilizan catálogos entre días o actualizaciones.
+    const catalogos = await consultarCatalogosDiarios(filas.flatMap(fila => {
+        const select = fila.querySelector(".select-conversion");
+        return [fila.dataset.sku, select?.dataset.skuOriginal,
+            skuConversionDiaria(select)];
+    }));
+    await cargarCatalogoConversiones(catalogos);
     filas.forEach(fila => {
-        recalcularFilaDia(fila);
+        recalcularFilaDia(fila, false);
+        const sku = fila.querySelector(".select-conversion")?.value || fila.dataset.sku;
+        const item = catalogos.get(claveCatalogoDiario(sku));
+        aplicarInyeccionFila(fila, item?.iny);
+        aplicarEtiquetacionFila(fila, item?.etiq);
     });
-
-    const TAM_LOTE = 5;
-    await cargarCatalogoConversiones();
-    for (let i = 0; i < filas.length; i += TAM_LOTE) {
-
-        const lote =
-            filas.slice(i, i + TAM_LOTE);
-
-        await Promise.all(
-            lote.map(async fila => {
-
-                await Promise.all([
-                    cargarInyeccionFila(fila),
-                    cargarEtiquetacionFila(fila)
-                ]);
-
-            })
-        );
-
-        console.log(
-            `Lote ${Math.floor(i / TAM_LOTE) + 1} completado`
-        );
-    }
-
     recalcularInyeccion();
+    recalcularSubtotalesMaster();
 }
 function recalcularInyeccion() {
     const filas = document.querySelectorAll(
@@ -1782,7 +1325,7 @@ function aplicarColor(input) {
         td.classList.add("td-parcial");
     }
 }
-function recalcularFilaDia(fila) {
+function recalcularFilaDia(fila, actualizarTotales = true) {
     const porcentaje = parseFloat(fila.dataset.porcentaje) || 0;
     let totalCalculado = 0;
     let totalCanales = 0;
@@ -1799,8 +1342,10 @@ function recalcularFilaDia(fila) {
         totalCalculado.toFixed(2);
     fila.querySelector(".total-canales").textContent =
         totalCanales.toFixed(0);
-    recalcularInyeccion();
-    recalcularSubtotalesMaster();
+    if (actualizarTotales) {
+        recalcularInyeccion();
+        recalcularSubtotalesMaster();
+    }
 }
 document.addEventListener("keydown", function (e) {
 
@@ -2007,7 +1552,7 @@ async function agregarSkuExtra(
             <td class="col-iny">
                 ${sku}
             </td>
-            <td class="col-iny">
+            <td class="col-iny td-iny-nombre">
                 ${nombre}
             </td>
             <td class="col-iny td-iny-porcentaje"
@@ -2046,14 +1591,12 @@ async function agregarSkuExtra(
         behavior: "smooth",
         block: "center"
     });
-    recalcularTodoDia();
+    await recalcularTodoDia();
     const modalEl =
         document.getElementById("modalExtra");
     const modal =
         bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.hide();
-    await cargarInyecciones();
-    await cargarEtiquetacion();
     recalcularSubtotalesMaster();   
 }
 document.addEventListener("click", function (e) {

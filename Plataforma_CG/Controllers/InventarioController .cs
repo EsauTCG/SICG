@@ -24,254 +24,394 @@ public class InventarioController : Controller
 
     // ✅ Requests que tu JS manda
     public record InvScanBatchReq(string almacen, List<string> codigos);
-    public record InvReporteReq(string almacen,string desde, string hasta);
+    public record InvReporteReq(string almacen, string desde, string hasta);
 
 
     private static string Norm(string s) => (s ?? "").Trim().ToUpperInvariant();
 
-    // ====== Meat: buscar etiqueta normal (trae también almacén desde CommerciaNet) ======
-    private async Task<(string Sku, decimal Kg, string AlmacenNombre)?> BuscarEtiquetaAsync(
-     string cs, string etiqueta, string dbAlmacen)
+    // OPTIMIZACION: consultas en grupo, sin cambiar contrato del front ni reportes.
+    private sealed class EtiquetaInfo
     {
-        if (string.IsNullOrWhiteSpace(cs)) return null;
+        public string CodigoEtiqueta { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public decimal Kg { get; set; }
+        public string AlmacenNombre { get; set; } = "";
+        public string Origen { get; set; } = "";
+    }
 
-        // ✅ Whitelist (para evitar inyección en nombre de BD)
-        dbAlmacen = (dbAlmacen ?? "").Trim();
+    private sealed class ScanPendiente
+    {
+        public string Codigo { get; set; } = "";
+        public string Sku { get; set; } = "";
+        public decimal Kg { get; set; }
+        public string Almacen { get; set; } = "";
+        public string Origen { get; set; } = "";
+        public DateTime Fecha { get; set; }
+        public string Usuario { get; set; } = "";
+    }
+
+    private sealed class ScanResultado
+    {
+        public string kind { get; set; } = "err";
+        public string codigo { get; set; } = "";
+        public string sku { get; set; } = "";
+        public decimal kg { get; set; }
+        public string origen { get; set; } = "";
+        public string almacen { get; set; } = "";
+        public string msg { get; set; } = "";
+    }
+
+    private static ScanResultado Resultado(ScanPendiente p, string kind, string msg) => new()
+    {
+        kind = kind,
+        codigo = p.Codigo,
+        sku = p.Sku,
+        kg = p.Kg,
+        origen = p.Origen,
+        almacen = p.Almacen,
+        msg = msg
+    };
+
+    // Busqueda rapida indexada. El respaldo legado solo se ejecuta despues
+    // de intentar en P1 y TIF, evitando barridos caros por cada tarima TIF.
+    private async Task<Dictionary<string, EtiquetaInfo>> BuscarEtiquetasLoteAsync(
+        string? cs, IEnumerable<string> codigos, string dbAlmacen, string origen, bool legado = false)
+    {
+        var encontrados = new Dictionary<string, EtiquetaInfo>(StringComparer.OrdinalIgnoreCase);
+        var lista = codigos.Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (lista.Length == 0 || string.IsNullOrWhiteSpace(cs)) return encontrados;
         if (dbAlmacen != "CommerciaNet" && dbAlmacen != "TIF_CommerciaNet")
-            throw new Exception("dbAlmacen inválida.");
+            throw new ArgumentException("dbAlmacen invalida.");
 
         await using var cn = new SqlConnection(cs);
         await cn.OpenAsync();
-
-        var sql = $@"
-SELECT TOP 1
-    Sku           = UPPER(LTRIM(RTRIM(a.Articulo))),
-    Kg            = CAST(a.PesoNeto AS DECIMAL(18,4)),
-    AlmacenNombre = ISNULL(b.Nombre,'')
+        const int lote = 150;
+        for (int i = 0; i < lista.Length; i += lote)
+        {
+            var parte = lista.Skip(i).Take(lote).ToArray();
+            string filtro = legado
+                ? "UPPER(LTRIM(RTRIM(a.CodigoEtiqueta))) IN @codigos"
+                : "a.CodigoEtiqueta IN @codigos";
+            var sql = $@"SELECT a.CodigoEtiqueta,
+       Sku=UPPER(LTRIM(RTRIM(a.Articulo))),
+       Kg=CAST(a.PesoNeto AS DECIMAL(18,4)),
+       AlmacenNombre=ISNULL(b.Nombre,'')
 FROM dbo.Produccion a
-INNER JOIN [{dbAlmacen}].dbo.Almacen b
-    ON a.Almacen = b.AlmacenId
-WHERE UPPER(LTRIM(RTRIM(a.CodigoEtiqueta))) = @etiqueta
-  AND a.Estatus = 1;";
-
-        var info = await cn.QueryFirstOrDefaultAsync<(string Sku, decimal Kg, string AlmacenNombre)>(
-            sql, new { etiqueta });
-
-        if (string.IsNullOrWhiteSpace(info.Sku)) return null;
-        return info;
-    }
-
-
-    // ====== Meat: buscar tarima -> lista de etiquetas ======
-    private async Task<List<string>> BuscarTarimaEtiquetasAsync(string cs, string tarimaCodigo)
-    {
-        var list = new List<string>();
-        if (string.IsNullOrWhiteSpace(cs)) return list;
-
-        await using var cn = new SqlConnection(cs);
-        await cn.OpenAsync();
-
-        const string sql = @"
-SELECT p.CodigoEtiqueta
-FROM Tarima t
-JOIN TarimaDetalle td ON td.TarimaId = t.TarimaId
-JOIN Produccion p     ON p.ProduccionId = td.ProduccionId
-WHERE t.Estatus = 1
-  AND p.Estatus = 1
-  AND UPPER(LTRIM(RTRIM(t.Nombre))) = @TarimaCodigo;";
-
-        var rows = await cn.QueryAsync<string>(sql, new { TarimaCodigo = tarimaCodigo });
-        foreach (var r in rows)
-        {
-            var etq = Norm(r);
-            if (!string.IsNullOrWhiteSpace(etq)) list.Add(etq);
-        }
-
-        return list;
-    }
-
-    // ====== Guardar en BD principal + actualizar FechaInventario en Meat ======
-    private async Task<(bool ok, bool dup, string msg)> GuardarScanAsync(
-        string almacen, string codigo, string sku, decimal kg, string origen, string usuario, string csMeat)
-    {
-        try
-        {
-            var now = DateTime.Now;
-
-            var row = new InventarioScanEtiqueta
+INNER JOIN [{dbAlmacen}].dbo.Almacen b ON a.Almacen=b.AlmacenId
+WHERE {filtro} AND a.Estatus=1;";
+            var rows = await cn.QueryAsync<EtiquetaInfo>(sql, new { codigos = parte });
+            foreach (var row in rows)
             {
-                Almacen = almacen,
-                CodigoEtiqueta = codigo,
-                Sku = sku,
-                Kg = kg,
-                Origen = origen,
-                Usuario = usuario ?? "",
-                Fecha = now
-            };
-
-            _context.InventarioScanEtiquetas.Add(row);
-            await _context.SaveChangesAsync();
-
-            // ✅ Si guardó OK en tu BD principal, marca FechaInventario en Meat
-            var marked = await MarcarFechaInventarioAsync(csMeat, codigo, now);
-
-            return (true, false, $"OK [{origen}] {sku} {kg:N2} kg · {almacen} · MeatUpd={(marked ? "SI" : "NO")}");
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is SqlException sqlEx
-                                          && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
-        {
-            return (false, true, $"Duplicado: {codigo}");
-        }
-        catch (Exception ex)
-        {
-            return (false, false, $"Error al guardar: {ex.Message}");
-        }
-    }
-
-
-
-    // ====== Procesa 1 código: etiqueta o tarima ======
-    private async Task<List<object>> ProcesarCodigoAsync(string almacenRequest, string codigo)
-    {
-        var results = new List<object>();
-
-        var csP1 = _cfg.GetConnectionString("CadenaMeatP1");
-        var csTif = _cfg.GetConnectionString("CadenaMeatTIF");
-
-        // 1) Buscar etiqueta normal (P1 -> TIF)
-        (string Sku, decimal Kg, string AlmacenNombre)? info = null;
-        string origen = "";
-        string csMeat = ""; // ✅ esta es la que usaremos para actualizar FechaInventario
-
-        info = await BuscarEtiquetaAsync(csP1, codigo, "CommerciaNet");
-        if (info != null)
-        {
-            origen = "P1";
-            csMeat = csP1;
-        }
-        else
-        {
-            info = await BuscarEtiquetaAsync(csTif, codigo, "TIF_CommerciaNet");
-            if (info != null)
-            {
-                origen = "TIF";
-                csMeat = csTif;
+                var clave = Norm(row.CodigoEtiqueta);
+                if (!encontrados.ContainsKey(clave))
+                {
+                    row.Origen = origen;
+                    encontrados[clave] = row;
+                }
             }
         }
-
-        // Si fue etiqueta, guardar en BD principal + actualizar FechaInventario en Meat
-        if (info != null)
-        {
-            var sku = Norm(info.Value.Sku);
-            var kg = info.Value.Kg;
-
-            // ✅ almacén real sale del join de CommerciaNet / TIF_CommerciaNet
-            var almacenReal = Norm(info.Value.AlmacenNombre);
-            if (string.IsNullOrWhiteSpace(almacenReal))
-                almacenReal = Norm(almacenRequest);
-
-            var usuario = User?.Identity?.Name ?? "";
-
-            var (ok, dup, msg) = await GuardarScanAsync(
-                almacenReal,
-                codigo,
-                sku,
-                kg,
-                origen,
-                usuario,
-                csMeat // ✅ IMPORTANTE: para marcar FechaInventario en la BD correcta
-            );
-
-            results.Add(new
-            {
-                kind = ok ? "ok" : (dup ? "dup" : "err"),
-                codigo = codigo,
-                sku,
-                kg,
-                origen,
-                almacen = almacenReal,
-                msg
-            });
-
-            return results;
-        }
-
-        // 2) Si no fue etiqueta, intentar TARIMA (P1 -> TIF)
-        var etqs = await BuscarTarimaEtiquetasAsync(csP1, codigo);
-        origen = etqs.Count > 0 ? "P1" : "";
-
-        if (etqs.Count == 0)
-        {
-            etqs = await BuscarTarimaEtiquetasAsync(csTif, codigo);
-            if (etqs.Count > 0) origen = "TIF";
-        }
-
-        if (etqs.Count == 0)
-        {
-            results.Add(new
-            {
-                kind = "err",
-                codigo = codigo,
-                sku = "",
-                kg = 0m,
-                origen = "",
-                almacen = Norm(almacenRequest),
-                msg = $"No se encontró etiqueta ni tarima: {codigo}"
-            });
-            return results;
-        }
-
-        // Procesa etiquetas de tarima (cada etiqueta se valida y guarda individualmente)
-        foreach (var e in etqs.Distinct())
-        {
-            var sub = await ProcesarCodigoAsync(almacenRequest, e);
-            results.AddRange(sub);
-        }
-
-        return results;
+        return encontrados;
     }
 
+    // Busca tarima primero mediante igualdad indexable. Conserva la busqueda
+    // anterior como respaldo para los nombres con formato historico.
+    private async Task<List<string>> BuscarTarimaEtiquetasAsync(string? cs, string codigo)
+    {
+        if (string.IsNullOrWhiteSpace(cs)) return new List<string>();
+        await using var cn = new SqlConnection(cs);
+        await cn.OpenAsync();
+        const string baseSql = @"SELECT p.CodigoEtiqueta
+FROM dbo.Tarima t
+JOIN dbo.TarimaDetalle td ON td.TarimaId=t.TarimaId
+JOIN dbo.Produccion p ON p.ProduccionId=td.ProduccionId
+WHERE t.Estatus=1 AND p.Estatus=1 AND ";
+        var rows = (await cn.QueryAsync<string>(baseSql + "t.Nombre=@codigo;", new { codigo })).ToList();
+        if (rows.Count == 0)
+            rows = (await cn.QueryAsync<string>(baseSql +
+                "UPPER(LTRIM(RTRIM(t.Nombre)))=@codigo;", new { codigo })).ToList();
+        return rows.Select(Norm).Where(x => x.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
 
+    private async Task<Dictionary<string, EtiquetaInfo>> ObtenerMetadatosAsync(
+        IEnumerable<string> codigos, string? csP1, string? csTif)
+    {
+        var lista = codigos.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var datos = await BuscarEtiquetasLoteAsync(csP1, lista, "CommerciaNet", "P1");
+        var faltantes = lista.Where(x => !datos.ContainsKey(x)).ToArray();
+        if (faltantes.Length > 0)
+        {
+            var tif = await BuscarEtiquetasLoteAsync(csTif, faltantes, "TIF_CommerciaNet", "TIF");
+            foreach (var par in tif) datos.TryAdd(par.Key, par.Value);
+        }
+        // Preserva lectura de codigos antiguos, pero no realiza el costoso
+        // barrido legado de P1 antes de buscar por indice en TIF.
+        faltantes = lista.Where(x => !datos.ContainsKey(x)).ToArray();
+        if (faltantes.Length > 0)
+        {
+            var p1Legado = await BuscarEtiquetasLoteAsync(csP1, faltantes,
+                "CommerciaNet", "P1", legado: true);
+            foreach (var par in p1Legado) datos.TryAdd(par.Key, par.Value);
+            faltantes = lista.Where(x => !datos.ContainsKey(x)).ToArray();
+            if (faltantes.Length > 0)
+            {
+                var tifLegado = await BuscarEtiquetasLoteAsync(csTif, faltantes,
+                    "TIF_CommerciaNet", "TIF", legado: true);
+                foreach (var par in tifLegado) datos.TryAdd(par.Key, par.Value);
+            }
+        }
+        return datos;
+    }
 
+    // Conserva la restriccion unica UX_InventarioScanEtiqueta_Dia.
+    // El filtro evita intentar insertar miles de duplicados; la restriccion sigue
+    // garantizando seguridad frente a escaneos simultaneos.
+    private async Task<Dictionary<string, ScanResultado>> GuardarLoteAsync(
+        IReadOnlyList<ScanPendiente> entradas, string? csP1, string? csTif)
+    {
+        var salida = new Dictionary<string, ScanResultado>(StringComparer.OrdinalIgnoreCase);
+        if (entradas.Count == 0) return salida;
+        var fechaDia = DateTime.Today;
+        var fechaSiguiente = fechaDia.AddDays(1);
+        var codigos = entradas.Select(x => x.Codigo).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
+        // Se consulta lo ya guardado EN EL DIA, sin alterar la regla de duplicados.
+        var yaRegistrados = await _context.InventarioScanEtiquetas.AsNoTracking()
+            .Where(x => codigos.Contains(x.CodigoEtiqueta) && x.Fecha >= fechaDia && x.Fecha < fechaSiguiente)
+            .Select(x => new { x.CodigoEtiqueta, x.Almacen }).ToListAsync();
+        var existe = new HashSet<string>(yaRegistrados.Select(x => x.Almacen + "\u001f" + x.CodigoEtiqueta),
+            StringComparer.OrdinalIgnoreCase);
+        var candidatos = new List<ScanPendiente>();
+        foreach (var e in entradas)
+        {
+            var key = e.Almacen + "\u001f" + e.Codigo;
+            if (!existe.Add(key)) salida[e.Codigo] = Resultado(e, "dup", $"Duplicado: {e.Codigo}");
+            else candidatos.Add(e);
+        }
 
+        // Un SaveChanges para todas las cajas nuevas, con fallback individual si
+        // otra sesion inserto la misma caja simultaneamente.
+        var guardadas = new List<ScanPendiente>();
+        if (candidatos.Count > 0)
+        {
+            try
+            {
+                foreach (var e in candidatos) _context.InventarioScanEtiquetas.Add(NuevaEntidad(e));
+                await _context.SaveChangesAsync();
+                guardadas.AddRange(candidatos);
+            }
+            catch (DbUpdateException)
+            {
+                _context.ChangeTracker.Clear();
+                foreach (var e in candidatos)
+                {
+                    try
+                    {
+                        _context.InventarioScanEtiquetas.Add(NuevaEntidad(e));
+                        await _context.SaveChangesAsync();
+                        guardadas.Add(e);
+                    }
+                    catch (DbUpdateException ex) when (ex.InnerException is SqlException sx && (sx.Number == 2601 || sx.Number == 2627))
+                    {
+                        salida[e.Codigo] = Resultado(e, "dup", $"Duplicado: {e.Codigo}");
+                    }
+                    catch (Exception ex)
+                    {
+                        salida[e.Codigo] = Resultado(e, "err", $"Error al guardar: {ex.Message}");
+                    }
+                    finally { _context.ChangeTracker.Clear(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                _context.ChangeTracker.Clear();
+                foreach (var e in candidatos)
+                    salida[e.Codigo] = Resultado(e, "err", $"Error al guardar: {ex.Message}");
+            }
+            finally { _context.ChangeTracker.Clear(); }
+        }
 
+        // Solo se marca FechaInventario para lo efectivamente insertado, agrupado por P1/TIF.
+        foreach (var grupo in guardadas.GroupBy(e => e.Origen))
+        {
+            var cs = grupo.Key == "P1" ? csP1 : csTif;
+            Dictionary<string, bool> marcadas;
+            try { marcadas = await MarcarFechasLoteAsync(cs, grupo.ToList()); }
+            catch (Exception ex)
+            {
+                foreach (var e in grupo)
+                    salida[e.Codigo] = Resultado(e, "err", $"Error al guardar: {ex.Message}");
+                continue;
+            }
+            foreach (var e in grupo)
+            {
+                var ok = marcadas.TryGetValue(e.Codigo, out var marcado) && marcado;
+                salida[e.Codigo] = Resultado(e, "ok",
+                    $"OK [{e.Origen}] {e.Sku} {e.Kg:N2} kg · {e.Almacen} · MeatUpd={(ok ? "SI" : "NO")}");
+            }
+        }
+        return salida;
+    }
 
-    // ✅ Batch: POST /Inventario/ScanBatch { almacen, codigos }
+    private static InventarioScanEtiqueta NuevaEntidad(ScanPendiente e) => new()
+    {
+        Almacen = e.Almacen,
+        CodigoEtiqueta = e.Codigo,
+        Sku = e.Sku,
+        Kg = e.Kg,
+        Origen = e.Origen,
+        Usuario = e.Usuario,
+        Fecha = e.Fecha
+    };
+
+    private async Task<Dictionary<string, bool>> MarcarFechasLoteAsync(
+        string? cs, IReadOnlyList<ScanPendiente> entradas)
+    {
+        var resultado = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(cs)) return resultado;
+        await using var cn = new SqlConnection(cs);
+        await cn.OpenAsync();
+        // VALUES parametrizado: evita abrir una conexion y ejecutar un UPDATE por caja.
+        // Se conserva la fecha de cada registro individual.
+        const int tam = 150;
+        for (int offset = 0; offset < entradas.Count; offset += tam)
+        {
+            var parte = entradas.Skip(offset).Take(tam).ToArray();
+            var args = new DynamicParameters();
+            var valores = new List<string>();
+            for (int i = 0; i < parte.Length; i++)
+            {
+                valores.Add($"(@c{i},@f{i})");
+                args.Add($"c{i}", parte[i].Codigo);
+                args.Add($"f{i}", parte[i].Fecha);
+            }
+            var sql = $@"
+DECLARE @Cambiadas TABLE (CodigoEtiqueta NVARCHAR(250));
+UPDATE p SET FechaInventario=v.Fecha
+OUTPUT inserted.CodigoEtiqueta INTO @Cambiadas(CodigoEtiqueta)
+FROM dbo.Produccion p
+JOIN (VALUES {string.Join(",", valores)}) v(Codigo,Fecha)
+  ON p.CodigoEtiqueta=v.Codigo
+WHERE p.Estatus=1;
+SELECT CodigoEtiqueta FROM @Cambiadas;";
+            var marcadas = await cn.QueryAsync<string>(sql, args);
+            foreach (var codigo in marcadas) resultado[Norm(codigo)] = true;
+            // Casos antiguos que dependen de TRIM/UPPER: usar la actualizacion original.
+            foreach (var e in parte.Where(x => !resultado.ContainsKey(x.Codigo)))
+            {
+                var filas = await cn.ExecuteAsync(@"
+UPDATE dbo.Produccion SET FechaInventario=@fecha
+WHERE UPPER(LTRIM(RTRIM(CodigoEtiqueta)))=@codigo AND Estatus=1;",
+                    new { fecha = e.Fecha, codigo = e.Codigo });
+                resultado[e.Codigo] = filas > 0;
+            }
+        }
+        return resultado;
+    }
+
+    // MISMO ENDPOINT Y MISMA ESTRUCTURA JSON que utiliza Inventarios.cshtml.
     [HttpPost("Inventario/ScanBatch")]
     public async Task<IActionResult> ScanBatch([FromBody] InvScanBatchReq req)
     {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
         var almacen = Norm(req.almacen);
         if (string.IsNullOrWhiteSpace(almacen)) almacen = "ALL";
+        var codigos = (req.codigos ?? new List<string>()).Select(Norm)
+            .Where(x => x.Length > 0).ToList();
+        if (codigos.Count == 0) return BadRequest(new { ok = false, msg = "No hay códigos." });
+        var csP1 = _cfg.GetConnectionString("CadenaMeatP1");
+        var csTif = _cfg.GetConnectionString("CadenaMeatTIF");
+        var contenidos = new List<object>();
+        var resultados = new List<ScanResultado>();
+        var usuario = User?.Identity?.Name ?? "";
 
-        var codigos = (req.codigos ?? new List<string>())
-            .Select(Norm)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToList();
-
-        if (codigos.Count == 0)
-            return BadRequest(new { ok = false, msg = "No hay códigos." });
-
-        var results = new List<object>();
         foreach (var c in codigos)
         {
-            var r = await ProcesarCodigoAsync(almacen, c);
-            results.AddRange(r);
+            // Igual que antes: determinar primero si el codigo es tarima para
+            // el resumen. Buscar P1 y luego TIF.
+            var tiempoTarima = System.Diagnostics.Stopwatch.StartNew();
+            var etiquetasTarima = await BuscarTarimaEtiquetasAsync(csP1, c);
+            if (etiquetasTarima.Count == 0)
+                etiquetasTarima = await BuscarTarimaEtiquetasAsync(csTif, c);
+            tiempoTarima.Stop();
+            var esTarima = etiquetasTarima.Count > 0;
+            var lista = esTarima ? etiquetasTarima : new List<string> { c };
+            var tiempoMetadatos = System.Diagnostics.Stopwatch.StartNew();
+            var metadatos = await ObtenerMetadatosAsync(lista, csP1, csTif);
+            tiempoMetadatos.Stop();
+            var pendientes = new List<ScanPendiente>();
+            var porCodigo = new Dictionary<string, ScanResultado>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var e in lista)
+            {
+                if (!metadatos.TryGetValue(e, out var d))
+                {
+                    porCodigo[e] = new ScanResultado
+                    {
+                        kind = "err",
+                        codigo = e,
+                        almacen = almacen,
+                        msg = esTarima ? $"No se encontró etiqueta ni tarima: {e}"
+                            : $"No se encontró etiqueta ni tarima: {c}"
+                    };
+                    continue;
+                }
+                var almacenReal = Norm(d.AlmacenNombre);
+                if (almacenReal.Length == 0) almacenReal = almacen;
+                pendientes.Add(new ScanPendiente
+                {
+                    Codigo = e,
+                    Sku = Norm(d.Sku),
+                    Kg = d.Kg,
+                    Almacen = almacenReal,
+                    Origen = d.Origen,
+                    Usuario = usuario,
+                    Fecha = DateTime.Now
+                });
+            }
+
+            var tiempoGuardar = System.Diagnostics.Stopwatch.StartNew();
+            if (pendientes.Count > 0)
+            {
+                var guardado = await GuardarLoteAsync(pendientes, csP1, csTif);
+                foreach (var par in guardado) porCodigo[par.Key] = par.Value;
+            }
+            tiempoGuardar.Stop();
+            System.Diagnostics.Trace.WriteLine(
+                $"[ScanBatch] codigo={c} cajas={lista.Count} tarimaMs={tiempoTarima.ElapsedMilliseconds} " +
+                $"metadatosMs={tiempoMetadatos.ElapsedMilliseconds} guardarYFechaMs={tiempoGuardar.ElapsedMilliseconds}");
+            var bloque = lista.Select(e => porCodigo[e]).ToList();
+            resultados.AddRange(bloque);
+            if (esTarima)
+            {
+                contenidos.Add(new
+                {
+                    codigo = c,
+                    tipo = "TARIMA",
+                    cantidadCajas = lista.Count,
+                    registradas = bloque.Count(x => x.kind == "ok"),
+                    duplicadas = bloque.Count(x => x.kind == "dup"),
+                    errores = bloque.Count(x => x.kind == "err")
+                });
+            }
+            else if (bloque.Any(x => x.kind == "ok" || x.kind == "dup"))
+                contenidos.Add(new { codigo = c, tipo = "ETIQUETA", cantidadCajas = 1 });
         }
-
-        var okCount = results.Count(x => ((dynamic)x).kind == "ok");
-        var dupCount = results.Count(x => ((dynamic)x).kind == "dup");
-        var errCount = results.Count(x => ((dynamic)x).kind == "err");
-
+        reloj.Stop();
+        Response.Headers["Server-Timing"] = $"scan;dur={reloj.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}";
+        // Tiempos visibles en logs del servidor, sin afectar las respuestas del front.
+        System.Diagnostics.Trace.WriteLine($"[Inventario/ScanBatch] Codigos={codigos.Count} Resultados={resultados.Count} TotalMs={reloj.ElapsedMilliseconds}");
         return Ok(new
         {
             ok = true,
             almacen,
-            total = results.Count,
-            okCount,
-            dupCount,
-            errCount,
-            results
+            total = resultados.Count,
+            okCount = resultados.Count(x => x.kind == "ok"),
+            dupCount = resultados.Count(x => x.kind == "dup"),
+            errCount = resultados.Count(x => x.kind == "err"),
+            contenidos,
+            results = resultados
         });
     }
 
