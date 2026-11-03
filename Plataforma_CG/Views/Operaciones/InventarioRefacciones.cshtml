@@ -636,6 +636,12 @@
       color: #fff !important;
     }
 
+    .ref-userbar .ref-more-btn.active {
+      background: #fff !important;
+      border-color: #fff !important;
+      color: var(--ref-brand-dark) !important;
+    }
+
     .ref-userbar .ref-alert-btn {
       background: rgba(255, 255, 255, 0.16) !important;
       border-color: rgba(255, 255, 255, 0.55) !important;
@@ -906,6 +912,24 @@
     min-height: 0; /* Importante para el scroll interno */
   }
 
+  #vistaSolicitudCompraSap {
+    height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ref-request-table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }
+  .ref-request-table { width: 100%; min-width: 1050px; border-collapse: separate; border-spacing: 0; font-size: .78rem; }
+  .ref-request-table th { position: sticky; top: 0; z-index: 2; background: var(--ref-bg); color: var(--ref-text-muted); padding: 8px; white-space: nowrap; border-bottom: 1px solid var(--ref-border); }
+  .ref-request-table td { padding: 8px; border-bottom: 1px solid var(--ref-border); vertical-align: middle; }
+  .ref-request-table .ref-request-item { min-width: 260px; max-width: 360px; }
+  .ref-request-table .form-control, .ref-request-table .form-select { min-width: 105px; font-size: .76rem; }
+  .ref-request-meta { color: var(--ref-text-muted); font-size: .7rem; font-weight: 600; }
+
+  @@media (max-width: 1100px) {
+    #vistaSolicitudCompraSap { height: auto; min-height: calc(100vh - 120px); }
+  }
+
  @@media (max-width: 1100px) {
         .ref-pos-layout {
             grid-template-columns: 1fr;
@@ -1025,6 +1049,10 @@
             pointer-events: none;
             filter: grayscale(100%);
         }
+
+    .ref-pos-item:disabled { cursor: not-allowed; opacity: .65; transform: none; }
+
+    .ref-pos-item.ref-solicitud-agotado { border-color: var(--ref-danger); }
 
         .ref-pos-item img {
             width: 100%;
@@ -1727,6 +1755,9 @@
       <button type="button" class="ref-more-btn" onclick="abrirPos()" title="Punto de venta: salida por escaneo">
         <i class="bi bi-upc-scan"></i> Salida
       </button>
+      <button type="button" class="ref-more-btn" id="btnAbrirSolicitudCompraSap" onclick="abrirSolicitudCompraSap()" title="Crear una solicitud de compra para Compras en SAP">
+        <i class="bi bi-cart-plus"></i> Solicitud SAP
+      </button>
       <button type="button" class="ref-more-btn position-relative" onclick="abrirSalidasSapPendientes()" title="Consultar y enviar salidas pendientes a SAP">
         <i class="bi bi-cloud-upload"></i> SAP
         <span id="badgeSalidasSap" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size:.62rem;">0</span>
@@ -1792,9 +1823,6 @@
     </div>
     <div id="listaMovimientos"></div>
 
-    <button class="ref-fab" data-bs-toggle="modal" data-bs-target="#modalNuevaRefaccion" onclick="prepararNuevaRefaccion()">
-      <i class="bi bi-plus"></i>
-    </button>
   </div>
 
   <div id="vistaPos" style="display:none;">
@@ -1872,6 +1900,44 @@
           <button type="button" class="ref-btn-brand" onclick="confirmarPos()">
             Registrar Salida <i class="bi bi-arrow-right ms-1"></i>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="vistaSolicitudCompraSap" style="display:none;">
+    <div class="ref-pos-header">
+      <button type="button" class="ref-icon-btn" onclick="cerrarSolicitudCompraSap()" title="Volver al inventario"><i class="bi bi-arrow-left"></i></button>
+      <h5 class="fw-bold mb-0" style="font-size:1.1rem;"><i class="bi bi-cart-plus me-2"></i>Solicitud de compra para SAP</h5>
+      <button type="button" class="btn btn-outline-primary btn-sm ms-auto" onclick="abrirSolicitudesCompraSapRefacciones()"><i class="bi bi-clock-history me-1"></i>Historial de solicitudes</button>
+    </div>
+    <div class="ref-pos-layout">
+      <div class="ref-pos-catalog">
+        <div class="ref-pos-scan">
+          <i class="bi bi-search" style="color:var(--ref-text-muted);font-size:1.2rem;"></i>
+          <input type="search" id="refSolicitudBusqueda" autocomplete="off" placeholder="Busca una refacción por SKU o descripción..." oninput="renderCatalogoSolicitudCompraSap()" />
+          <button class="ref-icon-btn border-0" type="button" title="Limpiar búsqueda" onclick="document.getElementById('refSolicitudBusqueda').value='';renderCatalogoSolicitudCompraSap();"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="ref-pos-grid" id="refSolicitudCatalogo"></div>
+      </div>
+      <div class="ref-pos-config">
+        <div class="ref-pos-campos">
+          <div class="ref-pos-ticket-header"><h6><i class="bi bi-calendar-event me-1"></i>Datos de la solicitud</h6></div>
+          <div class="mb-3"><label class="form-label">Fecha necesaria</label><input type="date" class="form-control" id="refSolicitudFechaVista" /></div>
+          <div class="mb-2"><label class="form-label">Comentarios</label><textarea class="form-control" id="refSolicitudComentarioVista" maxlength="140" rows="4" placeholder="Motivo o detalle de la compra"></textarea><small class="ref-request-meta">Compras autoriza y genera el pedido desde SAP. Esta solicitud no cambia el stock de SIGO.</small></div>
+        </div>
+      </div>
+      <div class="ref-pos-ticket-wrap">
+        <div class="ref-pos-ticket-header">
+          <h6><i class="bi bi-list-check me-1"></i>Artículos solicitados</h6>
+          <span id="refSolicitudResumenVista" class="badge" style="background:var(--ref-brand);font-size:.75rem;">0 artículos · 0 pzas</span>
+        </div>
+        <div id="refSolicitudListaVista" class="ref-request-table-wrap">
+          <div class="ref-empty" style="padding-top:40px;"><i class="bi bi-cart-plus" style="font-size:2rem;opacity:.3"></i><p class="mt-2 mb-0">Busca y selecciona artículos del catálogo.</p></div>
+        </div>
+        <div class="ref-pos-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="limpiarSolicitudCompraSap()"><i class="bi bi-trash me-1"></i>Limpiar</button>
+          <button type="button" class="ref-btn-brand" onclick="crearSolicitudCompraSapDesdeVista()"><i class="bi bi-cloud-upload me-1"></i>Enviar solicitud a SAP</button>
         </div>
       </div>
     </div>
@@ -2071,8 +2137,8 @@
               <option value="solicitados">Solicitados</option>
               <option value="todos">Todos</option>
             </select>
-            <button type="button" class="btn btn-sm btn-primary" onclick="abrirNuevaSolicitudCompraSap()">
-              <i class="bi bi-cart-plus me-1"></i>Crear solicitud SAP <span id="refSolicitudSeleccionCount">0</span>
+            <button type="button" class="btn btn-sm btn-primary" onclick="pasarSeleccionAlertasASolicitudSap()">
+              <i class="bi bi-cart-plus me-1"></i>Pasar a solicitud SAP <span id="refSolicitudSeleccionCount"></span>
             </button>
           </div>
           <a class="btn btn-sm btn-outline-success" id="btnExportarPendientesExcel" href="#">
@@ -2107,34 +2173,6 @@
         <button type="button" class="ref-btn-brand" onclick="verBajoStockDesdeAlertas()">
           <i class="bi bi-funnel"></i> Ver bajo stock
         </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Crear solicitud de compra desde refacciones -->
-<div class="modal fade modal-ref" id="modalNuevaSolicitudCompraSap" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div><h5 class="modal-title fw-bold"><i class="bi bi-cart-plus me-2"></i>Nueva solicitud de compra</h5>
-          <div style="font-size:.75rem;opacity:.85;">SIGO la enviará a SAP. Compras continuará la autorización y el pedido desde SAP.</div></div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="row g-3 mb-3">
-          <div class="col-md-4"><label class="form-label">Fecha necesaria</label><input type="date" class="form-control" id="refSolicitudFecha" /></div>
-          <div class="col-md-8"><label class="form-label">Comentarios</label><input class="form-control" id="refSolicitudComentario" maxlength="140" placeholder="Motivo o detalle de la compra" /></div>
-        </div>
-        <div class="table-responsive" style="max-height:55vh;overflow:auto;">
-          <table class="table table-sm table-bordered align-middle"><thead class="table-light"><tr><th>Artículo</th><th style="width:130px">Cantidad</th><th style="width:150px">Almacén</th><th style="width:250px">Cuenta contable</th></tr></thead>
-            <tbody id="refSolicitudLineas"><tr><td colspan="4" class="text-center text-muted">Selecciona artículos desde Alertas de stock.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="modal-footer bg-light">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" onclick="crearSolicitudCompraSapRefacciones()"><i class="bi bi-cloud-upload me-1"></i>Enviar solicitud a SAP</button>
       </div>
     </div>
   </div>
@@ -3341,7 +3379,7 @@
                 const totalSeleccionadas = alertasSeleccionadasSolicitud.size;
                 $('#refSolicitudSeleccionCount').text(totalSeleccionadas ? `(${totalSeleccionadas})` : '');
                 const checkAll = document.getElementById('refSeleccionarAlertas');
-                const elegiblesVisibles = visibles.filter(a => a.tipoSugerencia === 'faltante');
+                const elegiblesVisibles = visibles.filter(a => a.tipoSugerencia === 'faltante' && !a.solicitudStockActiva);
                 if (checkAll) {
                     checkAll.checked = elegiblesVisibles.length > 0 && elegiblesVisibles.every(a => alertasSeleccionadasSolicitud.has(a.id));
                     checkAll.indeterminate = elegiblesVisibles.some(a => alertasSeleccionadasSolicitud.has(a.id)) && !checkAll.checked;
@@ -3356,7 +3394,7 @@
                         : (a.nivel === 'SOBRE' ? '—' : `<button type="button" class="btn btn-sm btn-outline-primary" onclick="marcarSolicitudStock(${a.id}, true)"><i class="bi bi-check2-circle me-1"></i>Marcar solicitado</button>`);
 
                     rows += `<tr>
-                        <td style="text-align:center;">${a.tipoSugerencia === 'faltante' ? `<input type="checkbox" class="ref-alerta-seleccion" data-id="${a.id}" ${alertasSeleccionadasSolicitud.has(a.id) ? 'checked' : ''} aria-label="Agregar ${escapeHtml(a.sku)} a solicitud" />` : '—'}</td>
+                        <td style="text-align:center;">${a.tipoSugerencia === 'faltante' && !a.solicitudStockActiva ? `<input type="checkbox" class="ref-alerta-seleccion" data-id="${a.id}" ${alertasSeleccionadasSolicitud.has(a.id) ? 'checked' : ''} aria-label="Agregar ${escapeHtml(a.sku)} a solicitud" />` : '—'}</td>
                         <td><span class="ref-alert-level ${clase}">${etiqueta}</span></td>
                         <td><strong style="color: var(--ref-brand);">${escapeHtml(a.sku)}</strong><br><small>${escapeHtml(a.desc)}</small></td>
                         <td>${escapeHtml(a.loc || 'Sin ubicación')}</td>
@@ -3376,71 +3414,194 @@
                 $('#tbodyAlertasRef').html(rows || `<tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--ref-success); font-weight:700;">${q ? 'No hay coincidencias.' : 'Sin pendientes de stock.'}</td></tr>`);
             }
 
-            async function abrirNuevaSolicitudCompraSap() {
-                const seleccion = alertasRefActuales.filter(a => alertasSeleccionadasSolicitud.has(a.id) && a.tipoSugerencia === 'faltante');
-                if (!seleccion.length) {
-                    alert('Selecciona uno o más artículos agotados o bajo mínimo.');
-                    return;
-                }
+            let solicitudCompraSapLineas = [];
 
-                const fecha = new Date();
-                fecha.setDate(fecha.getDate() + 7);
-                document.getElementById('refSolicitudFecha').value = fecha.toLocaleDateString('en-CA');
-                document.getElementById('refSolicitudComentario').value = '';
-                const cuentas = sapSalidaConfig?.opciones?.AccountCode || [];
-                const etiquetas = sapSalidaConfig?.etiquetas?.AccountCode || {};
-                const cuentaDefecto = sapSalidaConfig?.valores?.AccountCode || cuentas[0] || '';
-                const filas = seleccion.map(a => {
-                    const opcionesCuenta = cuentas.map(c => `<option value="${escapeHtml(c)}" ${String(c) === String(cuentaDefecto) ? 'selected' : ''}>${escapeHtml(etiquetas[c] || c)}</option>`).join('');
-                    return `<tr data-id="${a.id}">
-                        <td><strong>${escapeHtml(a.sku)}</strong><br><small>${escapeHtml(a.desc)}</small><br><small>Stock ${a.stock} · sugerido ${a.sugerido}</small></td>
-                        <td><input type="number" class="form-control form-control-sm ref-solicitud-cantidad" min="0.01" step="0.01" value="${a.sugerido}" /></td>
-                        <td><select class="form-select form-select-sm ref-solicitud-almacen"><option>MAN001</option><option>MAN002</option><option>MAN003</option></select></td>
-                        <td><select class="form-select form-select-sm ref-solicitud-cuenta"><option value="">Usar cuenta predeterminada de SAP</option>${opcionesCuenta}</select></td>
-                    </tr>`;
-                }).join('');
-                document.getElementById('refSolicitudLineas').innerHTML = filas;
-                const modalAlertas = document.getElementById('modalAlertasRef');
-                modalAlertas.addEventListener('hidden.bs.modal', function abrirFormulario() {
-                    abrirModal('modalNuevaSolicitudCompraSap');
-                }, { once: true });
-                bootstrap.Modal.getOrCreateInstance(modalAlertas).hide();
+            let vistaAnteriorSolicitudSap = 'inventario';
+
+            function abrirSolicitudCompraSap() {
+                if (!$('#vistaSolicitudCompraSap').is(':visible'))
+                    vistaAnteriorSolicitudSap = $('#vistaPos').is(':visible') ? 'pos' : 'inventario';
+                $('#vistaInventario, #vistaPos').hide();
+                $('#vistaSolicitudCompraSap').show();
+                document.getElementById('btnAbrirSolicitudCompraSap')?.classList.add('active');
+                if (!document.getElementById('refSolicitudFechaVista').value) {
+                    const fecha = new Date();
+                    fecha.setDate(fecha.getDate() + 7);
+                    const y = fecha.getFullYear();
+                    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+                    const d = String(fecha.getDate()).padStart(2, '0');
+                    document.getElementById('refSolicitudFechaVista').value = `${y}-${m}-${d}`;
+                }
+                renderCatalogoSolicitudCompraSap();
+                renderListaSolicitudCompraSap();
+                document.getElementById('refSolicitudBusqueda')?.focus();
             }
 
-            async function crearSolicitudCompraSapRefacciones() {
-                const lineas = Array.from(document.querySelectorAll('#refSolicitudLineas tr[data-id]')).map(row => ({
-                    id: Number(row.dataset.id),
-                    cantidad: Number(row.querySelector('.ref-solicitud-cantidad')?.value || 0),
-                    warehouseCode: row.querySelector('.ref-solicitud-almacen')?.value || '',
-                    accountCode: row.querySelector('.ref-solicitud-cuenta')?.value || ''
-                }));
-                if (!lineas.length || lineas.some(x => !Number.isFinite(x.cantidad) || x.cantidad <= 0)) {
-                    alert('Verifica que todas las cantidades sean mayores a cero.');
+            function cerrarSolicitudCompraSap() {
+                $('#vistaSolicitudCompraSap').hide();
+                if (vistaAnteriorSolicitudSap === 'pos') {
+                    $('#vistaPos').show();
+                    $('#posScan').trigger('focus');
+                } else {
+                    $('#vistaInventario').show();
+                    renderTarjetas();
+                }
+                document.getElementById('btnAbrirSolicitudCompraSap')?.classList.remove('active');
+            }
+
+            function pasarSeleccionAlertasASolicitudSap() {
+                const seleccion = alertasRefActuales.filter(a => alertasSeleccionadasSolicitud.has(a.id) && a.tipoSugerencia === 'faltante');
+                if (!seleccion.length) {
+                    alert('Marca primero uno o más artículos agotados o bajo mínimo.');
                     return;
                 }
+                const cuentaDefecto = sapSalidaConfig?.valores?.AccountCode || (sapSalidaConfig?.opciones?.AccountCode || [])[0] || '';
+                seleccion.forEach(a => agregarArticuloSolicitudSap(a.id, a.sugerido, 'MAN001', cuentaDefecto));
+                alertasSeleccionadasSolicitud.clear();
+                renderCentroAlertasRef();
+                const modalAlertas = document.getElementById('modalAlertasRef');
+                modalAlertas?.addEventListener('hidden.bs.modal', abrirSolicitudCompraSap, { once: true });
+                if (modalAlertas?.classList.contains('show')) bootstrap.Modal.getOrCreateInstance(modalAlertas).hide();
+                else abrirSolicitudCompraSap();
+            }
+
+            function renderCatalogoSolicitudCompraSap() {
+                const cont = document.getElementById('refSolicitudCatalogo');
+                if (!cont) return;
+                const q = (document.getElementById('refSolicitudBusqueda')?.value || '').trim().toLowerCase();
+                const alertas = new Map(calcularAlertasRef().map(a => [a.id, a]));
+                let items = inventario.filter(x => !q || `${x.sku} ${x.desc}`.toLowerCase().includes(q));
+                items.sort((a, b) => {
+                    const aa = alertas.get(a.id), bb = alertas.get(b.id);
+                    const pa = aa?.nivel === 'AGOTADO' ? 0 : aa?.nivel === 'BAJO' ? 1 : 2;
+                    const pb = bb?.nivel === 'AGOTADO' ? 0 : bb?.nivel === 'BAJO' ? 1 : 2;
+                    return pa - pb || a.desc.localeCompare(b.desc);
+                });
+                items = items.slice(0, q ? 100 : 60);
+                if (!items.length) {
+                    cont.innerHTML = '<div class="ref-empty" style="grid-column:1/-1;">No se encontraron artículos.</div>';
+                    return;
+                }
+                cont.innerHTML = items.map(item => {
+                    const linea = solicitudCompraSapLineas.find(x => x.id === item.id);
+                    const alerta = alertas.get(item.id);
+                    const solicitado = item.solicitudStockActiva;
+                    const foto = item.foto ? `<img src="${escapeHtml(item.foto)}" loading="lazy" />` : '<div class="no-foto"><i class="bi bi-box-seam"></i></div>';
+                    const badge = solicitado
+                        ? '<div class="stock" style="background:#d97706;color:#fff;">Solicitado</div>'
+                        : linea ? `<div class="stock" style="background:#2563eb;color:#fff;">En lista: ${linea.cantidad}</div>`
+                        : item.stock <= 0 ? '<div class="stock" style="background:var(--ref-danger);color:#fff;">Agotado</div>'
+                        : `<div class="stock">${item.stock}</div>`;
+                    const status = solicitado ? 'Ya tiene una solicitud activa' : alerta ? alerta.nivel : 'Disponible para solicitar';
+                    return `<button type="button" class="ref-pos-item ${item.stock <= 0 ? 'ref-solicitud-agotado' : ''}" ${solicitado ? 'disabled' : ''} onclick="agregarArticuloSolicitudSap(${item.id})" title="${escapeHtml(item.desc)}">
+                        ${badge}${foto}<div class="sku">${escapeHtml(item.sku)}</div><div class="desc">${escapeHtml(item.desc)}</div>
+                        <div class="desc" style="font-size:.68rem;opacity:.75;">Stock ${item.stock} · ${escapeHtml(status)}</div>
+                    </button>`;
+                }).join('');
+            }
+
+            function agregarArticuloSolicitudSap(id, cantidadInicial, almacenInicial, cuentaInicial) {
+                const item = inventario.find(x => x.id === Number(id));
+                if (!item) return;
+                if (item.solicitudStockActiva) {
+                    alert(`${item.sku} ya está marcado como solicitado. Quita la marca desde Pendientes si necesitas generar otra solicitud.`);
+                    return;
+                }
+                const existente = solicitudCompraSapLineas.find(x => x.id === item.id);
+                if (existente) {
+                    document.getElementById('refSolicitudListaVista')?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    return;
+                }
+                const alerta = calcularAlertasRef().find(x => x.id === item.id && x.tipoSugerencia === 'faltante');
+                solicitudCompraSapLineas.push({
+                    id: item.id, sku: item.sku, desc: item.desc, stock: item.stock,
+                    cantidad: Number(cantidadInicial || alerta?.sugerido || 1),
+                    warehouseCode: almacenInicial || 'MAN001',
+                    accountCode: cuentaInicial ?? sapSalidaConfig?.valores?.AccountCode ?? ''
+                });
+                renderCatalogoSolicitudCompraSap();
+                renderListaSolicitudCompraSap();
+            }
+
+            function actualizarLineaSolicitudSap(id, campo, valor) {
+                const linea = solicitudCompraSapLineas.find(x => x.id === Number(id));
+                if (!linea) return;
+                linea[campo] = campo === 'cantidad' ? Number(valor) : valor;
+                const total = solicitudCompraSapLineas.reduce((s, x) => s + (Number(x.cantidad) || 0), 0);
+                document.getElementById('refSolicitudResumenVista').textContent = `${solicitudCompraSapLineas.length} artículo(s) · ${total} pza(s)`;
+            }
+
+            function quitarArticuloSolicitudSap(id) {
+                solicitudCompraSapLineas = solicitudCompraSapLineas.filter(x => x.id !== Number(id));
+                renderCatalogoSolicitudCompraSap();
+                renderListaSolicitudCompraSap();
+            }
+
+            function limpiarSolicitudCompraSap() {
+                if (!solicitudCompraSapLineas.length) return;
+                if (!confirm('¿Quitar todos los artículos de esta solicitud?')) return;
+                solicitudCompraSapLineas = [];
+                renderCatalogoSolicitudCompraSap();
+                renderListaSolicitudCompraSap();
+            }
+
+            function renderListaSolicitudCompraSap() {
+                const cont = document.getElementById('refSolicitudListaVista');
+                if (!cont) return;
+                const total = solicitudCompraSapLineas.reduce((s, x) => s + (Number(x.cantidad) || 0), 0);
+                document.getElementById('refSolicitudResumenVista').textContent = `${solicitudCompraSapLineas.length} artículo(s) · ${total} pza(s)`;
+                if (!solicitudCompraSapLineas.length) {
+                    cont.innerHTML = '<div class="ref-empty" style="padding-top:40px;"><i class="bi bi-cart-plus" style="font-size:2rem;opacity:.3"></i><p class="mt-2 mb-0">Busca y selecciona artículos del catálogo.</p></div>';
+                    return;
+                }
+                const cuentas = sapSalidaConfig?.opciones?.AccountCode || [];
+                const etiquetas = sapSalidaConfig?.etiquetas?.AccountCode || {};
+                const rows = solicitudCompraSapLineas.map(x => {
+                    const cuentaOptions = '<option value="">Predeterminada SAP</option>' + cuentas.map(c => `<option value="${escapeHtml(c)}" ${String(x.accountCode) === String(c) ? 'selected' : ''}>${escapeHtml(etiquetas[c] || c)}</option>`).join('');
+                    return `<tr>
+                        <td class="ref-request-item"><strong>${escapeHtml(x.sku)}</strong><br>${escapeHtml(x.desc)}<br><small class="ref-request-meta">Stock SIGO: ${x.stock}</small></td>
+                        <td><input class="form-control form-control-sm" type="number" min="0.01" step="0.01" value="${x.cantidad}" onchange="actualizarLineaSolicitudSap(${x.id},'cantidad',this.value)" /></td>
+                        <td><select class="form-select form-select-sm" onchange="actualizarLineaSolicitudSap(${x.id},'warehouseCode',this.value)"><option ${x.warehouseCode === 'MAN001' ? 'selected' : ''}>MAN001</option><option ${x.warehouseCode === 'MAN002' ? 'selected' : ''}>MAN002</option><option ${x.warehouseCode === 'MAN003' ? 'selected' : ''}>MAN003</option></select></td>
+                        <td><select class="form-select form-select-sm" onchange="actualizarLineaSolicitudSap(${x.id},'accountCode',this.value)">${cuentaOptions}</select></td>
+                        <td class="text-center"><button class="btn btn-sm btn-outline-danger" title="Quitar artículo" onclick="quitarArticuloSolicitudSap(${x.id})"><i class="bi bi-x-lg"></i></button></td>
+                    </tr>`;
+                }).join('');
+                cont.innerHTML = `<table class="ref-request-table"><thead><tr><th>Artículo</th><th>Cantidad</th><th>Almacén destino</th><th>Cuenta contable</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+            }
+
+            async function crearSolicitudCompraSapDesdeVista() {
+                if (!solicitudCompraSapLineas.length) { alert('Agrega artículos a la solicitud.'); return; }
+                if (solicitudCompraSapLineas.some(x => !Number.isFinite(Number(x.cantidad)) || Number(x.cantidad) <= 0)) { alert('Verifica que todas las cantidades sean mayores a cero.'); return; }
+                if (!document.getElementById('refSolicitudFechaVista').value) { alert('Selecciona la fecha necesaria.'); return; }
+                if (!confirm(`¿Crear en SAP una solicitud de compra con ${solicitudCompraSapLineas.length} artículo(s)?`)) return;
                 const payload = {
-                    fechaNecesaria: document.getElementById('refSolicitudFecha').value,
-                    comentario: document.getElementById('refSolicitudComentario').value.trim(),
-                    lineas
+                    fechaNecesaria: document.getElementById('refSolicitudFechaVista').value,
+                    comentario: document.getElementById('refSolicitudComentarioVista').value.trim(),
+                    lineas: solicitudCompraSapLineas.map(x => ({ id: x.id, cantidad: x.cantidad, warehouseCode: x.warehouseCode, accountCode: x.accountCode }))
                 };
-                mostrarLoadingRef('Guardando y enviando solicitud a SAP...');
+                const btn = document.querySelector('#vistaSolicitudCompraSap .ref-pos-footer .ref-btn-brand');
+                const html = btn?.innerHTML;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat ref-spin me-1"></i>Enviando...'; }
+                mostrarLoadingRef('Guardando solicitud y enviando a SAP...');
                 try {
                     const creada = await postJson(URL_CREAR_SOLICITUD_COMPRA_SAP, payload);
                     if (!creada?.ok) throw new Error(creada?.mensaje || 'No se pudo guardar la solicitud.');
                     const enviada = await postJson(URL_ENVIAR_SOLICITUD_COMPRA_SAP, { id: creada.solicitudId });
+                    solicitudCompraSapLineas = [];
                     alertasSeleccionadasSolicitud.clear();
-                    cerrarModal('modalNuevaSolicitudCompraSap');
                     await cargarDatos();
-                    if (enviada?.ok) {
-                        alert(`Solicitud SAP creada. Folio SIGO: ${creada.folio}. Documento SAP: ${enviada.docNum || '—'} (DocEntry ${enviada.docEntry || '—'}). Compras continuará el proceso en SAP.`);
-                    } else {
-                        alert(`La solicitud ${creada.folio} quedó guardada en SIGO, pero SAP no confirmó el envío. Puedes reintentar desde Solicitudes SAP. ${enviada?.mensaje || ''}`);
-                    }
-                    await abrirSolicitudesCompraSapRefacciones();
+                    renderCatalogoSolicitudCompraSap();
+                    renderListaSolicitudCompraSap();
+                    if (enviada?.ok) alert(`Solicitud SAP creada. Folio SIGO: ${creada.folio}. Documento SAP: ${enviada.docNum || '—'} (DocEntry ${enviada.docEntry || '—'}). Compras continuará el proceso en SAP.`);
+                    else alert(`La solicitud ${creada.folio} quedó guardada en SIGO, pero SAP no confirmó el envío. Puedes reintentar desde el historial. ${enviada?.mensaje || ''}`);
+                    await cargarSolicitudesCompraSapRefacciones();
+                    abrirModal('modalSolicitudesCompraSapRefacciones');
                 } catch (error) {
-                    alert(error.message || 'No se pudo enviar la solicitud. Puedes reintentar desde Solicitudes SAP.');
-                    await cargarDatos();
-                } finally { ocultarLoadingRef(); }
+                    alert(error.message || 'No se pudo enviar la solicitud.');
+                } finally {
+                    ocultarLoadingRef();
+                    if (btn) { btn.disabled = false; btn.innerHTML = html; }
+                }
             }
 
             async function abrirSolicitudesCompraSapRefacciones() {
@@ -3535,7 +3696,7 @@
             document.getElementById('refSeleccionarAlertas')?.addEventListener('change', function (e) {
                 const q = ($('#alertasBuscar').val() || '').trim().toLowerCase();
                 const filtroSolicitud = $('#alertasFiltroSolicitud').val() || 'pendientes';
-                const visibles = alertasRefActuales.filter(a => a.tipoSugerencia === 'faltante' &&
+                const visibles = alertasRefActuales.filter(a => a.tipoSugerencia === 'faltante' && !a.solicitudStockActiva &&
                     (filtroSolicitud === 'todos' ||
                         (filtroSolicitud === 'solicitados' ? a.solicitudStockActiva : !a.solicitudStockActiva)) &&
                     (!q || `${a.sku} ${a.desc}`.toLowerCase().includes(q)));
@@ -4059,7 +4220,8 @@
                 cambiarModoMaquina(posModoMaquina);
                 filtrarCatalogoPos();
 
-                $('#vistaInventario').hide();
+                $('#vistaInventario, #vistaSolicitudCompraSap').hide();
+                document.getElementById('btnAbrirSolicitudCompraSap')?.classList.remove('active');
                 $('#vistaPos').show();
                 $('#posScan').trigger('focus');
             }
@@ -4225,6 +4387,7 @@
             function cerrarPos() {
                 $('#vistaPos').hide();
                 $('#vistaInventario').show();
+                document.getElementById('btnAbrirSolicitudCompraSap')?.classList.remove('active');
                 renderTarjetas();
             }
 
