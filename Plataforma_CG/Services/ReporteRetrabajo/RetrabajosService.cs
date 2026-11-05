@@ -423,6 +423,7 @@ WHERE (@SKUEntrada IS NULL
 SELECT DISTINCT
     PL.SolicitudProduccionId,
     E.ProduccionId,
+    CONVERT(DATE, E.FechaProduccion) AS FechaEntrada,
     E.Articulo AS SKU,
     E.PesoNeto AS Kg
 INTO #Entradas
@@ -447,21 +448,25 @@ FROM #Solicitudes S
 INNER JOIN Produccion P
     ON P.LoteId = S.SolicitudProduccionId;
 
--- RESULTADO 1: entradas por solicitud y SKU
+-- RESULTADO 1: entradas individuales por etiqueta
 SELECT
+    E.FechaEntrada,
     E.SolicitudProduccionId,
+    E.ProduccionId,
+    P.CodigoEtiqueta,
     E.SKU,
     A.Nombre AS Producto,
-    COUNT(*) AS CantidadEtiquetas,
-    CAST(SUM(E.Kg) AS DECIMAL(18,3)) AS TotalKg
+    1 AS CantidadEtiquetas,
+    CAST(E.Kg AS DECIMAL(18,3)) AS TotalKg
 FROM #Entradas E
+INNER JOIN Produccion P
+    ON P.ProduccionId = E.ProduccionId
 LEFT JOIN TIF_CommerciaNet.dbo.Articulo A
     ON A.ArticuloId = E.SKU
-GROUP BY
+ORDER BY
+    E.FechaEntrada,
     E.SolicitudProduccionId,
-    E.SKU,
-    A.Nombre
-ORDER BY E.SolicitudProduccionId, E.SKU;
+    E.ProduccionId;
 
 -- RESULTADO 2: salidas por fecha, solicitud y SKU
 SELECT
@@ -518,7 +523,6 @@ DROP TABLE #Catalogo;
 
             var entradas =
                 (await multi.ReadAsync<EntradaVisceras>()).ToList();
-
             var salidas =
                 (await multi.ReadAsync<SalidasVisceras>()).ToList();
 

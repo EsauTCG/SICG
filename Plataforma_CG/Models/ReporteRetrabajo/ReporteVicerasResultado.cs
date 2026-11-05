@@ -2,11 +2,14 @@
 {
     public class EntradaVisceras
     {
+        public DateTime? FechaEntrada { get; set; }
         public int SolicitudProduccionId { get; set; }
         public string SKU { get; set; } = "";
         public string Producto { get; set; } = "";
         public int CantidadEtiquetas { get; set; }
         public decimal TotalKg { get; set; }
+        public int ProduccionId { get; set; }
+        public string CodigoEtiqueta { get; set; } = "";
     }
 
     public class SalidasVisceras
