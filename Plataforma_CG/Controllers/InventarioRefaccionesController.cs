@@ -26,14 +26,16 @@ namespace Plataforma_CG.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly RefaccionSapSalidaService _sapSalidas;
         private readonly RefaccionSapSolicitudCompraService _sapCompras;
+        private readonly RefaccionSapRecepcionService _sapRecepciones;
 
-        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas, RefaccionSapSolicitudCompraService sapCompras)
+        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas, RefaccionSapSolicitudCompraService sapCompras, RefaccionSapRecepcionService sapRecepciones)
         {
             _context = context;
             _dbUsuarios = dbUsuarios;
             _env = env;
             _sapSalidas = sapSalidas;
             _sapCompras = sapCompras;
+            _sapRecepciones = sapRecepciones;
         }
 
         // =========================================================
@@ -234,6 +236,37 @@ namespace Plataforma_CG.Controllers
                 docEntry = resultado.DocEntry,
                 docNum = resultado.DocNum
             });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenesCompraPendientesRecepcionSap()
+        {
+            try { return Json(await _sapRecepciones.ObtenerOrdenesAbiertasAsync()); }
+            catch (Exception ex) { return StatusCode(502, new { ok = false, mensaje = ex.GetBaseException().Message }); }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RegistrarRecepcionCompraSap([FromBody] RefaccionSapRecepcionCrearRequest req)
+        {
+            if (req == null) return BadRequest(new { ok = false, mensaje = "No se recibieron datos de recepción." });
+            var result = await _sapRecepciones.RegistrarAsync(req, UsuarioActual());
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje, sapDocNum = result.SapDocNum });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ReaplicarInventarioRecepcionSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
+            var result = await _sapRecepciones.ReaplicarInventarioAsync(req.Id);
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ReintentarRecepcionCompraSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
+            var result = await _sapRecepciones.ReintentarAsync(req.Id);
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
         }
 
         [HttpGet]
@@ -507,8 +540,9 @@ namespace Plataforma_CG.Controllers
             {
                 var referencia = string.IsNullOrWhiteSpace(req.Referencia) ? "Sin documento" : req.Referencia.Trim();
                 var comentario = ConstruirComentarioSap(req.Comentario, new[] { req.Maquina });
-                _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+                _context.RefaccionSapDocumentos.Add(new RefaccionSapDocumento
                 {
+                    TipoMovimiento = "SALIDA",
                     Folio = folioSalida,
                     Estado = "PENDIENTE",
                     FechaCreacion = DateTime.Now,
@@ -612,8 +646,9 @@ namespace Plataforma_CG.Controllers
             var comentarioPos = ConstruirComentarioSap(
                 req.Comentario,
                 req.Lineas.Select(linea => string.IsNullOrWhiteSpace(linea.Maquina) ? maquinaGlobal : linea.Maquina));
-            _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+            _context.RefaccionSapDocumentos.Add(new RefaccionSapDocumento
             {
+                TipoMovimiento = "SALIDA",
                 Folio = folio,
                 Estado = "PENDIENTE",
                 FechaCreacion = DateTime.Now,
@@ -642,9 +677,9 @@ namespace Plataforma_CG.Controllers
         [HttpGet]
         public async Task<IActionResult> SalidasSapPendientes()
         {
-            var items = await _context.RefaccionSapSalidas
+            var items = await _context.RefaccionSapDocumentos
                 .AsNoTracking()
-                .Where(x => x.Estado != "ENVIADO")
+                .Where(x => x.TipoMovimiento == "SALIDA" && x.Estado != "ENVIADO")
                 .OrderByDescending(x => x.FechaCreacion)
                 .Select(x => new
                 {
@@ -654,19 +689,80 @@ namespace Plataforma_CG.Controllers
                     usuario = x.Usuario,
                     referencia = x.Referencia,
                     cantidadLineas = x.CantidadLineas,
-                    error = x.Error
+                    error = x.Error,
+                    jsonSap = x.JsonSap
                 })
                 .ToListAsync();
 
-            return Json(new { ok = true, items, sap = _sapSalidas.ObtenerConfiguracion() });
+            var descripciones = await ObtenerDescripcionesSalidaSapAsync(items
+                .SelectMany(x => ExtraerLineasSalidaSap(x.jsonSap))
+                .Select(x => x.TryGetValue("itemCode", out var sku) ? sku as string : null));
+            var resultado = items.Select(x => new
+            {
+                x.folio, x.estado, x.fecha, x.usuario, x.referencia, x.cantidadLineas, x.error,
+                articulos = AgregarDescripcionesSalidaSap(ExtraerLineasSalidaSap(x.jsonSap), descripciones)
+            });
+            return Json(new { ok = true, items = resultado, sap = _sapSalidas.ObtenerConfiguracion() });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerSalidaSapParaEditar(string folio)
+        {
+            folio = (folio ?? "").Trim();
+            var salida = await _context.RefaccionSapDocumentos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TipoMovimiento == "SALIDA" && x.Folio == folio);
+            if (salida == null) return Json(new { ok = false, mensaje = "No se encontró la salida." });
+            if (salida.Estado is not ("PENDIENTE" or "ERROR") || salida.SapDocEntry.HasValue || salida.SapDocNum.HasValue)
+                return Json(new { ok = false, mensaje = "Esta salida ya no se puede editar porque SAP ya la recibió o está en proceso." });
+
+            var detalles = ExtraerLineasSalidaSap(salida.JsonSap);
+            var skus = detalles.Select(x => x.TryGetValue("itemCode", out var c) ? c as string : null)
+                .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            var articulos = await _context.Refacciones.AsNoTracking().Where(x => skus.Contains(x.Sku))
+                .Select(x => new { x.Id, x.Sku, x.Descripcion, x.Stock, x.Activo }).ToListAsync();
+            var movimientos = await _context.RefaccionMovimientos.AsNoTracking()
+                .Where(x => x.Tipo == "SALIDA" && x.Folio == folio).ToListAsync();
+            var porSku = movimientos.Join(articulos, m => m.RefaccionId, a => a.Id, (m, a) => new { m, a })
+                .GroupBy(x => x.a.Sku, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().m, StringComparer.OrdinalIgnoreCase);
+            var resultado = detalles.Select(d =>
+            {
+                var sku = d.TryGetValue("itemCode", out var c) ? c as string : "";
+                var articulo = articulos.FirstOrDefault(x => string.Equals(x.Sku, sku, StringComparison.OrdinalIgnoreCase));
+                porSku.TryGetValue(sku ?? "", out var movimiento);
+                return new
+                {
+                    id = articulo?.Id ?? 0, sku, descripcion = articulo?.Descripcion ?? "Artículo no disponible",
+                    cantidad = Convert.ToInt32(d.GetValueOrDefault("quantity") ?? 0),
+                    stock = articulo?.Stock ?? 0, maquina = movimiento?.MaquinaDestino ?? "",
+                    comentario = movimiento?.Comentario, activo = articulo?.Activo ?? false,
+                    sap = new
+                    {
+                        WarehouseCode = d.GetValueOrDefault("warehouseCode"), AccountCode = d.GetValueOrDefault("accountCode"),
+                        CostingCode = d.GetValueOrDefault("planta"), CostingCode2 = d.GetValueOrDefault("unidadNegocio"),
+                        CostingCode3 = d.GetValueOrDefault("departamento"), CostingCode4 = d.GetValueOrDefault("area"),
+                        CostingCode5 = d.GetValueOrDefault("empleado")
+                    }
+                };
+            }).ToList();
+            return Json(new { ok = true, salida = new { folio, referencia = salida.Referencia, comentario = movimientos.FirstOrDefault()?.Comentario, lineas = resultado } });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EditarSalidaSap([FromBody] RefaccionSapEditarSalidaRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Folio))
+                return Json(new { ok = false, mensaje = "Folio de salida inválido." });
+            var resultado = await _sapSalidas.EditarAsync(req, UsuarioActual());
+            return Json(new { ok = resultado.Ok, mensaje = resultado.Mensaje });
         }
 
         [HttpGet]
         public async Task<IActionResult> SalidasSapEnviadas()
         {
-            var salidas = await _context.RefaccionSapSalidas
+            var salidas = await _context.RefaccionSapDocumentos
                 .AsNoTracking()
-                .Where(x => x.Estado == "ENVIADO")
+                .Where(x => x.TipoMovimiento == "SALIDA" && x.Estado == "ENVIADO")
                 .OrderByDescending(x => x.FechaEnvio ?? x.FechaCreacion)
                 .Take(30)
                 .Select(x => new
@@ -693,7 +789,15 @@ namespace Plataforma_CG.Controllers
                 articulos = ExtraerLineasSalidaSap(x.JsonSap)
             });
 
-            return Json(new { ok = true, items });
+            var descripciones = await ObtenerDescripcionesSalidaSapAsync(items.SelectMany(x => x.articulos)
+                .Select(x => x.TryGetValue("itemCode", out var sku) ? sku as string : null));
+            var resultado = items.Select(x => new
+            {
+                x.folio, x.documentoSap, x.fecha, x.usuario, x.referencia, x.cantidadLineas,
+                articulos = AgregarDescripcionesSalidaSap(x.articulos, descripciones)
+            });
+
+            return Json(new { ok = true, items = resultado });
         }
 
         [HttpPost]
@@ -1301,7 +1405,9 @@ namespace Plataforma_CG.Controllers
                         ["accountCode"] = LeerTextoJson(linea, "AccountCode"),
                         ["planta"] = LeerTextoJson(linea, "CostingCode"),
                         ["unidadNegocio"] = LeerTextoJson(linea, "CostingCode2"),
-                        ["departamento"] = LeerTextoJson(linea, "CostingCode3")
+                        ["departamento"] = LeerTextoJson(linea, "CostingCode3"),
+                        ["area"] = LeerTextoJson(linea, "CostingCode4"),
+                        ["empleado"] = LeerTextoJson(linea, "CostingCode5")
                     };
                     resultado.Add(resumen);
                 }
@@ -1312,6 +1418,31 @@ namespace Plataforma_CG.Controllers
             }
 
             return resultado;
+        }
+
+        private async Task<Dictionary<string, string>> ObtenerDescripcionesSalidaSapAsync(IEnumerable<string?> skus)
+        {
+            var codigos = skus.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (codigos.Count == 0) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            return await _context.Refacciones.AsNoTracking()
+                .Where(x => codigos.Contains(x.Sku))
+                .Select(x => new { x.Sku, x.Descripcion })
+                .ToDictionaryAsync(x => x.Sku, x => x.Descripcion, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static List<Dictionary<string, object?>> AgregarDescripcionesSalidaSap(
+            List<Dictionary<string, object?>> articulos,
+            IReadOnlyDictionary<string, string> descripciones)
+        {
+            foreach (var articulo in articulos)
+            {
+                var sku = articulo.TryGetValue("itemCode", out var valor) ? valor as string : null;
+                articulo["descripcion"] = !string.IsNullOrWhiteSpace(sku) && descripciones.TryGetValue(sku, out var descripcion)
+                    ? descripcion
+                    : "";
+            }
+            return articulos;
         }
 
         private static string? LeerTextoJson(JsonElement elemento, string propiedad) =>

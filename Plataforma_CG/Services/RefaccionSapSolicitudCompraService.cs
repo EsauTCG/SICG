@@ -18,7 +18,7 @@ public sealed class RefaccionSapSolicitudCompraService
         _sap = sap;
     }
 
-    public async Task<(bool Ok, string Mensaje, RefaccionSapSolicitudCompra? Solicitud)> CrearAsync(
+    public async Task<(bool Ok, string Mensaje, RefaccionSapDocumento? Solicitud)> CrearAsync(
         RefaccionSapSolicitudCompraCrearRequest request,
         string usuario)
     {
@@ -93,8 +93,9 @@ public sealed class RefaccionSapSolicitudCompraService
             ["DocumentLines"] = lineasSap
         });
 
-        var solicitud = new RefaccionSapSolicitudCompra
+        var solicitud = new RefaccionSapDocumento
         {
+            TipoMovimiento = "SOLICITUD_COMPRA",
             Folio = folio,
             Estado = "PENDIENTE",
             FechaCreacion = DateTime.Now,
@@ -104,7 +105,7 @@ public sealed class RefaccionSapSolicitudCompraService
             CantidadLineas = lineasSap.Count,
             JsonSap = json
         };
-        _context.RefaccionSapSolicitudesCompra.Add(solicitud);
+        _context.RefaccionSapDocumentos.Add(solicitud);
         foreach (var articulo in articulos.Values)
         {
             articulo.SolicitudStockActiva = true;
@@ -122,7 +123,7 @@ public sealed class RefaccionSapSolicitudCompraService
         await SendGate.WaitAsync();
         try
         {
-            var solicitud = await _context.RefaccionSapSolicitudesCompra.FirstOrDefaultAsync(x => x.Id == id);
+            var solicitud = await _context.RefaccionSapDocumentos.FirstOrDefaultAsync(x => x.TipoMovimiento == "SOLICITUD_COMPRA" && x.Id == id);
             if (solicitud == null) return (false, false, "No se encontró la solicitud de compra.", null, null);
             if (solicitud.Estado == "ENVIADO")
                 return (true, true, "La solicitud ya fue enviada a SAP.", solicitud.SapDocEntry, solicitud.SapDocNum);
@@ -173,15 +174,71 @@ public sealed class RefaccionSapSolicitudCompraService
 
     public async Task<object> ObtenerEstadoAsync()
     {
-        var rows = await _context.RefaccionSapSolicitudesCompra.AsNoTracking()
+        var rows = await _context.RefaccionSapDocumentos.AsNoTracking()
+            .Where(x => x.TipoMovimiento == "SOLICITUD_COMPRA")
             .OrderByDescending(x => x.FechaCreacion).Take(100)
             .Select(x => new { x.Id, x.Folio, x.Estado, x.FechaCreacion, x.FechaNecesaria, x.Usuario,
-                x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error })
+                x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error, x.JsonSap })
             .ToListAsync();
-        return new { ok = true, items = rows };
+
+        var articulosPorSolicitud = rows.ToDictionary(x => x.Id, x => LeerArticulosSolicitud(x.JsonSap));
+        var skus = articulosPorSolicitud.Values.SelectMany(x => x).Select(x => x.ItemCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        var descripciones = await _context.Refacciones.AsNoTracking()
+            .Where(x => skus.Contains(x.Sku))
+            .Select(x => new { x.Sku, x.Descripcion })
+            .ToDictionaryAsync(x => x.Sku, x => x.Descripcion, StringComparer.OrdinalIgnoreCase);
+
+        var items = rows.Select(x => new
+        {
+            x.Id, x.Folio, x.Estado, x.FechaCreacion, x.FechaNecesaria, x.Usuario,
+            x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error,
+            articulos = articulosPorSolicitud[x.Id].Select(a => new
+            {
+                itemCode = a.ItemCode,
+                descripcion = descripciones.TryGetValue(a.ItemCode, out var descripcion) ? descripcion : "",
+                cantidad = a.Cantidad,
+                almacen = a.Almacen,
+                cuentaContable = a.CuentaContable
+            }).ToList()
+        });
+
+        return new { ok = true, items };
     }
 
-    private async Task<(bool ConsultaCorrecta, int? DocEntry, int? DocNum, string? Respuesta, string? Error)> BuscarEnSapAsync(RefaccionSapSolicitudCompra solicitud)
+    private static List<SolicitudArticuloDetalle> LeerArticulosSolicitud(string? json)
+    {
+        var articulos = new List<SolicitudArticuloDetalle>();
+        if (string.IsNullOrWhiteSpace(json)) return articulos;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("DocumentLines", out var lineas) || lineas.ValueKind != JsonValueKind.Array)
+                return articulos;
+            foreach (var linea in lineas.EnumerateArray())
+            {
+                articulos.Add(new SolicitudArticuloDetalle
+                {
+                    ItemCode = linea.TryGetProperty("ItemCode", out var sku) ? sku.GetString() ?? "" : "",
+                    Cantidad = linea.TryGetProperty("Quantity", out var cantidad) && cantidad.ValueKind == JsonValueKind.Number ? cantidad.GetDecimal() : 0,
+                    Almacen = linea.TryGetProperty("WarehouseCode", out var almacen) ? almacen.GetString() ?? "" : "",
+                    CuentaContable = linea.TryGetProperty("AccountCode", out var cuenta) ? cuenta.GetString() ?? "" : ""
+                });
+            }
+        }
+        catch (JsonException) { }
+        return articulos;
+    }
+
+    private sealed class SolicitudArticuloDetalle
+    {
+        public string ItemCode { get; set; } = "";
+        public decimal Cantidad { get; set; }
+        public string Almacen { get; set; } = "";
+        public string CuentaContable { get; set; } = "";
+    }
+
+    private async Task<(bool ConsultaCorrecta, int? DocEntry, int? DocNum, string? Respuesta, string? Error)> BuscarEnSapAsync(RefaccionSapDocumento solicitud)
     {
         var comentario = CrearComentarioSap(solicitud.Folio, solicitud.Usuario, solicitud.Comentario ?? "");
         var filter = $"Comments eq '{EscaparOData(comentario)}'";
@@ -202,7 +259,7 @@ public sealed class RefaccionSapSolicitudCompraService
         catch (Exception ex) { return (false, null, null, result.response, "Respuesta SAP no interpretable: " + ex.Message); }
     }
 
-    private static void MarcarEnviado(RefaccionSapSolicitudCompra solicitud, int? docEntry, int? docNum, string? respuesta)
+    private static void MarcarEnviado(RefaccionSapDocumento solicitud, int? docEntry, int? docNum, string? respuesta)
     {
         solicitud.Estado = "ENVIADO";
         solicitud.SapDocEntry = docEntry;

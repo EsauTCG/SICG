@@ -79,13 +79,15 @@ namespace Plataforma_CG.Models
         public Refaccion? Refaccion { get; set; }
     }
 
-    [Table("RefaccionSapSalida")]
-    public class RefaccionSapSalida
+    [Table("RefaccionSapDocumento")]
+    public class RefaccionSapDocumento
     {
         public int Id { get; set; }
+        public string TipoMovimiento { get; set; } = ""; // SALIDA | SOLICITUD_COMPRA | ENTRADA
         public string Folio { get; set; } = "";
         public string Estado { get; set; } = "PENDIENTE";
         public DateTime FechaCreacion { get; set; }
+        public DateTime? FechaNecesaria { get; set; }
         public string Usuario { get; set; } = "";
         public string? Referencia { get; set; }
         public string? Comentario { get; set; }
@@ -96,25 +98,10 @@ namespace Plataforma_CG.Models
         public DateTime? FechaEnvio { get; set; }
         public string? Error { get; set; }
         public string? RespuestaSap { get; set; }
-    }
-
-    [Table("RefaccionSapSolicitudCompra")]
-    public class RefaccionSapSolicitudCompra
-    {
-        public int Id { get; set; }
-        public string Folio { get; set; } = "";
-        public string Estado { get; set; } = "PENDIENTE";
-        public DateTime FechaCreacion { get; set; }
-        public DateTime FechaNecesaria { get; set; }
-        public string Usuario { get; set; } = "";
-        public string? Comentario { get; set; }
-        public int CantidadLineas { get; set; }
-        public string JsonSap { get; set; } = "{}";
-        public int? SapDocEntry { get; set; }
-        public int? SapDocNum { get; set; }
-        public DateTime? FechaEnvio { get; set; }
-        public string? Error { get; set; }
-        public string? RespuestaSap { get; set; }
+        public int? SolicitudCompraId { get; set; }
+        public int? OrdenCompraDocEntry { get; set; }
+        public int? OrdenCompraDocNum { get; set; }
+        public bool InventarioAplicado { get; set; }
     }
 
     // ==========================
@@ -164,6 +151,20 @@ namespace Plataforma_CG.Models
         public string? AccountCode { get; set; }
     }
 
+    public class RefaccionSapRecepcionCrearRequest
+    {
+        public int SolicitudCompraId { get; set; }
+        public int OrdenCompraDocEntry { get; set; }
+        public string? Comentario { get; set; }
+        public List<RefaccionSapRecepcionLineaRequest> Lineas { get; set; } = new();
+    }
+
+    public class RefaccionSapRecepcionLineaRequest
+    {
+        public int LineNum { get; set; }
+        public int Cantidad { get; set; }
+    }
+
     public class CatalogoGuardarRequest
     {
         public int Id { get; set; }
@@ -200,6 +201,14 @@ namespace Plataforma_CG.Models
         public string? Maquina { get; set; }
         public string? Comentario { get; set; }
         public RefaccionSapSalidaDatos? Sap { get; set; }
+        public List<SalidaPosLinea> Lineas { get; set; } = new();
+    }
+
+    public class RefaccionSapEditarSalidaRequest
+    {
+        public string Folio { get; set; } = "";
+        public string? Referencia { get; set; }
+        public string? Comentario { get; set; }
         public List<SalidaPosLinea> Lineas { get; set; } = new();
     }
 
