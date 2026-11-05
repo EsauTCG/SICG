@@ -540,6 +540,42 @@
 
 <section class="panel">
     <div class="tablebar">
+        <h3>Desglose de entradas de Vísceras TIF</h3>
+        <small id="contadorEntradasReal"></small>
+    </div>
+
+    <p class="foot">
+        Entradas asociadas a las solicitudes con salidas
+        en el periodo consultado.
+        Cada entrada se contabiliza una sola vez.
+    </p>
+
+    <div class="scroll">
+        <table class="data">
+            <thead>
+                <tr>
+                    <th>Solicitud</th>
+                    <th>SKU entrada</th>
+                    <th>Producto</th>
+                    <th>Etiquetas</th>
+                    <th>Entrada (kg)</th>
+                </tr>
+            </thead>
+
+            <tbody id="tbodyEntradasReal"></tbody>
+
+            <tfoot>
+                <tr>
+                    <th colspan="4">TOTAL ENTRADAS</th>
+                    <th id="totalEntradasDesglose">0.000</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="tablebar">
         <h3>Indicadores de Vísceras TIF</h3>
         <small id="totalSalidasReal">Sin consultar</small>
     </div>
@@ -675,17 +711,61 @@
 
         document.getElementById("grupoProducto")
             .addEventListener("change", function () {
-                mostrarIndicadoresGrupo();
+                actualizarVistaMaster();
             });
+
+        function resolverFechasReporte(fechaInicio, fechaFin){
+             const formatoFecha = fecha => {
+                const año = fecha.getFullYear();
+                const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+                const dia = String(fecha.getDate()).padStart(2, "0");
+
+                return `${año}-${mes}-${dia}`;
+            };
+
+            const hoy = formatoFecha(new Date());
+
+            if (!fechaInicio && !fechaFin) {
+                fechaFin = hoy;
+            }
+
+            if (!fechaFin) {
+                fechaFin = hoy;
+            }
+
+            if (!fechaInicio) {
+                const fecha = new Date(`${fechaFin}T12:00:00`);
+                fecha.setDate(fecha.getDate() - 29);
+
+                fechaInicio = formatoFecha(fecha);
+            }
+
+            if (fechaInicio > fechaFin) {
+                throw new Error(
+                    "La fecha inicial no puede ser posterior a la fecha final."
+                );
+            }
+
+            return { fechaInicio, fechaFin };
+        }
 
 
         async function consultarReporteReal(fechaInicio, fechaFin, skuEntrada = null){
+
+            const fechas = resolverFechasReporte(fechaInicio, fechaFin);
+
+            fechaInicio = fechas.fechaInicio;
+            fechaFin = fechas.fechaFin;
+
+            document.getElementById("start").value = fechaInicio;
+            document.getElementById("end").value = fechaFin;
+
             const parametros = new URLSearchParams({
                 fechaInicio,
                 fechaFin
             });
 
-             if (skuEntrada) {
+             if (skuEntrada && skuEntrada !== "TODOS") {
                 parametros.append("skuEntrada", skuEntrada);
             }
 
@@ -702,50 +782,189 @@
                 }
 
                 datosReales = resultado.data;
+
                 cargarProductosEntrada();
-                mostrarIndicadoresGrupo();
-                mostrarResumenGeneral();
+                actualizarVistaMaster();
 
                 return datosReales;
         }
 
+
+        function mostrarGraficasReales() {
+
+           const { salidas } = obtenerDatosFiltradosMaster();
+
+            const porFecha = new Map();
+            const porSku = new Map();
+
+            salidas.forEach(s => {
+
+                const fecha = String(s.fecha || "").substring(0, 10);
+                const sku = s.sku || "SIN SKU";
+                const kg = Number(s.totalKg || 0);
+
+                porFecha.set(
+                    fecha,
+                    (porFecha.get(fecha) || 0) + kg
+                );
+
+                porSku.set(
+                    sku,
+                    (porSku.get(sku) || 0) + kg
+                );
+            });
+
+            const serieFechas = [...porFecha.entries()]
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([fecha, kg]) => ({
+                    label: fecha,
+                    value: kg
+                }));
+
+            const serieSku = [...porSku.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([sku, kg]) => ({
+                    label: sku,
+                    value: kg
+                }));
+
+            document.getElementById("charttitle").textContent =
+                "Evolución diaria de salidas (kg)";
+
+            window.chartRetrabajos(
+                "line",
+                "line",
+                serieFechas.map(x => x.label),
+                serieFechas
+            );
+
+             window.chartRetrabajos(
+                "bars",
+                "bar",
+                [],
+                serieSku
+            );
+        }
+            
+        function mostrarTarjetasReales() {
+
+            const {
+                entradas,
+                salidas,
+                advertencias
+            } = obtenerDatosFiltradosMaster();
+
+            const totalEntrada = entradas.reduce(
+                (suma, e) => suma + Number(e.totalKg || 0), 0
+            );
+
+            const totalSalida = salidas.reduce(
+                (suma, s) => suma + Number(s.totalKg || 0), 0
+            );
+
+            const solicitudes = new Set([
+                ...entradas.map(e => e.solicitudProduccionId),
+                ...salidas.map(s => s.solicitudProduccionId)
+            ]);
+
+            const etiquetasSalida = salidas.reduce(
+                (suma, s) => suma + Number(s.cantidadEtiquetas || 0), 0
+            );
+
+            const solicitudesAdvertencia = new Set(
+                advertencias.map(a => a.solicitudProduccionId)
+            );
+
+            const formato = valor =>
+                new Intl.NumberFormat("es-MX", {
+                    maximumFractionDigits: 3
+                }).format(valor);
+
+            const tarjetas = [
+                {
+                    titulo: "Entrada asociada",
+                    valor: formato(totalEntrada),
+                    unidad: "kg de entradas vinculadas"
+                },
+                {
+                    titulo: "Salida del periodo",
+                    valor: formato(totalSalida),
+                    unidad: "kg producidos"
+                },
+                {
+                    titulo: "Solicitudes",
+                    valor: formato(solicitudes.size),
+                    unidad: "Con actividad"
+                },
+                {
+                    titulo: "Etiquetas de salida",
+                    valor: formato(etiquetasSalida),
+                    unidad: "Etiquetas registradas"
+                },
+                {
+                    titulo: "Advertencias",
+                    valor: formato(solicitudesAdvertencia.size),
+                    unidad: "Solicitudes con salidas fuera del periodo"
+                }
+            ];
+
+            document.getElementById("stats").innerHTML =
+                tarjetas.map(t => `
+                    <div class="stat">
+                        <small>${t.titulo}</small>
+                        <strong>${t.valor}</strong>
+                        <em>${t.unidad}</em>
+                    </div>
+                `).join("");
+        }
+
+
         
+        const catalogoSkuEntradas = [
+            "Y056", "Y059", "Y061", "Y066",
+            "Y072", "Y092", "Y093", "Y094",
+            "Y095", "Y096", "Y097", "Y098",
+            "Y099", "Y101", "Y102", "Y103",
+            "Y104", "Y112", "Y113"
+        ];
+
         function cargarProductosEntrada() {
 
             const selector = document.getElementById("grupoProducto");
-            const seleccionAnterior = selector.value;
+            const seleccionado = selector.value || "TODOS";
 
             const productos = new Map();
 
+            // Catálogo conocido: disponible incluso sin consultar.
+            catalogoSkuEntradas.forEach(sku => {
+                productos.set(sku, sku);
+            });
+
+            // Completar nombres con los productos obtenidos de PyMeat.
             (datosReales.entradas || []).forEach(e => {
-                if (!productos.has(e.sku)) {
+                if (e.sku) {
                     productos.set(e.sku, e.producto || e.sku);
                 }
             });
 
-            selector.innerHTML = "";
+            selector.replaceChildren();
+
+            selector.add(new Option("TODOS LOS PRODUCTOS", "TODOS"));
 
             [...productos.entries()]
-                .sort(([a], [b]) => a.localeCompare(b))
-                .forEach(([sku, nombre]) => {
-                    const opcion = document.createElement("option");
-                    opcion.value = sku;
-                    opcion.textContent = `${sku} - ${nombre}`;
-                    selector.appendChild(opcion);
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .forEach(([sku, producto]) => {
+                    const nombre = producto === sku
+                        ? sku
+                        : `${sku} - ${producto}`;
+
+                    selector.add(new Option(nombre, sku));
                 });
 
-            const opcionTodos = document.createElement("option");
-            opcionTodos.value = "TODOS";
-            opcionTodos.textContent = "Todos los productos (exploración)";
-            selector.appendChild(opcionTodos);
-
-            if ([...selector.options].some(o => o.value === seleccionAnterior)) {
-                selector.value = seleccionAnterior;
-            } else {
-                selector.value = productos.has("Y095")
-                    ? "Y095"
-                    : productos.keys().next().value || "TODOS";
-            }
+            selector.value = productos.has(seleccionado)
+                ? seleccionado
+                : "TODOS";
         }
 
         
@@ -769,13 +988,19 @@
                 entradasPorSolicitud.get(e.solicitudProduccionId).add(e.sku);
             });
 
+            const master = document.getElementByID("grupoProducto").value;
+
+                const entradasVisibles = entradas.filter(e =>
+                    master === "TODOS" || e.sku === master
+                );
+
             const solicitudesParciales = new Set(
                 advertencias.map(a => a.solicitudProduccionId)
             );
 
             const resumen = new Map();
 
-            entradas.forEach(e => {
+            entradasVisibles.forEach(e => {
 
                 if (!resumen.has(e.sku)) {
                     resumen.set(e.sku, {
@@ -801,9 +1026,21 @@
                     (entradasPorSolicitud.get(id)?.size || 0) > 1
                 );
 
-                r.salida = salidas
-                    .filter(s => r.solicitudes.has(s.solicitudProduccionId))
-                    .reduce((total, s) => total + Number(s.totalKg || 0), 0);
+                    const solicitudesValidas = [...r.solicitudes]
+                        .filter(id =>
+                            (entradasPorSolicitud.get(id)?.size || 0) === 1
+                        );
+
+                    const salidaValidada = salidas
+                        .filter(s =>
+                            solicitudesValidas.includes(s.solicitudProduccionId)
+                        )
+                        .reduce((total, s) =>
+                            total + Number(s.totalKg || 0), 0
+                        );
+
+                    r.salida = r.revisar ? null : salidaValidada;
+
             });
 
             const formatoKg = new Intl.NumberFormat("es-MX", {
@@ -838,7 +1075,9 @@
                         r.producto,
                         r.solicitudes.size,
                         formatoKg.format(r.entrada),
-                        formatoKg.format(r.salida),
+                        r.salida === null
+                            ? "Por validar"
+                            : formatoKg.format(r.salida),
                         variacion
                     ].forEach(valor => {
                         const celda = fila.insertCell();
@@ -856,7 +1095,7 @@
 
                         document.getElementById("grupoProducto").value = r.sku;
 
-                        mostrarIndicadoresGrupo();
+                        actualizarVistaMaster();
 
                         document.getElementById("theadIndicadoresReal")
                             .scrollIntoView({
@@ -878,6 +1117,106 @@
             contador.textContent = `${resumen.size} SKU de entrada con actividad`;
         }
 
+            function mostrarDesgloseEntradas() {
+
+        const tbody = document.getElementById("tbodyEntradasReal");
+        const contador = document.getElementById("contadorEntradasReal");
+        const totalElemento = document.getElementById("totalEntradasDesglose");
+
+        tbody.innerHTML = "";
+
+        const master = document.getElementById("grupoProducto").value;
+
+        const entradas = (datosReales.entradas || [])
+            .filter(e =>
+                master === "TODOS" || e.sku === master
+            )
+            .sort((a, b) =>
+                a.sku.localeCompare(b.sku) ||
+                Number(a.solicitudProduccionId) -
+                Number(b.solicitudProduccionId)
+            );
+
+        const formatoKg = new Intl.NumberFormat("es-MX", {
+            minimumFractionDigits: 3,
+            maximumFractionDigits: 3
+        });
+
+        const formatoNumero = new Intl.NumberFormat("es-MX");
+
+        let totalKg = 0;
+        let totalEtiquetas = 0;
+
+        entradas.forEach(e => {
+
+            const fila = tbody.insertRow();
+
+            const kg = Number(e.totalKg || 0);
+            const etiquetas = Number(e.cantidadEtiquetas || 0);
+
+            totalKg += kg;
+            totalEtiquetas += etiquetas;
+
+            [
+                e.solicitudProduccionId,
+                e.sku,
+                e.producto || e.sku,
+                formatoNumero.format(etiquetas),
+                formatoKg.format(kg)
+            ].forEach(valor => {
+
+                const celda = fila.insertCell();
+                celda.textContent = valor;
+            });
+        });
+
+        if (entradas.length === 0) {
+            const fila = tbody.insertRow();
+            const celda = fila.insertCell();
+
+            celda.colSpan = 5;
+            celda.textContent = "Sin entradas para mostrar.";
+        }
+
+        totalElemento.textContent = formatoKg.format(totalKg);
+
+        contador.textContent =
+            `${entradas.length} registros agrupados · ` +
+            `${formatoNumero.format(totalEtiquetas)} etiquetas`;
+    }
+
+        function obtenerDatosFiltradosMaster() {
+
+        const master = document.getElementById("grupoProducto").value;
+
+        const entradasCompletas = datosReales.entradas || [];
+        const salidasCompletas = datosReales.salidas || [];
+        const advertenciasCompletas = datosReales.advertencias || [];
+
+        if (master === "TODOS") {
+            return {
+                entradas: entradasCompletas,
+                salidas: salidasCompletas,
+                advertencias: advertenciasCompletas
+            };
+        }
+
+        const entradas = entradasCompletas.filter(e => e.sku === master);
+
+        const solicitudes = new Set(
+            entradas.map(e => e.solicitudProduccionId)
+        );
+
+        return {
+            entradas,
+            salidas: salidasCompletas.filter(s =>
+                solicitudes.has(s.solicitudProduccionId)
+            ),
+            advertencias: advertenciasCompletas.filter(a =>
+                solicitudes.has(a.solicitudProduccionId)
+            )
+        };
+    }
 
         
         function mostrarSalidasReales() {
@@ -1649,14 +1988,95 @@
         function numeric(r, i) { let n = r.v[i]; return typeof n === 'number' && Number.isFinite(n) ? n : 0 }
         function updateWeek() { let current = $('week').value; let ws = [...new Set(sheets[active].rows.map(r => r.week).filter(Boolean))]; $('week').innerHTML = '<option value="">Todas las semanas</option>' + ws.map(w => `<option value="${escapeHTML(w)}">${escapeHTML(w)}</option>`).join(''); if (ws.includes(current)) $('week').value = current }
         function render() {
-            let s = sheets[active], rows = filterRows(), cols = columns(); $('sheetname').textContent = s.name; $('count').textContent = rows.length + ' filas · ' + cols.length + ' columnas'; $('thead').innerHTML = '<tr>' + cols.map(i => '<th>' + escapeHTML(s.head[i] || 'Col. ' + (i + 1)) + (s.codes[i].trim() ? '<span class="code">' + escapeHTML(s.codes[i]) + '</span>' : '') + '</th>').join('') + '</tr>';
+            if (active === 0){
+                return;
+            }
+
+            let s = sheets[active], 
+                rows = filterRows(), 
+                cols = columns(); $('sheetname').textContent = s.name; $('count').textContent = rows.length + ' filas · ' + cols.length + ' columnas'; $('thead').innerHTML = '<tr>' + cols.map(i => '<th>' + escapeHTML(s.head[i] || 'Col. ' + (i + 1)) + (s.codes[i].trim() ? '<span class="code">' + escapeHTML(s.codes[i]) + '</span>' : '') + '</th>').join('') + '</tr>';
             $('tbody').innerHTML = rows.slice(0, 180).map(r => '<tr>' + cols.map(i => { let v = r.v[i], pct = isPct(s.head[i]), n = typeof v === 'number'; let displayed = i === 1 ? r.date : i === 0 ? r.week : (v == null ? '—' : n ? (pct ? fmt(v * 100) + '%' : fmt(v, Number.isInteger(v) ? 0 : 2)) : escapeHTML(v)); let cl = (pct ? 'pct ' : '') + (pct && n ? (v < 0 ? 'neg' : v > 0 ? 'pos' : '') : ''); return '<td class="' + cl + '">' + displayed + '</td>' }).join('') + '</tr>').join('');
             let total = (i) => rows.reduce((a, r) => a + numeric(r, i), 0); let v = active === 0 ? [{ t: 'Kg MPC cabeza', val: total(2), unit: 'Suma del periodo' }, { t: 'Kg G cabeza', val: total(3), unit: 'Suma del periodo' }, { t: 'Variación cabeza', val: total(2) ? (total(3) / total(2) - 1) * 100 : null, unit: 'Salida / entrada − 1', pct: true }, { t: 'Registros visibles', val: rows.length, unit: 'Fechas del Excel', integer: true }] : [{ t: 'Número de animales', val: total(8), unit: 'Suma del periodo', integer: true }, { t: 'Kg pie', val: total(9), unit: 'Suma del periodo' }, { t: 'Decomiso cabezas', val: total(10), unit: 'Kg reportados' }, { t: '% decomiso cabezas', val: total(9) ? total(10) / total(9) * 100 : null, unit: 'Decomiso / kg pie', pct: true }]; $('stats').innerHTML = v.map(x => '<div class="stat"><small>' + x.t + '</small><strong>' + (x.val == null ? '—' : fmt(x.val, x.integer ? 0 : 2) + (x.pct ? '%' : '')) + '</strong><em>' + x.unit + '</em></div>').join(''); drawCharts(rows, s)
         }
-        function chart(canvas, type, labels, series, barLabels) { let c = $(canvas), dpr = window.devicePixelRatio || 1, rect = c.getBoundingClientRect(), W = Math.max(300, rect.width), H = Math.max(180, rect.height); c.width = W * dpr; c.height = H * dpr; let ctx = c.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H); const left = 55, right = 12, top = 12, bottom = 34, max = Math.max(1, ...series.map(x => x.value || 0)) * 1.14; ctx.font = '11px Segoe UI'; ctx.fillStyle = '#738091'; ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1; for (let i = 0; i <= 4; i++) { let y = top + (H - top - bottom) * i / 4; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(W - right, y); ctx.stroke(); ctx.fillText(fmt(max * (1 - i / 4), 0), 4, y + 4) } if (type === 'bar') { let bw = (W - left - right) / Math.max(series.length, 1); series.forEach((p, i) => { let bh = p.value / max * (H - top - bottom), x = left + i * bw + bw * .18, y = H - bottom - bh; ctx.fillStyle = ['#8b162a', '#c24d60', '#e19aa6', '#69525d', '#aa8690'][i % 5]; ctx.fillRect(x, y, bw * .64, bh); ctx.save(); ctx.translate(x + 5, H - 15); ctx.rotate(-.28); ctx.fillStyle = '#5e6b7b'; ctx.fillText(p.label.slice(0, 14), 0, 0); ctx.restore() }) } else { let n = series.length; ctx.strokeStyle = '#8b162a'; ctx.lineWidth = 2.5; ctx.beginPath(); series.forEach((p, i) => { let x = left + (W - left - right) * (n === 1 ? .5 : i / (n - 1)), y = H - bottom - (p.value / max) * (H - top - bottom); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y) }); ctx.stroke(); series.forEach((p, i) => { if (i % Math.max(1, Math.ceil(n / 14))) return; let x = left + (W - left - right) * (n === 1 ? .5 : i / (n - 1)), y = H - bottom - (p.value / max) * (H - top - bottom); ctx.beginPath(); ctx.fillStyle = '#8b162a'; ctx.arc(x, y, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#748092'; ctx.fillText(labels[i]?.slice(5) || '', x - 16, H - 12) }) } }
+
+        function chart(canvas, type, labels, series, barLabels) 
+        { 
+            let c = $(canvas), 
+            dpr = window.devicePixelRatio || 1, 
+            rect = c.getBoundingClientRect(), 
+            W = Math.max(300, rect.width), 
+            H = Math.max(180, rect.height); 
+            c.width = W * dpr; c.height = H * dpr; let ctx = c.getContext('2d');
+            ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
+            const left = 55, 
+                right = 12, 
+                top = 12, 
+                bottom = 34, 
+                max = Math.max(1, ...series.map(x => x.value || 0)) * 1.14; 
+                ctx.font = '11px Segoe UI'; 
+                ctx.fillStyle = '#738091'; ctx.strokeStyle = '#e6e9ee'; ctx.lineWidth = 1; 
+                
+                for (let i = 0; i <= 4; i++) 
+                { 
+                    let y = top + (H - top - bottom) * i / 4; ctx.beginPath(); 
+                    ctx.moveTo(left, y); ctx.lineTo(W - right, y); 
+                    ctx.stroke(); 
+                    ctx.fillText(fmt(max * (1 - i / 4), 0), 4, y + 4) 
+                } 
+                if (type === 'bar') 
+                { 
+                    let bw = (W - left - right) / Math.max(series.length, 1); 
+                    series.forEach((p, i) => { let bh = p.value / max * (H - top - bottom), 
+                        x = left + i * bw + bw * .18, y = H - bottom - bh; 
+                        ctx.fillStyle = ['#8b162a', '#c24d60', '#e19aa6', '#69525d', '#aa8690'][i % 5]; 
+                        ctx.fillRect(x, y, bw * .64, bh); 
+                        ctx.save(); 
+                        ctx.translate(x + 5, H - 15); 
+                        ctx.rotate(-.28); 
+                        ctx.fillStyle = '#5e6b7b'; 
+                        ctx.fillText(p.label.slice(0, 14), 0, 0); 
+                        ctx.restore() }) 
+                    } 
+                    else 
+                    { 
+                        let n = series.length; 
+                        ctx.strokeStyle = '#8b162a'; 
+                        ctx.lineWidth = 2.5; 
+                        ctx.beginPath(); 
+                        series.forEach((p, i) => { let x = left + (W - left - right) * (n === 1 ? .5 : i / (n - 1)), 
+                            y = H - bottom - (p.value / max) * (H - top - bottom); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y) }); 
+                            ctx.stroke(); series.forEach((p, i) => { 
+                                if (i % Math.max(1, Math.ceil(n / 14))) return; 
+                                let x = left + (W - left - right) * (n === 1 ? .5 : i / (n - 1)), y = H - bottom - (p.value / max) * (H - top - bottom); ctx.beginPath(); ctx.fillStyle = '#8b162a'; ctx.arc(x, y, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#748092'; ctx.fillText(labels[i]?.slice(5) || '', x - 16, H - 12) }) } }
+
+        window.chartRetrabajos = chart;
+
         function drawCharts(rows, s) { let idx = active === 0 ? 2 : 10, series = rows.filter(r => r.date).map(r => ({ label: r.date, value: numeric(r, idx) })); $('charttitle').textContent = active === 0 ? 'Kg MPC-Cabeza Res por fecha' : 'Decomiso de cabezas por fecha (kg)'; chart('line', 'line', series.map(x => x.label), series); let targets = active === 0 ? [2, 3, 17, 18, 22, 23] : [10, 14, 16, 18, 20, 26]; let bars = targets.map(i => ({ label: s.head[i].replace(/^MPC-|^G-|^DECOMISO /, '').slice(0, 14), value: rows.reduce((a, r) => a + numeric(r, i), 0) })); chart('bars', 'bar', [], bars) }
+        
         function setupTab(i) { active = i; document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', j === i)); $('start').value = ''; $('end').value = ''; $('search').value = ''; $('movement').value = 'both'; $('week').value = ''; updateWeek(); render() }
         document.querySelectorAll('.tab').forEach(el => el.addEventListener('click', () => setupTab(Number(el.dataset.tab))));['week', 'start', 'end', 'movement', 'search'].forEach(id => $(id).addEventListener('input', render)); $('reset').onclick = () => setupTab(active); window.addEventListener('resize', render); $('download').onclick = () => { let s = sheets[active], rows = filterRows(), cols = columns(), cs = [cols.map(i => s.head[i])].concat(rows.map(r => cols.map(i => i === 1 ? r.date : i === 0 ? r.week : r.v[i] ?? ''))); let text = '\ufeff' + cs.map(row => row.map(x => '"' + String(x).replaceAll('"', '""') + '"').join(',')).join('\r\n'); let b = new Blob([text], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = (active === 0 ? 'visceras' : 'decomisos') + '_demo.csv'; a.click(); URL.revokeObjectURL(a.href) }; setupTab(0);
 
     })();
+
+        function inicializarCatalogoEntradas() {
+        cargarProductosEntrada();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener(
+            "DOMContentLoaded",
+            inicializarCatalogoEntradas
+        );
+    } else {
+        inicializarCatalogoEntradas();
+    }
+
+    function actualizarVistaMaster() {
+
+        mostrarResumenGeneral();
+        mostrarDesgloseEntradas();
+        mostrarIndicadoresGrupo();
+        mostrarTarjetasReales();
+        mostrarGraficasReales();
+    }
 </script>
