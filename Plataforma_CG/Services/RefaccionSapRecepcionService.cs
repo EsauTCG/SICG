@@ -31,9 +31,14 @@ public sealed class RefaccionSapRecepcionService
 
         var articulos = await _context.Refacciones.AsNoTracking()
             .Where(x => x.Activo)
-            .Select(x => new { x.Id, x.Sku, x.Descripcion })
+            .Select(x => new { x.Id, x.Sku, x.Descripcion, x.Planta })
             .ToListAsync();
-        var porSku = articulos.ToDictionary(x => x.Sku, StringComparer.OrdinalIgnoreCase);
+        // Un SKU puede tener un registro por planta (TIF/P1). No se debe
+        // convertir directamente a diccionario porque eso falla con claves repetidas.
+        var porSku = articulos
+            .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
+            .GroupBy(x => x.Sku.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
         var solicitudesPorSap = solicitudes.Where(x => x.SapDocEntry.HasValue)
             .ToDictionary(x => x.SapDocEntry!.Value);
         var ordenes = new Dictionary<(int SolicitudId, int OrdenDocEntry), OrdenAbierta>();
@@ -59,7 +64,18 @@ public sealed class RefaccionSapRecepcionService
             }
 
             if (row.Linea == null || row.CantidadAbierta <= 0 ||
-                !porSku.TryGetValue(row.ItemCode, out var articulo))
+                !porSku.TryGetValue((row.ItemCode ?? "").Trim(), out var articulosSku))
+                continue;
+
+            var plantaOrden = RefaccionPlantaHelper.PlantaDeAlmacen(row.Almacen);
+            var articulo = plantaOrden == null
+                ? (articulosSku.Count == 1 ? articulosSku[0] : null)
+                : articulosSku.FirstOrDefault(x =>
+                    string.Equals(RefaccionPlantaHelper.NormalizarPlanta(x.Planta), plantaOrden,
+                        StringComparison.OrdinalIgnoreCase));
+            if (articulo == null && articulosSku.Count == 1)
+                articulo = articulosSku[0];
+            if (articulo == null)
                 continue;
 
             orden.Lineas.Add(new
@@ -90,6 +106,58 @@ public sealed class RefaccionSapRecepcionService
         };
     }
 
+    public async Task<object> ObtenerDocumentoOrdenSapAsync(int docEntry)
+    {
+        if (docEntry <= 0)
+            throw new ArgumentOutOfRangeException(nameof(docEntry), "El identificador de la orden SAP no es válido.");
+
+        var response = await _sap.GetAsync($"PurchaseOrders({docEntry})");
+        if (!response.ok || string.IsNullOrWhiteSpace(response.response))
+            throw new InvalidOperationException(
+                $"No se pudo recuperar la orden de compra {docEntry} desde SAP. {response.error} {response.response}");
+
+        using var document = JsonDocument.Parse(response.response);
+        var root = document.RootElement;
+        var lineas = new List<object>();
+        if (root.TryGetProperty("DocumentLines", out var lineasJson) && lineasJson.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var linea in lineasJson.EnumerateArray())
+            {
+                lineas.Add(new
+                {
+                    linea = Int(linea, "LineNum"),
+                    sku = Str(linea, "ItemCode"),
+                    descripcion = Str(linea, "ItemDescription"),
+                    cantidad = Decimal(linea, "Quantity"),
+                    unidad = Str(linea, "UoMCode", "MeasureUnit"),
+                    almacen = Str(linea, "WarehouseCode"),
+                    precioUnitario = Decimal(linea, "UnitPrice"),
+                    descuento = Decimal(linea, "DiscountPercent"),
+                    impuesto = Str(linea, "TaxCode"),
+                    importe = Decimal(linea, "LineTotal")
+                });
+            }
+        }
+
+        return new
+        {
+            ok = true,
+            docEntry = Int(root, "DocEntry"),
+            docNum = Int(root, "DocNum"),
+            proveedorCodigo = Str(root, "CardCode"),
+            proveedor = Str(root, "CardName"),
+            fecha = Str(root, "DocDate"),
+            fechaEntrega = Str(root, "DocDueDate"),
+            referenciaProveedor = Str(root, "NumAtCard"),
+            moneda = Str(root, "DocCurrency"),
+            subtotal = Decimal(root, "DocTotal") - Decimal(root, "VatSum"),
+            impuestoTotal = Decimal(root, "VatSum"),
+            total = Decimal(root, "DocTotal"),
+            comentarios = Str(root, "Comments"),
+            lineas
+        };
+    }
+
     public async Task<(bool Ok, string Mensaje, int? SapDocNum)> RegistrarAsync(
         RefaccionSapRecepcionCrearRequest request, string usuario)
     {
@@ -110,7 +178,8 @@ public sealed class RefaccionSapRecepcionService
 
             var ordenes = await ConsultarOrdenesRelacionadasAsync(new[] { solicitud.SapDocEntry.Value });
             var lineasOrden = ordenes.Where(x => x.DocEntry == request.OrdenCompraDocEntry && x.Linea.HasValue)
-                .ToDictionary(x => x.Linea!.Value);
+                .GroupBy(x => x.Linea!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
             if (lineasOrden.Count == 0)
                 return (false, "La orden ya no está vinculada a esta solicitud en SAP.", null);
 
@@ -123,9 +192,24 @@ public sealed class RefaccionSapRecepcionService
                 var cantidad = grupo.Sum(x => x.Cantidad);
                 if (cantidad > lineaSap.CantidadAbierta)
                     return (false, $"La cantidad de {lineaSap.ItemCode} supera lo pendiente en SAP ({lineaSap.CantidadAbierta}). Actualiza la lista.", null);
-                var articulo = await _context.Refacciones.FirstOrDefaultAsync(x => x.Activo && x.Sku == lineaSap.ItemCode);
+                var articulosSku = await _context.Refacciones
+                    .Where(x => x.Activo && x.Sku == lineaSap.ItemCode)
+                    .ToListAsync();
+                var plantaOrden = RefaccionPlantaHelper.PlantaDeAlmacen(lineaSap.Almacen);
+                var articulo = plantaOrden == null
+                    ? (articulosSku.Count == 1 ? articulosSku[0] : null)
+                    : articulosSku.FirstOrDefault(x =>
+                        string.Equals(RefaccionPlantaHelper.NormalizarPlanta(x.Planta), plantaOrden,
+                            StringComparison.OrdinalIgnoreCase));
+                if (articulo == null && articulosSku.Count == 1)
+                    articulo = articulosSku[0];
                 if (articulo == null)
-                    return (false, $"El artículo {lineaSap.ItemCode} de SAP no está registrado en SIGO.", null);
+                {
+                    var detalle = articulosSku.Count == 0
+                        ? "no está registrado en SIGO"
+                        : $"tiene varios registros en SIGO y no se encontró uno asociado a la planta del almacén {lineaSap.Almacen}";
+                    return (false, $"El artículo {lineaSap.ItemCode} {detalle}.", null);
+                }
                 if (articulo.Stock > int.MaxValue - cantidad)
                     return (false, $"La cantidad recibida de {lineaSap.ItemCode} excede el límite de inventario de SIGO.", null);
 
@@ -331,8 +415,23 @@ public sealed class RefaccionSapRecepcionService
             {
                 var sku = line.GetProperty("ItemCode").GetString() ?? "";
                 var cantidad = line.GetProperty("Quantity").GetInt32();
-                var articulo = await _context.Refacciones.FirstAsync(x => x.Activo && x.Sku == sku);
-                lineasRecibidas.Add((articulo, cantidad, Str(line, "WarehouseCode", "WhsCode")));
+                var almacen = Str(line, "WarehouseCode", "WhsCode");
+                var articulosSku = await _context.Refacciones
+                    .Where(x => x.Activo && x.Sku == sku)
+                    .ToListAsync();
+                var planta = RefaccionPlantaHelper.PlantaDeAlmacen(almacen);
+                var articulo = planta == null
+                    ? (articulosSku.Count == 1 ? articulosSku[0] : null)
+                    : articulosSku.FirstOrDefault(x => string.Equals(
+                        RefaccionPlantaHelper.NormalizarPlanta(x.Planta), planta,
+                        StringComparison.OrdinalIgnoreCase));
+                if (articulo == null && articulosSku.Count == 1)
+                    articulo = articulosSku[0];
+                if (articulo == null)
+                    throw new InvalidOperationException(
+                        $"No se encontró en SIGO un registro único para {sku} asociado a la planta del almacén {almacen}.");
+
+                lineasRecibidas.Add((articulo, cantidad, almacen));
             }
         }
 

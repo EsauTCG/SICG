@@ -62,6 +62,11 @@ public sealed class RefaccionSapSolicitudCompraService
                     .Contains(almacenes[0], StringComparer.OrdinalIgnoreCase))
                 return (false, $"Selecciona MAN001, MAN002 o MAN003 para {articulo.Sku}.", null);
 
+            var plantaArticulo = RefaccionPlantaHelper.NormalizarPlanta(articulo.Planta);
+            var plantaAlmacen = RefaccionPlantaHelper.PlantaDeAlmacen(almacenes[0]);
+            if (plantaArticulo != null && plantaAlmacen != plantaArticulo)
+                return (false, $"El almacén {almacenes[0]} no corresponde a la planta {plantaArticulo} del artículo {articulo.Sku}.", null);
+
             var cuentasLinea = grupo.Select(x => (x.AccountCode ?? "").Trim())
                 .Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (cuentasLinea.Count > 1)
@@ -97,7 +102,7 @@ public sealed class RefaccionSapSolicitudCompraService
         {
             TipoMovimiento = "SOLICITUD_COMPRA",
             Folio = folio,
-            Estado = "PENDIENTE",
+            Estado = "PENDIENTE_JEFE",
             FechaCreacion = DateTime.Now,
             FechaNecesaria = fechaNecesaria,
             Usuario = string.IsNullOrWhiteSpace(usuario) ? "Usuario SIGO" : usuario.Trim(),
@@ -115,7 +120,69 @@ public sealed class RefaccionSapSolicitudCompraService
             articulo.UsuarioModificacion = solicitud.Usuario;
         }
         await _context.SaveChangesAsync();
-        return (true, "Solicitud guardada en SIGO y lista para enviar a SAP.", solicitud);
+        return (true, "Solicitud guardada en SIGO. Quedó pendiente de revisión del jefe de área.", solicitud);
+    }
+
+    public async Task<(bool Ok, string Mensaje)> RevisarJefeAreaAsync(int id, bool aprobar, string? comentario, string usuario)
+    {
+        await SendGate.WaitAsync();
+        try
+        {
+            var solicitud = await _context.RefaccionSapDocumentos
+                .FirstOrDefaultAsync(x => x.TipoMovimiento == "SOLICITUD_COMPRA" && x.Id == id);
+            if (solicitud == null) return (false, "No se encontró la solicitud.");
+            if (solicitud.Estado != "PENDIENTE_JEFE") return (false, "La solicitud ya no está pendiente de revisión del jefe de área.");
+            var nota = (comentario ?? "").Trim();
+            if (!aprobar && string.IsNullOrWhiteSpace(nota)) return (false, "Escribe el motivo de cancelación.");
+            solicitud.JefeAreaUsuario = usuario;
+            solicitud.JefeAreaFecha = DateTime.Now;
+            solicitud.JefeAreaComentario = nota.Length == 0 ? null : Limitar(nota, 500);
+            solicitud.Estado = aprobar ? "PENDIENTE_CONTADURIA" : "CANCELADA";
+            if (!aprobar) await LimpiarMarcasSolicitudAsync(solicitud, usuario);
+            await _context.SaveChangesAsync();
+            return (true, aprobar
+                ? "Solicitud aprobada por el jefe de área y enviada a la bandeja de contaduría."
+                : "Solicitud cancelada. Se liberaron los artículos para futuras solicitudes.");
+        }
+        finally { SendGate.Release(); }
+    }
+
+    public async Task<(bool Ok, string Mensaje)> AutorizarContaduriaAsync(int id, bool autorizar, string? comentario, string usuario)
+    {
+        await SendGate.WaitAsync();
+        try
+        {
+            var solicitud = await _context.RefaccionSapDocumentos
+                .FirstOrDefaultAsync(x => x.TipoMovimiento == "SOLICITUD_COMPRA" && x.Id == id);
+            if (solicitud == null) return (false, "No se encontró la solicitud.");
+            if (solicitud.Estado != "PENDIENTE_CONTADURIA") return (false, "La solicitud no está pendiente de autorización de contaduría.");
+            var nota = (comentario ?? "").Trim();
+            if (!autorizar && string.IsNullOrWhiteSpace(nota)) return (false, "Escribe el motivo del rechazo.");
+            solicitud.ContaduriaUsuario = usuario;
+            solicitud.ContaduriaFecha = DateTime.Now;
+            solicitud.ContaduriaComentario = nota.Length == 0 ? null : Limitar(nota, 500);
+            solicitud.Estado = autorizar ? "AUTORIZADA_CONTADURIA" : "RECHAZADA_CONTADURIA";
+            if (!autorizar) await LimpiarMarcasSolicitudAsync(solicitud, usuario);
+            await _context.SaveChangesAsync();
+            return (true, autorizar
+                ? "Compra autorizada. El jefe de área ya puede enviarla a SAP."
+                : "Solicitud rechazada por contaduría. Se liberaron los artículos para futuras solicitudes.");
+        }
+        finally { SendGate.Release(); }
+    }
+
+    private async Task LimpiarMarcasSolicitudAsync(RefaccionSapDocumento solicitud, string usuario)
+    {
+        var skus = LeerArticulosSolicitud(solicitud.JsonSap).Select(x => x.ItemCode).Distinct().ToList();
+        var articulos = await _context.Refacciones.Where(x => skus.Contains(x.Sku) && x.SolicitudStockActiva).ToListAsync();
+        foreach (var articulo in articulos)
+        {
+            articulo.SolicitudStockActiva = false;
+            articulo.FechaSolicitudStock = null;
+            articulo.UsuarioSolicitudStock = null;
+            articulo.FechaModificacion = DateTime.Now;
+            articulo.UsuarioModificacion = usuario;
+        }
     }
 
     public async Task<(bool Ok, bool YaEnviada, string Mensaje, int? DocEntry, int? DocNum)> EnviarAsync(int id)
@@ -127,6 +194,9 @@ public sealed class RefaccionSapSolicitudCompraService
             if (solicitud == null) return (false, false, "No se encontró la solicitud de compra.", null, null);
             if (solicitud.Estado == "ENVIADO")
                 return (true, true, "La solicitud ya fue enviada a SAP.", solicitud.SapDocEntry, solicitud.SapDocNum);
+            if (solicitud.Estado != "AUTORIZADA_CONTADURIA" &&
+                !(solicitud.Estado == "ERROR_SAP" && solicitud.ContaduriaFecha.HasValue))
+                return (false, false, "La solicitud debe ser aprobada por el jefe de área y autorizada por contaduría antes de enviarse a SAP.", null, null);
 
             solicitud.Estado = "ENVIANDO";
             solicitud.Error = null;
@@ -163,7 +233,7 @@ public sealed class RefaccionSapSolicitudCompraService
             }
             catch (Exception ex)
             {
-                solicitud.Estado = "ERROR";
+                solicitud.Estado = "ERROR_SAP";
                 solicitud.Error = Limitar(ex.GetBaseException().Message, 4000);
                 await _context.SaveChangesAsync();
                 return (false, false, "La solicitud permanece guardada en SIGO, pero SAP no confirmó el envío. " + solicitud.Error, null, null);
@@ -178,21 +248,34 @@ public sealed class RefaccionSapSolicitudCompraService
             .Where(x => x.TipoMovimiento == "SOLICITUD_COMPRA")
             .OrderByDescending(x => x.FechaCreacion).Take(100)
             .Select(x => new { x.Id, x.Folio, x.Estado, x.FechaCreacion, x.FechaNecesaria, x.Usuario,
-                x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error, x.JsonSap })
+                x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error, x.JsonSap,
+                x.JefeAreaUsuario, x.JefeAreaFecha, x.JefeAreaComentario,
+                x.ContaduriaUsuario, x.ContaduriaFecha, x.ContaduriaComentario })
             .ToListAsync();
 
         var articulosPorSolicitud = rows.ToDictionary(x => x.Id, x => LeerArticulosSolicitud(x.JsonSap));
         var skus = articulosPorSolicitud.Values.SelectMany(x => x).Select(x => x.ItemCode)
             .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-        var descripciones = await _context.Refacciones.AsNoTracking()
+        var descripcionesFilas = await _context.Refacciones.AsNoTracking()
             .Where(x => skus.Contains(x.Sku))
             .Select(x => new { x.Sku, x.Descripcion })
-            .ToDictionaryAsync(x => x.Sku, x => x.Descripcion, StringComparer.OrdinalIgnoreCase);
+            .ToListAsync();
+        // Puede existir un registro de la misma refacción para cada planta.
+        // La descripción es común; agrupar evita que un SKU repetido rompa la bandeja.
+        var descripciones = descripcionesFilas
+            .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
+            .GroupBy(x => x.Sku.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.Descripcion).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                StringComparer.OrdinalIgnoreCase);
 
         var items = rows.Select(x => new
         {
             x.Id, x.Folio, x.Estado, x.FechaCreacion, x.FechaNecesaria, x.Usuario,
             x.Comentario, x.CantidadLineas, x.SapDocNum, x.Error,
+            x.JefeAreaUsuario, x.JefeAreaFecha, x.JefeAreaComentario,
+            x.ContaduriaUsuario, x.ContaduriaFecha, x.ContaduriaComentario,
             articulos = articulosPorSolicitud[x.Id].Select(a => new
             {
                 itemCode = a.ItemCode,

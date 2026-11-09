@@ -27,6 +27,10 @@ namespace Plataforma_CG.Models
         public DateTime? FechaSolicitudStock { get; set; }
         public string? UsuarioSolicitudStock { get; set; }
 
+        // Planta a la que pertenece la refacción: TIF o P1.
+        // Un mismo SKU puede existir una vez por planta.
+        public string? Planta { get; set; }
+
         public RefaccionCategoria? Categoria { get; set; }
         public RefaccionUbicacion? Ubicacion { get; set; }
     }
@@ -102,6 +106,12 @@ namespace Plataforma_CG.Models
         public int? OrdenCompraDocEntry { get; set; }
         public int? OrdenCompraDocNum { get; set; }
         public bool InventarioAplicado { get; set; }
+        public string? JefeAreaUsuario { get; set; }
+        public DateTime? JefeAreaFecha { get; set; }
+        public string? JefeAreaComentario { get; set; }
+        public string? ContaduriaUsuario { get; set; }
+        public DateTime? ContaduriaFecha { get; set; }
+        public string? ContaduriaComentario { get; set; }
     }
 
     // ==========================
@@ -118,6 +128,38 @@ namespace Plataforma_CG.Models
         public int Min { get; set; }
         public int Max { get; set; }
         public decimal Costo { get; set; }
+        public string? Planta { get; set; }
+    }
+
+    // DTO de salida para Cargar (mantiene los nombres JSON que ya usa la vista)
+    public class RefaccionCargaDto
+    {
+        public int id { get; set; }
+        public string sku { get; set; } = "";
+        public string desc { get; set; } = "";
+        public string? unidadMedidaInventario { get; set; }
+        public int? catId { get; set; }
+        public string cat { get; set; } = "";
+        public int? ubiId { get; set; }
+        public string loc { get; set; } = "";
+        public int stock { get; set; }
+        public int min { get; set; }
+        public int max { get; set; }
+        public decimal costo { get; set; }
+        public string? codigoEtiqueta { get; set; }
+        public string? foto { get; set; }
+        public bool solicitudStockActiva { get; set; }
+        public DateTime? fechaSolicitudStock { get; set; }
+        public string? usuarioSolicitudStock { get; set; }
+        public string? planta { get; set; }
+        public List<RefaccionAlmacenDto> almacenes { get; set; } = new();
+    }
+
+    public class RefaccionAlmacenDto
+    {
+        public string codigo { get; set; } = "";
+        public decimal? stock { get; set; }
+        public decimal? disponible { get; set; }
     }
 
     public class RefaccionSolicitudStockRequest
@@ -141,6 +183,13 @@ namespace Plataforma_CG.Models
     public class RefaccionSapEnviarSolicitudRequest
     {
         public int Id { get; set; }
+    }
+
+    public class RefaccionSapDecisionSolicitudRequest
+    {
+        public int Id { get; set; }
+        public bool Aprobar { get; set; }
+        public string? Comentario { get; set; }
     }
 
     public class RefaccionSapSolicitudCompraLineaRequest

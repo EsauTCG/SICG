@@ -19,8 +19,10 @@ namespace Plataforma_CG.Services
         private readonly SemaphoreSlim _loginGate = new(1, 1);
         private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
         private readonly SemaphoreSlim _refaccionesCacheGate = new(1, 1);
+        private readonly SemaphoreSlim _almacenesCacheGate = new(1, 1);
 
         private const string RefaccionesCacheKey = "SapRefacciones_Consumibles_v1";
+        private const string AlmacenesConsumiblesCacheKey = "SapRefacciones_Almacenes_v1";
         private static readonly TimeSpan RefaccionesCacheTtl = TimeSpan.FromMinutes(5);
 
         //public SapServiceLayerClient(HttpClient httpClient, IConfiguration config)
@@ -177,6 +179,40 @@ namespace Plataforma_CG.Services
         public void InvalidarCacheRefacciones()
         {
             _cache.Remove(RefaccionesCacheKey);
+            _cache.Remove(AlmacenesConsumiblesCacheKey);
+        }
+
+        // Caché de existencias por almacén (ItemWarehouseInfoCollection).
+        public async Task<List<CatalogoSkuSapViewmodel>> ObtenerAlmacenesRefaccionesCacheAsync(bool forzar = false)
+        {
+            if (!forzar && _cache.TryGetValue(AlmacenesConsumiblesCacheKey, out var cached)
+                         && cached is List<CatalogoSkuSapViewmodel> listaCache)
+            {
+                return listaCache;
+            }
+
+            await _almacenesCacheGate.WaitAsync();
+            try
+            {
+                if (!forzar && _cache.TryGetValue(AlmacenesConsumiblesCacheKey, out cached)
+                             && cached is List<CatalogoSkuSapViewmodel> listaCache2)
+                {
+                    return listaCache2;
+                }
+
+                var items = await ObtenerAlmacenesRefaccionesAsync();
+
+                _cache.Set(AlmacenesConsumiblesCacheKey, items, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = RefaccionesCacheTtl
+                });
+
+                return items;
+            }
+            finally
+            {
+                _almacenesCacheGate.Release();
+            }
         }
 
         // =========================
@@ -256,7 +292,7 @@ namespace Plataforma_CG.Services
             }
         }
 
-        private async Task<HttpResponseMessage> GetWithReLoginAsync(string url)
+        private async Task<HttpResponseMessage> GetWithReLoginAsync(string url, int? maxPageSize = null)
         {
             for (var intento = 0; intento < 2; intento++)
             {
@@ -265,7 +301,11 @@ namespace Plataforma_CG.Services
                 if (!loginOk)
                     throw new InvalidOperationException(loginError);
 
-                var response = await _httpClient.GetAsync(url);
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                if (maxPageSize.HasValue && maxPageSize.Value > 0)
+                    request.Headers.TryAddWithoutValidation("Prefer", $"odata.maxpagesize={maxPageSize.Value}");
+
+                var response = await _httpClient.SendAsync(request);
                 var body = await response.Content.ReadAsStringAsync();
 
                 if (intento == 0 && EsSesionSapExpirada(response.StatusCode, body))
@@ -280,6 +320,30 @@ namespace Plataforma_CG.Services
 
             throw new InvalidOperationException(
                 "No fue posible restablecer la sesión de SAP Service Layer.");
+        }
+
+        private static int ObtenerTamanoPaginaAplicado(
+            HttpResponseMessage response,
+            int solicitado,
+            int recibidos)
+        {
+            if (response.Headers.TryGetValues("Preference-Applied", out var preferencias))
+            {
+                foreach (var preferencia in preferencias)
+                foreach (var parte in preferencia.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var valor = parte.Trim();
+                    const string clave = "odata.maxpagesize=";
+                    if (valor.StartsWith(clave, StringComparison.OrdinalIgnoreCase) &&
+                        int.TryParse(valor[clave.Length..], out var aplicado) && aplicado > 0)
+                        return aplicado;
+                }
+            }
+
+            // SAP suele ignorar Prefer y usar su página predeterminada de 20.
+            // Al detectar una primera página menor al tamaño pedido, se adopta
+            // ese tamaño para seguir paginando sin perder resultados.
+            return recibidos > 0 && recibidos < solicitado ? recibidos : solicitado;
         }
 
 
@@ -2544,9 +2608,9 @@ namespace Plataforma_CG.Services
 
             var productos = new List<CatalogoSkuSapViewmodel>();
             int skip = 0;
-            // SAP Service Layer topa la página en 20 aunque se pida más (responde 200).
-            // Por eso se pagina de 20 en 20.
-            int batchSize = 20;
+            // Se solicita una página mayor para reducir los viajes a SAP. Si el
+            // servidor mantiene su límite predeterminado, se detecta y se adapta.
+            int batchSize = 100;
             bool more = true;
 
             static decimal? ParseDecimal(JsonElement el)
@@ -2611,7 +2675,7 @@ namespace Plataforma_CG.Services
                 HttpResponseMessage response;
                 try
                 {
-                    response = await GetWithReLoginAsync(url);
+                    response = await GetWithReLoginAsync(url, batchSize);
 
                     // Si SAP rechaza la petición (ej. 400 Bad Request)
                     if (!response.IsSuccessStatusCode)
@@ -2686,13 +2750,261 @@ namespace Plataforma_CG.Services
                     productos.AddRange(batch);
                     skip += batch.Count;
 
-                    // Si SAP devolvió una página llena, puede haber más.
-                    // Si devolvió menos de 20, ya terminó.
-                    more = batch.Count >= batchSize;
+                    var tamanoAplicado = ObtenerTamanoPaginaAplicado(response, batchSize, batch.Count);
+                    more = batch.Count >= tamanoAplicado;
                 }
             }
 
             return productos;
+        }
+
+        // ============================================================
+        // OBTIENE EL ALMACÉN Y LAS EXISTENCIAS POR ALMACÉN DE SAP
+        // Se consulta en una petición aparte para NO modificar el $select
+        // de ObtenerRefaccionesAsync (que ya está en producción).
+        // ============================================================
+        public async Task<List<CatalogoSkuSapViewmodel>> ObtenerAlmacenesRefaccionesAsync()
+        {
+            if (!_httpClient.DefaultRequestHeaders.Contains("Cookie"))
+                await LoginAsync();
+
+            var settings = _config.GetSection("SapServiceLayer");
+            // El inventario de refacciones de SIGO usa el grupo 102. No hace
+            // falta bajar almacenes de los otros grupos (144/147).
+            const string filtro = "Valid eq 'tYES' and ItemsGroupCode eq 102";
+
+            var productos = new List<CatalogoSkuSapViewmodel>();
+            int skip = 0;
+            // Se solicitan lotes grandes para reducir llamadas secuenciales.
+            int batchSize = 500;
+            bool more = true;
+
+            static decimal? ParseDecimal(JsonElement el)
+            {
+                if (el.ValueKind == JsonValueKind.Number && el.TryGetDecimal(out var d))
+                    return d;
+
+                if (el.ValueKind == JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                                         System.Globalization.CultureInfo.InvariantCulture, out var d2))
+                        return d2;
+                }
+                return null;
+            }
+
+            while (more)
+            {
+                var url =
+                    $"{settings["BaseUrl"].TrimEnd('/')}/Items" +
+                    "?$select=ItemCode,ItemWarehouseInfoCollection" +
+                    $"&$filter={Uri.EscapeDataString(filtro)}" +
+                    $"&$top={batchSize}&$skip={skip}";
+
+                HttpResponseMessage response;
+                try
+                {
+                    response = await GetWithReLoginAsync(url, batchSize);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorSap = await response.Content.ReadAsStringAsync();
+                        throw new Exception(
+                            $"Error {response.StatusCode} de SAP al consultar almacenes. Detalle: {errorSap}");
+                    }
+                }
+                catch (Exception)
+                {
+                    if (batchSize > 20)
+                    {
+                        // Algunos servidores SAP no aceptan lotes grandes.
+                        // Se reintenta el mismo bloque con el tamaño predeterminado.
+                        batchSize = 20;
+                        continue;
+                    }
+                    throw;
+                }
+
+                using (response)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+
+                    if (!doc.RootElement.TryGetProperty("value", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                        break;
+
+                    var batch = new List<CatalogoSkuSapViewmodel>(arr.GetArrayLength());
+
+                    foreach (var x in arr.EnumerateArray())
+                    {
+                        var item = new CatalogoSkuSapViewmodel
+                        {
+                            ItemCode = x.TryGetProperty("ItemCode", out var ic) ? ic.GetString() : null
+                        };
+
+                        if (x.TryGetProperty("ItemWarehouseInfoCollection", out var almacenes)
+                            && almacenes.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var w in almacenes.EnumerateArray())
+                            {
+                                var code = w.TryGetProperty("WarehouseCode", out var wc)
+                                    ? (wc.ValueKind == JsonValueKind.String ? wc.GetString() : wc.ToString())
+                                    : null;
+
+                                if (string.IsNullOrWhiteSpace(code))
+                                    continue;
+
+                                item.Almacenes.Add(new AlmacenSapViewmodel
+                                {
+                                    WarehouseCode = code.Trim(),
+                                    InStock = w.TryGetProperty("InStock", out var ins) ? ParseDecimal(ins) : null,
+                                    Committed = w.TryGetProperty("Committed", out var com) ? ParseDecimal(com) : null,
+                                    Ordered = w.TryGetProperty("Ordered", out var ord) ? ParseDecimal(ord) : null,
+                                    Available = w.TryGetProperty("Available", out var av) ? ParseDecimal(av) : null
+                                });
+                            }
+                        }
+
+                        batch.Add(item);
+                    }
+
+                    if (batch.Count == 0) break;
+
+                    productos.AddRange(batch);
+                    skip += batch.Count;
+                    var tamanoAplicado = ObtenerTamanoPaginaAplicado(response, batchSize, batch.Count);
+                    more = batch.Count >= tamanoAplicado;
+                }
+            }
+
+            return productos;
+        }
+
+        // Guarda en la tabla local las existencias por almacén de cada artículo.
+        public async Task<(int insertados, int actualizados, int eliminados, int total)>
+            SincronizarAlmacenesConsumiblesSapAsync()
+        {
+            // Una sincronización solicitada por el usuario debe consultar el estado
+            // actual en SAP, aunque la vista previa haya dejado una copia en caché.
+            var itemsSap = await ObtenerAlmacenesRefaccionesCacheAsync(forzar: true);
+
+            itemsSap = itemsSap
+                .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
+                .GroupBy(x => x.ItemCode!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.Last())
+                .ToList();
+
+            if (itemsSap.Count == 0)
+                throw new InvalidOperationException(
+                    "SAP no devolvió artículos para sincronizar almacenes. No se modificó la tabla local.");
+
+            var skusConAlmacenes = itemsSap
+                .Where(x => x.Almacenes != null && x.Almacenes.Any(a => !string.IsNullOrWhiteSpace(a.WarehouseCode)))
+                .Select(x => x.ItemCode!.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (skusConAlmacenes.Count == 0)
+                throw new InvalidOperationException(
+                    "SAP devolvió el catálogo, pero no devolvió almacenes por artículo (ItemWarehouseInfoCollection). " +
+                    "No se modificó la tabla de almacenes para evitar borrar datos existentes.");
+
+            var locales = await _context.ArticuloConsumiblesSapAlmacen.ToListAsync();
+            var dicLocales = locales
+                .GroupBy(x => ClaveAlmacen(x.ProductoCodigo, x.WarehouseCode))
+                .ToDictionary(g => g.Key, g => g.Last());
+
+            var vigentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var ahora = DateTime.Now;
+            int insertados = 0;
+            int actualizados = 0;
+
+            static string ClaveAlmacen(string? producto, string? almacen) =>
+                ((producto ?? "").Trim().ToUpperInvariant()) + "|" +
+                ((almacen ?? "").Trim().ToUpperInvariant());
+
+            static bool DecCambio(decimal? a, decimal? b) =>
+                Math.Round(a ?? 0m, 4, MidpointRounding.AwayFromZero) !=
+                Math.Round(b ?? 0m, 4, MidpointRounding.AwayFromZero);
+
+            foreach (var item in itemsSap)
+            {
+                var codigo = (item.ItemCode ?? "").Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(codigo))
+                    continue;
+
+                foreach (var alm in item.Almacenes)
+                {
+                    var code = (alm.WarehouseCode ?? "").Trim().ToUpperInvariant();
+                    if (string.IsNullOrWhiteSpace(code))
+                        continue;
+
+                    var key = ClaveAlmacen(codigo, code);
+                    vigentes.Add(key);
+
+                    if (!dicLocales.TryGetValue(key, out var local))
+                    {
+                        _context.ArticuloConsumiblesSapAlmacen.Add(new ArticuloConsumiblesSapAlmacen
+                        {
+                            ProductoCodigo = codigo,
+                            WarehouseCode = code,
+                            Stock = alm.InStock,
+                            Comprometido = alm.Committed,
+                            Pedido = alm.Ordered,
+                            Disponible = alm.Available,
+                            FechaModificacion = ahora
+                        });
+                        insertados++;
+                        continue;
+                    }
+
+                    bool cambio = false;
+
+                    if (DecCambio(local.Stock, alm.InStock))
+                    {
+                        local.Stock = alm.InStock;
+                        cambio = true;
+                    }
+
+                    if (DecCambio(local.Comprometido, alm.Committed))
+                    {
+                        local.Comprometido = alm.Committed;
+                        cambio = true;
+                    }
+
+                    if (DecCambio(local.Pedido, alm.Ordered))
+                    {
+                        local.Pedido = alm.Ordered;
+                        cambio = true;
+                    }
+
+                    if (DecCambio(local.Disponible, alm.Available))
+                    {
+                        local.Disponible = alm.Available;
+                        cambio = true;
+                    }
+
+                    if (cambio)
+                    {
+                        local.FechaModificacion = ahora;
+                        actualizados++;
+                    }
+                }
+            }
+
+            int eliminados = 0;
+            foreach (var local in locales)
+            {
+                // Solo limpiar almacenes para artículos cuya colección sí llegó desde SAP.
+                // Si SAP omite la propiedad o la respuesta viene incompleta, conservamos la copia local.
+                if (skusConAlmacenes.Contains((local.ProductoCodigo ?? "").Trim()) &&
+                    !vigentes.Contains(ClaveAlmacen(local.ProductoCodigo, local.WarehouseCode)))
+                {
+                    _context.ArticuloConsumiblesSapAlmacen.Remove(local);
+                    eliminados++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return (insertados, actualizados, eliminados, itemsSap.Count);
         }
 
         public async Task<(int insertados, int actualizados, int desactivados, int total)> SincronizarConsumiblesSapAsync()
@@ -2869,14 +3181,14 @@ namespace Plataforma_CG.Services
             if (string.IsNullOrWhiteSpace(baseUrl))
                 throw new InvalidOperationException("No está configurado SapServiceLayer:BaseUrl.");
 
-            const int batchSize = 20;
+            var batchSize = 100;
             var cuentasSap = new List<(string Codigo, string Nombre)>();
             var skip = 0;
 
             while (true)
             {
                 var url = $"{baseUrl}/ChartOfAccounts?$select=Code,Name&$orderby=Code&$top={batchSize}&$skip={skip}";
-                using var response = await GetWithReLoginAsync(url);
+                using var response = await GetWithReLoginAsync(url, batchSize);
                 var body = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
                     throw new InvalidOperationException($"SAP no pudo consultar el catálogo de cuentas contables. HTTP {(int)response.StatusCode}. {body}");
@@ -2895,7 +3207,8 @@ namespace Plataforma_CG.Services
                 if (lote.Count == 0) break;
                 cuentasSap.AddRange(lote);
                 skip += lote.Count;
-                if (lote.Count < batchSize) break;
+                var tamanoAplicado = ObtenerTamanoPaginaAplicado(response, batchSize, lote.Count);
+                if (lote.Count < tamanoAplicado) break;
             }
 
             cuentasSap = cuentasSap

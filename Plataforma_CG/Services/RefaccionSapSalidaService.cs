@@ -261,6 +261,10 @@ namespace Plataforma_CG.Services
                     };
                     var errorSap = await ValidarSeleccionAsync(seleccion, cuentasPermitidas);
                     if (errorSap != null) return (false, $"{articulo.Descripcion}: {errorSap}");
+                    var plantaArticulo = RefaccionPlantaHelper.NormalizarPlanta(articulo.Planta);
+                    var plantaAlmacen = RefaccionPlantaHelper.PlantaDeAlmacen(seleccion.WarehouseCode);
+                    if (plantaArticulo != null && plantaAlmacen != plantaArticulo)
+                        return (false, $"El almacén {seleccion.WarehouseCode} no corresponde a la planta {plantaArticulo} del artículo {articulo.Sku}.");
                     selecciones[linea.Id] = seleccion;
                 }
 

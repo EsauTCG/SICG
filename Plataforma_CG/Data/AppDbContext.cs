@@ -28,6 +28,7 @@ namespace Plataforma_CG.Data
 
         public DbSet<ArticuloSap> ArticuloSap { get; set; }
         public DbSet<ArticuloConsumiblesSap> ArticuloConsumiblesSap { get; set; }
+        public DbSet<ArticuloConsumiblesSapAlmacen> ArticuloConsumiblesSapAlmacen { get; set; }
         public DbSet<CuentaContableSap> CuentasContablesSap { get; set; }
 
         public DbSet<Presentacion> Presentacion { get; set; }
@@ -748,6 +749,7 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.ToTable("Refaccion");
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Sku).HasMaxLength(50).IsRequired();
+                e.Property(x => x.Planta).HasMaxLength(10);
                 e.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Costo).HasColumnType("decimal(18,2)");
                 e.Property(x => x.CodigoEtiqueta).HasMaxLength(80);
@@ -756,7 +758,7 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.Property(x => x.UsuarioModificacion).HasMaxLength(120);
                 e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
                 e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
-                e.HasIndex(x => x.Sku).IsUnique();
+                e.HasIndex(x => new { x.Sku, x.Planta }).IsUnique();
 
                 e.HasOne(x => x.Categoria)
                     .WithMany()
@@ -767,6 +769,20 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                     .WithMany()
                     .HasForeignKey(x => x.UbicacionId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ArticuloConsumiblesSapAlmacen>(e =>
+            {
+                e.ToTable("ArticuloConsumiblesSapAlmacen");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.ProductoCodigo).HasMaxLength(100).IsRequired();
+                e.Property(x => x.WarehouseCode).HasMaxLength(20).IsRequired();
+                e.Property(x => x.Stock).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Comprometido).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Pedido).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Disponible).HasColumnType("decimal(18,4)");
+                e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
+                e.HasIndex(x => new { x.ProductoCodigo, x.WarehouseCode }).IsUnique();
             });
 
             modelBuilder.Entity<RefaccionMovimiento>(e =>
@@ -802,6 +818,10 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)").IsRequired();
                 e.Property(x => x.Error).HasColumnType("nvarchar(max)");
                 e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
+                e.Property(x => x.JefeAreaUsuario).HasMaxLength(120);
+                e.Property(x => x.JefeAreaComentario).HasMaxLength(500);
+                e.Property(x => x.ContaduriaUsuario).HasMaxLength(120);
+                e.Property(x => x.ContaduriaComentario).HasMaxLength(500);
                 e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
                 e.Property(x => x.FechaNecesaria).HasColumnType("date");
                 e.Property(x => x.FechaEnvio).HasColumnType("datetime2(0)");
