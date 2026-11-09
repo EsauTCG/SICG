@@ -288,12 +288,18 @@
             <h5 class="fw-bold mb-0"><i class="bi bi-box-seam me-2"></i>Consumibles SAP</h5>
             <div class="text-muted small">Catálogo local de consumibles sincronizado desde SAP Service Layer.</div>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
             <button type="button" class="btn btn-outline-secondary" id="btnPreviaCons" onclick="verPreviaConsumibles()">
                 <i class="bi bi-eye me-1"></i> Vista previa
             </button>
             <button type="button" class="btn btn-danger" id="btnSyncCons" onclick="sincronizarConsumibles()">
-                <i class="bi bi-cloud-arrow-down me-1"></i> Sincronizar con SAP
+                <i class="bi bi-box-seam me-1"></i> Sincronizar artículos
+            </button>
+            <button type="button" class="btn btn-outline-danger" id="btnSyncCuentasCons" onclick="sincronizarCatalogoCons('cuentas')">
+                <i class="bi bi-journal-text me-1"></i> Sincronizar cuentas
+            </button>
+            <button type="button" class="btn btn-outline-danger" id="btnSyncAlmacenesCons" onclick="sincronizarCatalogoCons('almacenes')">
+                <i class="bi bi-building me-1"></i> Sincronizar almacenes
             </button>
         </div>
     </div>
@@ -436,6 +442,8 @@
 
         const urlCargar = '@Url.Action("Cargar", "ConsumiblesSap")';
         const urlSync = '@Url.Action("Sincronizar", "ConsumiblesSap")';
+        const urlSyncCuentas = '@Url.Action("SincronizarCuentas", "ConsumiblesSap")';
+        const urlSyncAlmacenes = '@Url.Action("SincronizarAlmacenes", "ConsumiblesSap")';
         const urlPrevia = '@Url.Action("Previa", "ConsumiblesSap")';
         let previaConsItems = [];
 
@@ -697,7 +705,7 @@
                 if (window.bootstrap && bootstrap.Modal) bootstrap.Modal.getInstance(modal)?.hide();
                 else if (modal) modal.style.display = 'none';
 
-                alert(data.mensaje || 'Sincronización completa.');
+                alert(data.mensaje || 'Catálogo de artículos sincronizado.');
                 await cargarConsumibles(1);
             } catch (e) {
                 console.error(e);
@@ -719,7 +727,7 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="bi bi-arrow-repeat cons-spin"></i> Sincronizando...';
             }
-            mostrarLoadingCons('Sincronizando con SAP...');
+            mostrarLoadingCons('Sincronizando artículos con SAP...');
 
             try {
                 const res = await fetch(urlSync, {
@@ -728,12 +736,44 @@
                 });
                 const data = await res.json();
 
-                alert((data && data.mensaje) || 'Sincronización terminada.');
+                alert((data && data.mensaje) || 'Sincronización de artículos terminada.');
 
                 if (data && data.ok) await cargarConsumibles(1);
             } catch (e) {
                 console.error(e);
                 alert('Error al sincronizar con SAP. Revisa la conexión.');
+            } finally {
+                ocultarLoadingCons();
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = html;
+                }
+            }
+        }
+
+        async function sincronizarCatalogoCons(tipo) {
+            const configuracion = tipo === 'cuentas'
+                ? { boton: 'btnSyncCuentasCons', url: urlSyncCuentas, texto: 'cuentas contables' }
+                : { boton: 'btnSyncAlmacenesCons', url: urlSyncAlmacenes, texto: 'existencias por almacén' };
+            const btn = document.getElementById(configuracion.boton);
+            const html = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat cons-spin"></i> Sincronizando...';
+            }
+            mostrarLoadingCons(`Sincronizando ${configuracion.texto} con SAP...`);
+
+            try {
+                const res = await fetch(configuracion.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                alert((data && data.mensaje) || `Sincronización de ${configuracion.texto} terminada.`);
+                if (data && data.ok) await cargarConsumibles(1);
+            } catch (e) {
+                console.error(e);
+                alert(`Error al sincronizar ${configuracion.texto} con SAP. Revisa la conexión.`);
             } finally {
                 ocultarLoadingCons();
                 if (btn) {
