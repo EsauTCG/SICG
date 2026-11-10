@@ -14,10 +14,10 @@ namespace Plataforma_CG.Controllers.ReporteRetrabajo
         }
 
         [HttpGet]
-        public IActionResult DemoVista()
+        public IActionResult ViscerasTIF()
         {
             return View(
-                "~/Views/ReporteRetrabajo/DemoVista.cshtml");
+                "~/Views/ReporteRetrabajo/ViscerasTIF.cshtml");
         }
 
         [HttpGet]
