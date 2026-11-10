@@ -132,21 +132,60 @@ namespace Plataforma_CG.Controllers
         {
             try
             {
-                var cuentas = await _sap.SincronizarCuentasContablesSapAsync();
                 var r = await _sap.SincronizarConsumiblesSapAsync();
 
                 return Json(new
                 {
                     ok = true,
-                    mensaje = $"Sincronización completa. Consumibles: {r.insertados} nuevos, {r.actualizados} actualizados, {r.desactivados} desactivados. Cuentas contables: {cuentas.total} sincronizadas ({cuentas.insertadas} nuevas, {cuentas.actualizadas} actualizadas).",
+                    mensaje = $"Catálogo de artículos sincronizado. {r.insertados} nuevos, {r.actualizados} actualizados y {r.desactivados} desactivados.",
                     insertados = r.insertados,
                     actualizados = r.actualizados,
                     desactivados = r.desactivados,
-                    total = r.total,
-                    cuentasInsertadas = cuentas.insertadas,
-                    cuentasActualizadas = cuentas.actualizadas,
-                    cuentasDesactivadas = cuentas.desactivadas,
-                    totalCuentas = cuentas.total
+                    total = r.total
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = MensajeErrorSap(ex) });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SincronizarCuentas()
+        {
+            try
+            {
+                var r = await _sap.SincronizarCuentasContablesSapAsync();
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = $"Cuentas contables sincronizadas: {r.insertadas} nuevas, {r.actualizadas} actualizadas y {r.desactivadas} desactivadas. Total: {r.total}.",
+                    insertadas = r.insertadas,
+                    actualizadas = r.actualizadas,
+                    desactivadas = r.desactivadas,
+                    total = r.total
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, mensaje = MensajeErrorSap(ex) });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SincronizarAlmacenes()
+        {
+            try
+            {
+                var r = await _sap.SincronizarAlmacenesConsumiblesSapAsync();
+                return Json(new
+                {
+                    ok = true,
+                    mensaje = $"Existencias por almacén sincronizadas para {r.total} artículos: {r.insertados} registros nuevos, {r.actualizados} actualizados y {r.eliminados} retirados.",
+                    insertados = r.insertados,
+                    actualizados = r.actualizados,
+                    eliminados = r.eliminados,
+                    totalArticulos = r.total
                 });
             }
             catch (Exception ex)

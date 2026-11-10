@@ -1,0 +1,224 @@
+@{
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Autorización de compras de refacciones";
+}
+
+<style>
+    .aut-ref-page { max-width: 1500px; margin: 0 auto; padding: 16px; color: #1e293b; }
+    .aut-ref-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+    .aut-ref-title { margin:0; font-size:1.25rem; font-weight:800; }
+    .aut-ref-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 4px 14px rgba(15,23,42,.05); overflow:hidden; }
+    .aut-ref-card-head { padding:14px 16px; border-bottom:1px solid #e2e8f0; background:#fff; }
+    .aut-ref-table { min-width:980px; width:100%; border-collapse:collapse; font-size:.84rem; }
+    .aut-ref-table th { position:sticky; top:0; z-index:1; padding:10px; background:#f4f7fa; color:#64748b; text-align:left; font-size:.68rem; text-transform:uppercase; white-space:nowrap; }
+    .aut-ref-table td { padding:10px; border-top:1px solid #e2e8f0; vertical-align:middle; }
+    .aut-ref-lines { min-width:440px; }
+    .aut-ref-lines th,.aut-ref-lines td { padding:5px 7px; font-size:.76rem; border-bottom:1px solid #e2e8f0; }
+    .aut-ref-actions { min-width:190px; }
+    @@media(max-width:600px) {
+        .aut-ref-page { padding:10px; }
+        .aut-ref-title { font-size:1.05rem; }
+        .aut-ref-card-head { padding:11px; }
+    }
+</style>
+
+<main class="aut-ref-page">
+    <header class="aut-ref-header">
+        <div class="d-flex align-items-center gap-2">
+            <div>
+                <h1 class="aut-ref-title"><i class="bi bi-cash-coin text-danger me-1"></i>Autorización de compras</h1>
+                <small class="text-muted">Solicitudes de refacciones aprobadas por jefatura, pendientes de decisión de contaduría.</small>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-primary" onclick="cargarSolicitudes()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+    </header>
+
+    <section class="aut-ref-card">
+        <div class="aut-ref-card-head">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="btn-group" role="group" aria-label="Filtro de solicitudes">
+                    <button type="button" class="btn btn-danger active" id="filtroPendientes" onclick="cambiarFiltro('pendientes')">Pendientes</button>
+                    <button type="button" class="btn btn-outline-secondary" id="filtroHistorial" onclick="cambiarFiltro('todas')">Historial</button>
+                </div>
+                <span class="small text-muted" id="resumenBandeja">Cargando...</span>
+            </div>
+            <div class="row g-2 mt-1 align-items-end">
+                <div class="col-12 col-lg-4"><label class="form-label small mb-1" for="buscarSolicitud">Buscar</label><input id="buscarSolicitud" type="search" class="form-control form-control-sm" placeholder="Folio, solicitante o artículo..." oninput="aplicarFiltros()" /></div>
+                <div class="col-6 col-lg-2"><label class="form-label small mb-1" for="fechaDesdeSolicitud">Desde</label><input id="fechaDesdeSolicitud" type="date" class="form-control form-control-sm" onchange="aplicarFiltros()" /></div>
+                <div class="col-6 col-lg-2"><label class="form-label small mb-1" for="fechaHastaSolicitud">Hasta</label><input id="fechaHastaSolicitud" type="date" class="form-control form-control-sm" onchange="aplicarFiltros()" /></div>
+                <div class="col-12 col-lg-3"><label class="form-label small mb-1" for="estadoSolicitud">Estatus</label><select id="estadoSolicitud" class="form-select form-select-sm" onchange="aplicarFiltros()"><option value="">Todos los estatus</option><option value="PENDIENTE_JEFE">Pendiente jefatura</option><option value="PENDIENTE_CONTADURIA">Pendiente contaduría</option><option value="AUTORIZADA_CONTADURIA">Autorizada</option><option value="ERROR_SAP">Error SAP</option><option value="ENVIADO">Enviado a SAP</option><option value="CANCELADA">Cancelada</option><option value="RECHAZADA_CONTADURIA">Rechazada</option></select></div>
+                <div class="col-12 col-lg-1"><button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltros()" title="Limpiar filtros"><i class="bi bi-eraser"></i></button></div>
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height:calc(100dvh - 240px);overflow:auto;">
+            <table class="aut-ref-table">
+                <thead><tr><th>Folio / solicitante</th><th>Fecha</th><th>Fecha necesaria</th><th>Detalle de artículos</th><th>Estatus</th><th>Revisión</th><th>Acción</th></tr></thead>
+                <tbody id="tbodyAutorizacionRefacciones"><tr><td colspan="7" class="text-center py-5">Cargando solicitudes...</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+    const URL_LISTAR = '@Url.Action("SolicitudesCompraSapRefacciones", "InventarioRefacciones")';
+    const URL_DECISION = '@Url.Action("AutorizarSolicitudCompraSapRefacciones", "InventarioRefacciones")';
+    let filtroSolicitudes = 'pendientes';
+    let solicitudesCompra = [];
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    }
+
+    function estadoNombre(estado) {
+        return ({
+            PENDIENTE_JEFE: 'Pendiente jefatura',
+            PENDIENTE_CONTADURIA: 'Pendiente contaduría',
+            AUTORIZADA_CONTADURIA: 'Autorizada',
+            ENVIANDO: 'Enviando a SAP',
+            ENVIADO: 'Enviado a SAP',
+            ERROR_SAP: 'Autorizada · Error SAP',
+            CANCELADA: 'Cancelada',
+            RECHAZADA_CONTADURIA: 'Rechazada'
+        })[estado] || estado || '—';
+    }
+
+    function estadoClase(estado) {
+        if (estado === 'AUTORIZADA_CONTADURIA' || estado === 'ENVIADO') return 'bg-success';
+        if (estado === 'CANCELADA' || estado === 'RECHAZADA_CONTADURIA' || estado === 'ERROR_SAP') return 'bg-danger';
+        if (estado === 'ENVIANDO') return 'bg-info text-dark';
+        return 'bg-warning text-dark';
+    }
+
+    function renderArticulos(articulos) {
+        if (!articulos || !articulos.length) return '<span class="text-muted">Sin detalle</span>';
+        const rows = articulos.map(function (a) {
+            return '<tr><td><strong>' + escapeHtml(a.itemCode) + '</strong><br><small>' + escapeHtml(a.descripcion) + '</small></td>' +
+                '<td>' + Number(a.cantidad || 0) + '</td><td>' + escapeHtml(a.almacen || '—') + '</td><td>' + escapeHtml(a.cuentaContable || '—') + '</td></tr>';
+        }).join('');
+        return '<details><summary class="text-primary" style="cursor:pointer">Ver ' + articulos.length + ' artículo(s)</summary>' +
+            '<div class="table-responsive mt-2"><table class="aut-ref-lines"><thead><tr><th>Artículo</th><th>Cantidad</th><th>Almacén</th><th>Cuenta</th></tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+    }
+
+    function renderSolicitudes() {
+        const body = document.getElementById('tbodyAutorizacionRefacciones');
+        const rows = filtroSolicitudes === 'pendientes'
+            ? solicitudesCompra.filter(function (s) { return s.estado === 'PENDIENTE_CONTADURIA'; })
+            : solicitudesCompra;
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">' +
+                (filtroSolicitudes === 'pendientes' ? 'No hay solicitudes pendientes de autorización.' : 'No hay solicitudes registradas.') + '</td></tr>';
+            document.getElementById('resumenBandeja').textContent = '0 solicitud(es)';
+            return;
+        }
+        body.innerHTML = rows.map(function (s) {
+            const decisionJefe = s.jefeAreaUsuario
+                ? '<div><strong>Jefatura:</strong> ' + escapeHtml(s.jefeAreaUsuario) +
+                    (s.jefeAreaFecha ? '<br><small>' + new Date(s.jefeAreaFecha).toLocaleString() + '</small>' : '') +
+                    (s.jefeAreaComentario ? '<br><small>' + escapeHtml(s.jefeAreaComentario) + '</small>' : '') + '</div>'
+                : '<span class="text-muted">Sin revisión</span>';
+            const decisionCuenta = s.contaduriaUsuario
+                ? '<div class="mt-1"><strong>Contaduría:</strong> ' + escapeHtml(s.contaduriaUsuario) +
+                    (s.contaduriaFecha ? '<br><small>' + new Date(s.contaduriaFecha).toLocaleString() + '</small>' : '') +
+                    (s.contaduriaComentario ? '<br><small>' + escapeHtml(s.contaduriaComentario) + '</small>' : '') + '</div>'
+                : '';
+            const acciones = s.estado === 'PENDIENTE_CONTADURIA'
+                ? '<button type="button" class="btn btn-sm btn-success mb-1" onclick="decidir(' + s.id + ',true)"><i class="bi bi-check2 me-1"></i>Autorizar</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" onclick="decidir(' + s.id + ',false)"><i class="bi bi-x-lg me-1"></i>Rechazar</button>'
+                : '<span class="text-muted">—</span>';
+            const textoFiltro = [s.folio, s.usuario, s.comentario, s.estado, s.error,
+                ...(s.articulos || []).flatMap(function (a) { return [a.itemCode, a.descripcion, a.almacen, a.cuentaContable]; })].join(' ');
+            return '<tr data-fila-filtro="1" data-fecha="' + escapeHtml((s.fechaCreacion || '').slice(0, 10)) + '" data-estado="' + escapeHtml(s.estado) +
+                '" data-busqueda="' + escapeHtml(textoFiltro) + '"><td><strong>' + escapeHtml(s.folio) + '</strong><br><small>' + escapeHtml(s.usuario) + '</small>' +
+                    (s.comentario ? '<br><small class="text-muted">' + escapeHtml(s.comentario) + '</small>' : '') + '</td>' +
+                '<td>' + (s.fechaCreacion ? new Date(s.fechaCreacion).toLocaleString() : '—') + '</td>' +
+                '<td>' + (s.fechaNecesaria ? new Date(s.fechaNecesaria).toLocaleDateString() : '—') + '</td>' +
+                '<td>' + renderArticulos(s.articulos) + '</td>' +
+                '<td><span class="badge ' + estadoClase(s.estado) + '">' + escapeHtml(estadoNombre(s.estado)) + '</span>' +
+                    (s.error ? '<small class="d-block text-danger mt-1">' + escapeHtml(s.error) + '</small>' : '') + '</td>' +
+                '<td>' + decisionJefe + decisionCuenta + '</td><td class="aut-ref-actions">' + acciones + '</td></tr>';
+        }).join('');
+        aplicarFiltros();
+    }
+
+    async function cargarSolicitudes() {
+        const body = document.getElementById('tbodyAutorizacionRefacciones');
+        body.innerHTML = '<tr><td colspan="7" class="text-center py-5">Actualizando...</td></tr>';
+        try {
+            const response = await fetch(URL_LISTAR, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const result = await response.json();
+            if (!response.ok || !result || !result.ok)
+                throw new Error(result?.mensaje || 'No se pudieron consultar las solicitudes.');
+            solicitudesCompra = result.items || [];
+            renderSolicitudes();
+        } catch (error) {
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-5">' + escapeHtml(error.message || 'Error de consulta.') + '</td></tr>';
+            document.getElementById('resumenBandeja').textContent = 'No disponible';
+        }
+    }
+
+    function cambiarFiltro(filtro) {
+        filtroSolicitudes = filtro;
+        document.getElementById('filtroPendientes').className = filtro === 'pendientes' ? 'btn btn-danger active' : 'btn btn-outline-secondary';
+        document.getElementById('filtroHistorial').className = filtro === 'todas' ? 'btn btn-danger active' : 'btn btn-outline-secondary';
+        renderSolicitudes();
+    }
+
+    function aplicarFiltros() {
+        const body = document.getElementById('tbodyAutorizacionRefacciones');
+        const texto = (document.getElementById('buscarSolicitud')?.value || '').trim().toLocaleLowerCase();
+        const desde = document.getElementById('fechaDesdeSolicitud')?.value || '';
+        const hasta = document.getElementById('fechaHastaSolicitud')?.value || '';
+        const estado = document.getElementById('estadoSolicitud')?.value || '';
+        const filas = [...body.querySelectorAll('tr[data-fila-filtro="1"]')];
+        let visibles = 0;
+        filas.forEach(function (fila) {
+            const fecha = fila.dataset.fecha || '';
+            const coincide = (!texto || (fila.dataset.busqueda || '').toLocaleLowerCase().includes(texto)) &&
+                (!desde || fecha >= desde) && (!hasta || fecha <= hasta) && (!estado || fila.dataset.estado === estado);
+            fila.classList.toggle('d-none', !coincide);
+            if (coincide) visibles++;
+        });
+        let vacio = body.querySelector('.sin-resultados-filtro');
+        if (!visibles && filas.length) {
+            if (!vacio) {
+                vacio = document.createElement('tr');
+                vacio.className = 'sin-resultados-filtro';
+                vacio.innerHTML = '<td colspan="7" class="text-center text-muted py-4">No hay solicitudes que coincidan con estos filtros.</td>';
+                body.appendChild(vacio);
+            }
+        } else if (vacio) vacio.remove();
+        const total = filas.length;
+        document.getElementById('resumenBandeja').textContent = visibles + ' de ' + total +
+            (filtroSolicitudes === 'pendientes' ? ' solicitud(es) pendiente(s)' : ' solicitud(es)');
+    }
+
+    function limpiarFiltros() {
+        ['buscarSolicitud', 'fechaDesdeSolicitud', 'fechaHastaSolicitud', 'estadoSolicitud'].forEach(function (id) {
+            const input = document.getElementById(id);
+            if (input) input.value = '';
+        });
+        aplicarFiltros();
+    }
+
+    async function decidir(id, aprobar) {
+        const comentario = prompt(aprobar ? 'Comentario de autorización (opcional):' : 'Motivo del rechazo:', '');
+        if (comentario === null) return;
+        if (!aprobar && !comentario.trim()) { alert('Escribe el motivo del rechazo.'); return; }
+        if (!confirm(aprobar ? '¿Autorizar esta compra?' : '¿Rechazar esta solicitud?')) return;
+        try {
+            const response = await fetch(URL_DECISION, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ id: id, aprobar: aprobar, comentario: comentario.trim() })
+            });
+            const result = await response.json();
+            if (!result || !result.ok) throw new Error((result && result.mensaje) || 'No se pudo guardar la decisión.');
+            alert(result.mensaje);
+            await cargarSolicitudes();
+        } catch (error) { alert(error.message || 'No se pudo guardar la decisión.'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', cargarSolicitudes);
+</script>

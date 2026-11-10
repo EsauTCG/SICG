@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using Plataforma_CG.Data;
 using Plataforma_CG.Models;
 using System.Globalization;
@@ -191,6 +192,145 @@ namespace Plataforma_CG.Services
             return null;
         }
 
+        public async Task<(bool Ok, string Mensaje)> EditarAsync(RefaccionSapEditarSalidaRequest req, string usuario)
+        {
+            await SendGate.WaitAsync();
+            try
+            {
+                await using var tx = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                var folio = (req.Folio ?? "").Trim();
+                var salida = await _context.RefaccionSapDocumentos
+                    .FirstOrDefaultAsync(x => x.TipoMovimiento == "SALIDA" && x.Folio == folio);
+                if (salida == null) return (false, "No se encontró la salida.");
+                if (salida.Estado is not ("PENDIENTE" or "ERROR") || salida.SapDocEntry.HasValue || salida.SapDocNum.HasValue)
+                    return (false, "Esta salida ya no se puede editar porque SAP ya la recibió o está en proceso.");
+                if (req.Lineas == null || req.Lineas.Count == 0)
+                    return (false, "La salida debe conservar al menos un artículo.");
+                if (req.Lineas.Any(x => x.Cantidad <= 0))
+                    return (false, "Todas las cantidades deben ser mayores que cero.");
+                if (req.Lineas.Select(x => x.Id).Distinct().Count() != req.Lineas.Count)
+                    return (false, "No repitas el mismo artículo; combina sus cantidades en una sola línea.");
+                if (req.Lineas.Any(x => string.IsNullOrWhiteSpace(x.Maquina)))
+                    return (false, "Asigna una máquina o equipo a cada artículo.");
+
+                var movimientosAnteriores = await _context.RefaccionMovimientos
+                    .Where(x => x.Tipo == "SALIDA" && x.Folio == folio).ToListAsync();
+                var cantidadesAnteriores = movimientosAnteriores
+                    .GroupBy(x => x.RefaccionId)
+                    .ToDictionary(g => g.Key, g => g.Sum(x => Math.Abs(x.Cantidad)));
+                var ids = req.Lineas.Select(x => x.Id).Concat(cantidadesAnteriores.Keys).Distinct().ToList();
+                var articulos = await _context.Refacciones.Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+                if (req.Lineas.Any(x => !articulos.ContainsKey(x.Id) || !articulos[x.Id].Activo))
+                    return (false, "Uno de los artículos ya no existe o está inactivo.");
+
+                var configuracionSap = JsonDocument.Parse(salida.JsonSap);
+                var seleccionesPrevias = new Dictionary<string, RefaccionSapSalidaDatos>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    if (configuracionSap.RootElement.TryGetProperty("DocumentLines", out var sapLineas) && sapLineas.ValueKind == JsonValueKind.Array)
+                    foreach (var linea in sapLineas.EnumerateArray())
+                    {
+                        var sku = linea.TryGetProperty("ItemCode", out var codigo) ? codigo.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(sku)) continue;
+                        seleccionesPrevias[sku] = new RefaccionSapSalidaDatos
+                        {
+                            WarehouseCode = Leer(linea, "WarehouseCode"), AccountCode = Leer(linea, "AccountCode"),
+                            CostingCode = Leer(linea, "CostingCode"), CostingCode2 = Leer(linea, "CostingCode2"),
+                            CostingCode3 = Leer(linea, "CostingCode3"), CostingCode4 = Leer(linea, "CostingCode4"),
+                            CostingCode5 = Leer(linea, "CostingCode5")
+                        };
+                    }
+                }
+                finally { configuracionSap.Dispose(); }
+
+                var cuentasPermitidas = (await _context.CuentasContablesSap.AsNoTracking()
+                    .Where(x => x.Activa).Select(x => x.CodigoCuenta).ToListAsync())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var selecciones = new Dictionary<int, RefaccionSapSalidaDatos>();
+                foreach (var linea in req.Lineas)
+                {
+                    var articulo = articulos[linea.Id];
+                    var seleccion = linea.Sap;
+                    if (seleccion == null && seleccionesPrevias.TryGetValue(articulo.Sku, out var previa)) seleccion = previa;
+                    seleccion ??= new RefaccionSapSalidaDatos
+                    {
+                        WarehouseCode = ValorConfig("WarehouseCode"), AccountCode = ValorConfig("AccountCode"),
+                        CostingCode = ValorConfig("CostingCode"), CostingCode2 = ValorConfig("CostingCode2"),
+                        CostingCode3 = ValorConfig("CostingCode3"), CostingCode4 = ValorConfig("CostingCode4"),
+                        CostingCode5 = ValorConfig("CostingCode5")
+                    };
+                    var errorSap = await ValidarSeleccionAsync(seleccion, cuentasPermitidas);
+                    if (errorSap != null) return (false, $"{articulo.Descripcion}: {errorSap}");
+                    var plantaArticulo = RefaccionPlantaHelper.NormalizarPlanta(articulo.Planta);
+                    var plantaAlmacen = RefaccionPlantaHelper.PlantaDeAlmacen(seleccion.WarehouseCode);
+                    if (plantaArticulo != null && plantaAlmacen != plantaArticulo)
+                        return (false, $"El almacén {seleccion.WarehouseCode} no corresponde a la planta {plantaArticulo} del artículo {articulo.Sku}.");
+                    selecciones[linea.Id] = seleccion;
+                }
+
+                foreach (var id in ids)
+                {
+                    var anterior = cantidadesAnteriores.GetValueOrDefault(id);
+                    var nueva = req.Lineas.Where(x => x.Id == id).Sum(x => x.Cantidad);
+                    var stock = articulos[id].Stock + anterior - nueva;
+                    if (stock < 0)
+                    {
+                        await tx.RollbackAsync();
+                        return (false, $"Stock insuficiente para {articulos[id].Sku}. Disponible para esta salida: {articulos[id].Stock + anterior}.");
+                    }
+                    articulos[id].Stock = stock;
+                    articulos[id].FechaModificacion = DateTime.Now;
+                    articulos[id].UsuarioModificacion = usuario;
+                }
+
+                _context.RefaccionMovimientos.RemoveRange(movimientosAnteriores);
+                var referencia = string.IsNullOrWhiteSpace(req.Referencia) ? salida.Referencia : req.Referencia.Trim();
+                var comentario = req.Comentario?.Trim();
+                var maquinas = req.Lineas.Select(x => x.Maquina).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var comentarioSap = ConstruirComentario(comentario, maquinas);
+                foreach (var linea in req.Lineas)
+                {
+                    var articulo = articulos[linea.Id];
+                    _context.RefaccionMovimientos.Add(new RefaccionMovimiento
+                    {
+                        RefaccionId = articulo.Id, Tipo = "SALIDA", Cantidad = -linea.Cantidad,
+                        StockResultante = articulo.Stock, Folio = folio, Referencia = referencia,
+                        MaquinaDestino = linea.Maquina!.Trim(), Comentario = comentario, Usuario = usuario, Fecha = DateTime.Now
+                    });
+                }
+                salida.Referencia = referencia;
+                salida.Comentario = comentarioSap;
+                salida.CantidadLineas = req.Lineas.Count;
+                salida.JsonSap = CrearDocumentoJsonPorLinea(folio, salida.FechaCreacion.Date, referencia, comentarioSap,
+                    req.Lineas.Select(x => (articulos[x.Id], x.Cantidad, (RefaccionSapSalidaDatos?)selecciones[x.Id])));
+                salida.Estado = "PENDIENTE";
+                salida.Error = null;
+                salida.RespuestaSap = null;
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+                return (true, "Salida actualizada en SIGO. Puedes revisar y enviarla a SAP cuando esté lista.");
+            }
+            catch (Exception ex)
+            {
+                return (false, "No se pudo actualizar la salida: " + ex.GetBaseException().Message);
+            }
+            finally { SendGate.Release(); }
+        }
+
+        private static string? Leer(JsonElement linea, string propiedad) =>
+            linea.TryGetProperty(propiedad, out var valor) && valor.ValueKind == JsonValueKind.String ? valor.GetString() : null;
+
+        private static string? ConstruirComentario(string? comentario, IEnumerable<string?> maquinas)
+        {
+            var partes = new List<string>();
+            if (!string.IsNullOrWhiteSpace(comentario)) partes.Add(comentario.Trim());
+            var equipos = maquinas.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (equipos.Count > 0) partes.Add("Equipo(s) destino: " + string.Join(", ", equipos));
+            var texto = string.Join(" | ", partes);
+            return texto.Length == 0 ? null : texto[..Math.Min(texto.Length, 254)];
+        }
+
         public async Task<(bool Ok, bool YaEnviada, string Mensaje, int? DocEntry, int? DocNum)> EnviarAsync(string folio)
         {
             await SendGate.WaitAsync();
@@ -203,8 +343,8 @@ namespace Plataforma_CG.Services
                     string.IsNullOrWhiteSpace(ValorConfig("AccountCode")))
                     return (false, false, "Configura almacén y cuenta contable para habilitar el envío de salidas a SAP.", null, null);
 
-                var salida = await _context.RefaccionSapSalidas
-                    .FirstOrDefaultAsync(x => x.Folio == folio);
+                var salida = await _context.RefaccionSapDocumentos
+                    .FirstOrDefaultAsync(x => x.TipoMovimiento == "SALIDA" && x.Folio == folio);
                 if (salida == null)
                     return (false, false, "No se encontró la salida pendiente.", null, null);
 
@@ -328,7 +468,7 @@ namespace Plataforma_CG.Services
             _ => clave
         };
 
-        private static void MarcarEnviado(RefaccionSapSalida salida, int? docEntry, int? docNum, string? respuesta)
+        private static void MarcarEnviado(RefaccionSapDocumento salida, int? docEntry, int? docNum, string? respuesta)
         {
             salida.Estado = "ENVIADO";
             salida.SapDocEntry = docEntry;

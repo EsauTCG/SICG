@@ -26,14 +26,16 @@ namespace Plataforma_CG.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly RefaccionSapSalidaService _sapSalidas;
         private readonly RefaccionSapSolicitudCompraService _sapCompras;
+        private readonly RefaccionSapRecepcionService _sapRecepciones;
 
-        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas, RefaccionSapSolicitudCompraService sapCompras)
+        public InventarioRefaccionesController(AppDbContext context, AppDbContextUsuarios dbUsuarios, IWebHostEnvironment env, RefaccionSapSalidaService sapSalidas, RefaccionSapSolicitudCompraService sapCompras, RefaccionSapRecepcionService sapRecepciones)
         {
             _context = context;
             _dbUsuarios = dbUsuarios;
             _env = env;
             _sapSalidas = sapSalidas;
             _sapCompras = sapCompras;
+            _sapRecepciones = sapRecepciones;
         }
 
         // =========================================================
@@ -52,6 +54,12 @@ namespace Plataforma_CG.Controllers
             return View("~/Views/Operaciones/InventarioRefacciones.cshtml");
         }
 
+        [HttpGet("/Operaciones/AutorizacionSolicitudesRefacciones")]
+        public IActionResult AutorizacionSolicitudesRefacciones()
+        {
+            return View("~/Views/Operaciones/AutorizacionSolicitudesRefacciones.cshtml");
+        }
+
         // =========================================================
         //  CARGA DE DATOS (refacciones + catalogos + movimientos)
         // =========================================================
@@ -62,7 +70,7 @@ namespace Plataforma_CG.Controllers
                 .AsNoTracking()
                 .Where(r => r.Activo)
                 .OrderBy(r => r.Descripcion)
-                .Select(r => new
+                .Select(r => new RefaccionCargaDto
                 {
                     id = r.Id,
                     sku = r.Sku,
@@ -83,9 +91,49 @@ namespace Plataforma_CG.Controllers
                     foto = r.FotoUrl,
                     solicitudStockActiva = r.SolicitudStockActiva,
                     fechaSolicitudStock = r.FechaSolicitudStock,
-                    usuarioSolicitudStock = r.UsuarioSolicitudStock
+                    usuarioSolicitudStock = r.UsuarioSolicitudStock,
+                    planta = r.Planta
                 })
                 .ToListAsync();
+
+            // Almacenes SAP por SKU (para mostrar de dónde sale el stock de cada planta).
+            var almacenesSap = await _context.ArticuloConsumiblesSapAlmacen
+                .AsNoTracking()
+                .Select(a => new { a.ProductoCodigo, a.WarehouseCode, a.Stock, a.Disponible })
+                .ToListAsync();
+
+            var almacenesPorSku = almacenesSap
+                .GroupBy(a => (a.ProductoCodigo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .OrderBy(a => a.WarehouseCode)
+                        .Select(a => new RefaccionAlmacenDto
+                        {
+                            codigo = a.WarehouseCode,
+                            stock = a.Stock,
+                            disponible = a.Disponible
+                        })
+                        .ToList(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            foreach (var r in refacciones)
+            {
+                if (!almacenesPorSku.TryGetValue((r.sku ?? "").Trim(), out var lista))
+                    continue;
+
+                // La refacción pertenece a una planta: mostrar sólo los almacenes
+                // de esa planta. Las filas heredadas sin planta muestran todos.
+                var planta = RefaccionPlantaHelper.NormalizarPlanta(r.planta);
+                r.almacenes = planta == null
+                    ? lista
+                    : lista
+                        .Where(a => string.Equals(
+                            RefaccionPlantaHelper.PlantaDeAlmacen(a.codigo),
+                            planta,
+                            StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+            }
 
             var categorias = await _context.RefaccionCategorias
                 .AsNoTracking()
@@ -150,7 +198,8 @@ namespace Plataforma_CG.Controllers
                     folio = m.Folio,
                     maquina = m.MaquinaDestino,
                     usuario = m.Usuario,
-                    fecha = m.Fecha
+                    fecha = m.Fecha,
+                    planta = m.Refaccion != null ? m.Refaccion.Planta : null
                 })
                 .ToListAsync();
 
@@ -216,7 +265,30 @@ namespace Plataforma_CG.Controllers
         [HttpGet]
         public async Task<IActionResult> SolicitudesCompraSapRefacciones()
         {
-            return Json(await _sapCompras.ObtenerEstadoAsync());
+            try
+            {
+                return Json(await _sapCompras.ObtenerEstadoAsync());
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, mensaje = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RevisarSolicitudCompraSapRefacciones([FromBody] RefaccionSapDecisionSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Solicitud inválida." });
+            var result = await _sapCompras.RevisarJefeAreaAsync(req.Id, req.Aprobar, req.Comentario, UsuarioActual());
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> AutorizarSolicitudCompraSapRefacciones([FromBody] RefaccionSapDecisionSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Solicitud inválida." });
+            var result = await _sapCompras.AutorizarContaduriaAsync(req.Id, req.Aprobar, req.Comentario, UsuarioActual());
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
         }
 
         [HttpPost]
@@ -234,6 +306,44 @@ namespace Plataforma_CG.Controllers
                 docEntry = resultado.DocEntry,
                 docNum = resultado.DocNum
             });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OrdenesCompraPendientesRecepcionSap()
+        {
+            try { return Json(await _sapRecepciones.ObtenerOrdenesAbiertasAsync()); }
+            catch (Exception ex) { return StatusCode(502, new { ok = false, mensaje = ex.GetBaseException().Message }); }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerDocumentoOrdenCompraRecepcionSap(int docEntry)
+        {
+            try { return Json(await _sapRecepciones.ObtenerDocumentoOrdenSapAsync(docEntry)); }
+            catch (Exception ex) { return StatusCode(502, new { ok = false, mensaje = ex.GetBaseException().Message }); }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RegistrarRecepcionCompraSap([FromBody] RefaccionSapRecepcionCrearRequest req)
+        {
+            if (req == null) return BadRequest(new { ok = false, mensaje = "No se recibieron datos de recepción." });
+            var result = await _sapRecepciones.RegistrarAsync(req, UsuarioActual());
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje, sapDocNum = result.SapDocNum });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ReaplicarInventarioRecepcionSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
+            var result = await _sapRecepciones.ReaplicarInventarioAsync(req.Id);
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ReintentarRecepcionCompraSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
+        {
+            if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
+            var result = await _sapRecepciones.ReintentarAsync(req.Id);
+            return Json(new { ok = result.Ok, mensaje = result.Mensaje });
         }
 
         [HttpGet]
@@ -338,16 +448,22 @@ namespace Plataforma_CG.Controllers
 
             var sku = (req.Sku ?? "").Trim();
             var desc = (req.Desc ?? "").Trim();
+            var planta = RefaccionPlantaHelper.NormalizarPlanta(req.Planta);
 
             if (string.IsNullOrWhiteSpace(sku))
                 return Json(new { ok = false, mensaje = "El Código/SKU es obligatorio." });
             if (string.IsNullOrWhiteSpace(desc))
                 return Json(new { ok = false, mensaje = "La descripción es obligatoria." });
+            if (planta == null)
+                return Json(new { ok = false, mensaje = "Selecciona una planta (TIF o P1)." });
 
+            var skuKey = sku.ToUpperInvariant();
             var dup = await _context.Refacciones
-                .AnyAsync(r => r.Sku == sku && r.Id != req.Id);
+                .AnyAsync(r => r.Id != req.Id &&
+                               r.Sku.ToUpper() == skuKey &&
+                               (r.Planta ?? "").ToUpper() == planta);
             if (dup)
-                return Json(new { ok = false, mensaje = $"El SKU \"{sku}\" ya está registrado." });
+                return Json(new { ok = false, mensaje = $"El SKU \"{sku}\" ya está registrado en la planta {planta}." });
 
             var catId = await ResolverCategoriaAsync(req.Cat, login);
             var ubiId = await ResolverUbicacionAsync(req.Loc, login);
@@ -360,6 +476,7 @@ namespace Plataforma_CG.Controllers
 
                 r.Sku = sku;
                 r.Descripcion = desc;
+                r.Planta = planta;
                 r.CategoriaId = catId;
                 r.UbicacionId = ubiId;
                 r.StockMinimo = req.Min < 0 ? 0 : req.Min;
@@ -394,6 +511,7 @@ namespace Plataforma_CG.Controllers
                 {
                     Sku = sku,
                     Descripcion = desc,
+                    Planta = planta,
                     CategoriaId = catId,
                     UbicacionId = ubiId,
                     Stock = stockInicial,
@@ -465,6 +583,10 @@ namespace Plataforma_CG.Controllers
                 var errorSap = await _sapSalidas.ValidarSeleccionAsync(req.Sap);
                 if (errorSap != null)
                     return Json(new { ok = false, mensaje = errorSap });
+                var plantaArticulo = RefaccionPlantaHelper.NormalizarPlanta(r.Planta);
+                var plantaAlmacen = RefaccionPlantaHelper.PlantaDeAlmacen(req.Sap?.WarehouseCode);
+                if (plantaArticulo != null && plantaAlmacen != plantaArticulo)
+                    return Json(new { ok = false, mensaje = $"El almacén {req.Sap?.WarehouseCode} no corresponde a la planta {plantaArticulo} del artículo {r.Sku}." });
                 delta = -Math.Abs(req.Cantidad);
             }
             else if (tipo == "ENTRADA")
@@ -507,8 +629,9 @@ namespace Plataforma_CG.Controllers
             {
                 var referencia = string.IsNullOrWhiteSpace(req.Referencia) ? "Sin documento" : req.Referencia.Trim();
                 var comentario = ConstruirComentarioSap(req.Comentario, new[] { req.Maquina });
-                _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+                _context.RefaccionSapDocumentos.Add(new RefaccionSapDocumento
                 {
+                    TipoMovimiento = "SALIDA",
                     Folio = folioSalida,
                     Estado = "PENDIENTE",
                     FechaCreacion = DateTime.Now,
@@ -581,6 +704,12 @@ namespace Plataforma_CG.Controllers
                 var errorSap = await _sapSalidas.ValidarSeleccionAsync(linea.Sap ?? req.Sap, cuentasSapPermitidas);
                 if (errorSap != null)
                     return Json(new { ok = false, mensaje = $"{r.Descripcion}: {errorSap}" });
+
+                var datosSap = linea.Sap ?? req.Sap;
+                var plantaArticulo = RefaccionPlantaHelper.NormalizarPlanta(r.Planta);
+                var plantaAlmacen = RefaccionPlantaHelper.PlantaDeAlmacen(datosSap?.WarehouseCode);
+                if (plantaArticulo != null && plantaAlmacen != plantaArticulo)
+                    return Json(new { ok = false, mensaje = $"El almacén {datosSap?.WarehouseCode} no corresponde a la planta {plantaArticulo} del artículo {r.Sku}." });
             }
 
             var login = UsuarioActual();
@@ -612,8 +741,9 @@ namespace Plataforma_CG.Controllers
             var comentarioPos = ConstruirComentarioSap(
                 req.Comentario,
                 req.Lineas.Select(linea => string.IsNullOrWhiteSpace(linea.Maquina) ? maquinaGlobal : linea.Maquina));
-            _context.RefaccionSapSalidas.Add(new RefaccionSapSalida
+            _context.RefaccionSapDocumentos.Add(new RefaccionSapDocumento
             {
+                TipoMovimiento = "SALIDA",
                 Folio = folio,
                 Estado = "PENDIENTE",
                 FechaCreacion = DateTime.Now,
@@ -639,34 +769,187 @@ namespace Plataforma_CG.Controllers
             });
         }
 
+        // =========================================================
+        //  REIMPRESIÓN DE TICKETS DE SALIDA
+        //  Devuelve las últimas salidas agrupadas por folio, con el
+        //  detalle necesario para regenerar el mismo ticket.
+        // =========================================================
+        [HttpGet]
+        public async Task<IActionResult> SalidasPosRecientes()
+        {
+            try
+            {
+                var movimientos = await _context.RefaccionMovimientos
+                    .AsNoTracking()
+                    .Where(x => x.Tipo == "SALIDA" && x.Folio != null && x.Folio != "")
+                    .OrderByDescending(x => x.Fecha)
+                    .ThenByDescending(x => x.Id)
+                    .Take(1000)
+                    .ToListAsync();
+
+                var refaccionIds = movimientos.Select(x => x.RefaccionId).Distinct().ToList();
+                var refacciones = await _context.Refacciones
+                    .AsNoTracking()
+                    .Where(r => refaccionIds.Contains(r.Id))
+                    .Select(r => new { r.Id, r.Sku, r.Descripcion })
+                    .ToDictionaryAsync(r => r.Id);
+
+                var skus = refacciones.Values.Select(r => r.Sku).Distinct().ToList();
+                var unidades = await _context.ArticuloConsumiblesSap
+                    .AsNoTracking()
+                    .Where(a => skus.Contains(a.ProductoCodigo))
+                    .ToDictionaryAsync(
+                        a => a.ProductoCodigo,
+                        a => a.UnidadMedidaInventario,
+                        StringComparer.OrdinalIgnoreCase);
+
+                var items = movimientos
+                    .GroupBy(x => x.Folio)
+                    .Select(g =>
+                    {
+                        var primera = g.First();
+                        var lineas = g
+                            .OrderBy(x => x.Id)
+                            .Select(x =>
+                            {
+                                refacciones.TryGetValue(x.RefaccionId, out var r);
+                                var sku = r?.Sku ?? "";
+                                var unidad = (!string.IsNullOrWhiteSpace(sku) &&
+                                              unidades.TryGetValue(sku, out var u) &&
+                                              !string.IsNullOrWhiteSpace(u))
+                                    ? u
+                                    : "PZAS";
+                                return new
+                                {
+                                    sku,
+                                    desc = r?.Descripcion ?? "Artículo no disponible",
+                                    unidad,
+                                    cantidad = Math.Abs(x.Cantidad),
+                                    maquina = x.MaquinaDestino ?? ""
+                                };
+                            })
+                            .ToList();
+
+                        return new
+                        {
+                            folio = g.Key,
+                            fecha = g.Max(x => x.Fecha),
+                            usuario = primera.Usuario ?? "",
+                            referencia = primera.Referencia ?? "",
+                            comentario = primera.Comentario ?? "",
+                            cantidadLineas = lineas.Count,
+                            totalPiezas = lineas.Sum(l => l.cantidad),
+                            lineas
+                        };
+                    })
+                    .OrderByDescending(x => x.fecha)
+                    .Take(100)
+                    .ToList();
+
+                return Json(new { ok = true, items });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, mensaje = ex.GetBaseException().Message });
+            }
+        }
+
         [HttpGet]
         public async Task<IActionResult> SalidasSapPendientes()
         {
-            var items = await _context.RefaccionSapSalidas
-                .AsNoTracking()
-                .Where(x => x.Estado != "ENVIADO")
-                .OrderByDescending(x => x.FechaCreacion)
-                .Select(x => new
-                {
-                    folio = x.Folio,
-                    estado = x.Estado,
-                    fecha = x.FechaCreacion,
-                    usuario = x.Usuario,
-                    referencia = x.Referencia,
-                    cantidadLineas = x.CantidadLineas,
-                    error = x.Error
-                })
-                .ToListAsync();
+            try
+            {
+                var items = await _context.RefaccionSapDocumentos
+                    .AsNoTracking()
+                    .Where(x => x.TipoMovimiento == "SALIDA" && x.Estado != "ENVIADO")
+                    .OrderByDescending(x => x.FechaCreacion)
+                    .Select(x => new
+                    {
+                        folio = x.Folio,
+                        estado = x.Estado,
+                        fecha = x.FechaCreacion,
+                        usuario = x.Usuario,
+                        referencia = x.Referencia,
+                        cantidadLineas = x.CantidadLineas,
+                        error = x.Error,
+                        jsonSap = x.JsonSap
+                    })
+                    .ToListAsync();
 
-            return Json(new { ok = true, items, sap = _sapSalidas.ObtenerConfiguracion() });
+                var descripciones = await ObtenerDescripcionesSalidaSapAsync(items
+                    .SelectMany(x => ExtraerLineasSalidaSap(x.jsonSap))
+                    .Select(x => x.TryGetValue("itemCode", out var sku) ? sku as string : null));
+                var resultado = items.Select(x => new
+                {
+                    x.folio, x.estado, x.fecha, x.usuario, x.referencia, x.cantidadLineas, x.error,
+                    articulos = AgregarDescripcionesSalidaSap(ExtraerLineasSalidaSap(x.jsonSap), descripciones)
+                });
+                return Json(new { ok = true, items = resultado, sap = _sapSalidas.ObtenerConfiguracion() });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { ok = false, mensaje = ex.GetBaseException().Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ObtenerSalidaSapParaEditar(string folio)
+        {
+            folio = (folio ?? "").Trim();
+            var salida = await _context.RefaccionSapDocumentos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TipoMovimiento == "SALIDA" && x.Folio == folio);
+            if (salida == null) return Json(new { ok = false, mensaje = "No se encontró la salida." });
+            if (salida.Estado is not ("PENDIENTE" or "ERROR") || salida.SapDocEntry.HasValue || salida.SapDocNum.HasValue)
+                return Json(new { ok = false, mensaje = "Esta salida ya no se puede editar porque SAP ya la recibió o está en proceso." });
+
+            var detalles = ExtraerLineasSalidaSap(salida.JsonSap);
+            var skus = detalles.Select(x => x.TryGetValue("itemCode", out var c) ? c as string : null)
+                .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            var articulos = await _context.Refacciones.AsNoTracking().Where(x => skus.Contains(x.Sku))
+                .Select(x => new { x.Id, x.Sku, x.Descripcion, x.Stock, x.Activo }).ToListAsync();
+            var movimientos = await _context.RefaccionMovimientos.AsNoTracking()
+                .Where(x => x.Tipo == "SALIDA" && x.Folio == folio).ToListAsync();
+            var porSku = movimientos.Join(articulos, m => m.RefaccionId, a => a.Id, (m, a) => new { m, a })
+                .GroupBy(x => x.a.Sku, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().m, StringComparer.OrdinalIgnoreCase);
+            var resultado = detalles.Select(d =>
+            {
+                var sku = d.TryGetValue("itemCode", out var c) ? c as string : "";
+                var articulo = articulos.FirstOrDefault(x => string.Equals(x.Sku, sku, StringComparison.OrdinalIgnoreCase));
+                porSku.TryGetValue(sku ?? "", out var movimiento);
+                return new
+                {
+                    id = articulo?.Id ?? 0, sku, descripcion = articulo?.Descripcion ?? "Artículo no disponible",
+                    cantidad = Convert.ToInt32(d.GetValueOrDefault("quantity") ?? 0),
+                    stock = articulo?.Stock ?? 0, maquina = movimiento?.MaquinaDestino ?? "",
+                    comentario = movimiento?.Comentario, activo = articulo?.Activo ?? false,
+                    sap = new
+                    {
+                        WarehouseCode = d.GetValueOrDefault("warehouseCode"), AccountCode = d.GetValueOrDefault("accountCode"),
+                        CostingCode = d.GetValueOrDefault("planta"), CostingCode2 = d.GetValueOrDefault("unidadNegocio"),
+                        CostingCode3 = d.GetValueOrDefault("departamento"), CostingCode4 = d.GetValueOrDefault("area"),
+                        CostingCode5 = d.GetValueOrDefault("empleado")
+                    }
+                };
+            }).ToList();
+            return Json(new { ok = true, salida = new { folio, referencia = salida.Referencia, comentario = movimientos.FirstOrDefault()?.Comentario, lineas = resultado } });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EditarSalidaSap([FromBody] RefaccionSapEditarSalidaRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Folio))
+                return Json(new { ok = false, mensaje = "Folio de salida inválido." });
+            var resultado = await _sapSalidas.EditarAsync(req, UsuarioActual());
+            return Json(new { ok = resultado.Ok, mensaje = resultado.Mensaje });
         }
 
         [HttpGet]
         public async Task<IActionResult> SalidasSapEnviadas()
         {
-            var salidas = await _context.RefaccionSapSalidas
+            var salidas = await _context.RefaccionSapDocumentos
                 .AsNoTracking()
-                .Where(x => x.Estado == "ENVIADO")
+                .Where(x => x.TipoMovimiento == "SALIDA" && x.Estado == "ENVIADO")
                 .OrderByDescending(x => x.FechaEnvio ?? x.FechaCreacion)
                 .Take(30)
                 .Select(x => new
@@ -693,7 +976,15 @@ namespace Plataforma_CG.Controllers
                 articulos = ExtraerLineasSalidaSap(x.JsonSap)
             });
 
-            return Json(new { ok = true, items });
+            var descripciones = await ObtenerDescripcionesSalidaSapAsync(items.SelectMany(x => x.articulos)
+                .Select(x => x.TryGetValue("itemCode", out var sku) ? sku as string : null));
+            var resultado = items.Select(x => new
+            {
+                x.folio, x.documentoSap, x.fecha, x.usuario, x.referencia, x.cantidadLineas,
+                articulos = AgregarDescripcionesSalidaSap(x.articulos, descripciones)
+            });
+
+            return Json(new { ok = true, items = resultado });
         }
 
         [HttpPost]
@@ -896,31 +1187,120 @@ namespace Plataforma_CG.Controllers
             return !string.Equals(Normalizar(local), Normalizar(sap), StringComparison.Ordinal);
         }
 
+        // Devuelve una fila por artículo y planta. El stock de cada fila es la suma
+        // de los almacenes de esa planta (TIF = MAN001 + MAN003, P1 = MAN002).
         private async Task<List<CatalogoSkuSapViewmodel>> ObtenerConsumiblesLocalesAsync()
         {
-            var query = _context.ArticuloConsumiblesSap
+            var consumibles = await _context.ArticuloConsumiblesSap
                 .AsNoTracking()
-                .Where(x => x.Activo && x.ItemsGroupCode == GrupoRefacciones);
-
-            return await query
-                .Select(x => new CatalogoSkuSapViewmodel
-                {
-                    ItemCode = x.ProductoCodigo,
-                    ItemName = x.ProductoNombre,
-                    InventoryUOM = x.UnidadMedidaInventario,
-                    U_MASTER = x.U_MASTER,
-                    U_TipoporSKU = x.U_TipoporSKU,
-                    U_KilosCaja = x.U_KilosCaja,
-                    U_Clas_Prod = x.U_Clas_Prod,
-                    U_PRESENT = x.U_PRESENT,
-                    U_PorcInye = x.U_PorcInye,
-                    ItemsGroupCode = x.ItemsGroupCode,
-                    AvgPrice = x.Costo,
-                    QuantityOnStock = x.Stock,
-                    QuantityAvailable = x.Disponible
-                })
+                .Where(x => x.Activo && x.ItemsGroupCode == GrupoRefacciones)
                 .ToListAsync();
+
+            var almacenes = await _context.ArticuloConsumiblesSapAlmacen
+                .AsNoTracking()
+                .ToListAsync();
+
+            var almacenesPorSku = almacenes
+                .GroupBy(a => (a.ProductoCodigo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+            var resultado = new List<CatalogoSkuSapViewmodel>();
+
+            foreach (var x in consumibles)
+            {
+                var codigo = (x.ProductoCodigo ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(codigo))
+                    continue;
+
+                var listaAlmacenes = almacenesPorSku.TryGetValue(codigo, out var alms)
+                    ? alms
+                    : new List<ArticuloConsumiblesSapAlmacen>();
+
+                var porPlanta = listaAlmacenes
+                    .Select(a => new
+                    {
+                        Almacen = a,
+                        Planta = RefaccionPlantaHelper.PlantaDeAlmacen(a.WarehouseCode)
+                    })
+                    .Where(z => !string.IsNullOrWhiteSpace(z.Planta))
+                    .GroupBy(z => z.Planta!)
+                    .ToList();
+
+                // Sin almacén reconocido: se conserva una fila sin planta para no
+                // perder el artículo (solo se verá en la vista consolidada "Todas").
+                if (porPlanta.Count == 0)
+                {
+                    resultado.Add(MapearConsumible(x, null, listaAlmacenes, x.Stock, x.Disponible));
+                    continue;
+                }
+
+                foreach (var grupo in porPlanta)
+                {
+                    var stock = grupo.Sum(z => z.Almacen.Stock ?? 0m);
+                    var disponible = grupo.Any(z => z.Almacen.Disponible.HasValue)
+                        ? grupo.Sum(z => z.Almacen.Disponible ?? 0m)
+                        : (decimal?)null;
+
+                    resultado.Add(MapearConsumible(
+                        x,
+                        grupo.Key,
+                        grupo.Select(z => z.Almacen).ToList(),
+                        stock,
+                        disponible));
+                }
+            }
+
+            return resultado;
         }
+
+        private static CatalogoSkuSapViewmodel MapearConsumible(
+            ArticuloConsumiblesSap x,
+            string? planta,
+            List<ArticuloConsumiblesSapAlmacen> almacenes,
+            decimal? stock,
+            decimal? disponible)
+        {
+            return new CatalogoSkuSapViewmodel
+            {
+                ItemCode = x.ProductoCodigo,
+                ItemName = x.ProductoNombre,
+                InventoryUOM = x.UnidadMedidaInventario,
+                U_MASTER = x.U_MASTER,
+                U_TipoporSKU = x.U_TipoporSKU,
+                U_KilosCaja = x.U_KilosCaja,
+                U_Clas_Prod = x.U_Clas_Prod,
+                U_PRESENT = x.U_PRESENT,
+                U_PorcInye = x.U_PorcInye,
+                ItemsGroupCode = x.ItemsGroupCode,
+                AvgPrice = x.Costo,
+                QuantityOnStock = stock,
+                QuantityAvailable = disponible,
+                Planta = planta,
+                Almacenes = almacenes
+                    .Select(a => new AlmacenSapViewmodel
+                    {
+                        WarehouseCode = a.WarehouseCode,
+                        InStock = a.Stock,
+                        Committed = a.Comprometido,
+                        Ordered = a.Pedido,
+                        Available = a.Disponible
+                    })
+                    .ToList()
+            };
+        }
+
+        // Clave case-insensitive para identificar una refacción por SKU + planta.
+        private static string ClaveSkuPlanta(string? sku, string? planta) =>
+            ((sku ?? "").Trim().ToUpperInvariant()) + "|" +
+            ((planta ?? "").Trim().ToUpperInvariant());
+
+        // Orden de plantas para la adopción inicial: TIF primero, luego P1.
+        private static int OrdenPlanta(string? planta) => RefaccionPlantaHelper.NormalizarPlanta(planta) switch
+        {
+            "TIF" => 0,
+            "P1" => 1,
+            _ => 2
+        };
 
         // GET: vista previa de consumibles locales. No escribe en la BD.
         [HttpGet]
@@ -932,17 +1312,29 @@ namespace Plataforma_CG.Controllers
 
                 var limpios = itemsSap
                     .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
-                    .GroupBy(x => x.ItemCode!.Trim().ToUpperInvariant())
+                    .GroupBy(x => ClaveSkuPlanta(x.ItemCode, x.Planta))
                     .Select(g => g.Last())
+                    .OrderBy(x => (x.ItemCode ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => OrdenPlanta(x.Planta))
                     .ToList();
 
-                // Refacciones que YA existen localmente, indexadas por SKU (case-insensitive)
+                // Refacciones que YA existen localmente, indexadas por Sku|Planta.
                 var locales = await _context.Refacciones
                     .AsNoTracking()
                     .ToListAsync();
                 var dicLocales = locales
-                    .GroupBy(r => (r.Sku ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(r => ClaveSkuPlanta(r.Sku, r.Planta))
                     .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
+
+                // Filas heredadas (Planta = NULL): cada una se adopta una sola vez,
+                // para la primera planta que corresponda al SKU.
+                var sinPlanta = locales
+                    .Where(r => string.IsNullOrWhiteSpace(r.Planta))
+                    .GroupBy(r => (r.Sku ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => new Queue<Refaccion>(g.OrderBy(x => x.Id)),
+                        StringComparer.OrdinalIgnoreCase);
 
                 // Mismas reglas que SincronizarSap: solo importa cambios reales.
                 static bool DecCambio(decimal a, decimal b) =>
@@ -951,14 +1343,42 @@ namespace Plataforma_CG.Controllers
 
                 var nuevas = new List<object>();
                 var actualizar = new List<object>();
+                int adoptadas = 0;
 
                 foreach (var item in limpios)
                 {
                     var sku = item.ItemCode!.Trim();
+                    var planta = RefaccionPlantaHelper.NormalizarPlanta(item.Planta);
                     var desc = (item.ItemName ?? "").Trim();
                     var costo = item.AvgPrice;
 
-                    if (!dicLocales.TryGetValue(sku, out var local))
+                    var almacenes = item.Almacenes
+                        .Select(a => new
+                        {
+                            codigo = a.WarehouseCode,
+                            stock = a.InStock,
+                            disponible = a.Available
+                        })
+                        .ToList();
+
+                    Refaccion? local = null;
+                    bool adoptar = false;
+                    var key = ClaveSkuPlanta(sku, planta);
+
+                    if (!dicLocales.TryGetValue(key, out local))
+                    {
+                        // Sin fila exacta: intentar adoptar una fila heredada.
+                        if (planta != null &&
+                            sinPlanta.TryGetValue(sku, out var cola) &&
+                            cola.Count > 0)
+                        {
+                            local = cola.Dequeue();
+                            adoptar = true;
+                            adoptadas++;
+                        }
+                    }
+
+                    if (local == null)
                     {
                         nuevas.Add(new
                         {
@@ -969,6 +1389,8 @@ namespace Plataforma_CG.Controllers
                             costo,
                             stock = item.QuantityOnStock,
                             disponible = item.QuantityAvailable,
+                            planta,
+                            almacenes,
                             accion = "Nuevo",
                             cambios = new List<object>()
                         });
@@ -977,13 +1399,23 @@ namespace Plataforma_CG.Controllers
 
                     var cambios = new List<object>();
 
+                    if (adoptar)
+                        cambios.Add(new { campo = "Planta", antes = "Sin planta", despues = planta ?? "Sin planta" });
+
                     if (desc.Length > 0 && DescripcionCambio(local.Descripcion, desc))
                         cambios.Add(new { campo = "Descripción", antes = local.Descripcion, despues = desc });
 
                     if (costo.HasValue && DecCambio(local.Costo, costo.Value))
                         cambios.Add(new { campo = "Costo", antes = local.Costo.ToString("0.##"), despues = costo.Value.ToString("0.##") });
 
-                    if (cambios.Count > 0)
+                    if (adoptar)
+                    {
+                        var stockPlanta = item.QuantityOnStock ?? 0m;
+                        if (DecCambio(local.Stock, stockPlanta))
+                            cambios.Add(new { campo = "Stock", antes = local.Stock.ToString("0.##"), despues = stockPlanta.ToString("0.##") });
+                    }
+
+                    if (cambios.Count > 0 || adoptar)
                     {
                         actualizar.Add(new
                         {
@@ -994,7 +1426,9 @@ namespace Plataforma_CG.Controllers
                             costo,
                             stock = item.QuantityOnStock,
                             disponible = item.QuantityAvailable,
-                            accion = "Actualizar",
+                            planta,
+                            almacenes,
+                            accion = adoptar ? "Adoptar" : "Actualizar",
                             cambios
                         });
                     }
@@ -1008,6 +1442,7 @@ namespace Plataforma_CG.Controllers
                     total = limpios.Count,
                     nuevos = nuevas.Count,
                     actualizados = actualizar.Count,
+                    adoptadas,
                     yaExistentes = limpios.Count - nuevas.Count,
                     nuevas = nuevas.Count,
                     items = pendientes
@@ -1026,37 +1461,65 @@ namespace Plataforma_CG.Controllers
             {
                 var itemsSap = await ObtenerConsumiblesLocalesAsync();
 
-                // Deduplicar por Sku (case-insensitive)
+                // Deduplicar por Sku|Planta (case-insensitive) y ordenar para que la
+                // primera planta (TIF) sea la que adopte las filas heredadas.
                 itemsSap = itemsSap
                     .Where(x => !string.IsNullOrWhiteSpace(x.ItemCode))
-                    .GroupBy(x => x.ItemCode!.Trim().ToUpperInvariant())
+                    .GroupBy(x => ClaveSkuPlanta(x.ItemCode, x.Planta))
                     .Select(g => g.Last())
+                    .OrderBy(x => (x.ItemCode ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => OrdenPlanta(x.Planta))
                     .ToList();
 
                 var login = UsuarioActual();
 
+                var locales = await _context.Refacciones.ToListAsync();
+                var dicLocales = locales
+                    .GroupBy(r => ClaveSkuPlanta(r.Sku, r.Planta))
+                    .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
+
+                var sinPlanta = locales
+                    .Where(r => string.IsNullOrWhiteSpace(r.Planta))
+                    .GroupBy(r => (r.Sku ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => new Queue<Refaccion>(g.OrderBy(x => x.Id)),
+                        StringComparer.OrdinalIgnoreCase);
+
                 int insertadas = 0;
                 int actualizadas = 0;
+                int adoptadas = 0;
                 int sinCambio = 0;
 
                 foreach (var item in itemsSap)
                 {
                     var sku = item.ItemCode!.Trim();
-                    var skuKey = sku.ToUpperInvariant();
+                    var planta = RefaccionPlantaHelper.NormalizarPlanta(item.Planta);
                     var desc = (item.ItemName ?? "").Trim();
                     var costo = item.AvgPrice;   // puede ser null si SAP no lo trae
                     var stockInicial = (int)Math.Round(item.QuantityOnStock ?? 0m, MidpointRounding.ToZero);
+                    var key = ClaveSkuPlanta(sku, planta);
 
-                    var existente =
-                        _context.Refacciones.Local.FirstOrDefault(x => x.Sku.ToUpper() == skuKey)
-                        ?? await _context.Refacciones.FirstOrDefaultAsync(x => x.Sku.ToUpper() == skuKey);
+                    Refaccion? existente = null;
+                    bool adoptar = false;
+
+                    if (!dicLocales.TryGetValue(key, out existente) &&
+                        planta != null &&
+                        sinPlanta.TryGetValue(sku, out var cola) &&
+                        cola.Count > 0)
+                    {
+                        // Primera planta del SKU: adopta la fila heredada y ajusta su stock.
+                        existente = cola.Dequeue();
+                        adoptar = true;
+                    }
 
                     if (existente == null)
                     {
-                        _context.Refacciones.Add(new Refaccion
+                        var nueva = new Refaccion
                         {
                             Sku = sku,
                             Descripcion = desc,
+                            Planta = planta,
                             Stock = stockInicial,
                             StockMinimo = 0,
                             StockMaximo = 0,
@@ -1064,33 +1527,46 @@ namespace Plataforma_CG.Controllers
                             Activo = true,
                             FechaCreacion = DateTime.Now,
                             UsuarioCreacion = login
-                        });
+                        };
+                        _context.Refacciones.Add(nueva);
+                        dicLocales[key] = nueva;
                         insertadas++;
+                        continue;
+                    }
+
+                    // Sólo se sobrescribe la descripción si SAP trae texto realmente distinto
+                    // (ignora diferencias que la columna varchar no puede representar, ej. Ω, ⌀).
+                    var descCambio = desc.Length > 0
+                        && DescripcionCambio(existente.Descripcion, desc);
+
+                    // Sólo se sobrescribe el costo si SAP trae un valor distinto (a 2 decimales)
+                    var costoCambio = costo.HasValue &&
+                        Math.Round(existente.Costo, 2, MidpointRounding.AwayFromZero) !=
+                        Math.Round(costo.Value, 2, MidpointRounding.AwayFromZero);
+
+                    if (adoptar)
+                    {
+                        // Adopción inicial de la planta: aquí SÍ se ajusta el stock
+                        // al de la planta; en las siguientes corridas no se toca.
+                        existente.Planta = planta;
+                        existente.Stock = stockInicial;
+                        adoptadas++;
+                    }
+
+                    if (descCambio) existente.Descripcion = desc;
+                    if (costoCambio) existente.Costo = costo!.Value;
+
+                    if (adoptar || descCambio || costoCambio)
+                    {
+                        existente.FechaModificacion = DateTime.Now;
+                        existente.UsuarioModificacion = login;
+                        actualizadas++;
+                        if (adoptar)
+                            dicLocales[key] = existente;
                     }
                     else
                     {
-                        // Sólo se sobrescribe la descripción si SAP trae texto realmente distinto
-                        // (ignora diferencias que la columna varchar no puede representar, ej. Ω, ⌀).
-                        var descCambio = desc.Length > 0
-                            && DescripcionCambio(existente.Descripcion, desc);
-
-                        // Sólo se sobrescribe el costo si SAP trae un valor distinto (a 2 decimales)
-                        var costoCambio = costo.HasValue &&
-                            Math.Round(existente.Costo, 2, MidpointRounding.AwayFromZero) !=
-                            Math.Round(costo.Value, 2, MidpointRounding.AwayFromZero);
-
-                        if (descCambio || costoCambio)
-                        {
-                            if (descCambio) existente.Descripcion = desc;
-                            if (costoCambio) existente.Costo = costo!.Value;
-                            existente.FechaModificacion = DateTime.Now;
-                            existente.UsuarioModificacion = login;
-                            actualizadas++;
-                        }
-                        else
-                        {
-                            sinCambio++;
-                        }
+                        sinCambio++;
                     }
                 }
 
@@ -1099,10 +1575,11 @@ namespace Plataforma_CG.Controllers
                 return Json(new
                 {
                     ok = true,
-                    mensaje = $"Sincronización completa. {insertadas} nuevas, {actualizadas} actualizadas, {sinCambio} sin cambios.",
+                    mensaje = $"Sincronización completa. {insertadas} nuevas, {actualizadas} actualizadas ({adoptadas} adoptadas), {sinCambio} sin cambios.",
                     total = itemsSap.Count,
                     insertadas,
                     actualizadas,
+                    adoptadas,
                     sinCambio
                 });
             }
@@ -1279,6 +1756,7 @@ namespace Plataforma_CG.Controllers
 
         private string UsuarioActual() => (User?.Identity?.Name ?? "").Trim();
 
+
         private static List<Dictionary<string, object?>> ExtraerLineasSalidaSap(string? json)
         {
             var resultado = new List<Dictionary<string, object?>>();
@@ -1301,7 +1779,9 @@ namespace Plataforma_CG.Controllers
                         ["accountCode"] = LeerTextoJson(linea, "AccountCode"),
                         ["planta"] = LeerTextoJson(linea, "CostingCode"),
                         ["unidadNegocio"] = LeerTextoJson(linea, "CostingCode2"),
-                        ["departamento"] = LeerTextoJson(linea, "CostingCode3")
+                        ["departamento"] = LeerTextoJson(linea, "CostingCode3"),
+                        ["area"] = LeerTextoJson(linea, "CostingCode4"),
+                        ["empleado"] = LeerTextoJson(linea, "CostingCode5")
                     };
                     resultado.Add(resumen);
                 }
@@ -1312,6 +1792,39 @@ namespace Plataforma_CG.Controllers
             }
 
             return resultado;
+        }
+
+        private async Task<Dictionary<string, string>> ObtenerDescripcionesSalidaSapAsync(IEnumerable<string?> skus)
+        {
+            var codigos = skus.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (codigos.Count == 0) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var filas = await _context.Refacciones.AsNoTracking()
+                .Where(x => codigos.Contains(x.Sku))
+                .Select(x => new { x.Sku, x.Descripcion })
+                .ToListAsync();
+
+            return filas
+                .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
+                .GroupBy(x => x.Sku.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.Descripcion).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static List<Dictionary<string, object?>> AgregarDescripcionesSalidaSap(
+            List<Dictionary<string, object?>> articulos,
+            IReadOnlyDictionary<string, string> descripciones)
+        {
+            foreach (var articulo in articulos)
+            {
+                var sku = articulo.TryGetValue("itemCode", out var valor) ? valor as string : null;
+                articulo["descripcion"] = !string.IsNullOrWhiteSpace(sku) && descripciones.TryGetValue(sku, out var descripcion)
+                    ? descripcion
+                    : "";
+            }
+            return articulos;
         }
 
         private static string? LeerTextoJson(JsonElement elemento, string propiedad) =>

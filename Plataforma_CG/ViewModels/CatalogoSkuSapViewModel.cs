@@ -1,4 +1,6 @@
-﻿namespace Plataforma_CG.ViewModels
+﻿using System.Collections.Generic;
+
+namespace Plataforma_CG.ViewModels
 {
 
     //MODELO PARA SACAR INFORMACION DE CATALOGO DIRECTAMENTE DE SAP 
@@ -28,6 +30,21 @@
         public decimal? QuantityOnStock { get; set; }
         public decimal? QuantityAvailable { get; set; }
 
+        // Existencias por almacén (ItemWarehouseInfoCollection)
+        public List<AlmacenSapViewmodel> Almacenes { get; set; } = new();
 
+        // Planta a la que pertenece esta fila (TIF / P1). Null = sin almacén identificado.
+        public string? Planta { get; set; }
+
+
+    }
+
+    public class AlmacenSapViewmodel
+    {
+        public string? WarehouseCode { get; set; }
+        public decimal? InStock { get; set; }
+        public decimal? Committed { get; set; }
+        public decimal? Ordered { get; set; }
+        public decimal? Available { get; set; }
     }
 }

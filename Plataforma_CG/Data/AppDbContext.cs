@@ -28,6 +28,7 @@ namespace Plataforma_CG.Data
 
         public DbSet<ArticuloSap> ArticuloSap { get; set; }
         public DbSet<ArticuloConsumiblesSap> ArticuloConsumiblesSap { get; set; }
+        public DbSet<ArticuloConsumiblesSapAlmacen> ArticuloConsumiblesSapAlmacen { get; set; }
         public DbSet<CuentaContableSap> CuentasContablesSap { get; set; }
 
         public DbSet<Presentacion> Presentacion { get; set; }
@@ -128,8 +129,7 @@ namespace Plataforma_CG.Data
         public DbSet<RefaccionUbicacion> RefaccionUbicaciones { get; set; }
 public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
         public DbSet<RefaccionMovimiento> RefaccionMovimientos { get; set; }
-        public DbSet<RefaccionSapSalida> RefaccionSapSalidas { get; set; }
-        public DbSet<RefaccionSapSolicitudCompra> RefaccionSapSolicitudesCompra { get; set; }
+        public DbSet<RefaccionSapDocumento> RefaccionSapDocumentos { get; set; }
 
         public DbSet<AuditoriaInventarioDetalle> AuditoriasInventarioDetalle { get; set; }
         public DbSet<AccionCorrectivaAuditoria> AccionesCorrectivasAuditoria { get; set; }
@@ -749,6 +749,7 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.ToTable("Refaccion");
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Sku).HasMaxLength(50).IsRequired();
+                e.Property(x => x.Planta).HasMaxLength(10);
                 e.Property(x => x.Descripcion).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Costo).HasColumnType("decimal(18,2)");
                 e.Property(x => x.CodigoEtiqueta).HasMaxLength(80);
@@ -757,7 +758,7 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                 e.Property(x => x.UsuarioModificacion).HasMaxLength(120);
                 e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
                 e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
-                e.HasIndex(x => x.Sku).IsUnique();
+                e.HasIndex(x => new { x.Sku, x.Planta }).IsUnique();
 
                 e.HasOne(x => x.Categoria)
                     .WithMany()
@@ -770,12 +771,26 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<ArticuloConsumiblesSapAlmacen>(e =>
+            {
+                e.ToTable("ArticuloConsumiblesSapAlmacen");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.ProductoCodigo).HasMaxLength(100).IsRequired();
+                e.Property(x => x.WarehouseCode).HasMaxLength(20).IsRequired();
+                e.Property(x => x.Stock).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Comprometido).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Pedido).HasColumnType("decimal(18,4)");
+                e.Property(x => x.Disponible).HasColumnType("decimal(18,4)");
+                e.Property(x => x.FechaModificacion).HasColumnType("datetime2(0)");
+                e.HasIndex(x => new { x.ProductoCodigo, x.WarehouseCode }).IsUnique();
+            });
+
             modelBuilder.Entity<RefaccionMovimiento>(e =>
             {
                 e.ToTable("RefaccionMovimiento");
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Tipo).HasMaxLength(20).IsRequired();
-                e.Property(x => x.Folio).HasMaxLength(30);
+                e.Property(x => x.Folio).HasMaxLength(60);
                 e.Property(x => x.Referencia).HasMaxLength(100);
                 e.Property(x => x.MaquinaDestino).HasMaxLength(150);
                 e.Property(x => x.Comentario).HasMaxLength(300);
@@ -790,43 +805,29 @@ public DbSet<RefaccionMaquina> RefaccionMaquinas { get; set; }
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-            modelBuilder.Entity<RefaccionSapSalida>(e =>
+            modelBuilder.Entity<RefaccionSapDocumento>(e =>
             {
-                e.ToTable("RefaccionSapSalida");
+                e.ToTable("RefaccionSapDocumento");
                 e.HasKey(x => x.Id);
-                e.Property(x => x.Folio).HasMaxLength(50).IsRequired();
-                e.Property(x => x.Estado).HasMaxLength(20).IsRequired();
+                e.Property(x => x.TipoMovimiento).HasMaxLength(30).IsRequired();
+                e.Property(x => x.Folio).HasMaxLength(60).IsRequired();
+                e.Property(x => x.Estado).HasMaxLength(40).IsRequired();
                 e.Property(x => x.Usuario).HasMaxLength(120).IsRequired();
                 e.Property(x => x.Referencia).HasMaxLength(250);
-                e.Property(x => x.Comentario).HasMaxLength(1000);
-                e.Property(x => x.JsonSap).IsRequired();
-                e.Property(x => x.Error);
-                e.Property(x => x.RespuestaSap);
-                e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
-                e.Property(x => x.FechaEnvio).HasColumnType("datetime2(0)");
-                e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)");
-                e.Property(x => x.Error).HasColumnType("nvarchar(max)");
-                e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
-                e.HasIndex(x => x.Folio).IsUnique();
-                e.HasIndex(x => new { x.Estado, x.FechaCreacion });
-            });
-
-            modelBuilder.Entity<RefaccionSapSolicitudCompra>(e =>
-            {
-                e.ToTable("RefaccionSapSolicitudCompra");
-                e.HasKey(x => x.Id);
-                e.Property(x => x.Folio).HasMaxLength(50).IsRequired();
-                e.Property(x => x.Estado).HasMaxLength(20).IsRequired();
-                e.Property(x => x.Usuario).HasMaxLength(120).IsRequired();
                 e.Property(x => x.Comentario).HasMaxLength(1000);
                 e.Property(x => x.JsonSap).HasColumnType("nvarchar(max)").IsRequired();
                 e.Property(x => x.Error).HasColumnType("nvarchar(max)");
                 e.Property(x => x.RespuestaSap).HasColumnType("nvarchar(max)");
+                e.Property(x => x.JefeAreaUsuario).HasMaxLength(120);
+                e.Property(x => x.JefeAreaComentario).HasMaxLength(500);
+                e.Property(x => x.ContaduriaUsuario).HasMaxLength(120);
+                e.Property(x => x.ContaduriaComentario).HasMaxLength(500);
                 e.Property(x => x.FechaCreacion).HasColumnType("datetime2(0)");
                 e.Property(x => x.FechaNecesaria).HasColumnType("date");
                 e.Property(x => x.FechaEnvio).HasColumnType("datetime2(0)");
-                e.HasIndex(x => x.Folio).IsUnique();
-                e.HasIndex(x => new { x.Estado, x.FechaCreacion });
+                e.HasIndex(x => new { x.TipoMovimiento, x.Folio }).IsUnique();
+                e.HasIndex(x => new { x.TipoMovimiento, x.Estado, x.FechaCreacion });
+                e.HasIndex(x => new { x.SolicitudCompraId, x.OrdenCompraDocEntry });
             });
 
         }
