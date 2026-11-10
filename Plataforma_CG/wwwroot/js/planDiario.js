@@ -386,6 +386,7 @@ async function exportarExcel() {
 }
 
 async function recalcularTodoDia() {
+    window.PlanDiarioAfectaciones?.iniciar();
     const filas =
         [...document.querySelectorAll(".fila-producto")];
     if (!filas.length) return;
@@ -467,6 +468,7 @@ document.addEventListener("click", function (e) {
     input.dataset.kg = boton.dataset.kg;
     input.dataset.canales = boton.dataset.canales;
     input.dataset.subclas = boton.dataset.subclas;
+    input.dataset.subclasNombre = boton.dataset.subclasNombre || '';
     boton.replaceWith(input);
     aplicarColor(input);
     const fila = input.closest(".fila-producto");
@@ -1178,6 +1180,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     
 });
 async function guardarPlanDiario() {
+    if (!window.PlanDiarioAfectaciones) { alert('No se cargaron las afectaciones. Recarga la página antes de guardar.'); return; }
+    if (window.PlanDiarioAfectaciones && !window.PlanDiarioAfectaciones.validar()) return;
 
     const filas =
         document.querySelectorAll(
@@ -1279,7 +1283,9 @@ async function guardarPlanDiario() {
                     method: "POST",
                     headers: {
                         "Content-Type":
-                            "application/json"
+                            "application/json",
+                        "X-PlanDiario-Catalogo": document.getElementById("planeacionData")?.dataset.catalogoVersion || "",
+                        "RequestVerificationToken": document.querySelector('#planeacionData input[name="__RequestVerificationToken"]')?.value || ""
                     },
                     body:
                         JSON.stringify(lista)
@@ -1287,8 +1293,9 @@ async function guardarPlanDiario() {
             );
 
         if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
             throw new Error(
-                "Error al guardar"
+                error.mensaje || "Error al guardar"
             );
         }
 
@@ -1305,7 +1312,7 @@ async function guardarPlanDiario() {
         console.error(error);
 
         alert(
-            "Error al guardar el plan diario"
+            error.message || "Error al guardar el plan diario"
         );
 
     }
@@ -1386,37 +1393,10 @@ document.addEventListener("input", function (e) {
         ultimoTextoDia = "";
     }
 });
-document.addEventListener("input", function (e) {
+document.addEventListener("change", function (e) {
     if (!e.target.classList.contains("input-participacion"))
         return;
-    const input = e.target;
-    const fila = input.closest(".fila-producto");
-    const productoPadre = fila.dataset.linea;
-    const valorAnterior = parseFloat(input.dataset.prev) || 0;
-    const valorNuevo = parseFloat(input.value) || 0;
-    const diferencia = valorNuevo - valorAnterior;
-    input.dataset.prev = valorNuevo;
-    if (productoPadre && productoPadre !== "") {
-        const subclas = input.dataset.subclas;
-        const filaPadre = document.querySelector(
-            `.fila-producto[data-sku='${productoPadre}']`
-        );
-        if (filaPadre) {
-            const inputPadre = filaPadre.querySelector(
-                `.input-participacion[data-subclas='${subclas}']`
-            );
-            if (inputPadre) {
-                let valorPadre = parseFloat(inputPadre.value) || 0;
-                valorPadre -= diferencia;
-                if (valorPadre < 0)
-                    valorPadre = 0;
-                inputPadre.value = valorPadre.toFixed(2);
-                aplicarColor(inputPadre);
-                recalcularFilaDia(filaPadre);
-            }
-        }
-    }
-    recalcularFilaDia(fila);
+    window.PlanDiarioAfectaciones?.cambiar(e.target);
 });
 function toggleAllMasters(expandir) {
     const botones = document.querySelectorAll(".btn-toggle-master");
@@ -1516,7 +1496,7 @@ async function agregarSkuExtra(
                     step="0.01"
                     data-kg="${input.dataset.kg}"
                     data-canales="${input.dataset.canales}"
-                    data-subclas="${input.dataset.subclas}" />
+                    data-subclas="${input.dataset.subclas}" data-subclas-nombre="${input.dataset.subclasNombre || ''}" />
             </td>
         `;
     });

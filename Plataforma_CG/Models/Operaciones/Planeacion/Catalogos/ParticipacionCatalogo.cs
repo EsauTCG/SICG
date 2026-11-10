@@ -36,7 +36,7 @@ public sealed class ParticipacionCatalogoRegistro
 
 public sealed class ParticipacionCatalogoGuardar
 {
-    [Required, StringLength(7)] public string Sku { get; set; } = "";
+    [Required, StringLength(50)] public string Sku { get; set; } = "";
     [Range(1, int.MaxValue)] public int ClasificacionId { get; set; }
     [Required, Range(typeof(decimal), "0", "100"), JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public decimal? Porcentaje { get; set; }

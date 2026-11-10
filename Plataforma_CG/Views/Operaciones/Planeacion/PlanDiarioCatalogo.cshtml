@@ -1,0 +1,80 @@
+@model Plataforma_CG.Models.Operaciones.Planeacion.Catalogos.ParticipacionCatalogoPagina
+@{ Layout = "~/Views/Shared/_Layout2.cshtml"; }
+<link rel="stylesheet" href="~/css/planeador-produccion-sigo.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/planeador-participacion.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/planeador-plan-diario-catalogo.css" asp-append-version="true" />
+
+<div class="container-principal pp-sigo pp-page pp-part-catalog" id="pdCatalogo"
+     data-listado="@Url.Action("Listado", "PlaneadorPlanDiarioCatalogo")"
+     data-articulos="@Url.Action("Articulos", "PlaneadorPlanDiarioCatalogo")"
+     data-guardar="@Url.Action("Guardar", "PlaneadorPlanDiarioCatalogo")"
+     data-previsualizar="@Url.Action("Previsualizar", "PlaneadorPlanDiarioCatalogo")"
+     data-previsualizar-eliminar="@Url.Action("PrevisualizarEliminar", "PlaneadorPlanDiarioCatalogo")"
+     data-eliminar="@Url.Action("Eliminar", "PlaneadorPlanDiarioCatalogo")"
+     data-historial="@Url.Action("Historial", "PlaneadorPlanDiarioCatalogo")">
+    <header class="pp-titlebar">
+        <div><span class="pp-eyebrow">Planeador de Producción · Catálogo global</span><h1>Plan diario</h1><p>Administra los productos y su distribución para todas las fechas.</p></div>
+        <div class="pp-actions"><a class="btn btn-outline-light" asp-controller="Operaciones" asp-action="PlaneadorProduccion"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al Planeador</a></div>
+    </header>
+    <section class="pp-workspace" aria-label="Catálogo global del plan diario">
+        <div class="part-summary">
+            <div class="part-counts"><span><b id="pdTotal">—</b> SKU por tipo de plan</span></div>
+            <span class="part-session">Usuario actual: <strong>@Model.UsuarioActual</strong></span>
+            <div class="pp-actions"><button class="btn btn-outline-secondary" type="button" id="pdHistorialGlobal"><i class="bi bi-clock-history" aria-hidden="true"></i> Historial global</button><button class="btn btn-primary" type="button" id="pdNuevo" disabled><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar SKU</button></div>
+        </div>
+        <p class="part-help pd-scope">Cada alta, edición o eliminación afecta todas las fechas del tipo de plan elegido, incluidos los planes guardados. También se ajustan los SKU relacionados según sus afectaciones y se conserva su historial. Antes de guardar podrás revisar los cambios.</p>
+        <div class="alert d-none" id="pdMensaje" role="status"></div>
+        <form class="pp-toolbar part-filters" id="pdFiltros">
+            <div class="part-search"><label class="form-label" for="pdBusqueda">Buscar producto</label><input class="form-control" type="search" id="pdBusqueda" maxlength="100" placeholder="SKU, nombre o master" /></div>
+            <div><label class="form-label" for="pdClasificacionFiltro">Tipo de plan</label><select class="form-select" id="pdClasificacionFiltro"><option value="">Todos</option></select></div>
+            <button class="btn btn-outline-danger" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Buscar</button>
+            <button class="btn btn-outline-secondary" type="button" id="pdActualizar"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Actualizar</button>
+        </form>
+        <div class="table-responsive"><table class="table table-bordered table-sm part-table pd-table">
+            <caption class="visually-hidden">Productos globales del plan diario, distribución e historial.</caption>
+            <thead><tr><th scope="col">SKU / Producto</th><th scope="col">Master</th><th scope="col">Tipo de plan</th><th scope="col">Participación %</th><th scope="col">Línea</th><th scope="col">Distribución</th><th scope="col">Último cambio</th><th scope="col">Acciones</th></tr></thead>
+            <tbody id="pdFilas"><tr><td colspan="8" class="part-empty">Cargando catálogo…</td></tr></tbody>
+        </table></div>
+        <div class="part-pagination"><span id="pdPaginaTexto" aria-live="polite"></span><div class="pp-actions"><button class="btn btn-outline-secondary" type="button" id="pdAnterior" disabled>Anterior</button><button class="btn btn-outline-secondary" type="button" id="pdSiguiente" disabled>Siguiente</button></div></div>
+    </section>
+</div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="pdEditor" tabindex="-1" aria-labelledby="pdEditorTitulo" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="pdEditorTitulo">Agregar SKU global</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <form id="pdFormulario">
+        @Html.AntiForgeryToken()
+        <div class="modal-body">
+            <div class="alert alert-danger d-none" id="pdEditorError" role="alert"></div>
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label" for="pdSku">SKU</label><input class="form-control" id="pdSku" list="pdArticulos" maxlength="50" autocomplete="off" required aria-describedby="pdSkuNombre" /><datalist id="pdArticulos"></datalist><div class="part-help" id="pdSkuNombre" aria-live="polite">Busca por código o nombre en ArticuloSAP de SIGO.</div></div>
+                <div class="col-md-6"><label class="form-label" for="pdMaster">Master automático</label><input class="form-control" id="pdMaster" readonly placeholder="Se obtiene de ArticuloSAP" /></div>
+                <div class="col-md-6"><label class="form-label" for="pdClasificacion">Tipo de plan</label><select class="form-select" id="pdClasificacion" required></select></div>
+                <div class="col-md-6"><label class="form-label" for="pdPorcentaje">Participación (%)</label><input class="form-control" type="number" inputmode="decimal" id="pdPorcentaje" min="0" max="100" step="0.01" required /><div class="part-help">De 0 a 100, con hasta 2 decimales.</div></div>
+                <div class="col-12"><label class="form-label" for="pdLinea">SKU de línea</label><input class="form-control" id="pdLinea" list="pdLineas" maxlength="50" autocomplete="off" /><datalist id="pdLineas"></datalist><div class="part-help">Opcional. Los SKU de la plantilla siguen sus afectaciones definidas; para otros derivados, esta línea identifica el producto del que se descuenta su distribución.</div></div>
+                <div class="col-12"><fieldset><legend class="pd-legend">Distribución por subclasificación</legend><p class="part-help">Selecciona las subclasificaciones y captura de 0.00 (0%) a 1.00 (100%), con hasta dos decimales. Por ejemplo, 0.98 equivale al 98%.</p><div id="pdDistribuciones" class="pd-distribuciones"></div></fieldset></div>
+            </div>
+            <p class="part-help mt-2">Los campos automáticos se calculan desde los productos que los originan. Un incremento descuenta el mismo valor a cada producto indicado en la regla.</p>
+            <div id="pdAfectacionesResumen" class="mt-3" aria-live="polite"></div>
+            <p class="part-help pd-scope mt-3">Este cambio se aplicará a todas las fechas del tipo de plan seleccionado. Al cambiar el SKU o tipo de plan se retirará la configuración anterior.</p>
+            <p class="part-help mb-0">El historial registrará automáticamente a <strong>@Model.UsuarioActual</strong> y la fecha del cambio.</p>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Guardar globalmente</button></div>
+    </form>
+</div></div></div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="pdEliminarModal" tabindex="-1" aria-labelledby="pdEliminarTitulo" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="pdEliminarTitulo">Eliminar SKU global</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><div class="alert alert-danger d-none" id="pdEliminarError" role="alert"></div><p id="pdEliminarTexto"></p><p class="part-help">Se retirará del catálogo y de todas las fechas de ese tipo de plan. Se recalcularán sus afectaciones; el historial conservará los cambios y tu usuario.</p><div id="pdEliminarAfectaciones" aria-live="polite"></div></div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger" type="button" id="pdConfirmarEliminar">Eliminar de todos los planes de este tipo</button></div>
+</div></div></div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="pdHistorialModal" tabindex="-1" aria-labelledby="pdHistorialTitulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="pdHistorialTitulo">Historial global del plan diario</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body">
+        <form class="pd-history-filters" id="pdHistorialFiltros"><div><label class="form-label" for="pdHistorialSku">SKU (incluye eliminados)</label><input class="form-control" id="pdHistorialSku" maxlength="50" /></div><div><label class="form-label" for="pdHistorialClasificacion">Tipo de plan</label><select class="form-select" id="pdHistorialClasificacion"><option value="">Todos</option></select></div><button class="btn btn-outline-secondary" type="submit">Buscar cambios</button></form>
+        <div id="pdHistorialContenido" aria-live="polite"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" id="pdHistorialAnterior">Anterior</button><span id="pdHistorialPagina" class="part-help"></span><button class="btn btn-outline-secondary" type="button" id="pdHistorialSiguiente">Siguiente</button><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cerrar</button></div>
+</div></div></div>
+
+@section Scripts { <script src="~/js/planeador-plan-diario-catalogo.js" asp-append-version="true"></script> }

@@ -1,4 +1,4 @@
-﻿using AspNetCoreGeneratedDocument;
+using AspNetCoreGeneratedDocument;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.CodeAnalysis.Elfie.Diagnostics;
 using Microsoft.Data.SqlClient;
@@ -300,7 +300,7 @@ SELECT
 
     COALESCE(ps.PartSub, p.PartSub) AS PartSub,
 
-    m.Nombre AS Master,
+    articuloMaster.U_MASTER AS Master,
 
     CAST(0 AS bit) AS EsExtra
 
@@ -315,11 +315,8 @@ LEFT JOIN PlanDiario pd
     ON pd.PlaneacionId = @plid
     AND pd.ProductoCodigo = p.ProductoCodigo
 
-LEFT JOIN MasterProd mp
-    ON mp.SKU = p.ProductoCodigo
-
-LEFT JOIN Masters m
-    ON m.Id = mp.MasterID
+LEFT JOIN dbo.ArticuloSap articuloMaster
+    ON articuloMaster.ProductoCodigo = p.ProductoCodigo
 
 WHERE p.fk_Clasificacion = @clasid
 
@@ -395,7 +392,7 @@ SELECT
 
     ps.PartSub,
 
-    m.Nombre AS Master,
+    articuloMaster.U_MASTER AS Master,
 
     CAST(0 AS bit) AS EsExtra
 
@@ -414,11 +411,8 @@ LEFT JOIN PlanDiario pd
     ON pd.PlaneacionId = @plid
     AND pd.ProductoCodigo = ps.ProductoCodigo
 
-LEFT JOIN MasterProd mp
-    ON mp.SKU = pBase.ProductoCodigo
-
-LEFT JOIN Masters m
-    ON m.Id = mp.MasterID
+LEFT JOIN dbo.ArticuloSap articuloMaster
+    ON articuloMaster.ProductoCodigo = pBase.ProductoCodigo
 
 WHERE ps.PlanId = @plid
     AND pMatch.Id IS NULL

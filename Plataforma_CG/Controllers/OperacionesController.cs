@@ -531,6 +531,9 @@ namespace Plataforma_CG.Controllers
         AccesoPlanExtra ape = new AccesoPlanExtra();
         public async Task<IActionResult> PlaneacionDia(string plan = "NOV", string fecha = "")
         {
+            // Capturar antes de leer las filas: una edición simultánea invalidará el guardado.
+            var catalogoVersion = await HttpContext.RequestServices.GetRequiredService<PlaneadorPlanDiarioCatalogoService>()
+                .ObtenerVersionAsync(HttpContext.RequestAborted);
             TotalDiarioModel model = new TotalDiarioModel();
             var can = apd.ConsultarPlan(fecha, plan);
             can.TipoPlan = plan;
@@ -563,7 +566,9 @@ namespace Plataforma_CG.Controllers
                     {
                         Fecha = fecha,
                         Canales = asi,
-                        Participaciones = apd.ListarParticipacion(clas, can.PlaneacionId),
+                        Participaciones = apd.ListarParticipacion(clas, can.PlaneacionId)
+                            .Where(p => !PlaneadorAfectaciones.Excluido(plan, p.ProductoCodigo)).ToList(),
+                        CatalogoVersion = catalogoVersion,
                         TipoPlan = plan
                     };
 
@@ -887,30 +892,28 @@ namespace Plataforma_CG.Controllers
 
 
         [HttpPost]
-        public IActionResult GuardarPlanDiario([FromBody] List<PlanDiarioModel> lista)
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarPlanDiario([FromBody] List<PlanDiarioModel>? lista,
+            [FromHeader(Name = "X-PlanDiario-Catalogo")] string? catalogoVersion, CancellationToken ct)
         {
-            if (lista == null || !lista.Any())
-                return BadRequest("Lista vacía");
-            apd.borrarPlanDiario(lista[0].PlaneacionId);
-            int planid = lista[0].PlaneacionId;
-            foreach (var item in lista)
+            if (!ModelState.IsValid || lista == null || !lista.Any() || lista.Count > 1000)
+                return BadRequest(new { mensaje = "Revisa los datos del plan diario." });
+            try
             {
-                if (item.PlaneacionId==0)
-                {
-                    item.PlaneacionId = planid;
-                }
-                apd.InsertarPlanDiario(item);
-                foreach (var item2 in item.Participaciones)
-                {
-                    if (item2.PlanId==0)
-                    {
-                        item2.PlanId = planid;
-                    }
-                    apd.InsertarSubDia(item2);
-                }
+                await HttpContext.RequestServices.GetRequiredService<PlaneadorPlanDiarioCatalogoService>()
+                    .GuardarDiaAsync(lista, catalogoVersion, ct);
+                return Json(new { success = true });
             }
-
-            return Json(new { success = true });
+            catch (PlanDiarioCatalogoConflictoException ex) { return Conflict(new { mensaje = ex.Message }); }
+            catch (PlanDiarioCatalogoValidacionException ex) { return BadRequest(new { mensaje = ex.Message }); }
+            catch (KeyNotFoundException ex) { return NotFound(new { mensaje = ex.Message }); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return StatusCode(499); }
+            catch (Exception ex)
+            {
+                HttpContext.RequestServices.GetRequiredService<ILogger<OperacionesController>>().LogError(ex, "No se pudo guardar el plan diario.");
+                return StatusCode(503, new { mensaje = "No se pudo guardar el plan diario. No se aplicaron cambios; vuelve a intentarlo." });
+            }
         }
         [HttpGet]
         public IActionResult ObtenerSolicitudes(string fecha)

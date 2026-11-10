@@ -59,14 +59,12 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
     $"    p.fk_Clasificacion, " +
     $"    AVG(ISNULL(p.Porcentaje, 0)) AS Porcentaje, " +
     $"    ISNULL(p.LineaCodigo, '') AS LineaCodigo, " +
-    $"    m.Nombre AS Master " +
+    $"    articuloMaster.U_MASTER AS Master " +
     $"FROM Participacion p " +
     $"INNER JOIN PlanDiarioAgrupado pd " +
     $"    ON pd.ProductoCodigo = p.ProductoCodigo " +
-    $"LEFT JOIN MasterProd mp " +
-    $"    ON mp.SKU = p.ProductoCodigo " +
-    $"LEFT JOIN Masters m " +
-    $"    ON m.Id = mp.MasterID " +
+    $"LEFT JOIN dbo.ArticuloSap articuloMaster " +
+    $"    ON articuloMaster.ProductoCodigo = p.ProductoCodigo " +
     $"WHERE " +
     $"    p.fk_Clasificacion = @clasid " +
     $"GROUP BY " +
@@ -77,7 +75,7 @@ namespace Plataforma_CG.AccesoDatos.Operaciones.Planeacion
     $"    pd.KgInyeccion, " +
     $"    p.fk_Clasificacion, " +
     $"    ISNULL(p.LineaCodigo, ''), " +
-    $"    m.Nombre " +
+    $"    articuloMaster.U_MASTER " +
     $"ORDER BY " +
     $"    p.ProductoCodigo, " +
     $"    pd.ProductoCodigoConvertido;";

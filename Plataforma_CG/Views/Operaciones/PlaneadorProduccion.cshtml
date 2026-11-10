@@ -12,17 +12,21 @@
 <div class="pp-sigo pp-workspace pp-daily">
 <div id="planeacionData"
      data-fecha="@Model.Fecha"
+     data-catalogo-version="@Model.CatalogoVersion"
      data-tipo-plan="@Model.TipoPlan">
+    @Html.AntiForgeryToken()
 </div>
 <script type="application/json" id="canalesPlanDiarioExcel">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Canales.Select(c => new {
     SubClasificacionId = c.fk_SubClas, c.Nombre, Canales = c.NoCanalCompleta, PesoPromedio = c.KgCanalCompleta })))
 </script>
+<script type="application/json" id="reglasAfectacionesDia">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Plataforma_CG.Services.PlaneadorAfectaciones.Reglas, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)))</script>
 <div class="pp-workspace-heading">
     <div>
         <span class="pp-eyebrow">Planeación de producción</span>
         <h3>Plan Diario - @Model.Fecha</h3>
     </div>
     <div class="pp-actions">
+        <a class="btn btn-outline-secondary btn-sm" asp-controller="PlaneadorPlanDiarioCatalogo" asp-action="Index">Catálogo global del plan diario</a>
         <button id="btnExportarPlanDiario" type="button" class="btn btn-success btn-sm" onclick="exportarExcel()">
             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Exportar a Excel
         </button>
@@ -31,6 +35,8 @@
         </button>
     </div>
 </div>
+<div id="afectacionesDiaAviso" class="d-none" role="status" aria-live="polite"></div>
+<p class="pp-help">Captura de 0.00 (0%) a 1.00 (100%), con hasta dos decimales: 0.98 equivale al 98%. Puedes seguir editando si hay distribuciones fuera de rango; debes corregirlas antes de guardar. Las afectaciones se aplican solo a este día. Para cambiar todas las fechas usa el catálogo global.</p>
 <div class="pp-toolbar">
     <div class="pp-plan-filter">
         <div>
@@ -482,15 +488,16 @@
                                 {
                                     <input type="number"
                                            class="form-control form-control-sm input-participacion"
-                                           value="@partSub"
-                                           data-prev="@partSub"
+                                           value="@partSub.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                           data-prev="@partSub.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                           inputmode="decimal"
                                            data-inicial="true"
                                            min="0"
                                            max="1"
                                            step="0.01"
                                            data-kg="@canal.KgCanalCompleta"
                                            data-canales="@canal.NoCanalCompleta"
-                                           data-subclas="@canal.fk_SubClas" />
+                                           data-subclas="@canal.fk_SubClas" data-subclas-nombre="@canal.Nombre" />
                                 }
                                 else
                                 {
@@ -498,7 +505,7 @@
                                             class="btn btn-outline-secondary btn-sm btn-agregar-participacion"
                                             data-kg="@canal.KgCanalCompleta"
                                             data-canales="@canal.NoCanalCompleta"
-                                            data-subclas="@canal.fk_SubClas">
+                                            data-subclas="@canal.fk_SubClas" data-subclas-nombre="@canal.Nombre">
                                         +
                                     </button>
                                 }

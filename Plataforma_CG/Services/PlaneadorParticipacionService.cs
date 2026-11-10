@@ -57,12 +57,10 @@ public sealed class PlaneadorParticipacionService(IConfiguration configuration)
             SELECT c.Id,c.Nombre FROM dbo.Clasificacion c WHERE EXISTS(SELECT 1 FROM dbo.Participacion p WHERE p.fk_Clasificacion=c.Id) ORDER BY c.Nombre;
             SELECT COUNT(*) FROM ({grupos}) g {joins} {filtro};
             SELECT g.ProductoCodigo Sku,g.fk_Clasificacion ClasificacionId,g.Minimo,g.Maximo,g.Registros,
-                a.ProductoNombre Nombre,c.Nombre Clasificacion,mp.Masters,sc.SubClasificaciones,
+                a.ProductoNombre Nombre,c.Nombre Clasificacion,a.U_MASTER Masters,sc.SubClasificaciones,
                 h.Usuario UsuarioUltimoCambio,h.Fecha FechaUltimoCambio,
                 (SELECT {Columnas} FROM dbo.Participacion p WHERE p.ProductoCodigo=g.ProductoCodigo AND p.fk_Clasificacion=g.fk_Clasificacion ORDER BY p.Id FOR JSON PATH, INCLUDE_NULL_VALUES) EstadoJson
             FROM ({grupos}) g {joins}
-            OUTER APPLY (SELECT STRING_AGG(n.Nombre,', ') Masters FROM
-                (SELECT DISTINCT m.Nombre FROM dbo.MasterProd p JOIN dbo.Masters m ON m.Id=p.MasterID WHERE p.SKU=g.ProductoCodigo) n) mp
             OUTER APPLY (SELECT STRING_AGG(n.Nombre,', ') SubClasificaciones FROM
                 (SELECT DISTINCT s.Nombre FROM dbo.Participacion p JOIN dbo.SubClasif s ON s.Id=p.fk_SubClas
                  WHERE p.ProductoCodigo=g.ProductoCodigo AND p.fk_Clasificacion=g.fk_Clasificacion) n) sc
@@ -90,12 +88,13 @@ public sealed class PlaneadorParticipacionService(IConfiguration configuration)
     public async Task<int> GuardarAsync(ParticipacionCatalogoGuardar input, string usuario, CancellationToken ct)
     {
         usuario = usuario.Trim(); input.Sku = input.Sku?.Trim() ?? "";
-        if (input.Sku.Length is < 1 or > 7 || input.ClasificacionId <= 0 || string.IsNullOrWhiteSpace(usuario) || usuario.Length > 80)
+        if (input.Sku.Length is < 1 or > 50 || input.ClasificacionId <= 0 || string.IsNullOrWhiteSpace(usuario) || usuario.Length > 80)
             throw new ParticipacionValidacionException("Se requiere un SKU, tipo de plan y usuario de sesión válidos.");
         if (!input.Porcentaje.HasValue || input.Porcentaje < 0 || input.Porcentaje > 100 || decimal.Round(input.Porcentaje.Value, 2) != input.Porcentaje)
             throw new ParticipacionValidacionException("El porcentaje debe estar entre 0 y 100, con hasta 2 decimales.");
         await using var cn = await AbrirAsync(ct);
         await using var tx = Transaction.Current is null ? (SqlTransaction)await cn.BeginTransactionAsync(ct) : null;
+        await PlaneadorPlanDiarioCatalogoService.BloquearAsync(cn, tx, true, ct);
         var filas = (await cn.QueryAsync<ParticipacionCatalogoFila>(Cmd($"""
             SELECT {Columnas} FROM dbo.Participacion p WITH (UPDLOCK,HOLDLOCK)
             WHERE p.ProductoCodigo=@Sku AND p.fk_Clasificacion=@ClasificacionId ORDER BY p.Id;
@@ -119,7 +118,7 @@ public sealed class PlaneadorParticipacionService(IConfiguration configuration)
 
     public async Task<IReadOnlyList<ParticipacionCatalogoCambio>> HistorialAsync(string sku, int clasificacionId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(sku) || sku.Length > 7 || clasificacionId <= 0) throw new ParticipacionValidacionException("Selecciona un SKU y tipo de plan válidos.");
+        if (string.IsNullOrWhiteSpace(sku) || sku.Length > 50 || clasificacionId <= 0) throw new ParticipacionValidacionException("Selecciona un SKU y tipo de plan válidos.");
         await using var cn = await AbrirAsync(ct);
         return (await cn.QueryAsync<ParticipacionCatalogoCambio>(Cmd("""
             SELECT Id,PorcentajeAntes,PorcentajeDespues,Registros,Usuario,Fecha FROM dbo.ParticipacionHistorial

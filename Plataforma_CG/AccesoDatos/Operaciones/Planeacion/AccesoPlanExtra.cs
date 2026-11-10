@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis.Elfie.Diagnostics;
+using Microsoft.CodeAnalysis.Elfie.Diagnostics;
 using Plataforma_CG.Models.Operaciones.Planeacion.Diaria;
 using System.Data.SqlClient;
 
@@ -37,17 +37,15 @@ END AS KgInyeccion,
     p.fk_SubClas,
     ISNULL(p.LineaCodigo,'') AS LineaCodigo,
     COALESCE(sm.PartSub, p.PartSub) AS PartSub,
-    m.Nombre AS Master,
+    articuloMaster.U_MASTER AS Master,
     CAST(0 AS BIT) AS EsExtra
 FROM Participacion p
 LEFT JOIN SubClasMens sm
     ON sm.ProductoCodigo = p.ProductoCodigo
     AND sm.Clasificacion = p.fk_SubClas
     AND sm.Fecha = @Fecha
-LEFT JOIN MasterProd mp
-    ON mp.SKU = p.ProductoCodigo
-LEFT JOIN Masters m
-    ON m.Id = mp.MasterID
+LEFT JOIN dbo.ArticuloSap articuloMaster
+    ON articuloMaster.ProductoCodigo = p.ProductoCodigo
 WHERE p.fk_Clasificacion = @ClasId
 
 ORDER BY
