@@ -2889,6 +2889,13 @@
             width: 100% !important;
         }
 
+    /* Mantiene alineado el buscador Select2 cuando convive con un botón en un input-group */
+    .input-group > .select2-container {
+        flex: 1 1 auto;
+        width: 1% !important;
+        min-width: 0;
+    }
+
     .btn-qr-inline {
         min-width: 42px;
         border: 1px solid #7a2d2d;
@@ -5505,6 +5512,26 @@
                             </button>
                         </div>
                     </div>
+                    <div class="row g-2 align-items-end mt-1">
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">PROVEEDOR</label>
+                            <select class="form-select" id="filtroProveedor" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">MARCA</label>
+                            <select class="form-select" id="filtroMarca" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">UBICACIÓN</label>
+                            <select class="form-select" id="filtroUbicacion" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="explorer-table-wrap">
@@ -7077,6 +7104,29 @@
                 language: { noResults: function() { return "No se encontró coincidencia"; } }
             });
 
+            // Filtros del explorador con buscador (proveedor, marca y ubicación)
+            $('#filtroProveedor, #filtroMarca, #filtroUbicacion').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dropdownParent: $('#modalExploradorInventario'),
+                placeholder: 'Todos',
+                allowClear: true,
+                language: {
+                    noResults: function() { return "No se encontró coincidencia"; },
+                    searching: function() { return "Buscando..."; }
+                }
+            });
+
+            // Buscador en los combos de catálogo del alta, reabastecimiento, asignación y salidas
+            $('#entMarca, #entProveedor, #entUbicacion, #resProveedor, #asigUbicacion, #salAreaDestino').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                language: {
+                    noResults: function() { return "No se encontró coincidencia"; },
+                    searching: function() { return "Buscando..."; }
+                }
+            });
+
             // Restauramos la planta global guardada (si existe)
             if (FILTRO_TIPO_INICIAL) {
                 plantaGlobal = '';
@@ -7122,6 +7172,7 @@
                     $('#salAreaDestino').val('');
                     $('#salFechaEntrega').val('');
                 }
+                $('#salAreaDestino').trigger('change.select2');
             });
 
             $('#resArticulo').on('change', function() {
@@ -7141,12 +7192,14 @@
 
                 if(!id) {
                     $('#asigUsuario, #asigPlanta, #asigUbicacion, #asigFotoFile, #asigDocFile').val('');
+                    $('#asigUbicacion').trigger('change.select2');
                     return;
                 }
                 const item = datosInventario.find(i => i.id === id);
                 $('#asigUsuario').val(item.asignacion || '');
                 $('#asigPlanta').val(item.planta || '');
                 $('#asigUbicacion').val(item.ubicacion || '');
+                $('#asigUbicacion').trigger('change.select2');
                 $('#asigFotoFile, #asigDocFile').val('');
             });
 
@@ -7259,12 +7312,14 @@
                 const areaSel = selArea.value;
                 selArea.innerHTML = '<option value="" selected>UBICACIÓN *</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
                 if (catalogoAreas.includes(areaSel)) selArea.value = areaSel;
+                $('#entUbicacion').trigger('change.select2');
 
                 const selAsigUbi = document.getElementById('asigUbicacion');
                 if (selAsigUbi) {
                     const asigSel = selAsigUbi.value;
                     selAsigUbi.innerHTML = '<option value="">Seleccione área / ubicación...</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
                     if (catalogoAreas.includes(asigSel)) selAsigUbi.value = asigSel;
+                    $('#asigUbicacion').trigger('change.select2');
                 }
 
                 const selSalArea = document.getElementById('salAreaDestino');
@@ -7272,6 +7327,7 @@
                     const salAreaSel = selSalArea.value;
                     selSalArea.innerHTML = '<option value="">Sin área (no aplica seguimiento)</option>' + catalogoAreas.map(a => `<option value="${a}">${a}</option>`).join('');
                     if (catalogoAreas.includes(salAreaSel)) selSalArea.value = salAreaSel;
+                    $('#salAreaDestino').trigger('change.select2');
                 }
 
                 ['entProveedor', 'resProveedor'].forEach(id => {
@@ -7285,8 +7341,10 @@
                     } else if (catalogoProveedores.includes(previo)) {
                         sel.value = previo;
                     }
+                    $(sel).trigger('change.select2');
                 });
             } catch (e) { }
+            cargarFiltrosExplorador();
         }
 
         function abrirModalAgregarCatalogo(tipo) {
@@ -8638,6 +8696,7 @@
                 if (data.ok) {
                     datosInventario = data.inventario || [];
                     movimientosInventario = data.movimientos || [];
+                    cargarFiltrosExplorador();
 
                     forzarFiltroInicial();
                     if (typeof aplicarFiltros === 'function') aplicarFiltros();
@@ -8680,15 +8739,56 @@
                              : (v === 'P1' || v === 'ALMACÉN P1' || v === 'ALMACEN P1') ? 'P1' : v;
             return grupo(x) === grupo(y);
         }
+        function normalizarFiltroExplorador(valor) {
+            return String(valor ?? '').trim().toLocaleUpperCase('es-MX');
+        }
+
+        function opcionesFiltroExplorador(valores) {
+            const mapa = new Map();
+            (valores || []).forEach(v => {
+                const texto = String(v ?? '').trim();
+                if (!texto) return;
+                const clave = texto.toLocaleUpperCase('es-MX');
+                if (!mapa.has(clave)) mapa.set(clave, texto);
+            });
+            return [...mapa.values()].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+        }
+
+        function cargarFiltrosExplorador() {
+            const configuracion = [
+                { id: 'filtroProveedor', catalogo: catalogoProveedores, campo: 'proveedor', etiqueta: 'Todos' },
+                { id: 'filtroMarca', catalogo: catalogoMarcas, campo: 'marca', etiqueta: 'Todas' },
+                { id: 'filtroUbicacion', catalogo: catalogoAreas, campo: 'ubicacion', etiqueta: 'Todas' }
+            ];
+            configuracion.forEach(({ id, catalogo, campo, etiqueta }) => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const previo = normalizarFiltroExplorador(sel.value);
+                const valores = (catalogo || []).concat(datosInventario.map(i => i[campo]));
+                const opciones = opcionesFiltroExplorador(valores);
+                sel.innerHTML = `<option value="">${etiqueta}</option>` +
+                    opciones.map(v => `<option value="${escapeQrHtml(v)}">${escapeQrHtml(v)}</option>`).join('');
+                const anterior = opciones.find(v => normalizarFiltroExplorador(v) === previo);
+                sel.value = anterior || '';
+                if (window.jQuery && $(sel).data('select2')) $(sel).trigger('change.select2');
+            });
+        }
+
         function aplicarFiltros() {
              const texto = $('#filtroGeneral').val().toLowerCase();
              const tipo = $('#filtroTipo').val();
              const planta = $('#filtroPlanta').val();
              const estado = $('#filtroEstado').val();
+             const proveedor = normalizarFiltroExplorador($('#filtroProveedor').val());
+             const marca = normalizarFiltroExplorador($('#filtroMarca').val());
+             const ubicacion = normalizarFiltroExplorador($('#filtroUbicacion').val());
 
              let filtrado = datosInventario.filter(i => {
                  const matchTexto = !texto || (i.idArticuloSap && i.idArticuloSap.toLowerCase().includes(texto)) || (i.nombre && i.nombre.toLowerCase().includes(texto)) || (i.numeroSerie && i.numeroSerie.toLowerCase().includes(texto));
                  const matchPlanta = (!planta || plantaDeArticulo(i) === planta) && (!plantaGlobal || plantaDeArticulo(i) === plantaGlobal);
+                 const matchProveedor = !proveedor || normalizarFiltroExplorador(i.proveedor) === proveedor;
+                 const matchMarca = !marca || normalizarFiltroExplorador(i.marca) === marca;
+                 const matchUbicacion = !ubicacion || normalizarFiltroExplorador(i.ubicacion) === ubicacion;
 
                  // Lógica centralizada para identificar qué es chatarra/baja
                  const esBaja = i.asignacion === 'BAJA DEFINITIVA' || i.asignacion === 'PARA PIEZAS' || i.tipoArticulo === 'Chatarra/Piezas';
@@ -8718,7 +8818,7 @@
                      else if (estado === 'disponible') matchEstado = estaDisponible;
                  }
 
-                 return matchTexto && matchTipo && matchPlanta && matchEstado;
+                 return matchTexto && matchTipo && matchPlanta && matchEstado && matchProveedor && matchMarca && matchUbicacion;
              });
              renderTabla(filtrado);
          }
@@ -8738,7 +8838,11 @@
             generarAlertasDashboard();
         }
 
-        function limpiarFiltros() { $('#filtroGeneral, #filtroTipo, #filtroPlanta, #filtroEstado').val(''); aplicarFiltros(); }
+        function limpiarFiltros() {
+            $('#filtroGeneral, #filtroTipo, #filtroPlanta, #filtroEstado, #filtroProveedor, #filtroMarca, #filtroUbicacion').val('');
+            $('#filtroProveedor, #filtroMarca, #filtroUbicacion').trigger('change.select2');
+            aplicarFiltros();
+        }
 
            function renderTabla(datos) {
                 const hoy = new Date();
@@ -9122,6 +9226,7 @@
                 $('#entPlanta').val('BAJA TOTAL');
                 $('#entUbicacion').val('DESECHO DEFINITIVO');
             }
+            $('#entUbicacion').trigger('change.select2');
 
             // Generar el ID automático según el radio seleccionado
             generarIdChatarra();
@@ -9172,6 +9277,7 @@
                 if(!res2.ok) throw new Error("Error al guardar el historial de movimiento.");
 
                 $('#resCantidad').val(''); $('#resReferencia, #resCosto, #resProveedor, #resFechaCompra').val('');
+                $('#resProveedor').trigger('change.select2');
                 $('#stockInfoRestock').hide();
                 cargarInventario();
             }
@@ -9266,6 +9372,7 @@
                  const data = await res.json();
                  if(data.ok) {
                      $('#entTipoArticulo, #entSap, #entNombre, #entMarca, #entModelo, #entProveedor, #entCosto, #entSerie, #entPlanta, #entUbicacion, #entFechaEntrada, #entFechaCompra, #entDiasGarantia, #entTiempoVida, #entStock, #entStockMinimo, #entReferencia, #entIP, #entAsignacion').val('');
+                      $('#entMarca, #entProveedor, #entUbicacion').trigger('change.select2');
                      $('#panelGarantiaTxt').text('');
                      $('#optRestock').prop('checked', true);
                      toggleTipoEntrada();
@@ -9323,6 +9430,7 @@
                 if(data.ok) {
                     $('#salCantidad').val(''); $('#salReferencia').val('');
                     $('#salAreaDestino').val(''); $('#salFechaEntrega').val('');
+                    $('#salAreaDestino').trigger('change.select2');
                     $('#stockInfoSalida').hide();
                     $('#salArticulo').val('').trigger('change');
                     cargarInventario();
@@ -9603,6 +9711,7 @@
 
                 $('#asigArticulo').val('').trigger('change');
                 $('#asigUsuario, #asigPlanta, #asigUbicacion').val('');
+                $('#asigUbicacion').trigger('change.select2');
                 $('#asigFotoFile, #asigDocFile').val('');
                 fotoCapturadaBase64 = null;
                 $('#previewFoto').hide().attr('src', '');
@@ -9835,6 +9944,7 @@
             $('#entSap').val(item.idArticuloSap);
             $('#entNombre').val(item.nombre);
             $('#entMarca').val(item.marca);
+            $('#entMarca').trigger('change.select2');
             $('#entModelo').val(item.modelo);
             const provEdit = item.proveedor || '';
             $('#entProveedor').val(provEdit);
@@ -9842,11 +9952,13 @@
             if (provEdit && selProv && ![...selProv.options].some(o => o.value === provEdit)) {
                 selProv.insertAdjacentHTML('beforeend', `<option value="${provEdit}" selected>${provEdit}</option>`);
             }
+            $('#entProveedor').trigger('change.select2');
             $('#entCosto').val(item.costo);
             $('#entIP').val(item.ip || '');
             $('#entSerie').val(item.numeroSerie);
             $('#entPlanta').val(item.planta);
             $('#entUbicacion').val(item.ubicacion);
+            $('#entUbicacion').trigger('change.select2');
 
             if(item.fechaEntrada) $('#entFechaEntrada').val(item.fechaEntrada.split('T')[0]);
             if(item.fechaCompra) $('#entFechaCompra').val(item.fechaCompra.split('T')[0]);
