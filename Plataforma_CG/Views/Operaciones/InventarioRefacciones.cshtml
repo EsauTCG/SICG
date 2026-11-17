@@ -141,6 +141,14 @@
       display: none;
     }
 
+  .ref-category-toolbar { display: flex; align-items: flex-start; gap: 10px; }
+  .ref-category-toolbar .ref-tabs { flex: 1; min-width: 0; }
+  @@media (max-width: 600px) {
+    .ref-category-toolbar { flex-wrap: wrap; }
+    .ref-category-toolbar .ref-tabs { flex-basis: 100%; }
+    .ref-category-toolbar .btn { margin-left: auto; }
+  }
+
   .ref-tab {
     background: var(--ref-card);
     border: 1px solid var(--ref-border);
@@ -1960,9 +1968,12 @@
         <button type="button" class="ref-more-btn" id="btnAbrirSolicitudCompraSap" onclick="abrirSolicitudCompraSap()" title="Crear una solicitud de compra para Compras en SAP">
           <i class="bi bi-cart-plus"></i> Solicitud de compra
         </button>
-        <button type="button" class="ref-more-btn" id="btnAutorizacionesJefe" onclick="abrirAutorizacionesJefe()" title="Revisar y enviar solicitudes aprobadas por contaduría">
-          <i class="bi bi-clipboard-check"></i> Autorizaciones
-        </button>
+        @if (ViewBag.PuedeEliminar == true)
+        {
+          <button type="button" class="ref-more-btn" id="btnAutorizacionesJefe" onclick="abrirAutorizacionesJefe()" title="Revisar y enviar solicitudes aprobadas por contaduría">
+            <i class="bi bi-clipboard-check"></i> Autorizaciones
+          </button>
+        }
         <button type="button" class="ref-more-btn" onclick="abrirRecepcionesSap()" title="Recibir una orden de compra y registrar la entrada en SAP">
           <i class="bi bi-box-arrow-in-down"></i> Recibir orden
         </button>
@@ -2020,7 +2031,12 @@
       </div>
     </div>
 
-    <div class="ref-tabs" id="refTabs"></div>
+    <div class="ref-category-toolbar">
+      <div class="ref-tabs" id="refTabs"></div>
+      <button type="button" class="btn btn-sm btn-outline-success flex-shrink-0" id="btnExportarCategoriaExcel" onclick="descargarExcelCategoria()" title="Descargar en Excel los artículos de la categoría seleccionada">
+        <i class="bi bi-file-earmark-excel me-1"></i>Excel categoría
+      </button>
+    </div>
     <div class="ref-grid" id="gridRefacciones"></div>
     <div class="ref-pager" id="pagerRefacciones"></div>
 
@@ -2047,7 +2063,7 @@
       <div class="ref-pos-catalog">
         <div class="ref-pos-scan">
           <i class="bi bi-search" style="color: var(--ref-text-muted); font-size: 1.2rem;"></i>
-          <input type="text" id="posScan" autocomplete="off" placeholder="Escanea el código de barras o busca por nombre..." oninput="filtrarCatalogoPos()" />
+          <input type="text" id="posScan" autocomplete="off" placeholder="Escanea el código de barras o busca por nombre..." oninput="entradaBuscadorPos()" />
           <button class="ref-icon-btn border-0" title="Limpiar" onclick="$('#posScan').val(''); filtrarCatalogoPos(); $('#posScan').trigger('focus');">
             <i class="bi bi-x-lg"></i>
           </button>
@@ -2069,6 +2085,10 @@
           </div>
 
           <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label">Departamento en SAP (cuenta contable)</label>
+              <select id="posCuentaDepartamentoSap" class="form-select form-select-sm"><option value="">Usar cuenta predeterminada</option></select>
+            </div>
             <div class="col-12" id="divPosMaquinaGlobal">
               <label class="form-label">Máquina / Equipo</label>
               <select id="posMaquina" class="form-select form-select-sm">
@@ -2206,6 +2226,8 @@
           </div>
           <div class="col-12" id="divSapSalida">
             <div class="small fw-bold text-muted mb-2">Datos para SAP</div>
+            <label class="form-label small mb-1">Departamento en SAP (cuenta contable)</label>
+            <select id="adjCuentaDepartamentoSap" class="form-select form-select-sm mb-2"><option value="">Usar cuenta predeterminada</option></select>
             <div id="adjSapSelectors" class="row g-2"></div>
           </div>
           <div class="col-6">
@@ -2481,6 +2503,7 @@
     <div class="modal-body">
       <div class="alert alert-info py-2">Los cambios actualizarán el inventario y el kardex de SIGO. La salida editada seguirá pendiente hasta que la envíes a SAP.</div>
       <input type="hidden" id="editarSalidaFolio" />
+      <div class="row g-3 mb-3"><div class="col-md-5"><label class="form-label">Departamento en SAP (cuenta contable)</label><select id="editarSalidaCuentaDepartamentoSap" class="form-select form-select-sm"><option value="">Usar cuenta predeterminada</option></select></div></div>
       <div class="row g-3 mb-3"><div class="col-md-4"><label class="form-label">Referencia / OT</label><input id="editarSalidaReferencia" class="form-control" maxlength="100" /></div><div class="col-md-8"><label class="form-label">Comentarios</label><input id="editarSalidaComentario" class="form-control" maxlength="500" /></div></div>
       <div class="d-flex justify-content-between align-items-center mb-2"><strong>Artículos de la salida</strong><button type="button" class="btn btn-sm btn-outline-primary" onclick="agregarLineaEdicionSalida()"><i class="bi bi-plus-lg me-1"></i>Agregar artículo</button></div>
       <div class="table-responsive"><table class="ref-alert-table"><thead><tr><th>Artículo</th><th style="min-width:110px">Cantidad</th><th style="min-width:190px">Máquina / equipo</th><th></th></tr></thead><tbody id="tbodyEditarSalidaLineas"></tbody></table></div>
@@ -2670,11 +2693,14 @@
             let alertasSeleccionadasSolicitud = new Set();
             let scanBuffer = '';
             let lastScanKeyTime = 0;
+            let scanBufferStartedAt = 0;
+            let globalScanAutoTimer = null;
 
             const URL_CARGAR = '@Url.Action("Cargar", "InventarioRefacciones")' || '/InventarioRefacciones/Cargar';
             const URL_GUARDAR_REF = '@Url.Action("GuardarRefaccion", "InventarioRefacciones")' || '/InventarioRefacciones/GuardarRefaccion';
             const URL_MARCAR_SOLICITUD_STOCK = '@Url.Action("MarcarSolicitudStock", "InventarioRefacciones")' || '/InventarioRefacciones/MarcarSolicitudStock';
             const URL_EXPORTAR_PENDIENTES_EXCEL = '@Url.Action("ExportarPendientesExcel", "InventarioRefacciones")' || '/InventarioRefacciones/ExportarPendientesExcel';
+            const URL_EXPORTAR_CATEGORIA_EXCEL = '@Url.Action("ExportarCategoriaExcel", "InventarioRefacciones")' || '/InventarioRefacciones/ExportarCategoriaExcel';
             const URL_MOVIMIENTO = '@Url.Action("RegistrarMovimiento", "InventarioRefacciones")' || '/InventarioRefacciones/RegistrarMovimiento';
             const URL_SALIDA_POS = '@Url.Action("RegistrarSalidaPos", "InventarioRefacciones")' || '/InventarioRefacciones/RegistrarSalidaPos';
             const URL_SALIDAS_POS_REIMPRESION = '@Url.Action("SalidasPosRecientes", "InventarioRefacciones")' || '/InventarioRefacciones/SalidasPosRecientes';
@@ -3025,6 +3051,9 @@
                     document.getElementById('editarSalidaFolio').value = salida.folio;
                     document.getElementById('editarSalidaReferencia').value = salida.referencia || '';
                     document.getElementById('editarSalidaComentario').value = salida.comentario || '';
+                    const deptSelect = document.getElementById('editarSalidaCuentaDepartamentoSap');
+                    deptSelect.innerHTML = document.getElementById('posCuentaDepartamentoSap').innerHTML;
+                    deptSelect.value = salida.cuentaDepartamentoSap || String(sapSalidaConfig.cuentaDepartamento || '');
                     lineasEdicionSalida = (salida.lineas || []).map(x => ({ id: x.id, cantidad: x.cantidad, maquina: x.maquina, sap: x.sap || {} }));
                     renderLineasEdicionSalida();
                     abrirModal('modalEditarSalidaSap');
@@ -3113,6 +3142,7 @@
                         folio: document.getElementById('editarSalidaFolio').value,
                         referencia: document.getElementById('editarSalidaReferencia').value,
                         comentario: document.getElementById('editarSalidaComentario').value,
+                        cuentaDepartamentoSap: document.getElementById('editarSalidaCuentaDepartamentoSap').value || null,
                         lineas
                     });
                     alert(res?.mensaje || 'No se recibió respuesta al guardar.');
@@ -3242,10 +3272,14 @@
                     filtrarPorCategoria(valor, this);
                 });
 
-               $('#posScan').off('keydown').on('keydown', function (e) {
-                if (e.which === 13 || e.keyCode === 13 || e.key === 'Enter') {
-                    e.preventDefault();
+            $('#posScan').off('keydown').on('keydown', function (e) {
+                if (e.which === 13 || e.keyCode === 13 || e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === 'Tab') {
                     const valorEscaneado = $(this).val().trim();
+                    const esTabDeNavegacion = e.key === 'Tab' && !inventario.some(item => coincideCodigoEscaneado(item, normalizarCodigo(valorEscaneado)) && enPlantaRef(item));
+                    if (esTabDeNavegacion) return;
+                    e.preventDefault();
+                    clearTimeout(posScanAutoTimer);
+                    clearTimeout(globalScanAutoTimer);
                     if (valorEscaneado) {
                         procesarEscaneo(valorEscaneado);
                     }
@@ -3253,7 +3287,7 @@
             });
 
                 // ===== Escaneo global (pistola) =====
-                $(document).on('keydown.scanref', function (e) {
+                window.addEventListener('keydown', function (e) {
                     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
                     const el = e.target || {};
@@ -3270,20 +3304,58 @@
                     if (document.querySelector('.modal.show')) return;
 
                     const now = Date.now();
-                    if (now - lastScanKeyTime > 100) scanBuffer = '';
+                    if (now - lastScanKeyTime > 100) {
+                        scanBuffer = '';
+                        scanBufferStartedAt = now;
+                    }
                     lastScanKeyTime = now;
 
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === 'Tab') {
                         const codigo = scanBuffer;
+                        const duracion = scanBufferStartedAt ? now - scanBufferStartedAt : Number.MAX_SAFE_INTEGER;
                         scanBuffer = '';
-                        if (codigo.length > 2) {
+                        clearTimeout(globalScanAutoTimer);
+                        const campo = e.target;
+                        const tagCampo = (campo?.tagName || '').toLowerCase();
+                        const esCampoTextoActivo = tagCampo === 'input' || tagCampo === 'textarea' || campo?.isContentEditable;
+                        const lecturaRapida = codigo.length > 2 && duracion <= 900 && duracion / Math.max(codigo.length, 1) <= 70;
+                        const skuValido = inventario.some(item => coincideCodigoEscaneado(item, normalizarCodigo(codigo)) && enPlantaRef(item));
+                        const finDePistola = e.key === 'Enter' || e.key === 'NumpadEnter' || (e.key === 'Tab' && skuValido && lecturaRapida);
+                        if (codigo.length > 2 && finDePistola && (!esCampoTextoActivo || lecturaRapida)) {
                             e.preventDefault();
+                            e.stopPropagation();
+                            if ($('#vistaPos').is(':visible') && (tagCampo === 'input' || tagCampo === 'textarea') && campo.id !== 'posScan') {
+                                const valorCampo = String(campo.value || '');
+                                if (valorCampo.endsWith(codigo)) {
+                                    campo.value = valorCampo.slice(0, -codigo.length);
+                                    campo.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            }
                             manejarEscaneo(codigo);
                         }
                     } else if (e.key && e.key.length === 1) {
+                        if (!scanBuffer) scanBufferStartedAt = now;
                         scanBuffer += e.key;
+                        clearTimeout(globalScanAutoTimer);
+                        if ($('#vistaPos').is(':visible')) {
+                            const codigoCandidato = scanBuffer;
+                            globalScanAutoTimer = setTimeout(() => {
+                                if (scanBuffer !== codigoCandidato || !inventario.some(item => coincideCodigoEscaneado(item, normalizarCodigo(codigoCandidato)) && enPlantaRef(item))) return;
+                                const campo = document.activeElement;
+                                const tagCampo = (campo?.tagName || '').toLowerCase();
+                                if ((tagCampo === 'input' || tagCampo === 'textarea') && campo.id !== 'posScan') {
+                                    const valorCampo = String(campo.value || '');
+                                    if (valorCampo.endsWith(codigoCandidato)) {
+                                        campo.value = valorCampo.slice(0, -codigoCandidato.length);
+                                        campo.dispatchEvent(new Event('input', { bubbles: true }));
+                                    }
+                                }
+                                scanBuffer = '';
+                                manejarEscaneo(codigoCandidato);
+                            }, 180);
+                        }
                     }
-                });
+                }, true);
 
                 $('#adjType').on('change', function() {
                     if($(this).val() === 'salida') {
@@ -3315,6 +3387,15 @@
                 filtroActual = categoria;
                 paginaRef = 1;
                 renderTarjetas();
+            }
+
+            function descargarExcelCategoria() {
+                const parametros = new URLSearchParams({
+                    categoria: filtroActual || 'Todos',
+                    planta: plantaRefGlobal || 'TIF',
+                    busqueda: ($('#searchInput').val() || '').trim()
+                });
+                window.location.href = URL_EXPORTAR_CATEGORIA_EXCEL + '?' + parametros.toString();
             }
 
             function renderTabs() {
@@ -3372,11 +3453,24 @@
                     if (actual && maquinas.some(m => m.nombre === actual)) selPosMaq.value = actual;
                 }
 
+                const cuentasDepartamento = sapSalidaConfig.cuentasDepartamento || [];
+                const cuentaDefault = String(sapSalidaConfig.cuentaDepartamento || '');
+                ['posCuentaDepartamentoSap', 'adjCuentaDepartamentoSap'].forEach(id => {
+                    const select = document.getElementById(id);
+                    if (!select) return;
+                    const actual = select.value;
+                    select.innerHTML = '<option value="">Usar cuenta predeterminada</option>' +
+                        cuentasDepartamento.map(c => `<option value="${escapeHtml(c.codigo)}">${escapeHtml(c.codigo)} — ${escapeHtml(c.nombre)}</option>`).join('');
+                    select.value = actual && cuentasDepartamento.some(c => String(c.codigo) === actual)
+                        ? actual
+                        : (cuentasDepartamento.some(c => String(c.codigo) === cuentaDefault) ? cuentaDefault : '');
+                });
+
                 renderSapSelectors('adj');
 
                 // === AQUI SE INICIALIZA SELECT2 ===
                 // Inicializa en los modales y en el POS global
-                $('#newCat, #newLoc, #adjMachine, #posMaquina, #adjSapSelectors select').select2({
+                $('#newCat, #newLoc, #adjMachine, #posMaquina, #posCuentaDepartamentoSap, #adjCuentaDepartamentoSap, #adjSapSelectors select').select2({
                     width: '100%',
                     dropdownParent: function () {
                         // Ayuda a que el buscador del select no quede oculto detrás de los modales
@@ -5018,7 +5112,8 @@
                     referencia: ($('#adjRef').val() || '').trim(),
                     maquina: tipo === 'SALIDA' ? maquina : null,
                     comentario: ($('#adjComment').val() || '').trim(),
-                    sap: tipo === 'SALIDA' ? leerSeleccionSap('adj') : null
+                    sap: tipo === 'SALIDA' ? leerSeleccionSap('adj') : null,
+                    cuentaDepartamentoSap: tipo === 'SALIDA' ? ($('#adjCuentaDepartamentoSap').val() || null) : null
                 };
 
                 const res = await postJson(URL_MOVIMIENTO, datos);
@@ -5035,7 +5130,7 @@
                 const item = inventario.find(x => x.id === id);
                 if (!item) return;
 
-                const win = window.open('', '_blank', 'width=500,height=440');
+                const win = window.open('', '_blank', 'width=560,height=760');
                 if (!win) {
                     alert('Permite las ventanas emergentes para imprimir la etiqueta.');
                     return;
@@ -5053,35 +5148,52 @@
                     '<title>Etiqueta ' + sku + '</title>',
                     '<style>',
                     '  * { box-sizing: border-box; }',
-                    '  body { font-family: Arial, sans-serif; margin: 0; padding: 16px; background: #eef1f5; color: #111; display: flex; justify-content: center; }',
-                    '  .etq-btns { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 10; }',
+                    '  body { font-family: Arial, sans-serif; margin: 0; padding: 64px 16px 16px; background: #eef1f5; color: #111; display: flex; justify-content: center; }',
+                    '  .etq-btns { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; z-index: 10; }',
                     '  .etq-btns button { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }',
+                    '  .etq-btns label { font-size: 0.85rem; font-weight: 700; }',
+                    '  .etq-btns select { border: 1px solid #bbb; border-radius: 6px; padding: 8px; background: #fff; }',
                     '  .etq-print { background: #b30000; color: #fff; }',
                     '  .etq-close { background: #fff; color: #333; border: 1px solid #ccc; }',
-                    '  .etq-label { background: #fff; border: 1px dashed #999; border-radius: 8px; padding: 14px; display: flex; gap: 12px; align-items: center; max-width: 380px; margin-top: 36px; }',
-                    '  .etq-label img { width: 130px; height: 130px; flex-shrink: 0; }',
-                    '  .etq-sku { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.5px; word-break: break-all; line-height: 1.1; }',
-                    '  .etq-desc { font-size: 0.78rem; color: #333; margin-top: 6px; line-height: 1.25; }',
+                    '  .etq-sheet { width: 4in; height: 6in; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 14px #0002; }',
+                    '  .etq-label { --label-w: 3in; --label-h: 2in; --qr-size: 1.35in; --sku-size: 16pt; --desc-size: 10pt; width: var(--label-w); height: var(--label-h); background: #fff; border: 1px dashed #999; border-radius: 8px; padding: 0.12in; display: flex; gap: 0.12in; align-items: center; justify-content: center; overflow: hidden; }',
+                    '  .etq-label[data-size="full"] { --label-w: 3.8in; --label-h: 5.8in; --qr-size: 2.4in; --sku-size: 24pt; --desc-size: 14pt; flex-direction: column; }',
+                    '  .etq-label[data-size="medium"] { --label-w: 3in; --label-h: 2in; --qr-size: 1.35in; --sku-size: 16pt; --desc-size: 10pt; }',
+                    '  .etq-label[data-size="small"] { --label-w: 2in; --label-h: 1in; --qr-size: 0.72in; --sku-size: 9pt; --desc-size: 6.5pt; gap: 0.07in; padding: 0.06in; }',
+                    '  .etq-label[data-size="compact"] { --label-w: 1.5in; --label-h: 0.8in; --qr-size: 0.58in; --sku-size: 7pt; --desc-size: 5pt; gap: 0.05in; padding: 0.04in; }',
+                    '  .etq-label img { width: var(--qr-size); height: var(--qr-size); flex: 0 0 var(--qr-size); image-rendering: pixelated; }',
+                    '  .etq-text { min-width: 0; overflow: hidden; }',
+                    '  .etq-sku { font-size: var(--sku-size); font-weight: 800; letter-spacing: 0.3px; overflow-wrap: anywhere; line-height: 1.1; }',
+                    '  .etq-desc { font-size: var(--desc-size); color: #333; margin-top: 0.06in; line-height: 1.15; overflow-wrap: anywhere; }',
                     '  @@media print {',
-                    '    body { background: #fff; padding: 0; }',
+                    '    @@page { size: 4in 6in; margin: 0; }',
+                    '    html, body { width: 4in; height: 6in; margin: 0; padding: 0; background: #fff; }',
+                    '    body { display: block; }',
                     '    .etq-btns { display: none; }',
-                    '    .etq-label { border-color: #bbb; margin-top: 0; }',
-                    '    @@page { margin: 12mm; }',
+                    '    .etq-sheet { width: 4in; height: 6in; box-shadow: none; break-after: avoid; page-break-after: avoid; }',
+                    '    .etq-label { border: 0; border-radius: 0; }',
                     '  }',
                     '</style>',
                     '</head>',
                     '<body>',
                     '  <div class="etq-btns">',
+                    '    <label for="etqSize">Tamaño dentro de la etiqueta 4 × 6:</label>',
+                    '    <select id="etqSize" onchange="document.getElementById(\'etqLabel\').dataset.size=this.value">',
+                    '      <option value="medium" selected>Mediana · 3 × 2 in</option>',
+                    '      <option value="small">Pequeña · 2 × 1 in</option>',
+                    '      <option value="compact">Compacta · 1.5 × 0.8 in</option>',
+                    '      <option value="full">Grande · casi 4 × 6 in</option>',
+                    '    </select>',
                     '    <button class="etq-print" onclick="window.print()">Imprimir</button>',
                     '    <button class="etq-close" onclick="window.close()">Cerrar</button>',
                     '  </div>',
-                    '  <div class="etq-label">',
+                    '  <div class="etq-sheet"><div class="etq-label" id="etqLabel" data-size="medium">',
                     '    <img src="' + qr + '" alt="QR ' + sku + '" />',
-                    '    <div>',
+                    '    <div class="etq-text">',
                     '      <div class="etq-sku">' + sku + '</div>',
                     '      <div class="etq-desc">' + desc + '</div>',
                     '    </div>',
-                    '  </div>',
+                    '  </div></div>',
                     '</bo' + 'dy>',
                     '</ht' + 'ml>'
                 ].join('\n');
@@ -5095,11 +5207,22 @@
             }
 
             function normalizarCodigo(codigo) {
-                let c = String(codigo || '').trim();
+                // Algunas pistolas incluyen el prefijo del QR (por ejemplo REF|MAN0879)
+                // y otras agregan caracteres de control al inicio o al final del escaneo.
+                let c = String(codigo || '').replace(/[\u0000-\u001F\u007F\uFEFF]/g, '').trim();
                 if (!c) return '';
                 c = c.replace(/'/g, '-');
-                c = c.replace(/^REF[^A-Za-z0-9]+/i, '').trim();
+                c = c.replace(/^REF\s*[|:;]\s*/i, '').trim();
                 return c;
+            }
+
+            function coincideCodigoEscaneado(item, codigo) {
+                const buscado = canonSku(codigo);
+                if (!buscado) return false;
+
+                // Acepta tanto el SKU limpio como el valor completo guardado en la etiqueta QR.
+                return canonSku(item.sku) === buscado ||
+                    canonSku(normalizarCodigo(item.codigoEtiqueta)) === buscado;
             }
 
             function manejarEscaneo(codigo) {
@@ -5111,7 +5234,7 @@
                 const sku = normalizarCodigo(codigo);
                 if (!sku) return;
 
-                const item = inventario.find(x => canonSku(x.sku) === canonSku(sku) && enPlantaRef(x));
+                const item = inventario.find(x => coincideCodigoEscaneado(x, sku) && enPlantaRef(x));
                 if (!item) {
                     if (/REF/i.test(codigo)) {
                         alert(`No existe la refacción con SKU "${sku}" en la planta seleccionada.`);
@@ -5394,12 +5517,33 @@
             // VISTA POS DUAL (Punto de Venta)
             // =========================================================
             let posLineas = [];
+            let posScanAutoTimer = null;
             let posModoMaquina = 'unica';
+
+            function entradaBuscadorPos() {
+                const input = document.getElementById('posScan');
+                if (!input) return;
+                const valor = input.value || '';
+                filtrarCatalogoPos();
+
+                clearTimeout(posScanAutoTimer);
+                const sku = normalizarCodigo(valor);
+                if (!sku || sku.length < 3) return;
+                const coincide = inventario.some(item => coincideCodigoEscaneado(item, sku) && enPlantaRef(item));
+                if (!coincide) return;
+
+                // Algunas pistolas no mandan Enter; al quedar quieto el lector,
+                // agrega el SKU exacto al ticket automáticamente.
+                posScanAutoTimer = setTimeout(() => {
+                    if (input.value.trim() === valor.trim()) procesarEscaneo(valor);
+                }, 180);
+            }
 
             function abrirPos() {
                 posLineas = [];
                 posModoMaquina = 'unica';
                 $('#posScan, #posMaquina, #posRef, #posComment').val('');
+                $('#posCuentaDepartamentoSap').val(String(sapSalidaConfig.cuentaDepartamento || '')).trigger('change');
 
                 cambiarModoMaquina(posModoMaquina);
                 filtrarCatalogoPos();
@@ -5414,6 +5558,7 @@
                 if(posLineas.length > 0 && !confirm("¿Borrar todos los artículos escaneados?")) return;
                 posLineas = [];
                 $('#posScan, #posMaquina, #posRef, #posComment').val('');
+                $('#posCuentaDepartamentoSap').val(String(sapSalidaConfig.cuentaDepartamento || '')).trigger('change');
                 renderPos();
                 $('#posScan').trigger('focus');
             }
@@ -5500,7 +5645,7 @@
                 const sku = normalizarCodigo(valor);
                 if (!sku) return;
 
-                const item = inventario.find(x => canonSku(x.sku) === canonSku(sku) && enPlantaRef(x));
+                const item = inventario.find(x => coincideCodigoEscaneado(x, sku) && enPlantaRef(x));
                 if (!item) {
                     alert(`No existe la refacción con SKU "${sku}" en la planta seleccionada.`);
                     $('#posScan').val('').trigger('focus');
@@ -5720,7 +5865,8 @@
                     })),
                     maquina: maquina,
                     referencia: ($('#posRef').val() || '').trim(),
-                    comentario: ($('#posComment').val() || '').trim()
+                    comentario: ($('#posComment').val() || '').trim(),
+                    cuentaDepartamentoSap: $('#posCuentaDepartamentoSap').val() || null
                 };
 
             try {

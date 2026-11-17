@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ClosedXML.Excel;
 using Plataforma_CG.Data;
 using Plataforma_CG.Data.Entities;
+using Plataforma_CG.Filters;
 using Plataforma_CG.Models;
 using Plataforma_CG.Services;
 using Plataforma_CG.ViewModels;
@@ -20,6 +21,7 @@ namespace Plataforma_CG.Controllers
     public class InventarioRefaccionesController : Controller
     {
         private const int GrupoRefacciones = 102;
+        private const string ClavePermisos = "INVENTARIO_REFACCIONES";
 
         private readonly AppDbContext _context;
         private readonly AppDbContextUsuarios _dbUsuarios;
@@ -42,9 +44,14 @@ namespace Plataforma_CG.Controllers
         //  VISTA PRINCIPAL
         // =========================================================
         [HttpGet("/Operaciones/InventarioRefacciones")]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> Index()
         {
             Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+
+            var permisos = await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                _dbUsuarios, User.Identity?.Name ?? "", ClavePermisos);
+            ViewBag.PuedeEliminar = permisos.PuedeEliminar;
 
             var (nombre, login) = await ObtenerUsuarioSesionAsync();
 
@@ -64,6 +71,7 @@ namespace Plataforma_CG.Controllers
         //  CARGA DE DATOS (refacciones + catalogos + movimientos)
         // =========================================================
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> Cargar()
         {
             var refacciones = await _context.Refacciones
@@ -209,7 +217,6 @@ namespace Plataforma_CG.Controllers
                 .Where(x => x.Activa)
                 .OrderBy(x => x.CodigoCuenta)
                 .ToListAsync();
-
             return Json(new
             {
                 ok = true,
@@ -224,6 +231,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> MarcarSolicitudStock([FromBody] RefaccionSolicitudStockRequest req)
         {
             if (req == null || req.Id <= 0)
@@ -244,6 +252,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> CrearSolicitudCompraSap([FromBody] RefaccionSapSolicitudCompraCrearRequest req)
         {
             if (req == null)
@@ -276,6 +285,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ELIMINAR")]
         public async Task<IActionResult> RevisarSolicitudCompraSapRefacciones([FromBody] RefaccionSapDecisionSolicitudRequest req)
         {
             if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Solicitud inválida." });
@@ -292,6 +302,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EnviarSolicitudCompraSapRefacciones([FromBody] RefaccionSapEnviarSolicitudRequest req)
         {
             if (req == null || req.Id <= 0)
@@ -309,6 +320,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> OrdenesCompraPendientesRecepcionSap()
         {
             try { return Json(await _sapRecepciones.ObtenerOrdenesAbiertasAsync()); }
@@ -316,6 +328,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> ObtenerDocumentoOrdenCompraRecepcionSap(int docEntry)
         {
             try { return Json(await _sapRecepciones.ObtenerDocumentoOrdenSapAsync(docEntry)); }
@@ -323,6 +336,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> RegistrarRecepcionCompraSap([FromBody] RefaccionSapRecepcionCrearRequest req)
         {
             if (req == null) return BadRequest(new { ok = false, mensaje = "No se recibieron datos de recepción." });
@@ -331,6 +345,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> ReaplicarInventarioRecepcionSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
         {
             if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
@@ -339,6 +354,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> ReintentarRecepcionCompraSap([FromBody] RefaccionSapEnviarSolicitudRequest req)
         {
             if (req == null || req.Id <= 0) return BadRequest(new { ok = false, mensaje = "Recepción inválida." });
@@ -347,6 +363,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> ExportarPendientesExcel()
         {
             var articulos = await _context.Refacciones
@@ -421,10 +438,101 @@ namespace Plataforma_CG.Controllers
             return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nombre);
         }
 
+        [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
+        public async Task<IActionResult> ExportarCategoriaExcel(string? categoria, string? planta, string? busqueda)
+        {
+            var plantaNormalizada = RefaccionPlantaHelper.NormalizarPlanta(planta);
+            if (plantaNormalizada == null)
+                return BadRequest("Selecciona una planta válida para exportar.");
+
+            categoria = (categoria ?? "Todos").Trim();
+            busqueda = (busqueda ?? "").Trim();
+
+            var consulta = _context.Refacciones
+                .AsNoTracking()
+                .Where(r => r.Activo && r.Planta == plantaNormalizada);
+
+            if (categoria.Equals("Bajo Stock", StringComparison.OrdinalIgnoreCase))
+                consulta = consulta.Where(r => r.Stock <= r.StockMinimo);
+            else if (categoria.Equals("Sobre Stock", StringComparison.OrdinalIgnoreCase))
+                consulta = consulta.Where(r => r.StockMaximo.HasValue && r.StockMaximo.Value > 0 && r.Stock > r.StockMaximo.Value);
+            else if (!categoria.Equals("Todos", StringComparison.OrdinalIgnoreCase))
+                consulta = consulta.Where(r => r.Categoria != null && r.Categoria.Nombre == categoria);
+
+            if (!string.IsNullOrWhiteSpace(busqueda))
+            {
+                consulta = consulta.Where(r =>
+                    r.Sku.Contains(busqueda) ||
+                    r.Descripcion.Contains(busqueda) ||
+                    (r.Ubicacion != null && r.Ubicacion.Nombre.Contains(busqueda)));
+            }
+
+            var articulos = await consulta
+                .OrderBy(r => r.Sku)
+                .Select(r => new
+                {
+                    r.Sku,
+                    r.Descripcion,
+                    Planta = r.Planta ?? "",
+                    Categoria = r.Categoria != null ? r.Categoria.Nombre : "",
+                    Unidad = _context.ArticuloConsumiblesSap
+                        .Where(a => a.ProductoCodigo == r.Sku)
+                        .Select(a => a.UnidadMedidaInventario)
+                        .FirstOrDefault(),
+                    Ubicacion = r.Ubicacion != null ? r.Ubicacion.Nombre : "",
+                    r.Stock,
+                    Minimo = r.StockMinimo,
+                    Maximo = r.StockMaximo ?? 0,
+                    r.Costo
+                })
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Inventario refacciones");
+            var headers = new[] { "SKU", "Descripción", "Planta", "Unidad inventario", "Categoría", "Ubicación", "Mínimo", "Máximo", "Stock", "Costo" };
+            for (var i = 0; i < headers.Length; i++)
+                ws.Cell(1, i + 1).Value = headers[i];
+
+            for (var i = 0; i < articulos.Count; i++)
+            {
+                var item = articulos[i];
+                var row = i + 2;
+                ws.Cell(row, 1).Value = item.Sku;
+                ws.Cell(row, 2).Value = item.Descripcion;
+                ws.Cell(row, 3).Value = item.Planta;
+                ws.Cell(row, 4).Value = item.Unidad ?? "";
+                ws.Cell(row, 5).Value = item.Categoria;
+                ws.Cell(row, 6).Value = item.Ubicacion;
+                ws.Cell(row, 7).Value = item.Minimo;
+                ws.Cell(row, 8).Value = item.Maximo;
+                ws.Cell(row, 9).Value = item.Stock;
+                ws.Cell(row, 10).Value = item.Costo;
+            }
+
+            var encabezado = ws.Range(1, 1, 1, headers.Length);
+            encabezado.Style.Font.Bold = true;
+            encabezado.Style.Font.FontColor = XLColor.White;
+            encabezado.Style.Fill.BackgroundColor = XLColor.DarkRed;
+            ws.SheetView.FreezeRows(1);
+            if (articulos.Count > 0)
+                ws.Range(1, 1, articulos.Count + 1, headers.Length).SetAutoFilter();
+            ws.Columns().AdjustToContents();
+            ws.Column(2).Width = Math.Min(ws.Column(2).Width, 55);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var categoriaArchivo = string.Concat(categoria.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            if (string.IsNullOrWhiteSpace(categoriaArchivo)) categoriaArchivo = "Todos";
+            var nombre = $"Refacciones_{plantaNormalizada}_{categoriaArchivo}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+            return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nombre);
+        }
+
         // =========================================================
         //  PREFERENCIA DE VISTA (tarjetas / tabla) POR USUARIO
         // =========================================================
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> GuardarVista([FromBody] VistaModoRequest req)
         {
             var modo = (req?.Vista ?? "").Trim().ToLowerInvariant();
@@ -439,6 +547,7 @@ namespace Plataforma_CG.Controllers
         //  REFACCIONES: ALTA / EDICIÓN
         // =========================================================
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> GuardarRefaccion([FromBody] RefaccionGuardarRequest req)
         {
             if (req == null)
@@ -546,6 +655,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EliminarRefaccion([FromBody] CatalogoEliminarRequest req)
         {
             var r = await _context.Refacciones.FirstOrDefaultAsync(x => x.Id == req.Id);
@@ -564,6 +674,7 @@ namespace Plataforma_CG.Controllers
         //  MOVIMIENTOS: ENTRADA / SALIDA / AJUSTE
         // =========================================================
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> RegistrarMovimiento([FromBody] MovimientoRequest req)
         {
             if (req == null)
@@ -578,6 +689,13 @@ namespace Plataforma_CG.Controllers
 
             if (tipo == "SALIDA")
             {
+                if (!string.IsNullOrWhiteSpace(req.CuentaDepartamentoSap))
+                {
+                    if (!int.TryParse(req.CuentaDepartamentoSap, out _))
+                        return Json(new { ok = false, mensaje = "La cuenta para el campo Departamento debe tener un código numérico." });
+                    if (!await _context.CuentasContablesSap.AsNoTracking().AnyAsync(x => x.CodigoCuenta == req.CuentaDepartamentoSap && x.Activa))
+                        return Json(new { ok = false, mensaje = "La cuenta seleccionada para Departamento no está activa. Sincroniza las cuentas contables." });
+                }
                 if (string.IsNullOrWhiteSpace(req.Maquina))
                     return Json(new { ok = false, mensaje = "Selecciona la máquina o equipo de destino." });
                 var errorSap = await _sapSalidas.ValidarSeleccionAsync(req.Sap);
@@ -645,7 +763,8 @@ namespace Plataforma_CG.Controllers
                         referencia,
                         comentario,
                         new[] { (r, Math.Abs(delta)) },
-                        req.Sap)
+                        req.Sap,
+                        req.CuentaDepartamentoSap)
                 });
             }
 
@@ -667,12 +786,21 @@ namespace Plataforma_CG.Controllers
         //  PUNTO DE VENTA (salida por escaneo)
         // =========================================================
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> RegistrarSalidaPos([FromBody] SalidaPosRequest req)
         {
             if (req == null || req.Lineas == null || req.Lineas.Count == 0)
                 return Json(new { ok = false, mensaje = "No hay artículos escaneados." });
 
             var maquinaGlobal = (req.Maquina ?? "").Trim();
+
+            if (!string.IsNullOrWhiteSpace(req.CuentaDepartamentoSap))
+            {
+                if (!int.TryParse(req.CuentaDepartamentoSap, out _))
+                    return Json(new { ok = false, mensaje = "La cuenta para el campo Departamento debe tener un código numérico." });
+                if (!await _context.CuentasContablesSap.AsNoTracking().AnyAsync(x => x.CodigoCuenta == req.CuentaDepartamentoSap && x.Activa))
+                    return Json(new { ok = false, mensaje = "La cuenta seleccionada para Departamento no está activa. Sincroniza las cuentas contables." });
+            }
 
             var ids = req.Lineas.Select(l => l.Id).Distinct().ToList();
             var items = await _context.Refacciones
@@ -756,7 +884,8 @@ namespace Plataforma_CG.Controllers
                     DateTime.Today,
                     referenciaPos,
                     comentarioPos,
-                    req.Lineas.Select(linea => (items[linea.Id], linea.Cantidad, linea.Sap ?? req.Sap)))
+                    req.Lineas.Select(linea => (items[linea.Id], linea.Cantidad, linea.Sap ?? req.Sap)),
+                    req.CuentaDepartamentoSap)
             });
 
             await _context.SaveChangesAsync();
@@ -775,6 +904,7 @@ namespace Plataforma_CG.Controllers
         //  detalle necesario para regenerar el mismo ticket.
         // =========================================================
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> SalidasPosRecientes()
         {
             try
@@ -855,6 +985,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> SalidasSapPendientes()
         {
             try
@@ -893,6 +1024,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> ObtenerSalidaSapParaEditar(string folio)
         {
             folio = (folio ?? "").Trim();
@@ -932,10 +1064,19 @@ namespace Plataforma_CG.Controllers
                     }
                 };
             }).ToList();
-            return Json(new { ok = true, salida = new { folio, referencia = salida.Referencia, comentario = movimientos.FirstOrDefault()?.Comentario, lineas = resultado } });
+            int? departamentoSap = null;
+            try
+            {
+                using var docSap = System.Text.Json.JsonDocument.Parse(salida.JsonSap);
+                if (docSap.RootElement.TryGetProperty("Department", out var department) && department.TryGetInt32(out var codigo))
+                    departamentoSap = codigo;
+            }
+            catch { }
+            return Json(new { ok = true, salida = new { folio, referencia = salida.Referencia, comentario = movimientos.FirstOrDefault()?.Comentario, cuentaDepartamentoSap = departamentoSap?.ToString(), lineas = resultado } });
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EditarSalidaSap([FromBody] RefaccionSapEditarSalidaRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Folio))
@@ -945,6 +1086,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> SalidasSapEnviadas()
         {
             var salidas = await _context.RefaccionSapDocumentos
@@ -988,6 +1130,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EnviarSalidaSap([FromBody] RefaccionSapEnviarRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Folio))
@@ -1008,6 +1151,7 @@ namespace Plataforma_CG.Controllers
         //  CATÁLOGOS: CATEGORÍAS / UBICACIONES / MÁQUINAS
         // =========================================================
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> GuardarCategoria([FromBody] CatalogoGuardarRequest req)
         {
             var nombre = (req?.Nombre ?? "").Trim();
@@ -1042,6 +1186,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EliminarCategoria([FromBody] CatalogoEliminarRequest req)
         {
             var c = await _context.RefaccionCategorias.FirstOrDefaultAsync(x => x.Id == req.Id);
@@ -1058,6 +1203,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> GuardarUbicacion([FromBody] CatalogoGuardarRequest req)
         {
             var nombre = (req?.Nombre ?? "").Trim();
@@ -1092,6 +1238,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EliminarUbicacion([FromBody] CatalogoEliminarRequest req)
         {
             var u = await _context.RefaccionUbicaciones.FirstOrDefaultAsync(x => x.Id == req.Id);
@@ -1108,6 +1255,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> GuardarMaquina([FromBody] CatalogoGuardarRequest req)
         {
             var nombre = (req?.Nombre ?? "").Trim();
@@ -1142,6 +1290,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EliminarMaquina([FromBody] CatalogoEliminarRequest req)
         {
             var m = await _context.RefaccionMaquinas.FirstOrDefaultAsync(x => x.Id == req.Id);
@@ -1304,6 +1453,7 @@ namespace Plataforma_CG.Controllers
 
         // GET: vista previa de consumibles locales. No escribe en la BD.
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> PreviaSap()
         {
             try
@@ -1455,6 +1605,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> SincronizarSap()
         {
             try
@@ -1626,6 +1777,7 @@ namespace Plataforma_CG.Controllers
         private static readonly string[] FotoExtensionesValidas = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         [RequestSizeLimit(20_000_000)]
         public async Task<IActionResult> SubirFoto(IFormFile? archivo, int id)
         {
@@ -1666,6 +1818,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpPost]
+        [RevisarPermiso(ClavePermisos, "ESCRIBIR")]
         public async Task<IActionResult> EliminarFoto([FromBody] CatalogoEliminarRequest req)
         {
             var r = await _context.Refacciones.FirstOrDefaultAsync(x => x.Id == req.Id);
@@ -1704,12 +1857,15 @@ namespace Plataforma_CG.Controllers
         //  ETIQUETAS QR
         // =========================================================
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public IActionResult GenerarQR(string sku)
         {
             if (string.IsNullOrWhiteSpace(sku))
                 return BadRequest();
 
-            var texto = "REF|" + sku.Trim();
+            // El contenido del QR debe ser únicamente el SKU para que las pistolas
+            // lo entreguen directamente, sin requerir interpretar un prefijo.
+            var texto = sku.Trim();
 
             using var qrGenerator = new QRCodeGenerator();
             using var qrCodeData = qrGenerator.CreateQrCode(texto, QRCodeGenerator.ECCLevel.Q);
@@ -1718,6 +1874,7 @@ namespace Plataforma_CG.Controllers
         }
 
         [HttpGet]
+        [RevisarPermiso(ClavePermisos, "LEER")]
         public async Task<IActionResult> Etiquetas(string? sku = null)
         {
             var q = _context.Refacciones.Where(r => r.Activo);
