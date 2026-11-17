@@ -4,6 +4,7 @@ using Plataforma_CG.Data;
 using Plataforma_CG.Models;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Plataforma_CG.Services
 {
@@ -32,14 +33,15 @@ namespace Plataforma_CG.Services
             string? referencia,
             string? comentario,
             IEnumerable<(Refaccion Articulo, int Cantidad)> lineas,
-            RefaccionSapSalidaDatos? seleccion = null)
+            RefaccionSapSalidaDatos? seleccion = null,
+            string? cuentaDepartamentoSap = null)
         {
             return CrearDocumentoJsonPorLinea(
                 folio,
                 fecha,
                 referencia,
                 comentario,
-                lineas.Select(x => (x.Articulo, x.Cantidad, seleccion)));
+                lineas.Select(x => (x.Articulo, x.Cantidad, seleccion)), cuentaDepartamentoSap);
         }
 
         public string CrearDocumentoJsonPorLinea(
@@ -47,7 +49,8 @@ namespace Plataforma_CG.Services
             DateTime fecha,
             string? referencia,
             string? comentario,
-            IEnumerable<(Refaccion Articulo, int Cantidad, RefaccionSapSalidaDatos? Sap)> lineas)
+            IEnumerable<(Refaccion Articulo, int Cantidad, RefaccionSapSalidaDatos? Sap)> lineas,
+            string? cuentaDepartamentoSap = null)
         {
             var lineasSap = new List<Dictionary<string, object?>>();
             foreach (var (articulo, cantidad, seleccion) in lineas)
@@ -85,6 +88,10 @@ namespace Plataforma_CG.Services
                 ["U_DocMeat"] = folio,
                 ["DocumentLines"] = lineasSap
             };
+
+            var departmentCode = ParsearCuentaDepartamento(cuentaDepartamentoSap) ?? ObtenerDepartamentoEncabezado();
+            if (departmentCode.HasValue)
+                documento["Department"] = departmentCode.Value;
 
             return JsonSerializer.Serialize(documento);
         }
@@ -137,7 +144,9 @@ namespace Plataforma_CG.Services
                 },
                 valores,
                 opciones,
-                etiquetas
+                etiquetas,
+                cuentasDepartamento = cuentas?.Select(x => new { codigo = x.CodigoCuenta, nombre = x.NombreCuenta }).ToList() ?? new(),
+                cuentaDepartamento = _configuration["SapServiceLayer:RefaccionesSalidas:Department"]?.Trim()
             };
         }
 
@@ -285,6 +294,22 @@ namespace Plataforma_CG.Services
 
                 _context.RefaccionMovimientos.RemoveRange(movimientosAnteriores);
                 var referencia = string.IsNullOrWhiteSpace(req.Referencia) ? salida.Referencia : req.Referencia.Trim();
+                var cuentaDepartamentoSap = req.CuentaDepartamentoSap;
+                if (string.IsNullOrWhiteSpace(cuentaDepartamentoSap))
+                {
+                    using var docPrevio = JsonDocument.Parse(salida.JsonSap);
+                    if (docPrevio.RootElement.TryGetProperty("Department", out var dept) && dept.TryGetInt32(out var codigo))
+                    {
+                        cuentaDepartamentoSap = codigo.ToString(CultureInfo.InvariantCulture);
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(req.CuentaDepartamentoSap))
+                {
+                    if (ParsearCuentaDepartamento(cuentaDepartamentoSap) is null)
+                        return (false, "La cuenta contable seleccionada debe tener un código numérico para enviarse en el campo Departamento de SAP.");
+                    if (!await _context.CuentasContablesSap.AsNoTracking().AnyAsync(x => x.CodigoCuenta == cuentaDepartamentoSap && x.Activa))
+                        return (false, "La cuenta seleccionada no está activa en el catálogo de cuentas SAP. Sincronízalo e intenta de nuevo.");
+                }
                 var comentario = req.Comentario?.Trim();
                 var maquinas = req.Lineas.Select(x => x.Maquina).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var comentarioSap = ConstruirComentario(comentario, maquinas);
@@ -302,7 +327,7 @@ namespace Plataforma_CG.Services
                 salida.Comentario = comentarioSap;
                 salida.CantidadLineas = req.Lineas.Count;
                 salida.JsonSap = CrearDocumentoJsonPorLinea(folio, salida.FechaCreacion.Date, referencia, comentarioSap,
-                    req.Lineas.Select(x => (articulos[x.Id], x.Cantidad, (RefaccionSapSalidaDatos?)selecciones[x.Id])));
+                    req.Lineas.Select(x => (articulos[x.Id], x.Cantidad, (RefaccionSapSalidaDatos?)selecciones[x.Id])), cuentaDepartamentoSap);
                 salida.Estado = "PENDIENTE";
                 salida.Error = null;
                 salida.RespuestaSap = null;
@@ -368,6 +393,11 @@ namespace Plataforma_CG.Services
                         return (true, true, "SAP ya tenía este folio; no se creó un duplicado.", salida.SapDocEntry, salida.SapDocNum);
                     }
 
+                    // Agrega el departamento también a salidas pendientes creadas antes
+                    // de configurar el campo de encabezado.
+                    salida.JsonSap = AplicarDepartamentoEncabezado(salida.JsonSap);
+                    await _context.SaveChangesAsync();
+
                     var respuesta = await _sap.PostJsonAsync(Endpoint, salida.JsonSap);
                     if (!respuesta.ok)
                     {
@@ -432,6 +462,33 @@ namespace Plataforma_CG.Services
 
         private string ValorConfig(string clave) =>
             (_configuration[$"SapServiceLayer:RefaccionesSalidas:{clave}"] ?? "").Trim();
+
+        private int? ObtenerDepartamentoEncabezado()
+        {
+            return ParsearCuentaDepartamento(_configuration["SapServiceLayer:RefaccionesSalidas:Department"]);
+        }
+
+        private static int? ParsearCuentaDepartamento(string? cuenta) =>
+            int.TryParse(cuenta?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var codigo) && codigo > 0
+                ? codigo
+                : null;
+
+        private string AplicarDepartamentoEncabezado(string json)
+        {
+            var codigo = ObtenerDepartamentoEncabezado();
+            if (!codigo.HasValue || string.IsNullOrWhiteSpace(json))
+                return json;
+
+            var documento = JsonNode.Parse(json)?.AsObject();
+            if (documento == null)
+                return json;
+
+            if (documento.ContainsKey("Department"))
+                return json;
+
+            documento["Department"] = codigo.Value;
+            return documento.ToJsonString();
+        }
 
         private void AgregarDimension(Dictionary<string, object?> linea, string propiedadSap, string claveConfig, string? seleccionado)
         {
