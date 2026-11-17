@@ -48,7 +48,7 @@
             const sumas = new Map(reglas.sumas.filter(r => r.subclasificaciones.includes(nombre)).map(r => [r.destino,r]));
             let descuentos = reglas.descuentos.filter(r => r.subclasificaciones.includes(nombre)).map(r => ({origen:r.origen,destino:r.destino}));
             const modos=new Map(descuentos.map(d=>[`${d.origen}:${d.destino}`,{antes:true,despues:true}]));
-            originales.filter(v => v.subClasificacionId === clas.id && !reglas.conocidos.includes(sku(v.sku))).forEach(v => {
+            originales.filter(v => v.subClasificacionId === clas.id && !reglas.conocidos.includes(sku(v.sku)) && !reglas.administrados?.[sku(v.sku)]?.includes(nombre)).forEach(v => {
                 const anterior=sku(v.lineaCodigo)||null,siguiente=sku(editados.has(sku(v.sku))?editados.get(sku(v.sku)).lineaCodigo:v.lineaCodigo)||null;
                 for(const padre of new Set([anterior,siguiente].filter(Boolean))){const d={origen:sku(v.sku),destino:padre};descuentos.push(d);modos.set(`${d.origen}:${d.destino}`,{antes:padre===anterior,despues:padre===siguiente});}
             });
@@ -60,16 +60,17 @@
             while(cola.length) { const n=cola.shift(); orden.push(n); aristas.filter(a=>a.origen===n).forEach(a=>{grados.set(a.destino,grados.get(a.destino)-1);if(grados.get(a.destino)===0)cola.push(a.destino);}); }
             if(orden.length!==nodos.size)throw new Error('Las afectaciones contienen un ciclo. Revisa las líneas de los productos.');
             const tocados=new Set(editados.keys()), actuales=new Map(before);
-            if(normalizar)[...sumas.keys(),...reglas.bloqueados.map(b=>b.sku)].forEach(s=>tocados.add(s));
+            const bloqueados=reglas.bloqueados.filter(b=>!b.subclasificaciones?.length||b.subclasificaciones.includes(nombre));
+            if(normalizar)[...sumas.keys(),...bloqueados.map(b=>b.sku)].forEach(s=>tocados.add(s));
             for(const [s,v] of editados)actuales.set(s,centavos(v.partSub));
             const antes=s=>before.get(s)||0, actual=s=>actuales.get(s)||0;
             const deltaDe=d=>{const m=modos.get(`${d.origen}:${d.destino}`);return (m.despues?actual(d.origen):0)-(m.antes?antes(d.origen):0);};
             for(const s of orden) {
                 if(!tocados.has(s))continue;
-                const bloqueo=reglas.bloqueados.find(b=>b.sku===s), suma=sumas.get(s);
+                const bloqueo=bloqueados.find(b=>b.sku===s), suma=sumas.get(s);
                 let valor=actual(s), motivo='Captura manual';
                 if(bloqueo) { if(editados.has(s)&&centavos(editados.get(s).partSub)!==0)throw new Error(`${s}: ${bloqueo.motivo} en ${tipo(plan)}.`); valor=0;motivo=bloqueo.motivo; }
-                else if(suma) { valor=suma.fuentes.reduce((a,f)=>a+actual(f),0)-suma.restar.reduce((a,f)=>a+actual(f),0); motivo=`Suma de ${suma.fuentes.join(' + ')}${suma.restar.length?' menos '+suma.restar.join(' + '):''}`; }
+                else if(suma) { valor=centavos(suma.constante||0)+suma.fuentes.reduce((a,f)=>a+actual(f),0)-suma.restar.reduce((a,f)=>a+actual(f),0); motivo=suma.constante===1?`Restante de 1.00 menos ${suma.restar.join(' + ')}`:`Suma de ${suma.fuentes.join(' + ')}${suma.restar.length?' menos '+suma.restar.join(' + '):''}`; }
                 else { const entradas=descuentos.filter(d=>d.destino===s), delta=entradas.reduce((a,d)=>a+deltaDe(d),0); valor-=delta;
                     if(delta)motivo='Descuento/restitución por '+entradas.filter(d=>deltaDe(d)!==0).map(d=>d.origen).join(', '); }
                 if(!presentes.has(s)) { if((!sumas.has(s)&&valor!==0&&descuentos.some(d=>d.destino===s&&deltaDe(d)!==0))||(sumas.has(s)&&sumas.get(s).restar.some(f=>actual(f)!==antes(f))))throw new Error(`Falta ${s} en ${clas.nombre}; agrégalo al plan antes de mover el producto que lo afecta.`); continue; }
@@ -84,7 +85,7 @@
         const pendientes=[...salida.values()].filter(v=>v.partSub<0||v.partSub>1).map(v=>{
             const clas=subclasificaciones.find(s=>s.id===v.subClasificacionId);
             const suma=reglas.sumas.find(s=>s.destino===v.sku&&s.subclasificaciones.includes(sub(clas.nombre)));
-            return {sku:v.sku,subClasificacionId:clas.id,subclasificacion:clas.nombre,valor:v.partSub,fuentes:suma?.fuentes||[]};
+            return {sku:v.sku,subClasificacionId:clas.id,subclasificacion:clas.nombre,valor:v.partSub,fuentes:suma?[...suma.fuentes,...suma.restar]:[]};
         });
         const invalidos=pendientes.filter(p=>normalizar||afectados.has(key(p)));
         if(!permitirPendientes&&invalidos.length)

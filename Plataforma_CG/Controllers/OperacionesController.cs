@@ -158,8 +158,37 @@ namespace Plataforma_CG.Controllers
                 return Ok(res);
         }
         [HttpGet]
-        public async Task<IActionResult> ConsultarLogEtiq(int ubic,string fechain, string fechafin)
+        public IActionResult BuscarSkusLogEtiq(int ubic, string fechain, string fechafin, string? busq)
         {
+            if (!DateTime.TryParseExact(fechain, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var fechaInicial) ||
+                !DateTime.TryParseExact(fechafin, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var fechaFinal) ||
+                fechaInicial > fechaFinal)
+            {
+                return BadRequest("Selecciona un rango de fechas válido.");
+            }
+
+            if (string.IsNullOrWhiteSpace(busq))
+            {
+                return Ok(Array.Empty<SkuHistorialEtiquetacionModel>());
+            }
+
+            return Ok(aet.BuscarSkusHistorial(ubic == 0 ? "TIF" : "P1", fechaInicial, fechaFinal, busq));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ConsultarLogEtiq(int ubic, string fechain, string fechafin, string? sku = null)
+        {
+            if (!DateTime.TryParseExact(fechain, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var fechaInicial) ||
+                !DateTime.TryParseExact(fechafin, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var fechaFinal) ||
+                fechaInicial > fechaFinal)
+            {
+                return BadRequest("Selecciona un rango de fechas válido.");
+            }
+
             var eti = new List<EtiquetasModel>();
             string ubica = "";
             if (ubic == 0)
@@ -172,7 +201,7 @@ namespace Plataforma_CG.Controllers
                 ubica = "P1";
                 eti = aet.ConsultarEtiquetasP1();
             }
-            var res = aet.ReporteEtiquetas(ubica,fechain,fechafin,eti);
+            var res = aet.ReporteEtiquetas(ubica, fechaInicial, fechaFinal, eti, sku);
 
             var identificadores = res
                 .Select(x => x.Usuario?.Trim())
@@ -532,8 +561,10 @@ namespace Plataforma_CG.Controllers
         public async Task<IActionResult> PlaneacionDia(string plan = "NOV", string fecha = "")
         {
             // Capturar antes de leer las filas: una edición simultánea invalidará el guardado.
-            var catalogoVersion = await HttpContext.RequestServices.GetRequiredService<PlaneadorPlanDiarioCatalogoService>()
-                .ObtenerVersionAsync(HttpContext.RequestAborted);
+            var contextoAfectaciones = await HttpContext.RequestServices.GetRequiredService<PlaneadorPlanDiarioCatalogoService>()
+                .ObtenerContextoAsync(HttpContext.RequestAborted);
+            var catalogoVersion = contextoAfectaciones.VersionCatalogo;
+            ViewData["ReglasAfectaciones"] = contextoAfectaciones.Reglas;
             TotalDiarioModel model = new TotalDiarioModel();
             var can = apd.ConsultarPlan(fecha, plan);
             can.TipoPlan = plan;
@@ -567,7 +598,7 @@ namespace Plataforma_CG.Controllers
                         Fecha = fecha,
                         Canales = asi,
                         Participaciones = apd.ListarParticipacion(clas, can.PlaneacionId)
-                            .Where(p => !PlaneadorAfectaciones.Excluido(plan, p.ProductoCodigo)).ToList(),
+                            .Where(p => !PlaneadorAfectaciones.Excluido(plan, p.ProductoCodigo, contextoAfectaciones.Reglas)).ToList(),
                         CatalogoVersion = catalogoVersion,
                         TipoPlan = plan
                     };

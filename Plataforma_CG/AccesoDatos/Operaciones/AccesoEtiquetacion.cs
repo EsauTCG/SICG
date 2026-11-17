@@ -2,6 +2,7 @@
 using Plataforma_CG.Models.Operaciones.Etiquetas;
 using Plataforma_CG.Models.Operaciones.Planeacion.Extra;
 using Plataforma_CG.ViewModels;
+using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -213,16 +214,71 @@ where a.sistemaid = 'ETI' and
             _conn.Close();
             return res;
         }
-        public List<LogEtiquetacionModel> ReporteEtiquetas(string suc, string fechain, string fechafin, List<EtiquetasModel> etq)
+        public List<SkuHistorialEtiquetacionModel> BuscarSkusHistorial(string suc, DateTime fechaInicial, DateTime fechaFinal, string busqueda)
+        {
+            var resultados = new List<SkuHistorialEtiquetacionModel>();
+            using var conexion = new SqlConnection(_cadena);
+            using var comando = new SqlCommand(@"
+                select distinct top (20) a.ArticuloId, b.ProductoNombre
+                from LogEtiq a
+                inner join ArticuloSap b on b.ProductoCodigo = a.ArticuloId
+                where a.Sucursal = @sucursal
+                  and CONVERT(date, a.FechaHora) between @fechaInicial and @fechaFinal
+                  and a.ArticuloId like @busqueda escape '\'
+                order by a.ArticuloId", conexion);
+
+            var texto = busqueda.Trim()
+                .Replace(@"\", @"\\")
+                .Replace("%", @"\%")
+                .Replace("_", @"\_")
+                .Replace("[", @"\[");
+
+            comando.Parameters.Add("@sucursal", SqlDbType.VarChar).Value = suc;
+            comando.Parameters.Add("@fechaInicial", SqlDbType.Date).Value = fechaInicial.Date;
+            comando.Parameters.Add("@fechaFinal", SqlDbType.Date).Value = fechaFinal.Date;
+            comando.Parameters.Add("@busqueda", SqlDbType.VarChar).Value = "%" + texto + "%";
+
+            conexion.Open();
+            using var lector = comando.ExecuteReader();
+            while (lector.Read())
+            {
+                resultados.Add(new SkuHistorialEtiquetacionModel
+                {
+                    ArticuloId = lector["ArticuloId"].ToString() ?? string.Empty,
+                    ProductoNombre = lector["ProductoNombre"].ToString() ?? string.Empty
+                });
+            }
+
+            return resultados;
+        }
+
+        public List<LogEtiquetacionModel> ReporteEtiquetas(string suc, DateTime fechain, DateTime fechafin, List<EtiquetasModel> etq, string? sku = null)
         {
             _conn = new SqlConnection(_cadena);
             
             var res = new List<LogEtiquetacionModel>();
-            string query= $"select a.Sucursal,a.ArticuloId,b.ProductoNombre,a.Usuario,a.EtiqOrigen,a.EtiqNuevo,a.FechaHora from LogEtiq a" +
-$" inner join ArticuloSap b on b.ProductoCodigo = a.ArticuloId" +
-$" where a.Sucursal = '{suc}'" +
-$" and CONVERT(date, a.FechaHora) between '{fechain}' and '{fechafin}'";
+            sku = sku?.Trim();
+            string query = "select a.Sucursal,a.ArticuloId,b.ProductoNombre,a.Usuario,a.EtiqOrigen,a.EtiqNuevo,a.FechaHora from LogEtiq a" +
+                " inner join ArticuloSap b on b.ProductoCodigo = a.ArticuloId" +
+                " where a.Sucursal = @sucursal" +
+                " and CONVERT(date, a.FechaHora) between @fechaInicial and @fechaFinal";
+
+            if (!string.IsNullOrWhiteSpace(sku))
+            {
+                query += " and a.ArticuloId = @sku";
+            }
+
+            query += " order by a.FechaHora desc";
             SqlCommand cmd = new SqlCommand(query,_conn);
+            cmd.Parameters.Add("@sucursal", SqlDbType.VarChar).Value = suc;
+            cmd.Parameters.Add("@fechaInicial", SqlDbType.Date).Value = fechain.Date;
+            cmd.Parameters.Add("@fechaFinal", SqlDbType.Date).Value = fechafin.Date;
+
+            if (!string.IsNullOrWhiteSpace(sku))
+            {
+                cmd.Parameters.Add("@sku", SqlDbType.VarChar).Value = sku;
+            }
+
             _conn.Open();
             try
             {

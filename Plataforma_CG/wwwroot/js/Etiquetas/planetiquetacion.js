@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     inicializarEtiquetacion();
     inicializarUbicacionEtiquetacion();
+    inicializarBuscadorSkuLogEtiquetacion();
 
 });
 
@@ -1317,6 +1318,166 @@ async function guardarEtiquetaArticulo() {
     }
 
 }
+function inicializarBuscadorSkuLogEtiquetacion() {
+    const input = document.getElementById("skuLogEtiq");
+    const contenedor = document.getElementById("sugerenciasSkuLogEtiq");
+    const lista = document.getElementById("listaSkusLogEtiq");
+    const estado = document.getElementById("estadoSkusLogEtiq");
+    if (!input || !contenedor || !lista || !estado)
+        return;
+
+    let temporizador;
+    let solicitud;
+    let ultimaBusqueda = 0;
+    let coincidencias = [];
+    let indiceActivo = -1;
+
+    function cerrar() {
+        clearTimeout(temporizador);
+        solicitud?.abort();
+        solicitud = null;
+        ultimaBusqueda++;
+        coincidencias = [];
+        indiceActivo = -1;
+        lista.replaceChildren();
+        estado.textContent = "";
+        contenedor.style.display = "none";
+        input.setAttribute("aria-expanded", "false");
+        input.removeAttribute("aria-activedescendant");
+    }
+
+    function mostrarEstado(mensaje) {
+        estado.textContent = mensaje;
+        contenedor.style.display = "block";
+        input.setAttribute("aria-expanded", "true");
+    }
+
+    function seleccionar(coincidencia) {
+        input.value = coincidencia.articuloId;
+        input.focus();
+        cerrar();
+        cargarLogEtiquetacion();
+    }
+
+    function programarBusqueda() {
+        cerrar();
+        const busqueda = input.value.trim();
+        if (!busqueda)
+            return;
+
+        const fechaInicial = document.getElementById("fechaInicialLogEtiq")?.value;
+        const fechaFinal = document.getElementById("fechaFinalLogEtiq")?.value;
+        if (!fechaInicial || !fechaFinal || fechaInicial > fechaFinal) {
+            mostrarEstado("Selecciona un rango de fechas válido para buscar SKUs.");
+            return;
+        }
+
+        const numeroBusqueda = ultimaBusqueda;
+        const params = new URLSearchParams({
+            ubic: ubicacionEtiquetacion,
+            fechain: fechaInicial,
+            fechafin: fechaFinal,
+            busq: busqueda
+        });
+        mostrarEstado("Buscando coincidencias...");
+
+        temporizador = setTimeout(async () => {
+            solicitud = new AbortController();
+            try {
+                const response = await fetch(`/Operaciones/BuscarSkusLogEtiq?${params}`, {
+                    signal: solicitud.signal
+                });
+                if (!response.ok)
+                    throw new Error(`HTTP ${response.status}`);
+
+                const resultados = await response.json();
+                if (numeroBusqueda !== ultimaBusqueda)
+                    return;
+                if (!Array.isArray(resultados))
+                    throw new Error("Respuesta de SKUs inválida.");
+
+                coincidencias = resultados;
+                coincidencias.forEach((coincidencia, indice) => {
+                    const opcion = document.createElement("button");
+                    opcion.type = "button";
+                    opcion.tabIndex = -1;
+                    opcion.id = `skuLogEtiqOpcion${indice}`;
+                    opcion.className = "list-group-item list-group-item-action etq-log-sku-option";
+                    opcion.setAttribute("role", "option");
+                    opcion.setAttribute("aria-selected", "false");
+                    opcion.innerHTML = `<strong>${escapeHtml(coincidencia.articuloId)}</strong>
+                        <small>${escapeHtml(coincidencia.productoNombre)}</small>`;
+                    opcion.addEventListener("mousedown", event => event.preventDefault());
+                    opcion.addEventListener("click", () => seleccionar(coincidencia));
+                    lista.appendChild(opcion);
+                });
+
+                mostrarEstado(coincidencias.length === 0
+                    ? "Sin coincidencias en el periodo seleccionado."
+                    : coincidencias.length === 20
+                        ? "Mostrando 20 coincidencias. Sigue escribiendo para precisar."
+                        : `${coincidencias.length} coincidencia(s). Selecciona un SKU.`);
+            }
+            catch (error) {
+                if (error.name === "AbortError" || numeroBusqueda !== ultimaBusqueda)
+                    return;
+                console.error("Error buscando SKUs del historial:", error);
+                mostrarEstado("No pudimos buscar coincidencias. Intenta escribir de nuevo.");
+            }
+            finally {
+                if (numeroBusqueda === ultimaBusqueda)
+                    solicitud = null;
+            }
+        }, 250);
+    }
+
+    input.addEventListener("input", programarBusqueda);
+    input.addEventListener("focus", programarBusqueda);
+    input.addEventListener("keydown", event => {
+        if (event.key === "Escape" && input.getAttribute("aria-expanded") === "true") {
+            event.preventDefault();
+            event.stopPropagation();
+            cerrar();
+            return;
+        }
+        if (event.key === "Tab") {
+            cerrar();
+            return;
+        }
+        if (!coincidencias.length)
+            return;
+
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            indiceActivo = event.key === "ArrowDown"
+                ? (indiceActivo + 1) % coincidencias.length
+                : (indiceActivo <= 0 ? coincidencias.length : indiceActivo) - 1;
+            Array.from(lista.children).forEach((opcion, indice) => {
+                opcion.setAttribute("aria-selected", String(indice === indiceActivo));
+            });
+            const opcion = lista.children[indiceActivo];
+            input.setAttribute("aria-activedescendant", opcion.id);
+            opcion.scrollIntoView({ block: "nearest" });
+        }
+        else if (event.key === "Enter" && (indiceActivo >= 0 || coincidencias.length === 1)) {
+            event.preventDefault();
+            seleccionar(coincidencias[indiceActivo >= 0 ? indiceActivo : 0]);
+        }
+    });
+
+    document.addEventListener("click", event => {
+        if (!contenedor.parentElement.contains(event.target))
+            cerrar();
+    });
+    document.getElementById("fechaInicialLogEtiq")?.addEventListener("change", cerrar);
+    document.getElementById("fechaFinalLogEtiq")?.addEventListener("change", cerrar);
+    document.querySelectorAll('input[name="ubicacionEtiquetacion"]').forEach(opcion => {
+        opcion.addEventListener("change", cerrar);
+    });
+    document.getElementById("modalLogEtiquetacion")?.addEventListener("hide.bs.modal", cerrar);
+    input.form?.addEventListener("submit", cerrar);
+}
+
 async function abrirModalLogEtiquetacion() {
 
     const modalElement =
@@ -1411,6 +1572,9 @@ async function cargarLogEtiquetacion() {
             "fechaFinalLogEtiq"
         )?.value;
 
+    const sku =
+        document.getElementById("skuLogEtiq")?.value.trim() || "";
+
 
     /*
      * =========================================
@@ -1424,6 +1588,11 @@ async function cargarLogEtiquetacion() {
             "Selecciona la fecha inicial y final."
         );
 
+        return;
+    }
+
+    if (fechaInicial > fechaFinal) {
+        alert("La fecha inicial no puede ser posterior a la fecha final.");
         return;
     }
 
@@ -1492,6 +1661,10 @@ async function cargarLogEtiquetacion() {
             fechaFinal
         );
 
+        if (sku) {
+            params.append("sku", sku);
+        }
+
 
         /*
          * =========================================
@@ -1553,7 +1726,8 @@ async function cargarLogEtiquetacion() {
 
 
         renderizarLogEtiquetacion(
-            registros
+            registros,
+            sku
         );
 
     }
@@ -1593,7 +1767,7 @@ async function cargarLogEtiquetacion() {
     }
 
 }
-function renderizarLogEtiquetacion(registros) {
+function renderizarLogEtiquetacion(registros, sku = "") {
 
     const tbody =
         document.getElementById(
@@ -1618,8 +1792,8 @@ function renderizarLogEtiquetacion(registros) {
                 <td colspan="6">
                     <div class="etq-empty-state">
                         <i class="bi bi-clock-history" aria-hidden="true"></i>
-                        <strong>Sin registros en este periodo</strong>
-                        <span>Prueba con un rango de fechas diferente.</span>
+                        <strong>${sku ? "Sin movimientos para este SKU" : "Sin registros en este periodo"}</strong>
+                        <span>${sku ? "Verifica el SKU completo o prueba con otro rango de fechas." : "Prueba con un rango de fechas diferente."}</span>
                     </div>
                 </td>
 

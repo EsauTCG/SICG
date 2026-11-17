@@ -15,6 +15,7 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
     private async Task<PropuestaAfectaciones> PrepararAfectacionesAsync(SqlConnection cn, SqlTransaction? tx,
         PlanDiarioCatalogoGuardar? guardar, PlanDiarioCatalogoEliminar? eliminar, CancellationToken ct)
     {
+        var config = await LeerReglasAsync(cn, tx, ct);
         var bloqueo = tx is not null || Transaction.Current is not null ? "WITH (UPDLOCK,HOLDLOCK)" : "";
         using var result = await cn.QueryMultipleAsync(Cmd($"""
             SELECT {Columnas} FROM dbo.Participacion p {bloqueo} ORDER BY p.Id;
@@ -24,7 +25,7 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
         var filas = (await result.ReadAsync<PlanDiarioCatalogoFila>()).ToList();
         var clases = (await result.ReadAsync<ClasAfectacion>()).ToDictionary(c => c.Id);
         var subs = (await result.ReadAsync<SubAfectacion>()).ToList();
-        var version = Version(new { Reglas = PlaneadorAfectaciones.Version, Filas = filas });
+        var version = Version(new { Reglas = PlaneadorAfectaciones.Hash(config.Definicion), Filas = filas });
         var esperada = guardar?.VersionCatalogo ?? eliminar?.VersionCatalogo;
         if (string.IsNullOrEmpty(esperada) || version != esperada)
             throw new PlanDiarioCatalogoConflictoException("Cambió el catálogo o sus afectaciones. Actualiza el listado y revisa nuevamente los cambios antes de guardar.");
@@ -48,8 +49,8 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
             {
                 if (guardar.Distribuciones.Any(d => subclases.All(s => s.Id != d.SubClasificacionId)))
                     throw new PlanDiarioCatalogoValidacionException("Las subclasificaciones deben pertenecer al tipo de plan seleccionado.");
-                if (PlaneadorAfectaciones.Excluido(clase.Tipo, guardar.Sku))
-                    throw new PlanDiarioCatalogoValidacionException($"{guardar.Sku} está excluido de la plantilla {clase.Tipo} según el Excel.");
+                if (PlaneadorAfectaciones.Excluido(clase.Tipo, guardar.Sku, config.Definicion))
+                    throw new PlanDiarioCatalogoValidacionException($"{guardar.Sku} está excluido del plan {clase.Tipo} por sus afectaciones.");
                 foreach (var s in subclases)
                 {
                     var v = new AfectacionesValor(guardar.Sku, s.Id, guardar.Distribuciones.FirstOrDefault(d => d.SubClasificacionId == s.Id)?.PartSub ?? 0, guardar.LineaCodigo);
@@ -59,7 +60,7 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
                 }
             }
             var efectivos = solicitados.Values.ToList();
-            var calculo = PlaneadorAfectaciones.Simular(clase.Tipo, subclases, originales, efectivos);
+            var calculo = PlaneadorAfectaciones.Simular(clase.Tipo, subclases, originales, efectivos, definicion: config.Definicion);
             cambiosTotales.AddRange(calculo.Cambios);
             if (guardar?.ClasificacionId == id)
             {
@@ -111,7 +112,8 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
     private static async Task ValidarAfectacionesDiaAsync(SqlConnection cn, SqlTransaction? tx, List<Models.Operaciones.Planeacion.Diaria.PlanDiarioModel> lista, int planId, CancellationToken ct)
     {
         var tipo = await cn.QuerySingleAsync<string>(Cmd("SELECT TipoPlan FROM dbo.PlaneacionProduccion WHERE PlaneacionId=@PlanId;", new { PlanId = planId }, tx, ct));
-        if (lista.Any(d => PlaneadorAfectaciones.Excluido(tipo, d.ProductoCodigo)))
+        var config = await LeerReglasAsync(cn, tx, ct);
+        if (lista.Any(d => PlaneadorAfectaciones.Excluido(tipo, d.ProductoCodigo, config.Definicion)))
             throw new PlanDiarioCatalogoValidacionException("El plan incluye un SKU excluido por la plantilla. Vuelve a abrir el día.");
         var subs = (await cn.QueryAsync<AfectacionesSubclasificacion>(Cmd("""
             SELECT s.Id,s.Nombre FROM dbo.SubClasif s JOIN dbo.CanalPlaneacion cp ON cp.fk_SubClas=s.Id
@@ -121,7 +123,7 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService
             (decimal)(d.Participaciones.FirstOrDefault(p => p.fk_SubClas == s.Id)?.PartSub ?? 0)))).ToList();
         // Estos valores llegan de un guardado nuevo: validar también su precisión,
         // aunque la lectura del estado histórico admita capturas de mayor precisión.
-        var calculo = PlaneadorAfectaciones.Simular(tipo, subs, valores, valores, true);
+        var calculo = PlaneadorAfectaciones.Simular(tipo, subs, valores, valores, true, definicion: config.Definicion);
         if (calculo.Cambios.Count > 0)
             throw new PlanDiarioCatalogoValidacionException("Hay productos calculados que no coinciden con sus afectaciones. Revisa los avisos del plan antes de guardar.");
     }

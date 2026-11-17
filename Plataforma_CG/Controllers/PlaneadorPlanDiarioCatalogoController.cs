@@ -64,6 +64,24 @@ public sealed class PlaneadorPlanDiarioCatalogoController(PlaneadorPlanDiarioCat
     public Task<IActionResult> Historial(string? sku, int? clasificacionId, int pagina = 1, CancellationToken ct = default)
         => EjecutarAsync(async () => Json(await service.HistorialAsync(sku, clasificacionId, pagina, ct)));
 
+    [HttpGet("Afectaciones")]
+    public Task<IActionResult> Afectaciones(CancellationToken ct)
+        => EjecutarAsync(async () => Json(await service.ListarReglasAsync(ct)));
+
+    [HttpPost("PrevisualizarAfectacion")]
+    public Task<IActionResult> PrevisualizarAfectacion([FromBody] AfectacionGuardar? input, CancellationToken ct)
+        => input is null || !ModelState.IsValid ? Task.FromResult<IActionResult>(BadRequest(new { mensaje = "Revisa la afectación." })) :
+            EjecutarAsync(async () => Json(await service.PrevisualizarReglaAsync(input, ct)));
+
+    [HttpPost("GuardarAfectacion")]
+    public Task<IActionResult> GuardarAfectacion([FromBody] AfectacionGuardar? input, CancellationToken ct)
+        => input is null || !ModelState.IsValid ? Task.FromResult<IActionResult>(BadRequest(new { mensaje = "Revisa la afectación." })) :
+            EjecutarAsync(async () => { await service.GuardarReglaAsync(input, User.Identity?.Name ?? "", ct); return Json(new { mensaje = "Afectación guardada. Vuelve a abrir los planes que estaban abiertos para cargar las nuevas reglas." }); });
+
+    [HttpGet("HistorialAfectaciones")]
+    public Task<IActionResult> HistorialAfectaciones(string? tipoPlan, int pagina = 1, CancellationToken ct = default)
+        => EjecutarAsync(async () => Json(await service.HistorialReglasAsync(tipoPlan, pagina, ct)));
+
     private async Task<IActionResult> EjecutarAsync(Func<Task<IActionResult>> action)
     {
         try { return await action(); }
@@ -74,7 +92,7 @@ public sealed class PlaneadorPlanDiarioCatalogoController(PlaneadorPlanDiarioCat
         catch (Exception ex)
         {
             logger.LogError(ex, "Error en el catálogo global del plan diario.");
-            return StatusCode(503, new { mensaje = "No se pudo completar la operación. Revisa la conexión SIGO y la instalación de PlanDiarioCatalogoHistorial." });
+            return StatusCode(503, new { mensaje = "No se pudo completar la operación. Revisa la conexión SIGO y la instalación del historial del catálogo y sus afectaciones." });
         }
     }
 }

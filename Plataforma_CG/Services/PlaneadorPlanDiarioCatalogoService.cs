@@ -80,8 +80,9 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService(IConfiguration co
         }
         var clasificaciones = (await result.ReadAsync<PlanDiarioCatalogoOpcion>()).ToList();
         var subclasificaciones = (await result.ReadAsync<PlanDiarioCatalogoOpcion>()).ToList();
+        var config = await LeerReglasAsync(cn, null, ct);
         return new { registros, totalFiltrado = total, pagina, tamanoPagina = tamano, clasificaciones, subclasificaciones,
-            versionCatalogo = await VersionCatalogoAsync(cn, null, ct), reglas = PlaneadorAfectaciones.Reglas };
+            versionCatalogo = await VersionCatalogoAsync(cn, null, ct, config.Definicion), reglas = config.Definicion };
     }
 
     public async Task<IReadOnlyList<PlanDiarioCatalogoArticulo>> ArticulosAsync(string? busqueda, CancellationToken ct)
@@ -115,8 +116,9 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService(IConfiguration co
     {
         var articulo = await cn.QuerySingleOrDefaultAsync<PlanDiarioCatalogoArticulo>(Cmd(
             "SELECT ProductoCodigo Sku,ProductoNombre Nombre,U_MASTER Master FROM dbo.ArticuloSap WHERE ProductoCodigo=@Sku;", new { Sku = sku }, tx, ct));
+        var config = await LeerReglasAsync(cn, tx, ct);
         return new { sku, clasificacionId, articulo?.Nombre, articulo?.Master, origenCambio,
-            versionAfectaciones = PlaneadorAfectaciones.Reglas.Version, hashAfectaciones = PlaneadorAfectaciones.Version,
+            versionAfectaciones = config.Definicion.Version, hashAfectaciones = PlaneadorAfectaciones.Hash(config.Definicion),
             filas = await FilasAsync(cn, tx, sku, clasificacionId, ct) };
     }
 
@@ -298,8 +300,8 @@ public sealed partial class PlaneadorPlanDiarioCatalogoService(IConfiguration co
             """, new { Sku = sku, ClasificacionId = clasificacionId, Offset = (Math.Clamp(pagina, 1, 100000) - 1) * 25 }, null, ct))).ToList();
     }
 
-    private static async Task<string> VersionCatalogoAsync(SqlConnection cn, SqlTransaction? tx, CancellationToken ct)
-        => Version(new { Reglas = PlaneadorAfectaciones.Version, Filas = (await cn.QueryAsync<PlanDiarioCatalogoFila>(Cmd($"SELECT {Columnas} FROM dbo.Participacion p ORDER BY p.Id;", null, tx, ct))).ToList() });
+    private static async Task<string> VersionCatalogoAsync(SqlConnection cn, SqlTransaction? tx, CancellationToken ct, AfectacionesDefinicion? reglas = null)
+        => Version(new { Reglas = PlaneadorAfectaciones.Hash(reglas ?? (await LeerReglasAsync(cn, tx, ct)).Definicion), Filas = (await cn.QueryAsync<PlanDiarioCatalogoFila>(Cmd($"SELECT {Columnas} FROM dbo.Participacion p ORDER BY p.Id;", null, tx, ct))).ToList() });
 
     public async Task<string> ObtenerVersionAsync(CancellationToken ct)
     {

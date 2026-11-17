@@ -8,6 +8,7 @@ public sealed class AfectacionesDefinicion
 public sealed class AfectacionesPlan
 {
     public List<string> Conocidos { get; set; } = [];
+    public Dictionary<string, List<string>> Administrados { get; set; } = [];
     public List<AfectacionesDescuento> Descuentos { get; set; } = [];
     public List<AfectacionesSuma> Sumas { get; set; } = [];
     public List<AfectacionesBloqueo> Bloqueados { get; set; } = [];
@@ -20,6 +21,7 @@ public sealed class AfectacionesDescuento
 }
 public sealed class AfectacionesSuma
 {
+    public decimal Constante { get; set; }
     public string Destino { get; set; } = "";
     public List<string> Fuentes { get; set; } = [];
     public List<string> Restar { get; set; } = [];
@@ -27,6 +29,7 @@ public sealed class AfectacionesSuma
 }
 public sealed class AfectacionesBloqueo
 {
+    public List<string> Subclasificaciones { get; set; } = [];
     public string Sku { get; set; } = "";
     public bool Excluir { get; set; }
     public string Motivo { get; set; } = "";
@@ -36,3 +39,23 @@ public sealed record AfectacionesValor(string Sku, int SubClasificacionId, decim
 public sealed record AfectacionesCambio(string Sku, int SubClasificacionId, string Subclasificacion, decimal Antes, decimal Despues, string Motivo);
 public sealed record AfectacionesPendiente(string Sku, int SubClasificacionId, string Subclasificacion, decimal Valor, IReadOnlyList<string> Fuentes);
 public sealed record AfectacionesResultado(IReadOnlyList<AfectacionesValor> Valores, IReadOnlyList<AfectacionesCambio> Cambios, IReadOnlyList<AfectacionesPendiente> Pendientes);
+
+public sealed class AfectacionRegla
+{
+    public Guid Id { get; set; }
+    public string TipoPlan { get; set; } = "NOV";
+    public string Nombre { get; set; } = "";
+    public string TipoRegla { get; set; } = "Descuento";
+    public List<string> Subclasificaciones { get; set; } = [];
+    public List<string> Origenes { get; set; } = [];
+    public List<string> Destinos { get; set; } = [];
+    public List<string> Restar { get; set; } = [];
+    public bool Excluir { get; set; }
+    public bool Activa { get; set; } = true;
+}
+public sealed class AfectacionGuardar
+{
+    public string Version { get; set; } = "";
+    public AfectacionRegla Regla { get; set; } = new();
+}
+public sealed record AfectacionesContexto(string VersionCatalogo, AfectacionesDefinicion Reglas);

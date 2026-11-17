@@ -8,6 +8,7 @@
     const editor = new bootstrap.Modal(el('pdEditor')), deletion = new bootstrap.Modal(el('pdEliminarModal')), history = new bootstrap.Modal(el('pdHistorialModal'));
     let pagina = 1, paginas = 1, listRequest = 0, records = new Map(), editando = null, eliminando = null;
     let clasificaciones = [], subs = [], historyPage = 1, historyRequest = 0, versionCatalogo = '', versionEdicion = '', reglas = null, confirmacion = null;
+    window.addEventListener('plan-diario-reglas-actualizadas', () => { invalidarPreview(); cargar(); });
     const key = r => `${r.clasificacionId}:${r.sku}`;
     const fecha = value => value ? new Date(value).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '';
     const numero = value => value === null || value === undefined ? 'Sin valor' : Number(value).toLocaleString('es-MX', { maximumFractionDigits: 2 });
@@ -104,8 +105,9 @@
             const nombre=subs.find(s=>s.id===Number(input.dataset.sub))?.nombre||'';
             const sub=nombre.toUpperCase().replace(/[ .-]/g,'');
             const aliases={PREMIUN:'PREMIUM',PREMIUM:'PREMIUM',NOVLINEA:'NOV-LINEA',LINEA:'NOV-LINEA',SELECTO:'SELECTO',VGBIG:'VG-BIG',VGLINEA:'VG-LINEA',VR:'VR',REG:'VR',TAMARILLA:'T.Amarilla',TERAMA:'T.Amarilla'};
-            const suma=p?.sumas.find(s=>s.destino===codigo&&s.subclasificaciones.includes(aliases[sub]||sub)),bloqueo=p?.bloqueados.find(b=>b.sku===codigo);
-            input.readOnly=!!suma||!!bloqueo;input.title=bloqueo?bloqueo.motivo:suma?'Automático: '+suma.fuentes.join(' + ')+(suma.restar.length?' menos '+suma.restar.join(' + '):''):'';
+            const normalizado=aliases[sub]||sub;
+            const suma=p?.sumas.find(s=>s.destino===codigo&&s.subclasificaciones.includes(normalizado)),bloqueo=p?.bloqueados.find(b=>b.sku===codigo&&(!b.subclasificaciones?.length||b.subclasificaciones.includes(normalizado)));
+            input.readOnly=!!suma||!!bloqueo;input.title=bloqueo?bloqueo.motivo:suma?'Automático: '+(suma.constante===1?'1.00':suma.fuentes.join(' + '))+(suma.restar.length?' menos '+suma.restar.join(' + '):''):'';
             if(bloqueo)input.value='0';
         }
     }

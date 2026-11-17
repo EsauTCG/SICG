@@ -75,12 +75,13 @@
         const c=contexto();if(!c)return;
         const reglas=c.definicion.planes[motor().tipo(c.tipo)];
         for(const fila of filas()) {
-            const sku=fila.dataset.sku.trim().toUpperCase(), bloqueo=reglas.bloqueados.find(b=>b.sku===sku);
+            const sku=fila.dataset.sku.trim().toUpperCase();
             for(const input of fila.querySelectorAll('.input-participacion')) {
                 const nombre=motor().sub(input.dataset.subclasNombre||'');
+                const bloqueo=reglas.bloqueados.find(b=>b.sku===sku&&(!b.subclasificaciones?.length||b.subclasificaciones.includes(nombre)));
                 const suma=reglas.sumas.find(s=>s.destino===sku&&s.subclasificaciones.includes(nombre));
                 input.readOnly=!!bloqueo||!!suma;
-                input.title=bloqueo?bloqueo.motivo:suma?`Automático: ${suma.fuentes.join(' + ')}${suma.restar.length?' menos '+suma.restar.join(' + '):''}`:'';
+                input.title=bloqueo?bloqueo.motivo:suma?`Automático: ${suma.constante===1?'1.00':suma.fuentes.join(' + ')}${suma.restar.length?' menos '+suma.restar.join(' + '):''}`:'';
                 input.setAttribute('aria-label',`${sku} · ${input.dataset.subclasNombre||''}${input.readOnly?' · automático':''}`);
                 if(bloqueo){input.value='0.00';input.dataset.prev='0.00';}
             }

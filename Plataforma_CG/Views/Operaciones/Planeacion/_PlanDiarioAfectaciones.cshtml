@@ -1,0 +1,48 @@
+<section class="pp-workspace mt-4" id="pdReglas" aria-labelledby="pdReglasTitulo"
+         data-listado="@Url.Action("Afectaciones", "PlaneadorPlanDiarioCatalogo")"
+         data-revisar="@Url.Action("PrevisualizarAfectacion", "PlaneadorPlanDiarioCatalogo")"
+         data-guardar="@Url.Action("GuardarAfectacion", "PlaneadorPlanDiarioCatalogo")"
+         data-historial="@Url.Action("HistorialAfectaciones", "PlaneadorPlanDiarioCatalogo")">
+    <div class="part-summary">
+        <div><h2 id="pdReglasTitulo" class="h5 mb-1">Afectaciones del plan diario</h2><p class="part-help mb-0">Define cómo se relacionan varios SKU en NOV y VG. Las reglas se usan en el plan diario y en el catálogo global.</p></div>
+        <div class="pp-actions"><button type="button" class="btn btn-outline-secondary" id="paHistorial">Historial de reglas</button><button type="button" class="btn btn-primary" id="paNueva" disabled>Agregar afectación</button></div>
+    </div>
+    <div id="paMensaje" class="alert d-none" role="status"></div>
+    <div class="pp-toolbar part-filters">
+        <div><label for="paFiltroTipo" class="form-label">Tipo de plan</label><select id="paFiltroTipo" class="form-select"><option value="">NOV y VG</option><option>NOV</option><option>VG</option></select></div>
+        <div class="part-search"><label for="paBusqueda" class="form-label">Buscar afectación</label><input id="paBusqueda" type="search" class="form-control" placeholder="Nombre o SKU" /></div>
+        <div><label for="paFiltroEstado" class="form-label">Estado</label><select id="paFiltroEstado" class="form-select"><option value="">Todas</option><option value="1">Activas</option><option value="0">Desactivadas</option></select></div>
+        <button type="button" class="btn btn-outline-secondary" id="paActualizar">Actualizar reglas</button>
+    </div>
+    <p class="part-help">Al publicar una regla, vuelve a abrir los planes que estaban abiertos. Sus capturas se recalculan con las nuevas reglas y se conservan al guardar cada plan. Desactivar una regla conserva sus SKU y su historial.</p>
+    <div class="table-responsive"><table class="table table-bordered table-sm part-table"><thead><tr><th>Regla / Plan</th><th>Comportamiento</th><th>Subclasificaciones</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="paFilas"><tr><td colspan="5">Cargando afectaciones…</td></tr></tbody></table></div>
+    <p id="paTotal" class="part-help" aria-live="polite"></p>
+</section>
+
+<div class="modal fade pp-sigo pp-part-modal" id="paEditor" tabindex="-1" aria-labelledby="paTitulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 id="paTitulo" class="modal-title">Agregar afectación</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <form id="paFormulario">
+        <div class="modal-body">
+            <div id="paError" class="alert d-none" role="alert"></div>
+            <div class="row g-3">
+                <div class="col-md-8"><label for="paNombre" class="form-label">Nombre de la regla</label><input id="paNombre" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-4"><label for="paTipoPlan" class="form-label">Tipo de plan</label><select id="paTipoPlan" class="form-select"><option>NOV</option><option>VG</option></select></div>
+                <div class="col-md-8"><label for="paTipoRegla" class="form-label">Comportamiento</label><select id="paTipoRegla" class="form-select"><option value="Descuento">Descontar de otros SKU</option><option value="Reparto">Repartir 1.00 entre varios SKU</option><option value="Calculado">Calcular SKU desde otros (solo lectura)</option><option value="Cero">Mantener SKU en cero (solo lectura)</option></select></div>
+                <div class="col-md-4 d-flex align-items-end"><label class="form-check mb-2"><input id="paActiva" type="checkbox" class="form-check-input" checked /> Regla activa</label></div>
+                <div class="col-12"><fieldset><legend class="pd-legend">Subclasificaciones</legend><div id="paSubs" class="d-flex flex-wrap gap-3"></div></fieldset></div>
+            </div>
+            <p id="paAyuda" class="alert alert-info mt-3"></p>
+            <p class="part-help">Busca SKU de ArticuloSAP de SIGO y agrégalos a cada grupo. Primero deben existir en el catálogo global del tipo de plan. Puedes seleccionar varios SKU en la misma regla.</p>
+            <div id="paGrupos" class="row g-3"></div>
+            <label class="form-check mt-3" id="paExcluirGrupo"><input id="paExcluir" class="form-check-input" type="checkbox" /> Ocultar estos SKU del plan diario (requiere todas las subclasificaciones).</label>
+            <div id="paRevision" class="alert alert-light border mt-3 d-none" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary" id="paConfirmar">Revisar regla</button></div>
+    </form>
+</div></div></div>
+
+<div class="modal fade pp-sigo pp-part-modal" id="paHistorialModal" tabindex="-1" aria-labelledby="paHistorialTitulo" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 id="paHistorialTitulo" class="modal-title">Historial de afectaciones</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><div id="paHistorialContenido" aria-live="polite"></div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="paHistorialAnterior">Anterior</button><span id="paHistorialPagina"></span><button type="button" class="btn btn-outline-secondary" id="paHistorialSiguiente">Siguiente</button><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button></div>
+</div></div></div>

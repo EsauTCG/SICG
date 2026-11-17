@@ -16,6 +16,7 @@ public static class PlaneadorAfectaciones
     public static AfectacionesDefinicion Reglas => Definicion.Value;
     private static readonly Lazy<string> VersionDefinicion = new(() => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(Reglas))));
     public static string Version => VersionDefinicion.Value;
+    public static string Hash(AfectacionesDefinicion definicion) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(definicion)));
     public static string Tipo(string tipo) => tipo.Trim().ToUpperInvariant() is "BG" ? "VG" : tipo.Trim().ToUpperInvariant();
     public static string Sub(string nombre) => nombre.Trim().ToUpperInvariant().Replace(" ", "").Replace("-", "").Replace(".", "") switch
     {
@@ -24,12 +25,12 @@ public static class PlaneadorAfectaciones
         "TERAMA" or "TAMARILLA" or "TERAMARILLA" => "T.Amarilla", var value => value
     };
     private static string Sku(string sku) => sku.Trim().ToUpperInvariant();
-    public static bool Excluido(string tipo, string sku) => Reglas.Planes.TryGetValue(Tipo(tipo), out var p) && p.Bloqueados.Any(b => b.Excluir && b.Sku == Sku(sku));
+    public static bool Excluido(string tipo, string sku, AfectacionesDefinicion? definicion = null) => (definicion ?? Reglas).Planes.TryGetValue(Tipo(tipo), out var p) && p.Bloqueados.Any(b => b.Excluir && b.Sku == Sku(sku));
 
     public static AfectacionesResultado Simular(string tipo, IReadOnlyList<AfectacionesSubclasificacion> subclasificaciones,
-        IReadOnlyList<AfectacionesValor> originales, IReadOnlyList<AfectacionesValor> cambios, bool normalizar = false, bool permitirPendientes = false)
+        IReadOnlyList<AfectacionesValor> originales, IReadOnlyList<AfectacionesValor> cambios, bool normalizar = false, bool permitirPendientes = false, AfectacionesDefinicion? definicion = null)
     {
-        if (!Reglas.Planes.TryGetValue(Tipo(tipo), out var reglas)) throw new PlanDiarioCatalogoValidacionException("El plan de afectaciones debe ser NOV o VG.");
+        if (!(definicion ?? Reglas).Planes.TryGetValue(Tipo(tipo), out var reglas)) throw new PlanDiarioCatalogoValidacionException("El plan de afectaciones debe ser NOV o VG.");
         if (originales.Count > 10000 || cambios.Count > 10000) throw new PlanDiarioCatalogoValidacionException("Demasiados productos para calcular las afectaciones.");
         var subs = subclasificaciones.ToDictionary(s => s.Id);
         foreach (var v in originales.Concat(cambios))
@@ -65,7 +66,8 @@ public static class PlaneadorAfectaciones
             var descuentos = reglas.Descuentos.Where(r => r.Subclasificaciones.Contains(nombre)).Select(r => (r.Origen, r.Destino)).ToList();
             var modos = descuentos.Distinct().ToDictionary(d => d, _ => (Antes: true, Despues: true));
             // Conservar el comportamiento de líneas para SKU que no aparecen en la plantilla suministrada.
-            foreach (var v in originales.Where(v => v.SubClasificacionId == sub.Id && !reglas.Conocidos.Contains(Sku(v.Sku))))
+            foreach (var v in originales.Where(v => v.SubClasificacionId == sub.Id && !reglas.Conocidos.Contains(Sku(v.Sku)) &&
+                !(reglas.Administrados.TryGetValue(Sku(v.Sku), out var administradas) && administradas.Contains(nombre))))
             {
                 var anterior = string.IsNullOrWhiteSpace(v.LineaCodigo) ? null : Sku(v.LineaCodigo);
                 var siguiente = editados.TryGetValue(Sku(v.Sku), out var editado) ? editado.LineaCodigo : v.LineaCodigo;
@@ -86,7 +88,8 @@ public static class PlaneadorAfectaciones
             while (cola.TryDequeue(out var n)) { orden.Add(n); foreach (var a in aristas.Where(a => a.Origen == n)) if (--grados[a.Destino] == 0) cola.Enqueue(a.Destino); }
             if (orden.Count != nodos.Count) throw new PlanDiarioCatalogoValidacionException("Las afectaciones contienen un ciclo. Revisa las líneas de los productos.");
             var tocados = editados.Keys.ToHashSet();
-            if (normalizar) tocados.UnionWith(sumas.Keys.Concat(reglas.Bloqueados.Select(b => b.Sku)));
+            var bloqueados = reglas.Bloqueados.Where(b => b.Subclasificaciones.Count == 0 || b.Subclasificaciones.Contains(nombre)).ToList();
+            if (normalizar) tocados.UnionWith(sumas.Keys.Concat(bloqueados.Select(b => b.Sku)));
             var actuales = new Dictionary<string,decimal>(baseValores);
             foreach (var v in editados) actuales[v.Key] = v.Value.PartSub;
             decimal Antes(string sku) => baseValores.GetValueOrDefault(sku);
@@ -95,7 +98,7 @@ public static class PlaneadorAfectaciones
             foreach (var sku in orden)
             {
                 if (!tocados.Contains(sku)) continue;
-                var bloqueo = reglas.Bloqueados.FirstOrDefault(b => b.Sku == sku);
+                var bloqueo = bloqueados.FirstOrDefault(b => b.Sku == sku);
                 var motivo = "Captura manual";
                 var valor = Actual(sku);
                 if (bloqueo is not null)
@@ -106,8 +109,9 @@ public static class PlaneadorAfectaciones
                 }
                 else if (sumas.TryGetValue(sku, out var suma))
                 {
-                    valor = suma.Fuentes.Sum(Actual) - suma.Restar.Sum(Actual);
-                    motivo = "Suma de " + string.Join(" + ", suma.Fuentes) + (suma.Restar.Count == 0 ? "" : " menos " + string.Join(" + ", suma.Restar));
+                    valor = suma.Constante + suma.Fuentes.Sum(Actual) - suma.Restar.Sum(Actual);
+                    motivo = suma.Constante == 1 ? "Restante de 1.00 menos " + string.Join(" + ", suma.Restar) :
+                        "Suma de " + string.Join(" + ", suma.Fuentes) + (suma.Restar.Count == 0 ? "" : " menos " + string.Join(" + ", suma.Restar));
                 }
                 else
                 {
@@ -138,7 +142,7 @@ public static class PlaneadorAfectaciones
         {
             var sub = subs[v.SubClasificacionId];
             var suma = reglas.Sumas.FirstOrDefault(s => s.Destino == v.Sku && s.Subclasificaciones.Contains(Sub(sub.Nombre)));
-            return new AfectacionesPendiente(v.Sku, sub.Id, sub.Nombre, v.PartSub, suma?.Fuentes ?? []);
+            return new AfectacionesPendiente(v.Sku, sub.Id, sub.Nombre, v.PartSub, suma is null ? [] : suma.Fuentes.Concat(suma.Restar).ToList());
         }).ToList();
         // El catálogo sólo persiste los SKU afectados. Un pendiente histórico de otro
         // grupo no debe impedir corregir éste; el guardado diario sí valida todo el día.
