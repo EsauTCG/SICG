@@ -234,6 +234,7 @@ namespace Plataforma_CG.Models
         public string? Maquina { get; set; }
         public string? Comentario { get; set; }
         public RefaccionSapSalidaDatos? Sap { get; set; }
+        public string? CuentaDepartamentoSap { get; set; }
     }
 
     public class SalidaPosLinea
@@ -250,6 +251,7 @@ namespace Plataforma_CG.Models
         public string? Maquina { get; set; }
         public string? Comentario { get; set; }
         public RefaccionSapSalidaDatos? Sap { get; set; }
+        public string? CuentaDepartamentoSap { get; set; }
         public List<SalidaPosLinea> Lineas { get; set; } = new();
     }
 
@@ -258,6 +260,7 @@ namespace Plataforma_CG.Models
         public string Folio { get; set; } = "";
         public string? Referencia { get; set; }
         public string? Comentario { get; set; }
+        public string? CuentaDepartamentoSap { get; set; }
         public List<SalidaPosLinea> Lineas { get; set; } = new();
     }
 
