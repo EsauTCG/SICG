@@ -14894,7 +14894,11 @@ OPTION (RECOMPILE);";
             // ==========================================
 
             if (string.Equals(filtro.Export, "xlsx", StringComparison.OrdinalIgnoreCase))
-                return ExportExcel(await query.OrderByDescending(x => x.FechaRegistro).ToListAsync());
+                return await ExportExcel(
+                    await query
+                        .OrderByDescending(x => x.FechaRegistro)
+                        .ToListAsync(ct)
+                );
 
             if (string.Equals(filtro.Export, "csv", StringComparison.OrdinalIgnoreCase))
                 return ExportCsv(await query.OrderByDescending(x => x.FechaRegistro).ToListAsync());
@@ -15340,16 +15344,88 @@ OPTION (RECOMPILE);";
         }
 
 
+
         //=======================================================
-        //   EXPORTAR EXCEL (Agrega hoja de DETALLE)
+        // EXPORTAR EXCEL (OV + DOCUMENTOS SAP/MEAT + DETALLE)
         //=======================================================
-        private FileResult ExportExcel(List<OrdenVentaRow> data)
+        private async Task<FileResult> ExportExcel(List<OrdenVentaRow> data)
         {
             using var wb = new ClosedXML.Excel.XLWorkbook();
 
-            // -----------------------
-            // Hoja 1: Encabezados
-            // -----------------------
+            // =====================================================
+            // 1. CONSULTAR DOCUMENTOS SAP Y MEAT
+            // =====================================================
+
+            var consecutivos = data
+                .Select(x => (x.Consecutivo ?? "").Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var documentos = new List<(
+                string Consecutivo,
+                string SAP,
+                string Meat
+            )>();
+
+            // Consultar en lotes para no saturar SQL Server
+            const int tamanoLote = 500;
+
+            for (int i = 0; i < consecutivos.Count; i += tamanoLote)
+            {
+                var lote = consecutivos
+                    .Skip(i)
+                    .Take(tamanoLote)
+                    .ToList();
+
+                var encontrados = await _context.Subpedidos
+                    .AsNoTracking()
+                    .Where(s =>
+                        s.ConsecutivoOV != null &&
+                        lote.Contains(s.ConsecutivoOV.Trim()))
+                    .Select(s => new
+                    {
+                        s.ConsecutivoOV,
+                        s.DocumentoSAP,
+                        s.U_DocMeat
+                    })
+                    .ToListAsync();
+
+                documentos.AddRange(
+                    encontrados.Select(s => (
+                        Consecutivo: (s.ConsecutivoOV ?? "").Trim(),
+                        SAP: (s.DocumentoSAP ?? "").Trim(),
+                        Meat: (s.U_DocMeat ?? "").Trim()
+                    ))
+                );
+            }
+
+            // Agrupar los documentos por OV
+            var documentosPorOV = documentos
+                .GroupBy(
+                    x => x.Consecutivo,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        SAP = string.Join(", ",
+                            g.Select(x => x.SAP)
+                             .Where(x => !string.IsNullOrWhiteSpace(x))
+                             .Distinct(StringComparer.OrdinalIgnoreCase)),
+
+                        Meat = string.Join(", ",
+                            g.Select(x => x.Meat)
+                             .Where(x => !string.IsNullOrWhiteSpace(x))
+                             .Distinct(StringComparer.OrdinalIgnoreCase))
+                    },
+                    StringComparer.OrdinalIgnoreCase
+                );
+
+            // =====================================================
+            // 2. HOJA 1: OV POR VENDEDOR
+            // =====================================================
+
             var ws = wb.Worksheets.Add("OV por Vendedor");
 
             ws.Cell(1, 1).Value = "Consecutivo";
@@ -15363,50 +15439,134 @@ OPTION (RECOMPILE);";
             ws.Cell(1, 9).Value = "Importe";
             ws.Cell(1, 10).Value = "Autorización Pendiente";
 
+            // NUEVAS COLUMNAS
+            ws.Cell(1, 11).Value = "Documento SAP";
+            ws.Cell(1, 12).Value = "Documento Meat";
+
             int r = 2;
+
             foreach (var x in data)
             {
                 ws.Cell(r, 1).Value = x.Consecutivo;
+
                 ws.Cell(r, 2).Value = x.FechaRegistro;
-                ws.Cell(r, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm";
+                ws.Cell(r, 2).Style.DateFormat.Format =
+                    "yyyy-MM-dd HH:mm";
+
                 ws.Cell(r, 3).Value = x.FechaEntrega;
-                ws.Cell(r, 3).Style.DateFormat.Format = "yyyy-MM-dd";
+                ws.Cell(r, 3).Style.DateFormat.Format =
+                    "yyyy-MM-dd";
+
                 ws.Cell(r, 4).Value = x.Cliente;
                 ws.Cell(r, 5).Value = x.ClienteNombre;
                 ws.Cell(r, 6).Value = x.Vendedor;
-                ws.Cell(r, 7).Value = x.Estatus; // si prefieres texto, mapea aquí
+
+                ws.Cell(r, 7).Value = x.Estatus;
+
                 ws.Cell(r, 8).Value = x.KgTotales;
-                ws.Cell(r, 8).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 8).Style.NumberFormat.Format =
+                    "#,##0.00";
+
                 ws.Cell(r, 9).Value = x.Importe;
-                ws.Cell(r, 9).Style.NumberFormat.Format = "$ #,##0.00";
-                ws.Cell(r, 10).Value = x.AutorizacionPendiente ?? "";
+                ws.Cell(r, 9).Style.NumberFormat.Format =
+                    "$ #,##0.00";
+
+                ws.Cell(r, 10).Value =
+                    x.AutorizacionPendiente ?? "";
+
+                // ============================================
+                // DOCUMENTOS SAP Y MEAT
+                // ============================================
+
+                string consecutivo =
+                    (x.Consecutivo ?? "").Trim();
+
+                if (documentosPorOV.TryGetValue(
+                    consecutivo, out var docs))
+                {
+                    ws.Cell(r, 11).Value = docs.SAP;
+                    ws.Cell(r, 12).Value = docs.Meat;
+                }
+                else
+                {
+                    ws.Cell(r, 11).Value = "";
+                    ws.Cell(r, 12).Value = "";
+                }
+
                 r++;
             }
+
+            // Ajustar el ancho de las columnas
             ws.Columns().AdjustToContents();
 
-            // -----------------------
-            // Hoja 2: Detalle por línea
-            // -----------------------
-            var ids = data.Select(d => d.Id).ToList(); // Asegúrate de que OrdenVentaRow tenga Id (del Pedido)
-            var consPorId = data.ToDictionary(d => d.Id, d => d.Consecutivo ?? "");
+            // Mantener encabezados visibles
+            ws.SheetView.FreezeRows(1);
 
-            var lineas = _context.OrdenVentaProducto
-                .AsNoTracking()
-                .Where(l => ids.Contains(l.PedidoId))
-                .Select(l => new
-                {
-                    l.PedidoId,
-                    l.ProductoCodigo,
-                    l.ProductoNombre,
-                    l.Peso,     // decimal?
-                    l.Cajas,    // int? o decimal?
-                    l.Precio    // decimal?
-                })
-                .OrderBy(l => l.PedidoId)
-                .ThenBy(l => l.ProductoCodigo)
-                .ToList();
+            // Filtros de búsqueda
+            if (r > 2)
+            {
+                ws.Range(1, 1, r - 1, 12).SetAutoFilter();
+            }
+
+            // =====================================================
+            // 3. HOJA 2: DETALLE OV
+            //    MISMA LÓGICA ORIGINAL
+            // =====================================================
+
+            var ids = data.Select(d => d.Id).ToList();
+
+            var consPorId = data.ToDictionary(
+                d => d.Id,
+                d => d.Consecutivo ?? ""
+            );
+
+            var lineas = new List<(
+                int PedidoId,
+                string ProductoCodigo,
+                string ProductoNombre,
+                decimal Peso,
+                int Cajas,
+                decimal Precio
+            )>();
+
+            // Consultar detalle por lotes
+            for (int i = 0; i < ids.Count; i += tamanoLote)
+            {
+                var loteIds = ids
+                    .Skip(i)
+                    .Take(tamanoLote)
+                    .ToList();
+
+                var encontrados = await _context.OrdenVentaProducto
+                    .AsNoTracking()
+                    .Where(l => loteIds.Contains(l.PedidoId))
+                    .Select(l => new
+                    {
+                        l.PedidoId,
+                        l.ProductoCodigo,
+                        l.ProductoNombre,
+                        l.Peso,
+                        l.Cajas,
+                        l.Precio
+                    })
+                    .OrderBy(l => l.PedidoId)
+                    .ThenBy(l => l.ProductoCodigo)
+                    .ToListAsync();
+
+                lineas.AddRange(
+                    encontrados.Select(l => (
+                        PedidoId: l.PedidoId,
+                        ProductoCodigo: l.ProductoCodigo ?? "",
+                        ProductoNombre: l.ProductoNombre ?? "",
+                        Peso: l.Peso,
+                        Cajas: l.Cajas,
+                        Precio: l.Precio
+                    ))
+                );
+            }
 
             var wsDet = wb.Worksheets.Add("Detalle OV");
+
             wsDet.Cell(1, 1).Value = "Consecutivo";
             wsDet.Cell(1, 2).Value = "PedidoId";
             wsDet.Cell(1, 3).Value = "Artículo";
@@ -15418,46 +15578,77 @@ OPTION (RECOMPILE);";
             wsDet.Cell(1, 9).Value = "Importe";
 
             int dr = 2;
-            foreach (var l in lineas)
-            {
-                // Campos base (no-nullables)
-                decimal peso = l.Peso;           // decimal
-                int cajasRaw = l.Cajas;          // int
-                decimal precio = l.Precio;         // decimal
 
-                // Si Cajas viene en 0, cuenta como 1
-                int cajasUsadas = (cajasRaw == 0) ? 1 : cajasRaw;
+            foreach (var l in lineas
+                .OrderBy(x => x.PedidoId)
+                .ThenBy(x => x.ProductoCodigo))
+            {
+                // Mantener cálculos originales
+                decimal peso = l.Peso;
+                int cajasRaw = l.Cajas;
+                decimal precio = l.Precio;
+
+                // Si cajas viene en 0, contar como 1
+                int cajasUsadas =
+                    (cajasRaw == 0) ? 1 : cajasRaw;
 
                 decimal kg = peso * cajasUsadas;
                 decimal importe = precio * kg;
 
-                wsDet.Cell(dr, 1).Value = consPorId.TryGetValue(l.PedidoId, out var cons) ? cons : "";
+                wsDet.Cell(dr, 1).Value =
+                    consPorId.TryGetValue(
+                        l.PedidoId, out var cons)
+                        ? cons
+                        : "";
+
                 wsDet.Cell(dr, 2).Value = l.PedidoId;
-                wsDet.Cell(dr, 3).Value = l.ProductoCodigo ?? "";
-                wsDet.Cell(dr, 4).Value = l.ProductoNombre ?? "";
+                wsDet.Cell(dr, 3).Value = l.ProductoCodigo;
+                wsDet.Cell(dr, 4).Value = l.ProductoNombre;
                 wsDet.Cell(dr, 5).Value = peso;
                 wsDet.Cell(dr, 6).Value = cajasUsadas;
                 wsDet.Cell(dr, 7).Value = kg;
                 wsDet.Cell(dr, 8).Value = precio;
                 wsDet.Cell(dr, 9).Value = importe;
 
-                wsDet.Cell(dr, 5).Style.NumberFormat.Format = "#,##0.00";
-                wsDet.Cell(dr, 6).Style.NumberFormat.Format = "#,##0";
-                wsDet.Cell(dr, 7).Style.NumberFormat.Format = "#,##0.00";
-                wsDet.Cell(dr, 8).Style.NumberFormat.Format = "$ #,##0.00";
-                wsDet.Cell(dr, 9).Style.NumberFormat.Format = "$ #,##0.00";
+                wsDet.Cell(dr, 5).Style.NumberFormat.Format =
+                    "#,##0.00";
+
+                wsDet.Cell(dr, 6).Style.NumberFormat.Format =
+                    "#,##0";
+
+                wsDet.Cell(dr, 7).Style.NumberFormat.Format =
+                    "#,##0.00";
+
+                wsDet.Cell(dr, 8).Style.NumberFormat.Format =
+                    "$ #,##0.00";
+
+                wsDet.Cell(dr, 9).Style.NumberFormat.Format =
+                    "$ #,##0.00";
+
                 dr++;
             }
-            wsDet.Columns().AdjustToContents();
 
-            // -----------------------
-            // Devolver archivo
-            // -----------------------
+            wsDet.Columns().AdjustToContents();
+            wsDet.SheetView.FreezeRows(1);
+
+            if (dr > 2)
+            {
+                wsDet.Range(1, 1, dr - 1, 9).SetAutoFilter();
+            }
+
+            // =====================================================
+            // 4. GENERAR Y DESCARGAR EXCEL
+            // =====================================================
+
             using var ms = new MemoryStream();
+
             wb.SaveAs(ms);
-            return File(ms.ToArray(),
+
+            return File(
+                ms.ToArray(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"OV_PorVendedor_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+                $"OV_PorVendedor_{DateTime.Now:yyyyMMdd_HHmm}.xlsx"
+            );
         }
 
 

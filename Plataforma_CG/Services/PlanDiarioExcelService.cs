@@ -8,6 +8,7 @@ namespace Plataforma_CG.Services;
 public static class PlanDiarioExcelService
 {
     private const string TemplateResource = "Plataforma_CG.Plantillas.PlanDiarioReferencia.xlsx";
+    private const string DestinosResource = "Plataforma_CG.Plantillas.PlanDiarioDestinosReferencia.xlsx";
     private const string SinDato = "Sin dato";
 
     public static byte[] Generar(PlanDiarioExcelRequest plan)
@@ -16,6 +17,10 @@ public static class PlanDiarioExcelService
         using var templateStream = typeof(PlanDiarioExcelService).Assembly.GetManifestResourceStream(TemplateResource)
             ?? throw new InvalidOperationException("No se encontró la plantilla del plan diario.");
         using var template = new XLWorkbook(templateStream);
+        using var destinosStream = typeof(PlanDiarioExcelService).Assembly.GetManifestResourceStream(DestinosResource)
+            ?? throw new InvalidOperationException("No se encontró la plantilla de destinos del plan diario.");
+        using var destinosTemplate = new XLWorkbook(destinosStream);
+        var destinosFormato = destinosTemplate.Worksheet("NOV");
         var source = template.Worksheets.First(s => s.Name.Trim() == plan.TipoPlan);
         var originalCount = plan.TipoPlan == "NOV" ? 3 : 4;
         var templateOrder = Enumerable.Range(4, originalCount)
@@ -29,6 +34,13 @@ public static class PlanDiarioExcelService
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet(plan.TipoPlan);
         var catalogSheet = workbook.AddWorksheet("CONCENTRADO");
+        var destinosSheet = destinosTemplate.Worksheet("Destino por SKU").CopyTo(workbook, "Destino por SKU");
+        var destinosLastRow = destinosSheet.LastRowUsed()!.RowNumber();
+        destinosSheet.Range(5, 1, destinosLastRow, 8).SetAutoFilter();
+        destinosSheet.SheetView.Freeze(5, 1);
+        var destinosLookup = $"'Destino por SKU'!$A$6:$A${destinosLastRow}";
+        var destinosNombres = $"'Destino por SKU'!$E$6:$E${destinosLastRow}";
+        var destinosValores = $"'Destino por SKU'!$H$6:$H${destinosLastRow}";
         var catalog = LeerCatalogo(template, source, plan.TipoPlan, originalCount);
         ActualizarCatalogo(catalog, plan.Productos);
         var catalogLastRow = EscribirCatalogo(catalogSheet, catalog);
@@ -45,7 +57,8 @@ public static class PlanDiarioExcelService
         var kgInyCol = skuInyCol + 4;
         var piezasCol = skuInyCol + 5;
         var etiquetaCol = skuInyCol + 6;
-        var lastCol = etiquetaCol + 4;
+        var destinoCol = etiquetaCol + 4;
+        var lastCol = destinoCol + 8;
         var lastRow = 5 + plan.Productos.Count;
 
         // Reutilizar los estilos de cada función de columna, aunque cambie el número de subclasificaciones.
@@ -53,10 +66,17 @@ public static class PlanDiarioExcelService
         {
             var originalCol = col <= 3 ? col : col < porcentajeCol
                 ? Math.Min(col, 3 + originalCount) : col - count + originalCount;
-            sheet.Column(col).Width = source.Column(originalCol).Width;
-            sheet.Range(1, col, 3, col).Style = source.Cell(2, originalCol).Style;
-            sheet.Cell(5, col).Style = source.Cell(5, originalCol).Style;
-            sheet.Range(6, col, lastRow, col).Style = source.Cell(6, originalCol).Style;
+            var styleSource = source;
+            if (col >= destinoCol && col < lastCol)
+            {
+                styleSource = destinosFormato;
+                originalCol = 20 + col - destinoCol;
+            }
+            else if (col == lastCol) originalCol = originalCount + 17;
+            sheet.Column(col).Width = styleSource.Column(originalCol).Width;
+            sheet.Range(1, col, 3, col).Style = styleSource.Cell(2, originalCol).Style;
+            sheet.Cell(5, col).Style = styleSource.Cell(5, originalCol).Style;
+            sheet.Range(6, col, lastRow, col).Style = styleSource.Cell(6, originalCol).Style;
         }
         sheet.Range(1, 1, lastRow, lastCol).Style.Font.FontName = "Calibri";
         sheet.Range(5, 1, lastRow, lastCol).Style.Font.FontSize = 11;
@@ -64,7 +84,7 @@ public static class PlanDiarioExcelService
         sheet.Range(5, 1, 5, lastCol).Style.Alignment.WrapText = true;
         sheet.Range(5, 1, 5, lastCol).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         sheet.Row(5).Height = 32;
-        sheet.Row(4).Height = 9;
+        sheet.Row(4).Height = 22;
         sheet.Rows(6, lastRow).Height = 27;
         sheet.Column(1).Width = 17;
         sheet.Column(2).Width = 14;
@@ -78,6 +98,11 @@ public static class PlanDiarioExcelService
         sheet.Column(kgInyCol).Width = 14;
         sheet.Column(canalesCol).Width = 12;
         sheet.Column(piezasCol).Width = 12;
+        for (var col = destinoCol; col < lastCol; col += 2)
+        {
+            sheet.Column(col).Width = 18;
+            sheet.Column(col + 1).Width = 14;
+        }
 
         Titulo(sheet, 1, 1, 2, 2, plan.TipoPlan == "NOV" ? "PLAN DE NOVILLO" : "PLAN DE VACA GORDA", "00B050");
         sheet.Range(3, 1, 3, 2).Merge().Style = sheet.Cell(1, 1).Style;
@@ -85,7 +110,8 @@ public static class PlanDiarioExcelService
         sheet.Cell(3, 1).Style.DateFormat.Format = "dd/MM/yyyy";
         Titulo(sheet, 1, 3, 1, canalesCol, "DESHUESE", "948A54");
         Titulo(sheet, 1, skuInyCol, 3, piezasCol, "INYECCIÓN", "31869B");
-        Titulo(sheet, 1, etiquetaCol, 3, lastCol, "EMPAQUE", "953735");
+        Titulo(sheet, 1, etiquetaCol, 3, destinoCol - 1, "EMPAQUE", "953735");
+        Titulo(sheet, 1, destinoCol, 3, lastCol - 1, "CEDIS", "953735");
         sheet.Cell(2, 3).Value = "No. Canal completa";
         sheet.Cell(3, 3).Value = "Kg por canal completa";
         sheet.Range(2, 3, 3, canalesCol).Style.Fill.BackgroundColor = XLColor.FromHtml("#948A54");
@@ -104,8 +130,15 @@ public static class PlanDiarioExcelService
             sheet.Column(4 + i).Width = Math.Max(12, Math.Min(20, canales[i].Nombre.Length + 2));
         }
         var headers = new[] { "MÁSTER", "SKU", "Producto" }.Concat(canales.Select(c => c.Nombre))
-            .Concat(new[] { "%", "KG", "CANALES", "SKU", "Producto", "% Iny", "Mejorado/Natural", "KG", "PZ", "Etiqueta", "Caducidad", "Almacén", "Manejo", "Observaciones" }).ToArray();
+            .Concat(new[] { "%", "KG", "CANALES", "SKU", "Producto", "% Iny", "Mejorado/Natural", "KG", "PZ", "Etiqueta", "Caducidad", "Almacén", "Manejo", "Ráfaga P1", "KG", "Fresco", "KG", "Abatimiento TIF", "KG", "Ráfaga TIF", "KG", "Observaciones" }).ToArray();
         for (var col = 1; col <= headers.Length; col++) sheet.Cell(5, col).Value = headers[col - 1];
+        foreach (var col in new[] { kgInyCol, destinoCol + 1, destinoCol + 3, destinoCol + 5, destinoCol + 7 })
+        {
+            sheet.Cell(4, col).FormulaA1 = $"SUM({Col(col)}6:{Col(col)}{lastRow})";
+            sheet.Cell(4, col).Style = sheet.Cell(5, col).Style;
+            sheet.Cell(4, col).Style.Font.Bold = true;
+            sheet.Cell(4, col).Style.NumberFormat.Format = "#,##0.0";
+        }
 
         for (var i = 0; i < plan.Productos.Count; i++)
         {
@@ -145,6 +178,17 @@ public static class PlanDiarioExcelService
             sheet.Cell(row, etiquetaCol + 1).FormulaA1 = $"VLOOKUP({selected},{lookup},11,FALSE)";
             sheet.Cell(row, etiquetaCol + 2).FormulaA1 = $"VLOOKUP({selected},{lookup},4,FALSE)";
             sheet.Cell(row, etiquetaCol + 3).FormulaA1 = $"VLOOKUP({selected},{lookup},5,FALSE)";
+            // La referencia asigna los tres primeros destinos por SKU convertido y el remanente a Ráfaga TIF.
+            for (var destino = 0; destino < 4; destino++)
+            {
+                var col = destinoCol + destino * 2;
+                sheet.Cell(row, col).FormulaA1 = destino < 3
+                    ? $"SUMIFS({destinosValores},{destinosLookup},${selected},{destinosNombres},{Col(col)}$5)"
+                    : $"1-{Col(destinoCol)}{row}-{Col(destinoCol + 2)}{row}-{Col(destinoCol + 4)}{row}";
+                sheet.Cell(row, col + 1).FormulaA1 = $"{Col(col)}{row}*${Col(kgInyCol)}{row}";
+                sheet.Cell(row, col).Style.NumberFormat.Format = "0%";
+                sheet.Cell(row, col + 1).Style.NumberFormat.Format = "#,##0.0";
+            }
             sheet.Cell(row, lastCol).FormulaA1 = $"IF(VLOOKUP({selected},{lookup},9,FALSE)=0,\"\",VLOOKUP({selected},{lookup},9,FALSE))";
             foreach (var col in new[] { porcentajeCol, porcentajeInyCol }) sheet.Cell(row, col).Style.NumberFormat.Format = "0.00%";
             foreach (var col in new[] { kgCol, kgInyCol }) sheet.Cell(row, col).Style.NumberFormat.Format = "#,##0.0";
@@ -154,6 +198,18 @@ public static class PlanDiarioExcelService
             sheet.Cell(row, nombreInyCol).Style.Alignment.WrapText = true;
             sheet.Cell(row, etiquetaCol).Style.Alignment.WrapText = true;
             sheet.Cell(row, lastCol).Style.Alignment.WrapText = true;
+        }
+
+        // Conservar los colores de cada destino por encima del sombreado alterno de las filas.
+        for (var col = destinoCol; col < lastCol; col++)
+        {
+            var originalCol = 20 + col - destinoCol;
+            sheet.Range(6, col, lastRow, col).Style.Fill.BackgroundColor = destinosFormato.Cell(6, originalCol).Style.Fill.BackgroundColor;
+            if ((col - destinoCol) % 2 == 1)
+            {
+                sheet.Cell(4, col).Style.Fill.BackgroundColor = destinosFormato.Cell(4, originalCol).Style.Fill.BackgroundColor;
+                sheet.Cell(4, col).Style.Font.FontColor = destinosFormato.Cell(4, originalCol).Style.Font.FontColor;
+            }
         }
 
         var participaciones = sheet.Range(6, 4, lastRow, porcentajeCol - 1);

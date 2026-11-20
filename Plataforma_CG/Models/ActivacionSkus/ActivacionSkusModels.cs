@@ -11,6 +11,7 @@ public sealed class CodigoSku
     public string Origen { get; set; } = "";
     public string AliasExterno { get; set; } = "";
     public string ArticuloId { get; set; } = "";
+    public string? NombreProducto { get; set; }
     public string Programacion { get; set; } = "";
     public string? Tipo { get; set; }
 }

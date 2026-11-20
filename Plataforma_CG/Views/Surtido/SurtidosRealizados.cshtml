@@ -1,0 +1,279 @@
+@model Plataforma_CG.ViewModels.SurtidoReporteVM
+@using System.Linq
+@using System.Globalization
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Surtidos realizados";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    var grupos = Model.Cajas.GroupBy(x => x.CapturaId)
+        .ToDictionary(g => g.Key, g => g.ToList());
+}
+<style>
+    .sr-wrap,.sr-wrap *{box-sizing:border-box}
+    .sr-wrap{width:100%;max-width:100%;padding:12px;font-family:Segoe UI,Arial,sans-serif;color:#273948}
+    .sr-title{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    .sr-title h1{font-size:clamp(22px,3vw,30px);font-weight:900;margin:0}
+    .sr-muted{color:#647585;font-size:12px}
+    .sr-panel{border:1px solid #dbe3e9;border-radius:14px;background:white;padding:14px;margin-bottom:13px;box-shadow:0 4px 16px #1b354009}
+    .sr-multi{position:relative;min-width:0}
+    .sr-multi details{position:relative}
+    .sr-multi summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .sr-multi summary::-webkit-details-marker{display:none}
+    .sr-multi-menu{position:absolute;z-index:40;left:0;right:0;min-width:240px;background:#fff;border:1px solid #b8c9d4;box-shadow:0 10px 28px #14283924;border-radius:10px;padding:10px;max-height:310px;display:flex;flex-direction:column;gap:7px}
+    .sr-multi-search{min-height:40px;width:100%;border:1px solid #c4d1db;border-radius:7px;padding:8px;font-size:14px}
+    .sr-multi-choices{overflow-y:auto;max-height:210px;display:grid;gap:3px}
+    .sr-multi-option{display:flex;align-items:flex-start;gap:8px;padding:7px 5px;border-radius:6px;font-size:12px;cursor:pointer;overflow-wrap:anywhere}
+    .sr-multi-option[hidden]{display:none!important}
+    .sr-multi-option:hover{background:#edf4fc}
+    .sr-multi-option input{margin-top:2px;min-width:17px;min-height:17px;accent-color:#176d49}
+    .sr-multi-actions{display:flex;justify-content:space-between;gap:6px}
+    .sr-multi-actions button{border:1px solid #b8c9d4;background:#f4f8fa;border-radius:6px;padding:7px 9px;font-size:12px;cursor:pointer}
+    .sr-filtros{display:grid;grid-template-columns:repeat(5,minmax(135px,1fr));gap:10px}
+    .sr-input{width:100%;height:42px;border-radius:8px;border:1px solid #b8c9d4;padding:8px;background:white;color:#253746}
+    .sr-label{font-size:12px;font-weight:800;display:block;margin-bottom:4px}
+    .sr-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+    .sr-btn{border:0;border-radius:9px;padding:11px 15px;min-height:42px;font-weight:800;cursor:pointer;background:#176d49;color:white;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+    .sr-btn-blue{background:#234e88}.sr-btn-gray{background:#4a5d70}.sr-btn-outline{background:white;border:1px solid #cedae2;color:#25425d}
+    .sr-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+    .sr-kpi{padding:13px;background:white;border:1px solid #dbe3e9;border-radius:12px}
+    .sr-kpi span{font-size:11px;color:#647585;font-weight:700;display:block}.sr-kpi strong{font-size:25px;font-weight:900}
+    .sr-pedido{border:1px solid #c8d5df;border-radius:12px;overflow:hidden;margin-bottom:14px;break-inside:avoid-page}
+    .sr-head{padding:12px;background:#eef4fa;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+    .sr-head h2{font-size:17px;margin:0 0 4px;font-weight:900;color:#173d61}
+    .sr-sub{font-size:12px;line-height:1.5;color:#465c70}
+    .sr-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start}
+    .sr-badge{display:inline-block;border:1px solid #c7d7e2;border-radius:999px;background:white;padding:5px 9px;font-size:11px;font-weight:800}
+    .sr-badge.ok{color:#14673e;background:#e9f7ef}.sr-badge.wait{color:#905e07;background:#fff4dc}
+    .sr-sums{display:flex;gap:16px;flex-wrap:wrap;padding:10px 12px;background:#fcfdfe;border-bottom:1px solid #e2e9ed;font-size:13px;font-weight:800}
+    .sr-table-wrap{overflow-x:auto;max-width:100%}.sr-table{width:100%;border-collapse:collapse;font-size:12px;min-width:600px}
+    .sr-table th{background:#314e62;color:white;text-align:left;padding:9px;white-space:nowrap}
+    .sr-table td{padding:9px;border-bottom:1px solid #e2e8ee;vertical-align:top}
+    .sr-table tr:nth-child(even) td{background:#f8fafc}
+    .sr-num{text-align:right!important;white-space:nowrap}.sr-empty{padding:30px;text-align:center;color:#647585}
+    .sr-alert{background:#fff3e0;border:1px solid #edcf8b;padding:11px;border-radius:9px;margin:10px 0}
+    .sr-note{font-size:11px;color:#566d7c;margin-top:10px}
+    @@media(max-width:1000px){.sr-filtros{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @@media(max-width:650px){.sr-wrap{padding:7px}.sr-filtros{grid-template-columns:repeat(2,minmax(0,1fr))}.sr-kpis{grid-template-columns:1fr 1fr}.sr-kpi strong{font-size:20px}.sr-btn{flex:1}.sr-head{display:block}.sr-badges{justify-content:flex-start;margin-top:9px}}
+    @@media(max-width:430px){.sr-filtros{grid-template-columns:1fr}.sr-kpis{grid-template-columns:1fr}.sr-table{font-size:11px}.sr-multi-menu{min-width:0;width:100%}}
+    @@media print{
+        body{background:white!important}.sr-no-print,.layout-sidebar,.sidebar{display:none!important}
+        .sr-wrap{padding:0;max-width:100%}.sr-pedido{break-inside:auto}.sr-table-wrap{overflow:visible}
+        .sr-table{min-width:0;font-size:9px}.sr-table th,.sr-table td{padding:5px}
+        .sr-panel{box-shadow:none}.sr-head{background:#edf2f7!important;print-color-adjust:exact}
+    }
+</style>
+<div class="sr-wrap">
+    <div class="sr-title">
+        <div>
+            <h1>Embarques / Surtidos realizados</h1>
+            <div class="sr-muted">Reporte de capturas validadas en SIGO · No equivale a una remisión confirmada en Meat</div>
+        </div>
+        <a class="sr-btn sr-btn-outline sr-no-print" href="@Url.Action("Surtido_cedis","Surtido")">← Panel de surtido</a>
+    </div>
+
+    <form method="get" action="@Url.Action("SurtidosRealizados","Surtido")" class="sr-panel sr-no-print">
+        <strong>Filtros del reporte</strong>
+        <div class="sr-filtros" style="margin-top:11px">
+            <div><label class="sr-label" for="fIni">Fecha inicial</label><input class="sr-input" id="fIni" type="date" name="fechaInicio" value="@Model.FechaInicio.ToString("yyyy-MM-dd")" required /></div>
+            <div><label class="sr-label" for="fFin">Fecha final</label><input class="sr-input" id="fFin" type="date" name="fechaFin" value="@Model.FechaFin.ToString("yyyy-MM-dd")" required /></div>
+            <div><label class="sr-label" for="fAlm">Almacén</label><select class="sr-input" id="fAlm" name="almacen"><option value="">Todos los autorizados</option>@foreach(var a in Model.Almacenes){<option value="@a.Codigo" selected="@(Model.Almacen == a.Codigo)">@a.Codigo · @a.Nombre</option>}</select></div>
+            <div class="sr-multi" data-sr-multi>
+                <label class="sr-label" for="srClientesBusqueda">Clientes (uno o varios)</label>
+                <details>
+                    <summary class="sr-input" aria-label="Seleccionar clientes"><span class="sr-multi-caption">Todos los clientes</span><span>▾</span></summary>
+                    <div class="sr-multi-menu">
+                        <input class="sr-multi-search" id="srClientesBusqueda" type="search" placeholder="Buscar cliente..." autocomplete="off" />
+                        <div class="sr-multi-actions"><button type="button" data-multi-visible>Seleccionar visibles</button><button type="button" data-multi-clear>Limpiar</button></div>
+                        <div class="sr-multi-choices">
+                            @foreach (var opcion in Model.ClientesDisponibles)
+                            {
+                                <label class="sr-multi-option"><input type="checkbox" name="clientes" value="@opcion.Valor" checked="@(Model.ClientesSeleccionados.Contains(opcion.Valor, StringComparer.OrdinalIgnoreCase))"/><span>@opcion.Texto</span></label>
+                            }
+                            @if (!Model.ClientesDisponibles.Any()) { <div class="sr-muted">No hay clientes en este rango.</div> }
+                        </div>
+                    </div>
+                </details>
+            </div>
+            <div class="sr-multi" data-sr-multi>
+                <label class="sr-label" for="srFoliosBusqueda">Folios / solicitudes (uno o varios)</label>
+                <details>
+                    <summary class="sr-input" aria-label="Seleccionar pedidos"><span class="sr-multi-caption">Todos los pedidos</span><span>▾</span></summary>
+                    <div class="sr-multi-menu">
+                        <input class="sr-multi-search" id="srFoliosBusqueda" type="search" placeholder="Buscar folio, solicitud o cliente..." autocomplete="off" />
+                        <div class="sr-multi-actions"><button type="button" data-multi-visible>Seleccionar visibles</button><button type="button" data-multi-clear>Limpiar</button></div>
+                        <div class="sr-multi-choices">
+                            @foreach (var opcion in Model.SolicitudesDisponibles)
+                            {
+                                <label class="sr-multi-option"><input type="checkbox" name="solicitudes" value="@opcion.Valor" checked="@(Model.SolicitudesSeleccionadas.Contains(int.Parse(opcion.Valor)))"/><span>@opcion.Texto</span></label>
+                            }
+                            @if (!Model.SolicitudesDisponibles.Any()) { <div class="sr-muted">No hay pedidos en este rango.</div> }
+                        </div>
+                    </div>
+                </details>
+            </div>
+            <div><label class="sr-label" for="fFormato">Tipo de reporte</label><select class="sr-input" name="formato" id="fFormato"><option value="CONCENTRADO" selected="@(Model.Formato == "CONCENTRADO")">Concentrado · Tarima / SKU</option><option value="DETALLADO" selected="@(Model.Formato == "DETALLADO")">Detallado · Etiqueta</option></select></div>
+        </div>
+        <div class="sr-actions">
+            <button class="sr-btn" type="submit">Consultar surtidos</button>
+            <button class="sr-btn sr-btn-blue" type="button" onclick="window.print()">Imprimir / PDF</button>
+            <button class="sr-btn sr-btn-gray" type="button" id="srCsv">Exportar CSV</button>
+            <a class="sr-btn sr-btn-outline" href="@Url.Action("SurtidosRealizados","Surtido")">Limpiar filtros</a>
+        </div>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error)) { <div class="sr-alert">@Model.Error</div> }
+    @if (Model.CatalogoLimitado) { <div class="sr-alert sr-no-print">Hay más de 2,000 pedidos en el rango. Reduce las fechas o elige un almacén para ver todas las opciones del selector.</div> }
+    @if (Model.LimiteAlcanzado) { <div class="sr-alert">Se muestran los 250 surtidos más recientes del rango. Acota las fechas o selecciona un pedido para consultar el resto.</div> }
+
+    <div class="sr-kpis">
+        <div class="sr-kpi"><span>Pedidos validados consultados</span><strong>@Model.Pedidos.Count</strong></div>
+        <div class="sr-kpi"><span>Unidades surtidas (cajas)</span><strong>@Model.TotalCajas.ToString("N0")</strong></div>
+        <div class="sr-kpi"><span>Kilogramos surtidos</span><strong>@Model.TotalKg.ToString("N3")</strong> kg</div>
+    </div>
+    <div class="sr-sub" style="margin:12px 0">
+        <b>Formato:</b> @Model.Formato · <b>Desde:</b> @Model.FechaInicio.ToString("dd/MM/yyyy") · <b>Hasta:</b> @Model.FechaFin.ToString("dd/MM/yyyy")
+    </div>
+
+    @if (Model.Pedidos.Count == 0 && string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="sr-panel sr-empty">No se encontraron surtidos validados con los filtros seleccionados.</div>
+    }
+    @foreach(var p in Model.Pedidos)
+    {
+        var cajas = grupos.TryGetValue(p.CapturaId, out var list) ? list : new List<Plataforma_CG.ViewModels.SurtidoReporteCajaVM>();
+        var resumen = cajas.GroupBy(x => new { x.Tarima, x.SKU })
+             .OrderBy(g => g.Key.Tarima).ThenBy(g => g.Key.SKU).ToList();
+        <section class="sr-pedido">
+            <div class="sr-head">
+                <div>
+                    <h2>Pedido: @p.Pedido</h2>
+                    <div class="sr-sub"><b>Solicitud:</b> @p.SolicitudSurtidoId · <b>Cliente:</b> @p.Cliente</div>
+                    <div class="sr-sub"><b>Almacén:</b> @p.Planta / @p.CodigoAlmacen · <b>Validado:</b> @(p.FechaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "-") · <b>Usuario:</b> @p.ValidadoPor</div>
+                </div>
+                <div class="sr-badges">
+                    <span class="sr-badge ok">SIGO: @p.Estatus</span>
+                    <span class="sr-badge @(p.IntegracionEstatus == "COMPLETADO" ? "ok" : "wait")">Cola Meat: @p.IntegracionEstatus</span>
+                </div>
+            </div>
+            <div class="sr-sums">
+                @if (p.SolicitadasDisponibles && p.CajasSolicitadas > 0)
+                {
+                    <span>@p.Cajas / @p.CajasSolicitadas.ToString("N0") cajas (surtidas / solicitadas)</span>
+                    <span>Faltantes: @(Math.Max(0m,p.CajasSolicitadas-p.Cajas).ToString("N0")) cajas</span>
+                    <span>Cumplimiento por cajas: @((100m*p.Cajas/p.CajasSolicitadas).ToString("N2"))%</span>
+                }
+                else
+                {
+                    <span>@p.Cajas cajas surtidas · cantidad solicitada no disponible</span>
+                }
+                <span>@p.Kg.ToString("N3") kg reales (informativo)</span><span>@resumen.Select(x=>x.Key.Tarima).Distinct().Count() tarimas / unidades logísticas</span><span>@resumen.Select(x=>x.Key.SKU).Distinct().Count() SKU</span></div>
+            @if (p.SkusSolicitados.Count > 0)
+            {
+                <div class="sr-sub" style="padding:8px 12px;background:#f5f8fc">
+                    <b>Cajas por SKU:</b>
+                    @foreach(var s in p.SkusSolicitados)
+                    {
+                        var real = cajas.Where(c=>string.Equals(c.SKU,s.SKU,StringComparison.OrdinalIgnoreCase))
+                            .Select(c=>c.ProduccionId).Distinct().Count();
+                        <span style="display:inline-block;margin:3px 9px 3px 0">
+                            @s.SKU: <b>@real / @s.CajasSolicitadas.ToString("N0") cajas</b>
+                        </span>
+                    }
+                </div>
+            }
+            <div class="sr-table-wrap">
+                @if(Model.Formato == "CONCENTRADO")
+                {
+                    <table class="sr-table">
+                        <thead><tr><th>Tarima</th><th>SKU</th><th class="sr-num">Cajas</th><th class="sr-num">Peso surtido (kg)</th></tr></thead>
+                        <tbody>
+                        @foreach(var r in resumen)
+                        {
+                            <tr><td>@(string.IsNullOrWhiteSpace(r.Key.Tarima) ? "SIN TARIMA" : r.Key.Tarima)</td><td>@r.Key.SKU</td><td class="sr-num">@r.Count()</td><td class="sr-num">@r.Sum(x => x.PesoNeto).ToString("N3")</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <table class="sr-table">
+                        <thead><tr><th>Tarima</th><th>SKU</th><th>Lote</th><th>Fecha producción</th><th>Etiqueta</th><th class="sr-num">Peso (kg)</th><th>Capturista</th><th>Fecha escaneo</th></tr></thead>
+                        <tbody>
+                        @foreach(var c in cajas.OrderBy(x=>x.Tarima).ThenBy(x=>x.SKU).ThenBy(x=>x.CodigoEtiqueta))
+                        {
+                            <tr><td>@c.Tarima</td><td>@c.SKU</td><td>@c.Lote</td><td>@(c.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")</td><td>@c.CodigoEtiqueta</td><td class="sr-num">@c.PesoNeto.ToString("N3")</td><td>@c.UsuarioCaptura</td><td>@c.FechaCaptura.ToString("dd/MM/yyyy HH:mm")</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </section>
+    }
+    <div class="sr-note">Fuente: evidencia validada en la base SIGO. La integración a Meat se muestra por su estado de cola; el reporte no asigna folio de remisión hasta que exista una confirmación verificable en el sistema de destino.</div>
+</div>
+<script>
+(()=>{
+    // Buscador de multiples clientes y pedidos sin librerias externas.
+    document.querySelectorAll('[data-sr-multi]').forEach(multi => {
+        const details=multi.querySelector('details');
+        const choices=Array.from(multi.querySelectorAll('.sr-multi-option'));
+        const search=multi.querySelector('.sr-multi-search');
+        const caption=multi.querySelector('.sr-multi-caption');
+        const actualizar=()=>{
+            const n=choices.filter(x=>x.querySelector('input').checked).length;
+            caption.textContent=n===0 ? (multi.querySelector('input[name="clientes"]') ? 'Todos los clientes' : 'Todos los pedidos') : n+' seleccionado'+(n===1?'':'s');
+        };
+        search.addEventListener('input',()=>{
+            const q=search.value.trim().toLocaleLowerCase();
+            choices.forEach(x=>x.hidden=!x.textContent.toLocaleLowerCase().includes(q));
+        });
+        multi.querySelector('[data-multi-visible]').addEventListener('click',()=>{
+            choices.filter(x=>!x.hidden).forEach(x=>x.querySelector('input').checked=true);
+            actualizar();
+        });
+        multi.querySelector('[data-multi-clear]').addEventListener('click',()=>{
+            choices.forEach(x=>x.querySelector('input').checked=false);
+            actualizar();
+        });
+        choices.forEach(x=>x.querySelector('input').addEventListener('change',actualizar));
+        details.addEventListener('toggle',()=>{if(details.open) search.focus();});
+        actualizar();
+    });
+    // Al cambiar fechas/almacen se recargan las opciones del rango.
+    // Los filtros marcados se mantienen mientras esten en los catalogos.
+    const pedidos = @Html.Raw(JsonSerializer.Serialize(Model.Pedidos.Select(p => new {
+        p.CapturaId,p.SolicitudSurtidoId,p.Pedido,p.Cliente,p.CodigoAlmacen,p.Estatus,p.IntegracionEstatus,p.FechaValidacion
+    })));
+    const cajas = @Html.Raw(JsonSerializer.Serialize(Model.Cajas.Select(c => new {
+        c.CapturaId,c.Tarima,c.SKU,c.CodigoEtiqueta,c.Lote,c.PesoNeto,c.UsuarioCaptura,c.FechaCaptura
+    })));
+    const formato = @Html.Raw(JsonSerializer.Serialize(Model.Formato));
+    const sanear = x => {
+        let v=String(x??'');
+        if (/^[=+\-\x40\t\r]/.test(v)) v="'"+v;
+        return '"'+v.replace(/"/g,'""')+'"';
+    };
+    document.getElementById('srCsv')?.addEventListener('click',()=>{
+        const rows=[];
+        if(formato==='DETALLADO'){
+            rows.push(['Pedido','Solicitud','Cliente','Almacen','Tarima','SKU','Etiqueta','Lote','PesoKg','Capturista','FechaCaptura','EstadoSIGO','ColaMeat']);
+            for(const p of pedidos) for(const c of cajas.filter(z=>z.CapturaId===p.CapturaId))
+                rows.push([p.Pedido,p.SolicitudSurtidoId,p.Cliente,p.CodigoAlmacen,c.Tarima,c.SKU,c.CodigoEtiqueta,c.Lote,c.PesoNeto,c.UsuarioCaptura,c.FechaCaptura,p.Estatus,p.IntegracionEstatus]);
+        } else {
+            rows.push(['Pedido','Solicitud','Cliente','Almacen','Tarima','SKU','Cajas','Kg','EstadoSIGO','ColaMeat']);
+            for(const p of pedidos){
+                const map=new Map();
+                for(const c of cajas.filter(z=>z.CapturaId===p.CapturaId)){
+                    const k=c.Tarima+'|'+c.SKU;
+                    if(!map.has(k))map.set(k,{t:c.Tarima,sku:c.SKU,n:0,kg:0});
+                    const x=map.get(k);x.n++;x.kg+=Number(c.PesoNeto||0);
+                }
+                for(const x of map.values())rows.push([p.Pedido,p.SolicitudSurtidoId,p.Cliente,p.CodigoAlmacen,x.t,x.sku,x.n,x.kg.toFixed(3),p.Estatus,p.IntegracionEstatus]);
+            }
+        }
+        const csv='\uFEFF'+rows.map(r=>r.map(sanear).join(',')).join('\r\n');
+        const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+        const a=document.createElement('a');a.href=url;a.download='SIGO_Surtidos_'+formato+'.csv';a.click();URL.revokeObjectURL(url);
+    });
+})();
+</script>

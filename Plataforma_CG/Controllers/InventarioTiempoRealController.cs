@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -2545,6 +2545,197 @@ ORDER BY e.Orden;";
         }
 
         // =============================================================
+        // ESCANEO MULTIALMACÉN AUTOMÁTICO (solo inventario por sesión)
+        // No usa Inventario/ScanBatch ni marca FechaInventario en MEAT.
+        // =============================================================
+        public sealed class RegistrarLecturasAutoRequest
+        {
+            public int SesionId { get; set; }
+            public List<string> Codigos { get; set; } = new();
+        }
+
+        private sealed class AutoEsperadoRow
+        {
+            public string CodigoEtiqueta { get; set; } = "";
+            public string AlmacenId { get; set; } = "";
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RegistrarLecturasAuto(
+            [FromBody] RegistrarLecturasAutoRequest request,
+            CancellationToken ct = default)
+        {
+            if (request == null || request.SesionId <= 0)
+                return BadRequest(new { ok = false, message = "Inicia una sesión de inventario." });
+
+            var entradas = (request.Codigos ?? new List<string>())
+                .Select(Norm).Where(x => x.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (entradas.Count == 0)
+                return BadRequest(new { ok = false, message = "No hay códigos para registrar." });
+            if (entradas.Count > 150)
+                return BadRequest(new { ok = false, message = "Máximo 150 códigos por lote." });
+
+            await using var cn = CrearConexion();
+            await cn.OpenAsync(ct);
+            var (sesion, almacenes) = await ObtenerSesionAsync(cn, request.SesionId, ct);
+            if (sesion == null) return NotFound(new { ok = false, message = "Sesión inexistente." });
+            if (!string.Equals(sesion.Estatus, "ABIERTO", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { ok = false, message = "La sesión ya está cerrada." });
+            if (!await UsuarioPuedeConsultarSesionAsync(almacenes, ct))
+                return StatusCode(403, new { ok = false, message = "Sin permiso para esta sesión." });
+
+            // Las cajas de cada tarima se resuelven ANTES de registrar.
+            // La tarima puede contener cajas de almacenes distintos.
+            var codigosCajas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var contenidos = new List<object>();
+            var errores = new List<object>();
+            var csP1 = _configuration.GetConnectionString("CadenaMeatP1");
+            var csTif = _configuration.GetConnectionString("CadenaMeatTIF");
+
+            foreach (var original in entradas)
+            {
+                var hijos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var cadena in new[] { csP1, csTif }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
+                {
+                    try
+                    {
+                        await using var meat = new SqlConnection(cadena);
+                        await meat.OpenAsync(ct);
+                        var rows = await meat.QueryAsync<string>(new CommandDefinition(@"
+SELECT DISTINCT UPPER(LTRIM(RTRIM(p.CodigoEtiqueta)))
+FROM dbo.Tarima t
+INNER JOIN dbo.TarimaDetalle td ON td.TarimaId = t.TarimaId
+INNER JOIN dbo.Produccion p ON p.ProduccionId = td.ProduccionId
+WHERE t.Estatus = 1 AND p.Estatus = 1
+  AND (t.Nombre = @Codigo OR UPPER(LTRIM(RTRIM(t.Nombre))) = @Codigo)", new { Codigo = original }, cancellationToken: ct));
+                        foreach (var row in rows) if (Norm(row).Length > 0) hijos.Add(Norm(row));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error resolviendo tarima {Codigo} en origen MEAT", original);
+                        // No interpretar como etiqueta si la fuente falla: abortar sin registrar.
+                        return StatusCode(503, new { ok = false, message =
+                            "No se pudo verificar el contenido de las tarimas en MEAT. No se registró el lote." });
+                    }
+                }
+                if (hijos.Count > 0)
+                {
+                    foreach (var hijo in hijos) codigosCajas.Add(hijo);
+                    contenidos.Add(new { codigo = original, tipo = "TARIMA", cantidadCajas = hijos.Count });
+                }
+                else
+                {
+                    codigosCajas.Add(original);
+                    contenidos.Add(new { codigo = original, tipo = "ETIQUETA", cantidadCajas = 1 });
+                }
+            }
+
+            // La fotografía de esta sesión determina el almacén AUTOMÁTICAMENTE.
+            // Nunca escoger el primer almacén ni confiar en un almacén enviado por el lector.
+            var esperado = new List<AutoEsperadoRow>();
+            // Evita exceder el límite de parámetros SQL al expandir tarimas grandes.
+            var listaCajas = codigosCajas.ToArray();
+            for (int offset = 0; offset < listaCajas.Length; offset += 500)
+            {
+                var parte = listaCajas.Skip(offset).Take(500).ToArray();
+                var filas = await cn.QueryAsync<AutoEsperadoRow>(new CommandDefinition(@"
+SELECT DISTINCT UPPER(LTRIM(RTRIM(e.CodigoEtiqueta))) AS CodigoEtiqueta,
+       UPPER(LTRIM(RTRIM(CONVERT(NVARCHAR(100), e.AlmacenId)))) AS AlmacenId
+FROM dbo.InventarioConteoEsperado e
+WHERE e.SesionId = @SesionId AND e.CodigoEtiqueta IN @Codigos",
+                    new { SesionId = request.SesionId, Codigos = parte },
+                    cancellationToken: ct));
+                esperado.AddRange(filas);
+            }
+
+            var permitidos = almacenes.Select(x => Norm(x.AlmacenId))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var grupos = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var codigosError = new List<(string Codigo, string Mensaje)>();
+            foreach (var codigo in codigosCajas)
+            {
+                var candidatos = esperado.Where(x => Norm(x.CodigoEtiqueta) == codigo)
+                    .Select(x => Norm(x.AlmacenId)).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                if (candidatos.Length == 0)
+                {
+                    codigosError.Add((codigo,
+                        "La etiqueta no está en la fotografía inicial de los almacenes seleccionados. Revisar ubicación o registrar incidencia."));
+                    continue;
+                }
+                if (candidatos.Length > 1)
+                {
+                    codigosError.Add((codigo,
+                        "La etiqueta figura en más de un almacén de la fotografía. Requiere revisión, no se duplicó el conteo."));
+                    continue;
+                }
+                var almacen = candidatos[0];
+                if (!permitidos.Contains(almacen))
+                {
+                    codigosError.Add((codigo, "El almacén de la etiqueta no pertenece a la sesión."));
+                    continue;
+                }
+                if (!grupos.TryGetValue(almacen, out var grupo))
+                    grupos[almacen] = grupo = new List<string>();
+                grupo.Add(codigo);
+            }
+
+            var resultados = new List<object>();
+            foreach (var (almacen, grupo) in grupos)
+            {
+                // Reutiliza íntegra la lógica actual de bloqueo, deduplicación y registro.
+                // Es la misma ruta que utiliza el inventario de tiempo real, pero con
+                // el almacén identificado por la fotografía y no por el selector.
+                var action = await RegistrarLecturas(new RegistrarLecturasRequest
+                {
+                    SesionId = request.SesionId,
+                    AlmacenId = almacen,
+                    Codigos = grupo
+                }, ct);
+                if (action is not OkObjectResult okResult)
+                    return StatusCode(503, new { ok = false,
+                        message = "Falló el registro en un almacén. Verificar historial antes de reintentar.",
+                        almacen, resultadosParciales = resultados });
+
+                // Leer la respuesta anónima de RegistrarLecturas sin cambiar el contrato existente.
+                var json = JsonSerializer.SerializeToElement(okResult.Value,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                foreach (var r in json.GetProperty("results").EnumerateArray())
+                {
+                    var codigo = r.GetProperty("codigoEtiqueta").GetString() ?? "";
+                    var tipo = r.GetProperty("kind").GetString() ?? "err";
+                    var msg = r.GetProperty("msg").GetString() ?? "";
+                    resultados.Add(new
+                    {
+                        codigo,
+                        codigoEtiqueta = codigo,
+                        kind = tipo,
+                        msg = $"{msg} Almacén detectado: {almacenes.First(x => Norm(x.AlmacenId) == almacen).AlmacenNombre}.",
+                        almacen, sku = r.GetProperty("sku").GetString(),
+                        producto = r.GetProperty("producto").GetString(),
+                        pesoNeto = r.GetProperty("pesoNeto").GetDecimal()
+                    });
+                }
+            }
+            foreach (var (codigo, mensaje) in codigosError)
+                resultados.Add(new { codigo, codigoEtiqueta = codigo,
+                    kind = "err", msg = mensaje, almacen = "", sku = "", producto = "", pesoNeto = 0m });
+
+            return Ok(new
+            {
+                ok = true,
+                sesionId = request.SesionId,
+                modo = "MULTIALMACEN_AUTO",
+                total = resultados.Count,
+                okCount = resultados.Count(x =>
+                    Norm((string)(x.GetType().GetProperty("kind")?.GetValue(x) ?? "")) == "OK"),
+                contenidos,
+                results = resultados
+            });
+        }
+
+        // =============================================================
         //  HISTORIAL COMPARTIDO DE LECTURAS DE LA SESIÓN
         // =============================================================
         [HttpGet]
@@ -2553,6 +2744,7 @@ ORDER BY e.Orden;";
             string? almacenId = null,
             long despuesDeId = 0,
             int limite = 500,
+            bool soloMisLecturas = false,
             CancellationToken ct = default)
         {
             if (sesionId <= 0)
@@ -2676,6 +2868,8 @@ BEGIN
     WHERE s.FechaInicio >= @FechaDesde
       AND s.FechaInicio < @FechaHasta
       AND l.Id > @DespuesDeId
+      AND (@SoloMisLecturas = 0 OR
+           UPPER(LTRIM(RTRIM(ISNULL(l.UsuarioRegistro, '')))) = @UsuarioActual)
       AND EXISTS
       (
           SELECT 1
@@ -2732,6 +2926,8 @@ BEGIN
             ON s.Id = l.SesionId
         WHERE s.FechaInicio >= @FechaDesde
           AND s.FechaInicio < @FechaHasta
+          AND (@SoloMisLecturas = 0 OR
+               UPPER(LTRIM(RTRIM(ISNULL(l.UsuarioRegistro, '')))) = @UsuarioActual)
           AND EXISTS
           (
               SELECT 1
@@ -2766,7 +2962,9 @@ END;";
                         DespuesDeId = Math.Max(0, despuesDeId),
                         Limite = limite,
                         FechaDesde = fechaDesde,
-                        FechaHasta = fechaHasta
+                        FechaHasta = fechaHasta,
+                        SoloMisLecturas = soloMisLecturas ? 1 : 0,
+                        UsuarioActual = Norm(UsuarioActual())
                     },
                     commandTimeout: 30,
                     cancellationToken: ct));
@@ -2790,6 +2988,7 @@ END;";
                 fechaInventario = fechaDesde,
                 almacenId = almacenNormalizado,
                 compartidaPorFechaYAlmacen = true,
+                historialPersonal = soloMisLecturas,
                 total = resumen.Total,
                 correctas = resumen.Correctas,
                 revisar = resumen.Revisar,

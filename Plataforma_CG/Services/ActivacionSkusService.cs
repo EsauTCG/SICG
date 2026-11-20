@@ -24,7 +24,9 @@ public sealed class ActivacionSkusService(IConfiguration configuration, ILogger<
     private const string Filtro = """
         WHERE p.Nombre LIKE @Prefijo
           AND (@Origen IS NULL OR c.Origen=@Origen)
-          AND (@Vacio=1 OR c.ArticuloId LIKE @Busqueda ESCAPE '~' OR c.AliasExterno LIKE @Busqueda ESCAPE '~')
+          AND (@Vacio=1 OR c.ArticuloId LIKE @Busqueda ESCAPE '~' OR c.AliasExterno LIKE @Busqueda ESCAPE '~'
+            OR EXISTS (SELECT 1 FROM OPENJSON(@ArticulosNombre) WITH (ArticuloId nvarchar(50) '$') a
+                WHERE c.ArticuloId=a.ArticuloId COLLATE DATABASE_DEFAULT))
         """;
 
     // La petición elige una planta conocida; nunca recibe una cadena o nombre de BD del navegador.
@@ -523,6 +525,17 @@ public sealed class ActivacionSkusService(IConfiguration configuration, ILogger<
         const int tamano = 25;
         var filtroTipo = " AND (@Tipo IS NULL OR c.Tipo=@Tipo)";
         await using var cn = await AbrirAsync(planta, ct);
+        var articulosNombre = new List<string>();
+        if (texto.Length > 0)
+        {
+            await using var catalogo = await AbrirCatalogoAsync(ct);
+            // El catálogo y las plantas pueden estar en servidores distintos; trasladar solo los códigos coincidentes.
+            articulosNombre = (await catalogo.QueryAsync<string>(Cmd("""
+                SELECT DISTINCT ProductoCodigo FROM dbo.ArticuloSap
+                WHERE NULLIF(LTRIM(RTRIM(ProductoCodigo)),N'') IS NOT NULL
+                  AND ProductoNombre LIKE @Busqueda ESCAPE '~';
+                """, new { Busqueda = EscaparBusqueda(texto) }, ct))).ToList();
+        }
         using var result = await cn.QueryMultipleAsync(Cmd($"""
             SELECT c.Tipo,COUNT(*) Registros {Relacion} {Filtro} GROUP BY c.Tipo;
             SELECT COUNT(*) {Relacion} {Filtro} {filtroTipo};
@@ -531,10 +544,34 @@ public sealed class ActivacionSkusService(IConfiguration configuration, ILogger<
             OFFSET @Offset ROWS FETCH NEXT @Tamano ROWS ONLY;
             """, new { Prefijo = "PROGRAMACION%", Origen = Clave(origen),
                 Vacio = texto.Length == 0, Busqueda = EscaparBusqueda(texto), Tipo = Letra(tipo),
+                ArticulosNombre = JsonSerializer.Serialize(articulosNombre),
                 Offset = (pagina - 1) * tamano, Tamano = tamano }, ct));
         var conteos = (await result.ReadAsync<ConteoTipoSku>()).ToList();
         var total = await result.ReadSingleAsync<int>();
         var registros = (await result.ReadAsync<CodigoSku>()).ToList();
+        var skus = registros.Select(r => r.ArticuloId).Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if (skus.Length > 0)
+        {
+            try
+            {
+                await using var catalogo = await AbrirCatalogoAsync(ct);
+                // Resolver únicamente los SKU de la página, conservando las llaves y los vínculos originales.
+                var nombres = (await catalogo.QueryAsync<ArticuloCatalogoSku>(Cmd("""
+                    SELECT j.value ArticuloId,a.ProductoNombre Descripcion FROM OPENJSON(@Articulos) j
+                    OUTER APPLY (SELECT TOP(1) ProductoNombre FROM dbo.ArticuloSap
+                        WHERE ProductoCodigo=j.value COLLATE DATABASE_DEFAULT
+                          AND NULLIF(LTRIM(RTRIM(ProductoNombre)),N'') IS NOT NULL
+                        ORDER BY ProductoNombre) a;
+                    """, new { Articulos = JsonSerializer.Serialize(skus) }, ct)))
+                    .ToDictionary(a => a.ArticuloId, a => a.Descripcion, StringComparer.Ordinal);
+                foreach (var registro in registros) registro.NombreProducto = nombres.GetValueOrDefault(registro.ArticuloId);
+            }
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+            {
+                logger.LogWarning(ex, "No fue posible completar los nombres del catálogo en el listado de Activación de SKUS de {Planta}.", planta);
+            }
+        }
         return new(registros, total, pagina, tamano, conteos);
     }
 

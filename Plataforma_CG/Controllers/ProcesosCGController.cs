@@ -426,6 +426,8 @@ ORDER BY
                     });
                 }
 
+                // Validación previa: no cambiar automáticamente cantidades comerciales.
+                ValidarCantidadesEntregaSap(json);
                 var r = await _sap.PostJsonAsync(sapEndpoint, json);
 
                 if (!r.ok)
@@ -523,6 +525,8 @@ ORDER BY
                         continue;
                     }
 
+                    // Validación previa: no cambiar automáticamente cantidades comerciales.
+                    ValidarCantidadesEntregaSap(json);
                     var r = await _sap.PostJsonAsync(sapEndpoint, json);
 
                     if (!r.ok)
@@ -5410,6 +5414,76 @@ SELECT
                 .Substring(0, 12);
         }
 
+        // =======================================================
+        // VALIDACION DE PRECISION SAP - SOLO LECTURA DEL JSON
+        // No altera pesos, lotes, precios ni documentos base.
+        // Rechaza cantidades con más de 2 decimales y diferencias
+        // entre la línea y la suma de sus BatchNumbers.
+        // =======================================================
+        private static void ValidarCantidadesEntregaSap(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                throw new InvalidOperationException("SAP: JSON de entrega vacío.");
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("DocumentLines", out var lines) ||
+                lines.ValueKind != JsonValueKind.Array ||
+                lines.GetArrayLength() == 0)
+                throw new InvalidOperationException("SAP: la entrega no contiene DocumentLines.");
+
+            int numeroLinea = 0;
+            foreach (var line in lines.EnumerateArray())
+            {
+                numeroLinea++;
+                var item = line.TryGetProperty("ItemCode", out var itemProp)
+                    ? itemProp.ToString() : "SIN SKU";
+
+                if (!line.TryGetProperty("Quantity", out var cantidadProp) ||
+                    cantidadProp.ValueKind != JsonValueKind.Number ||
+                    !cantidadProp.TryGetDecimal(out decimal cantidad) ||
+                    cantidad <= 0m)
+                    throw new InvalidOperationException(
+                        $"SAP: Quantity inválida en línea {numeroLinea}, SKU {item}.");
+
+                if (cantidad != decimal.Round(cantidad, 2, MidpointRounding.AwayFromZero))
+                    throw new InvalidOperationException(
+                        $"SAP: línea {numeroLinea}, SKU {item}, Quantity={cantidad} " +
+                        "contiene más de dos decimales.");
+
+                // No se obliga a tener lotes a artículos que no los usen.
+                if (!line.TryGetProperty("BatchNumbers", out var batches))
+                    continue;
+                if (batches.ValueKind != JsonValueKind.Array ||
+                    batches.GetArrayLength() == 0)
+                    throw new InvalidOperationException(
+                        $"SAP: BatchNumbers vacío o inválido en línea {numeroLinea}, SKU {item}.");
+
+                decimal sumaLotes = 0m;
+                foreach (var batch in batches.EnumerateArray())
+                {
+                    var lote = batch.TryGetProperty("BatchNumber", out var loteProp)
+                        ? loteProp.ToString() : "SIN LOTE";
+                    if (!batch.TryGetProperty("Quantity", out var loteQtyProp) ||
+                        loteQtyProp.ValueKind != JsonValueKind.Number ||
+                        !loteQtyProp.TryGetDecimal(out decimal kgLote) ||
+                        kgLote <= 0m)
+                        throw new InvalidOperationException(
+                            $"SAP: cantidad inválida en línea {numeroLinea}, lote {lote}.");
+                    if (kgLote != decimal.Round(kgLote, 2, MidpointRounding.AwayFromZero))
+                        throw new InvalidOperationException(
+                            $"SAP: línea {numeroLinea}, lote {lote}, Quantity={kgLote} " +
+                            "contiene más de dos decimales.");
+                    sumaLotes += kgLote;
+                }
+                if (cantidad != sumaLotes)
+                    throw new InvalidOperationException(
+                        $"SAP: diferencia de cantidades en línea {numeroLinea}, SKU {item}. " +
+                        $"Quantity={cantidad}; suma de lotes={sumaLotes}. " +
+                        "Se bloqueó el envío sin modificar los pesos.");
+            }
+        }
+
         private static string ConstruirJsonEntradaAutocompletar(
             string referencia,
             string source,
@@ -5433,6 +5507,7 @@ SELECT
             foreach (var grupo in grupos)
             {
                 var batches = new JsonArray();
+                decimal cantidadLinea = 0m;
 
                 foreach (var lote in grupo
                     .GroupBy(x => NormalizeKey(x.Lote))
@@ -5440,20 +5515,22 @@ SELECT
                 {
                     var cantidadLote = decimal.Round(
                         lote.Sum(x => x.Kg),
-                        3,
-                        MidpointRounding.AwayFromZero);
+                        2,
+                        MidpointRounding.AwayFromZero); //DECIMALES 2 SOLAMENTE
 
+                    if (cantidadLote <= 0m)
+                        throw new InvalidOperationException(
+                            $"Autocompletado SAP: el lote {lote.Key} tiene cantidad " +
+                            "cero o negativa después del redondeo a dos decimales.");
+
+                    // La línea suma exactamente los lotes que se enviarán a SAP.
+                    cantidadLinea += cantidadLote;
                     batches.Add(new JsonObject
                     {
                         ["BatchNumber"] = lote.First().Lote,
                         ["Quantity"] = cantidadLote
                     });
                 }
-
-                var cantidadLinea = decimal.Round(
-                    grupo.Sum(x => x.Kg),
-                    3,
-                    MidpointRounding.AwayFromZero);
 
                 documentLines.Add(new JsonObject
                 {
@@ -5630,6 +5707,9 @@ SELECT
                         DocNum = existente.docNum
                     };
                 }
+
+                // Impide remisiones con cantidades >2 decimales o lotes descuadrados.
+                ValidarCantidadesEntregaSap(jsonEntrega);
 
                 var post = await _sap.PostJsonAsync(
                     "DeliveryNotes",
@@ -17295,7 +17375,7 @@ WHERE p.ProduccionId = @ProduccionId;",
                     procesoLog = AJUSTE_ETIQUETA_PROCESO_ACTIVACION;
                     procesoProduccionNuevo = AJUSTE_ETIQUETA_PROCESO_ACTIVACION;
                     estatusNuevo = 1;
-                    pesoNuevo = decimal.Round(req.PesoNuevo!.Value, 3, MidpointRounding.AwayFromZero);
+                    pesoNuevo = decimal.Round(req.PesoNuevo!.Value, 2, MidpointRounding.AwayFromZero);
                     estatusLog = 1;
                     pesoLog = pesoNuevo;
                     autorizacionTipo = "PERMISO_ELIMINAR_ACTIVACION";

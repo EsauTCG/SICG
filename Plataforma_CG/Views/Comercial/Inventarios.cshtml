@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Inventario Carnes G";
 }
@@ -3260,10 +3260,11 @@
                     <label for="activeWarehouseSelect"
                            class="form-label fw-bold mb-1"
                            style="font-size:.74rem">
-                        Almacén activo
+                        Almacén (solo consultas e incidencias)
                     </label>
                     <select id="activeWarehouseSelect"
                             class="form-select form-select-sm"></select>
+                    <small class="text-success fw-bold">El escaneo se asigna automáticamente al almacén de MEAT.</small>
                 </div>
             </div>
         </div>
@@ -3361,7 +3362,7 @@
             </div>
         </section>
         <div class="scan-list-head">
-            <strong><i class="fa-solid fa-list-ol me-1 text-danger"></i>Etiquetas escaneadas · momento</strong>
+            <strong><i class="fa-solid fa-list-ol me-1 text-danger"></i>Mis etiquetas escaneadas · momento</strong>
             <span id="scanListCount" class="scan-list-count">0 registros</span>
         </div>
 
@@ -4609,11 +4610,23 @@
                         const kg = Number(raw);
                         return Number.isFinite(kg) && kg >= 0 ? kg : null;
                     }
-                    // Desbloqueo de audio en gesto del usuario; algunos lectores Android lo requieren.
-                    document.addEventListener("keydown", () => {
-                        if (soundSwitch?.checked && audioContextInventario?.state === "suspended")
-                            audioContextInventario.resume().catch(() => {});
-                    }, { passive: true });
+                    // Desbloquear audio en un gesto real del usuario (Chrome/Android).
+                    // El evento de escaneo del handheld no siempre desbloquea AudioContext.
+                    function activarAudioInventario() {
+                        if (!soundSwitch?.checked) return;
+                        try {
+                            const Ctx = window.AudioContext || window.webkitAudioContext;
+                            if (!Ctx) return;
+                            audioContextInventario ||= new Ctx();
+                            if (audioContextInventario.state === "suspended") {
+                                audioContextInventario.resume().catch(() => {});
+                            }
+                        } catch (error) {
+                            console.warn("Audio inventario:", error);
+                        }
+                    }
+                    document.addEventListener("pointerdown", activarAudioInventario, { passive: true });
+                    document.addEventListener("keydown", activarAudioInventario, { passive: true });
                     soundSwitch?.addEventListener("change", () => {
                         if (soundSwitch.checked) {
                             const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -4746,12 +4759,17 @@
                     const repAlmacen = document.getElementById("repAlmacen");
                     const btnRepFiltrar = document.getElementById("btnRepFiltrar");
 
+                    // Historial de pantalla por usuario. No altera el inventario compartido.
+                    const PERSONAL_SCAN_USER = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(User?.Identity?.Name ?? ""));
+                    const PERSONAL_SCAN_USER_KEY = encodeURIComponent(
+                        String(PERSONAL_SCAN_USER || "").trim().toUpperCase()
+                    );
                     const SCAN_HISTORY_STORAGE_PREFIX =
-                        "inventarioTiempoReal.historialEscaneos.v1.";
+                        "inventarioTiempoReal.historialEscaneos.personal.v2.";
                     const SCAN_VISUAL_CUTOFF_PREFIX =
-                        "inventarioTiempoReal.corteVisualEscaneados.v1.";
+                        "inventarioTiempoReal.corteVisualEscaneados.personal.v2.";
                     const SCAN_VISUAL_PENDING_PREFIX =
-                        "inventarioTiempoReal.corteVisualPendiente.v1.";
+                        "inventarioTiempoReal.corteVisualPendiente.personal.v2.";
                     const WAREHOUSE_KPI_STORAGE_PREFIX =
                         "inventarioTiempoReal.kpiAlmacen.v1.";
 
@@ -5218,7 +5236,7 @@
                         const wid = normalize(warehouseId || "");
 
                         return sid > 0 && wid
-                            ? `${SCAN_VISUAL_CUTOFF_PREFIX}${sid}.${wid}`
+                            ? `${SCAN_VISUAL_CUTOFF_PREFIX}${PERSONAL_SCAN_USER_KEY}.${sid}.${wid}`
                             : "";
                     }
 
@@ -5265,7 +5283,7 @@
                         const wid = normalize(warehouseId || "");
 
                         return sid > 0 && wid
-                            ? `${SCAN_VISUAL_PENDING_PREFIX}${sid}.${wid}`
+                            ? `${SCAN_VISUAL_PENDING_PREFIX}${PERSONAL_SCAN_USER_KEY}.${sid}.${wid}`
                             : "";
                     }
 
@@ -5303,7 +5321,7 @@
                     function getScanHistoryStorageKey(sessionId = activeSession?.id) {
                         const id = Number(sessionId || 0);
                         return id > 0
-                            ? `${SCAN_HISTORY_STORAGE_PREFIX}${id}`
+                            ? `${SCAN_HISTORY_STORAGE_PREFIX}${PERSONAL_SCAN_USER_KEY}.${id}`
                             : "";
                     }
 
@@ -5826,7 +5844,8 @@
                                 `?sesionId=${encodeURIComponent(activeSession.id)}` +
                                 `&almacenId=${encodeURIComponent(warehouseId)}` +
                                 `&despuesDeId=${encodeURIComponent(afterId)}` +
-                                `&limite=${SHARED_HISTORY_INITIAL_LIMIT}`;
+                                `&limite=${SHARED_HISTORY_INITIAL_LIMIT}` +
+                                `&soloMisLecturas=true`;
 
                             const data = await getJson(url);
 
@@ -5869,7 +5888,13 @@
                                 }
                             }
 
-                            sharedHistoryTotal = Number(data?.total || 0);
+                            // El total del servidor es GLOBAL; no usarlo para el
+                            // contador de la lista personal del operador.
+                            sharedHistoryTotal = Math.max(
+                                sharedHistoryTotal,
+                                rows.length,
+                                lastList.children.length
+                            );
                             okCount = Number(data?.correctas || 0);
                             badCount = Number(data?.revisar || 0);
                             correctCountForMissing = okCount;
@@ -5882,6 +5907,15 @@
                                     index === rows.length - 1
                                 );
                             });
+                            // Si hay pocas lecturas propias, avanzar hasta el último ID
+                            // global evita repasar una y otra vez lecturas ajenas.
+                            // Con página llena NO avanzar: puede haber más propias.
+                            if (rows.length < SHARED_HISTORY_INITIAL_LIMIT) {
+                                lastServerReadingId = Math.max(
+                                    lastServerReadingId,
+                                    Number(data?.ultimoIdDisponible || 0)
+                                );
+                            }
 
                             if (rows.length === 0 && reset) {
                                 resetCurrentScanLive(
@@ -7827,9 +7861,9 @@
 
                                 try {
                                     scanData = await postJson(
-                                        "/Inventario/ScanBatch",
+                                        `${REALTIME_BASE_URL}/RegistrarLecturasAuto`,
                                         {
-                                            almacen: batchWarehouseId,
+                                            sesionId: activeSession.id,
                                             codigos: batch
                                         }
                                     );
@@ -7903,9 +7937,9 @@
 
                                     const message = (result.msg || "").toString();
 
-                                    // Pitido definido por clasificación real, cuando el servidor la proporciona.
-                                    // Para lecturas OK, esperar el resultado de RegistrarLecturas.
-                                    if (kind !== "ok") playScanSound(classifyScanSound(kind, result.motivoCodigo || result.codigoMotivo || result.reason, message));
+                                    // El sonido se emite una sola vez al terminar el lote,
+                                    // no por cada caja hija de una tarima.
+                                    // RegistrarLecturasAuto ya proporciona el resultado final.
                                     // Presentación visual: nunca bloquea el registro existente.
                                     if (kind === "ok") {
                                         scanBoxDetails.set(code, {
@@ -7921,8 +7955,8 @@
 
                                         updateExistingScanVisual(
                                             code,
-                                            "Guardada. Validando contra la fotografía inicial…",
-                                            "validating",
+                                            message || "Etiqueta localizada y registrada.",
+                                            "ok",
                                             {
                                                 sku: result.sku || result.articulo || "",
                                                 producto:
@@ -7937,6 +7971,13 @@
                                                     0
                                             }
                                         );
+                                    } else if (kind === "warn") {
+                                        okCount += 1;
+                                        updateExistingScanVisual(code, message || "Registrada con incidencia.", "warn", {
+                                            sku: result.sku || "",
+                                            producto: result.producto || "",
+                                            pesoNeto: result.pesoNeto ?? 0
+                                        });
                                     } else if (kind === "dup") {
                                         badCount += 1;
                                         repeatedCountLocal += 1;
@@ -7957,6 +7998,22 @@
                                     }
                                 }
 
+                                // Un único sonido por lote, para evitar decenas de pitidos
+                                // al escanear una tarima. Priorizar incidencias sobre OK.
+                                if (scanResults.length > 0) {
+                                    const tipos = scanResults.map(r => {
+                                        const k = String(r.kind || (r.ok ? "ok" : "err")).toLowerCase();
+                                        return classifyScanSound(
+                                            k,
+                                            r.motivoCodigo || r.codigoMotivo || r.reason,
+                                            String(r.msg || "")
+                                        );
+                                    });
+                                    const prioridad = ["error", "vendida", "proceso", "fuera", "duplicada", "ok"];
+                                    const sonidoLote = prioridad.find(t => tipos.includes(t));
+                                    if (sonidoLote) playScanSound(sonidoLote);
+                                }
+
                                 // Visualizar la tarima (código padre), no solamente sus etiquetas.
                                 // Su lectura no se guarda dos veces: solo se actualiza la tarjeta.
                                 for (const item of contenidos) {
@@ -7972,88 +8029,12 @@
                                 }
 
                                 /*
-                                 * El endpoint optimizado realiza el match de todas las
-                                 * etiquetas del lote en una sola consulta a SIGO.
+                                 * El endpoint automático ya registró cada etiqueta
+                                 * en el almacén de la sesión correspondiente.
                                  */
-                                if (successfulCodes.length > 0) {
-                                    const trackingData =
-                                        await registerSuccessfulScans(
-                                            successfulCodes,
-                                            batchWarehouseId
-                                        );
-
-                                    const trackingResults = Array.isArray(
-                                        trackingData?.results
-                                    )
-                                        ? trackingData.results
-                                        : [];
-
-                                    if (trackingResults.length > 0) {
-                                        const newlyCorrect = trackingResults.filter(
-                                            result =>
-                                                String(
-                                                    result?.kind || "ok"
-                                                ).toLowerCase() === "ok"
-                                        ).length;
-
-                                        if (missingCountReady && newlyCorrect > 0) {
-                                            correctCountForMissing += newlyCorrect;
-                                        }
-
-                                        for (const result of trackingResults) {
-                                            const code = normalize(
-                                                result.codigoEtiqueta ||
-                                                result.codigo ||
-                                                result.code ||
-                                                ""
-                                            );
-
-                                            const kind = (
-                                                result.kind || "ok"
-                                            ).toLowerCase();
-
-                                            const message =
-                                                (result.msg || "").toString();
-                                            playScanSound(classifyScanSound(kind, result.motivoCodigo || result.codigoMotivo || result.reason, message));
-                                            if (kind === "dup") repeatedCountLocal += 1;
-                                            updateExistingScanVisual(
-                                                code,
-                                                message ||
-                                                    "Etiqueta registrada correctamente.",
-                                                kind === "ok"
-                                                    ? "ok"
-                                                    : kind === "warn"
-                                                        ? "warn"
-                                                        : kind === "dup"
-                                                            ? "dup"
-                                                            : "err",
-                                                {
-                                                    sku: result.sku || "",
-                                                    producto: result.producto || "",
-                                                    pesoNeto:
-                                                        result.pesoNeto ??
-                                                        result.pesoKg ??
-                                                        0
-                                                }
-                                            );
-                                        }
-                                    } else {
-                                        /*
-                                         * ScanBatch sí guardó. Si la relación con la sesión
-                                         * quedó pendiente, no se obliga al operador a esperar.
-                                         */
-                                        successfulCodes.forEach(code => {
-                                            if (!trackingData?.deferred) playScanSound("ok");
-                                            updateExistingScanVisual(
-                                                code,
-                                                trackingData?.deferred
-                                                    ? "Guardada. El tablero se sincronizará automáticamente."
-                                                    : "Etiqueta guardada correctamente.",
-                                                "ok"
-                                            );
-                                        });
-                                    }
-                                }
+                                // RegistrarLecturasAuto ya guardó directamente en la sesión.
+                                // NO llamar otra vez a RegistrarLecturas: produciría duplicados.
+                                // El resultado ya contiene el almacén detectado y el estado final.
 
                                 // El último código que capturó el lector es el que se
                                 // presenta en grande, no la última caja hija de la tarima.

@@ -169,7 +169,7 @@
         registrosVisibles = [];
         const fila = document.createElement('tr'), celda = document.createElement('td');
         fila.setAttribute('role', 'row'); celda.setAttribute('role', 'cell');
-        celda.colSpan = 6; celda.className = 'activation-empty'; celda.textContent = texto;
+        celda.colSpan = 7; celda.className = 'activation-empty'; celda.textContent = texto;
         fila.append(celda); el('Filas').replaceChildren(fila);
     }
     function celdaListado(columna, valor) {
@@ -194,7 +194,8 @@
             const fila = document.createElement('tr');
             fila.className = 'activation-record'; fila.setAttribute('role', 'row');
             const tieneSku = !!registro.articuloId?.trim();
-            [['Sku', tieneSku ? registro.articuloId : 'Sin código'], ['Alias', registro.aliasExterno?.trim() ? registro.aliasExterno : '—'],
+            [['Sku', tieneSku ? registro.articuloId : 'Sin código'], ['Nombre', registro.nombreProducto?.trim() ? registro.nombreProducto : 'Nombre no disponible'],
+                ['Alias', registro.aliasExterno?.trim() ? registro.aliasExterno : '—'],
                 ['Programacion', registro.programacion], ['Origen', registro.origen]].forEach(([columna, valor]) => {
                 fila.append(celdaListado(columna, valor).celda);
             });

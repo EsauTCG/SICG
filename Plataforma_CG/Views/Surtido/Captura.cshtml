@@ -8,6 +8,21 @@
     var staging =
         ViewBag.ZonaSurtido as List<SurtidoBajadaFilaVM>
         ?? new List<SurtidoBajadaFilaVM>();
+
+    var pedidosPorSolicitud =
+        ViewBag.PedidosPorSolicitud as Dictionary<long, string>
+        ?? new Dictionary<long, string>();
+
+    var clientesPorSolicitud = ViewBag.ClientesPorSolicitud as Dictionary<long, string>
+        ?? new Dictionary<long, string>();
+    var capturadas = ViewBag.ProduccionesCapturadas as HashSet<long>
+        ?? new HashSet<long>();
+    var totalCapturadas = staging.Count(x => capturadas.Contains(x.ProduccionId));
+
+    var gruposPedido = staging
+        .GroupBy(x => x.SolicitudSurtidoId)
+        .OrderBy(g => g.Min(x => x.FechaBaja))
+        .ToList();
 }
 
 <link rel="stylesheet"
@@ -42,19 +57,19 @@
         font-family: "Segoe UI", Tahoma, Arial, sans-serif;
     }
 
-    body:has(.cap-fast) .layout-main-content,
-    body:has(.cap-fast) .layout-main-content .layout-container-fluid {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-        box-sizing: border-box !important;
-        overflow-x: hidden !important;
-    }
+        body:has(.cap-fast) .layout-main-content,
+        body:has(.cap-fast) .layout-main-content .layout-container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            overflow-x: hidden !important;
+        }
 
-    body:has(.cap-fast) .layout-main-content .layout-container-fluid {
-        padding: 0 !important;
-        margin: 0 !important;
-    }
+            body:has(.cap-fast) .layout-main-content .layout-container-fluid {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
 
     .cap-fast {
         width: 100%;
@@ -141,19 +156,19 @@
         border: 1px solid rgba(255,255,255,.22);
     }
 
-    .cap-fast-total strong {
-        display: block;
-        font-size: 30px;
-        line-height: 1;
-        font-weight: 950;
-    }
+        .cap-fast-total strong {
+            display: block;
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 950;
+        }
 
-    .cap-fast-total span {
-        display: block;
-        margin-top: 4px;
-        font-size: 11px;
-        font-weight: 800;
-    }
+        .cap-fast-total span {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            font-weight: 800;
+        }
 
     .cap-fast-summary {
         display: grid;
@@ -162,55 +177,55 @@
         margin-top: 8px;
     }
 
-    .cap-fast-summary > div {
-        min-height: 56px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 9px 12px;
-        background: #fff;
-        border: 1px solid var(--cap-line);
-        border-radius: 12px;
-    }
+        .cap-fast-summary > div {
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            background: #fff;
+            border: 1px solid var(--cap-line);
+            border-radius: 12px;
+        }
 
-    .cap-fast-summary i {
-        width: 34px;
-        height: 34px;
-        min-width: 34px;
-        display: grid;
-        place-items: center;
-        border-radius: 10px;
-        font-style: normal;
-        font-size: 16px;
-        font-weight: 900;
-    }
+        .cap-fast-summary i {
+            width: 34px;
+            height: 34px;
+            min-width: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            font-style: normal;
+            font-size: 16px;
+            font-weight: 900;
+        }
 
-    .cap-fast-summary .pending i {
-        background: #fff1da;
-        color: var(--cap-orange);
-    }
+        .cap-fast-summary .pending i {
+            background: #fff1da;
+            color: var(--cap-orange);
+        }
 
-    .cap-fast-summary .warehouse i {
-        background: #e9f2ff;
-        color: var(--cap-blue);
-    }
+        .cap-fast-summary .warehouse i {
+            background: #e9f2ff;
+            color: var(--cap-blue);
+        }
 
-    .cap-fast-summary span {
-        display: block;
-        color: var(--cap-muted);
-        font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
+        .cap-fast-summary span {
+            display: block;
+            color: var(--cap-muted);
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
 
-    .cap-fast-summary strong {
-        display: block;
-        margin-top: 1px;
-        font-size: 18px;
-        line-height: 1.1;
-        font-weight: 900;
-        color: var(--cap-text);
-    }
+        .cap-fast-summary strong {
+            display: block;
+            margin-top: 1px;
+            font-size: 18px;
+            line-height: 1.1;
+            font-weight: 900;
+            color: var(--cap-text);
+        }
 
     .cap-fast-section {
         margin-top: 8px;
@@ -230,11 +245,11 @@
         border-bottom: 1px solid var(--cap-line);
     }
 
-    .cap-fast-section-head h2 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 900;
-    }
+        .cap-fast-section-head h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 900;
+        }
 
     .cap-fast-count {
         min-width: 72px;
@@ -267,12 +282,12 @@
         border-radius: 12px;
     }
 
-    .cap-fast-item:first-child {
-        background: #fffaf0;
-        border-color: #e9cb8c;
-        border-left-color: var(--cap-orange);
-        box-shadow: 0 7px 18px rgba(50,50,40,.06);
-    }
+        .cap-fast-item:first-child {
+            background: #fffaf0;
+            border-color: #e9cb8c;
+            border-left-color: var(--cap-orange);
+            box-shadow: 0 7px 18px rgba(50,50,40,.06);
+        }
 
     .cap-fast-icon {
         width: 42px;
@@ -290,24 +305,24 @@
         min-width: 0;
     }
 
-    .cap-fast-main .tarima {
-        display: block;
-        color: var(--cap-text);
-        font-size: 18px;
-        line-height: 1.1;
-        font-weight: 950;
-        overflow-wrap: anywhere;
-    }
+        .cap-fast-main .tarima {
+            display: block;
+            color: var(--cap-text);
+            font-size: 18px;
+            line-height: 1.1;
+            font-weight: 950;
+            overflow-wrap: anywhere;
+        }
 
-    .cap-fast-main .producto {
-        display: block;
-        margin-top: 3px;
-        color: #40515f;
-        font-size: 12px;
-        line-height: 1.25;
-        font-weight: 800;
-        overflow-wrap: anywhere;
-    }
+        .cap-fast-main .producto {
+            display: block;
+            margin-top: 3px;
+            color: #40515f;
+            font-size: 12px;
+            line-height: 1.25;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
 
     .cap-fast-meta {
         display: flex;
@@ -335,6 +350,111 @@
         white-space: nowrap;
     }
 
+    /* Información visible del pedido al que pertenecen las cajas */
+    .cap-order-group {
+        margin-bottom: 14px;
+        border: 1px solid #cbd8e2;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .cap-order-head {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        background: #edf4ff;
+        padding: 12px 14px;
+        border-bottom: 1px solid #cbd8e2;
+    }
+
+        .cap-order-head strong {
+            font-size: 19px;
+            color: #123b69;
+        }
+
+        .cap-order-head span {
+            font-size: 13px;
+            font-weight: 750;
+            color: #34516c;
+        }
+
+    .cap-order-items {
+        display: grid;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .cap-resumen-tarima {
+        background: #fff;
+        border: 1px solid #cbd8e2;
+        border-left: 5px solid #176f4b;
+        border-radius: 11px;
+        padding: 13px 15px;
+    }
+
+    .cap-resumen-cabecera {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .cap-resumen-codigo {
+        font-weight: 900;
+        font-size: 18px;
+        overflow-wrap: anywhere;
+    }
+
+    .cap-resumen-metricas {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 22px;
+        font-size: 13px;
+        font-weight: 800;
+        margin-top: 8px;
+    }
+
+        .cap-resumen-metricas strong {
+            color: #123b69;
+        }
+
+    .cap-resumen-tarima details {
+        margin-top: 9px;
+        border-top: 1px solid #e2e9ef;
+        padding-top: 8px;
+    }
+
+    .cap-resumen-tarima summary {
+        cursor: pointer;
+        color: #255681;
+        font-weight: 800;
+        font-size: 12px;
+    }
+
+    .cap-etiqueta-linea {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 5px 0;
+        border-bottom: 1px solid #edf0f4;
+        font-size: 12px;
+    }
+
+    .cap-sku-grupo {
+        margin-top: 9px;
+        padding: 9px;
+        border-radius: 8px;
+        background: #f5f8fc;
+    }
+
+        .cap-sku-grupo:first-child {
+            margin-top: 0;
+        }
+
     .cap-fast-empty {
         margin: 10px;
         padding: 24px 15px;
@@ -347,11 +467,11 @@
         font-weight: 800;
     }
 
-    .cap-fast-empty strong {
-        display: block;
-        margin-bottom: 3px;
-        font-size: 20px;
-    }
+        .cap-fast-empty strong {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 20px;
+        }
 
     @@media (max-width: 1200px) {
         .cap-fast {
@@ -399,9 +519,9 @@
             padding: 8px;
         }
 
-        .cap-fast-total strong {
-            font-size: 23px;
-        }
+            .cap-fast-total strong {
+                font-size: 23px;
+            }
 
         .cap-fast-summary {
             grid-template-columns: 1fr 1fr;
@@ -442,6 +562,197 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* AUTORIZACIÓN RESPONSIVA DE SURTIDO BAJO 96% */
+    .cap-auth-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 50000;
+        background: rgba(16,29,43,.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+    }
+
+        .cap-auth-overlay[hidden] {
+            display: none !important;
+        }
+
+    .cap-auth-card {
+        width: 100%;
+        max-width: 440px;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        background: #fff;
+        border-radius: 15px;
+        padding: 19px;
+        box-shadow: 0 20px 60px #0005;
+        color: #192f40;
+    }
+
+        .cap-auth-card h3 {
+            font-size: 19px;
+            font-weight: 900;
+            margin: 0 0 8px
+        }
+
+    .cap-auth-progress {
+        height: 12px;
+        background: #e5ecf2;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 12px 0 5px
+    }
+
+        .cap-auth-progress > div {
+            height: 100%;
+            background: #dc820d;
+            width: 0;
+            transition: width .2s
+        }
+
+    .cap-auth-card label {
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+        margin: 9px 0 4px
+    }
+
+    .cap-auth-card input, .cap-auth-card textarea {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid #9db0c1;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 16px;
+        box-sizing: border-box
+    }
+
+    .cap-auth-card textarea {
+        min-height: 70px;
+        resize: vertical
+    }
+
+    .cap-auth-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 15px;
+        flex-wrap: wrap
+    }
+
+        .cap-auth-actions button {
+            flex: 1;
+            min-height: 46px;
+            border: 0;
+            border-radius: 9px;
+            font-weight: 900;
+            color: white;
+            background: #176f4b;
+            cursor: pointer
+        }
+
+            .cap-auth-actions button[type=button] {
+                background: #526171
+            }
+
+            .cap-auth-actions button:disabled {
+                opacity: .6;
+                cursor: not-allowed
+            }
+
+    .cap-auth-note {
+        font-size: 12px;
+        color: #657786;
+        line-height: 1.4
+    }
+
+    .cap-remover {
+        appearance: none;
+        border: 1px solid #b83a3a;
+        background: #fff;
+        color: #a42727;
+        padding: 9px 12px;
+        min-height: 42px;
+        border-radius: 9px;
+        font-weight: 800;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+        .cap-remover:disabled {
+            opacity: .5;
+            cursor: wait
+        }
+
+    .cap-remover-tarima {
+        margin-top: 10px;
+    }
+
+    .cap-remover-caja {
+        flex-shrink: 0;
+        min-width: 100px;
+    }
+
+    @@media(max-width:600px) {
+        .cap-remover {
+            min-height: 48px;
+            width: 100%;
+        }
+
+        .cap-etiqueta-linea {
+            align-items: center;
+        }
+    }
+
+    .cap-auth-error {
+        color: #a61d2a;
+        font-size: 12px;
+        font-weight: 800;
+        margin-top: 6px
+    }
+
+    @@media(max-width:600px) {
+        .cap-fast {
+            max-width: 100% !important;
+            padding: 6px !important
+        }
+
+        .cap-fast-shell {
+            max-width: 100%
+        }
+
+        .cap-order-head {
+            display: block !important
+        }
+
+            .cap-order-head > div + div {
+                margin-top: 8px
+            }
+
+        .cap-escaneo {
+            display: grid !important;
+            grid-template-columns: minmax(0,1fr) !important
+        }
+
+            .cap-escaneo input, .cap-escaneo button {
+                width: 100%;
+                min-width: 0 !important;
+                min-height: 48px
+            }
+
+        .cap-auth-card {
+            padding: 16px
+        }
+
+        .cap-resumen-metricas {
+            gap: 7px 14px
+        }
+
+        .cap-fast-summary {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important
+        }
+    }
 </style>
 
 <div class="cap-fast">
@@ -450,13 +761,13 @@
         <div class="cap-fast-top">
             <a class="cap-fast-back"
                href="@Url.Action(
-                    "Surtido_cedis",
-                    "Surtido",
-                    new
-                    {
-                        almacen = Model.Codigo
-                    }
-               )">
+                                   "Surtido_cedis",
+                                   "Surtido",
+                                   new
+                                   {
+                                       almacen = Model.Codigo
+                                   }
+                              )">
                 ← Regresar
             </a>
 
@@ -475,8 +786,8 @@
             </div>
 
             <div class="cap-fast-total">
-                <strong>@staging.Count</strong>
-                <span>Pendientes</span>
+                <strong>@(staging.Count - totalCapturadas)</strong>
+                <span>Por escanear</span>
             </div>
         </section>
 
@@ -509,35 +820,133 @@
             @if (staging.Any())
             {
                 <div class="cap-fast-list">
-                    @foreach (var x in staging)
+                    @foreach (var grupo in gruposPedido)
                     {
-                        <div class="cap-fast-item">
-                            <div class="cap-fast-icon">↓</div>
-
-                            <div class="cap-fast-main">
-                                <strong class="tarima">
-                                    @(string.IsNullOrWhiteSpace(x.TarimaCodigo)
-                                        ? x.CodigoEtiqueta
-                                        : x.TarimaCodigo)
-                                </strong>
-
-                                <span class="producto">
-                                    @x.Articulo
-                                </span>
-
-                                <div class="cap-fast-meta">
-                                    <span>Etiqueta: @x.CodigoEtiqueta</span>
-                                    <span>@x.PesoNeto?.ToString("N2") kg</span>
-                                    <span>Lote: @x.Lote</span>
-                                    <span>Solicitud: @x.SolicitudSurtidoId</span>
-                                    <span>@x.FechaBaja.ToString("dd/MM HH:mm")</span>
+                        var solicitudId = grupo.Key;
+                        var nombrePedido = pedidosPorSolicitud.TryGetValue(solicitudId, out var nombre)
+                            ? nombre : "Pedido sin referencia";
+                        <section class="cap-order-group">
+                            <div class="cap-order-head">
+                                <div>
+                                    <span>PEDIDO</span>
+                                    <strong style="display:block">@nombrePedido</strong>
+                                    <span>Solicitud de surtido: @solicitudId</span>
+                                    <span style="display:block">
+                                        Cliente: @(clientesPorSolicitud.TryGetValue(solicitudId, out var cli)
+                                                                                    && !string.IsNullOrWhiteSpace(cli) ? cli : "No disponible")
+                                    </span>
+                                </div>
+                                <div>
+                                    <strong>@grupo.Count() caja@(grupo.Count() == 1 ? "" : "s")</strong>
+                                    <span style="display:block">Bajadas · pendientes de captura</span>
+                                    <strong>@grupo.Sum(x => x.PesoNeto ?? 0m).ToString("N2") kg</strong>
                                 </div>
                             </div>
-
-                            <div class="cap-fast-status">
-                                Pendiente
+                            @if (grupo.Key > 0 && grupo.Key <= int.MaxValue)
+                            {
+                                <form class="cap-escaneo" data-solicitud="@solicitudId"
+                                      style="display:flex;gap:8px;flex-wrap:wrap;padding:12px;background:#f2f7fc">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="almacen" value="@Model.Codigo" />
+                                    <input type="hidden" name="solicitudSurtidoId" value="@solicitudId" />
+                                    <input name="codigoEtiqueta" required autocomplete="off"
+                                           placeholder="Escanear caja individual o tarima (TARTIF...)"
+                                           aria-label="Código de etiqueta" style="flex:1;min-width:230px;padding:10px" />
+                                    <button type="submit" style="background:#176f4b;color:white;border:0;border-radius:8px;padding:10px 16px">
+                                        Confirmar escaneo
+                                    </button>
+                                    <button type="button" class="cap-validar"
+                                            style="background:#254c86;color:white;border:0;border-radius:8px;padding:10px 16px">
+                                        Cerrar captura
+                                    </button>
+                                    <span class="cap-respuesta" role="status" style="width:100%"></span>
+                                </form>
+                            }
+                            @{
+                                var unidades = grupo
+                                    .GroupBy(x => !string.IsNullOrWhiteSpace(x.TarimaCodigo)
+                                        ? "T:" + x.TarimaCodigo.Trim().ToUpperInvariant()
+                                        : "C:" + x.ProduccionId.ToString())
+                                    .OrderBy(g => g.Min(x => x.FechaBaja))
+                                    .ToList();
+                            }
+                            <div class="cap-order-items">
+                                @foreach (var unidad in unidades)
+                                {
+                                    var esTarima = unidad.Key.StartsWith("T:");
+                                    var codigoUnidad = esTarima ? unidad.First().TarimaCodigo : unidad.First().CodigoEtiqueta;
+                                    var cajas = unidad.GroupBy(x => x.ProduccionId).Select(g => g.First()).ToList();
+                                    var kgUnidad = cajas.Sum(x => x.PesoNeto ?? 0m);
+                                    var capturadasUnidad = cajas.Count(x => capturadas.Contains(x.ProduccionId));
+                                    var pendientesUnidad = cajas.Count - capturadasUnidad;
+                                    var skus = cajas.GroupBy(x => (x.Articulo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                                        .OrderBy(g => g.Key).ToList();
+                                    <div class="cap-resumen-tarima">
+                                        <div class="cap-resumen-cabecera">
+                                            <div>
+                                                <div style="font-size:11px;font-weight:900;color:#687a88">
+                                                    @(esTarima ? "TARIMA" : "CAJA INDIVIDUAL")
+                                                </div>
+                                                <div class="cap-resumen-codigo">@codigoUnidad</div>
+                                            </div>
+                                            <span class="cap-fast-status" style="background:@(pendientesUnidad == 0 ? "#198754" : "#d98200")">
+                                                @(pendientesUnidad == 0 ? "CAPTURADA" : "POR ESCANEAR")
+                                            </span>
+                                        </div>
+                                        @if (esTarima && capturadasUnidad > 0)
+                                        {
+                                            <button type="button" class="cap-remover cap-remover-tarima"
+                                                    data-quitar-tarima="@codigoUnidad"
+                                                    data-solicitud="@solicitudId"
+                                                    data-almacen="@Model.Codigo">
+                                                Quitar tarima de la captura (@capturadasUnidad cajas)
+                                            </button>
+                                        }
+                                        <div class="cap-resumen-metricas">
+                                            <span><strong>@cajas.Count</strong> cajas bajadas</span>
+                                            <span><strong>@kgUnidad.ToString("N2") kg</strong> bajados</span>
+                                            <span><strong>@capturadasUnidad</strong> capturadas</span>
+                                            <span><strong>@pendientesUnidad</strong> por escanear</span>
+                                        </div>
+                                        @foreach (var sku in skus)
+                                        {
+                                            var skuCajas = sku.ToList();
+                                            <div class="cap-sku-grupo">
+                                                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                                                    <strong>SKU: @sku.Key</strong>
+                                                    <span style="font-weight:800">
+                                                        @skuCajas.Count cajas · @skuCajas.Sum(x => x.PesoNeto ?? 0m).ToString("N2") kg ·
+                                                        @skuCajas.Count(x => capturadas.Contains(x.ProduccionId)) capturadas
+                                                    </span>
+                                                </div>
+                                                <details>
+                                                    <summary>Ver etiquetas (@skuCajas.Count)</summary>
+                                                    @foreach (var caja in skuCajas)
+                                                    {
+                                                        <div class="cap-etiqueta-linea">
+                                                            <span>@caja.CodigoEtiqueta</span>
+                                                            <span>@((caja.PesoNeto ?? 0m).ToString("N2")) kg</span>
+                                                            <span style="color:@(capturadas.Contains(caja.ProduccionId) ? "#198754" : "#ad6700");font-weight:800">
+                                                                @(capturadas.Contains(caja.ProduccionId) ? "CAPTURADA" : "POR ESCANEAR")
+                                                            </span>
+                                                            @if (capturadas.Contains(caja.ProduccionId))
+                                                            {
+                                                                <button type="button" class="cap-remover cap-remover-caja"
+                                                                        data-quitar-caja="@caja.ProduccionId"
+                                                                        data-solicitud="@solicitudId"
+                                                                        data-almacen="@Model.Codigo">
+                                                                    Quitar etiqueta
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </details>
+                                            </div>
+                                        }
+                                    </div>
+                                }
                             </div>
-                        </div>
+                        </section>
                     }
                 </div>
             }
@@ -552,3 +961,146 @@
 
     </main>
 </div>
+
+
+<div id="capAutModal" class="cap-auth-overlay" hidden aria-hidden="true">
+    <div class="cap-auth-card" role="dialog" aria-modal="true" aria-labelledby="capAutTitulo">
+        <h3 id="capAutTitulo">Autorizar surtido inferior al 96%</h3>
+        <div id="capAutResumen" style="font-size:14px;font-weight:800"></div>
+        <div class="cap-auth-progress"><div id="capAutBarra"></div></div>
+        <p class="cap-auth-note">Se evalúa el cumplimiento global y por cada SKU. El supervisor debe tener el permiso SURTIDO_AUTORIZAR_MENOR_96 en su perfil y contraseña vigente de SIGO.</p>
+        <label for="capAutUsuario">Usuario supervisor</label>
+        <input id="capAutUsuario" type="text" autocomplete="username" maxlength="128" />
+        <label for="capAutNip">Contraseña de SIGO</label>
+        <input id="capAutNip" type="password" autocomplete="off" maxlength="256" />
+        <label for="capAutMotivo">Motivo de autorización (obligatorio)</label>
+        <textarea id="capAutMotivo" maxlength="500" placeholder="Indica el motivo del faltante (mínimo 10 caracteres)"></textarea>
+        <div id="capAutError" class="cap-auth-error" role="alert"></div>
+        <div class="cap-auth-actions">
+            <button type="button" id="capAutCancelar">Cancelar</button>
+            <button type="button" id="capAutConfirmar">Autorizar y validar</button>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+      const modal = document.getElementById('capAutModal');
+      const resumen = document.getElementById('capAutResumen');
+      const barra = document.getElementById('capAutBarra');
+      const error = document.getElementById('capAutError');
+      const usr = document.getElementById('capAutUsuario');
+      const nip = document.getElementById('capAutNip');
+      const motivo = document.getElementById('capAutMotivo');
+      const aceptar = document.getElementById('capAutConfirmar');
+      const cancelar = document.getElementById('capAutCancelar');
+      let formActual = null;
+      let ocupado = false;
+      function cerrar() {
+        if (ocupado) return;
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden','true');
+        nip.value = '';
+        formActual = null;
+      }
+      cancelar.addEventListener('click',cerrar);
+      document.addEventListener('keydown', e => { if(e.key==='Escape') cerrar(); });
+      function mensaje(f,m,ok) {
+        const n = f.querySelector('.cap-respuesta');
+        if(n){n.textContent=m;n.style.color=ok?'#11653f':'#b4232f';}
+      }
+      async function enviar(form,url,extra) {
+        if (ocupado) return;
+        ocupado = true;
+        const botones=form.querySelectorAll('button');
+        botones.forEach(x=>x.disabled=true);
+        aceptar.disabled=true;
+        mensaje(form,'Procesando...',true);
+        try {
+          const fd=new FormData(form);
+          for(const [key,value] of Object.entries(extra||{})) fd.set(key,value);
+          const res=await fetch(url,{method:'POST',body:fd,credentials:'same-origin'});
+          const ct=res.headers.get('content-type')||'';
+          if(!ct.includes('application/json'))throw new Error('Respuesta inesperada del servidor.');
+          const json=await res.json();
+          if(!res.ok||json.ok===false) {
+            const msg=json.message||'Operación rechazada.';
+            mensaje(form,msg,false);
+            if(!modal.hidden) error.textContent=msg;
+            return;
+          }
+          mensaje(form,json.message||'Operación confirmada.',true);
+          nip.value='';
+          window.location.reload();
+        } catch(ex) {
+          const msg='No se confirmó la operación. Consulta su estado antes de intentar otra vez.';
+          mensaje(form,msg,false);
+          if(!modal.hidden) error.textContent=msg;
+        } finally {
+          ocupado=false;
+          botones.forEach(x=>x.disabled=false);
+          aceptar.disabled=false;
+        }
+      }
+      document.querySelectorAll('.cap-escaneo').forEach(f=>{
+        f.addEventListener('submit',e=>{
+          e.preventDefault();
+          enviar(f,'/Surtido/CapturarCodigo');
+        });
+        const validar=f.querySelector('.cap-validar');
+        if(!validar)return;
+        validar.addEventListener('click',async ()=>{
+          if(ocupado)return;
+          validar.disabled=true;
+          try {
+            const params=new URLSearchParams({almacen:f.querySelector('[name=almacen]').value,
+              solicitudSurtidoId:f.querySelector('[name=solicitudSurtidoId]').value});
+            const res=await fetch('/Surtido/ResumenCierre?'+params,{credentials:'same-origin'});
+            const json=await res.json();
+            if(!res.ok||!json.ok)throw new Error(json.message||'No se obtuvo el porcentaje.');
+            const c=Number(json.porcentaje);
+            if(!json.requiereAutorizacion){
+              if(confirm(`Cumplimiento por cajas ${c.toFixed(2)}% (${json.capturado}/${json.solicitado}). ¿Validar pedido y encolarlo para Meat?`))
+                await enviar(f,'/Surtido/ValidarCaptura');
+            } else {
+              formActual=f;
+              resumen.textContent=`Cumplimiento por cajas ${c.toFixed(2)}% · ${json.capturado} cajas capturadas / ${json.solicitado} cajas solicitadas · ${Number(json.kgCapturados||0).toFixed(3)} kg reales`;
+              barra.style.width=Math.min(100,Math.max(0,c))+'%';
+              error.textContent='';
+              modal.hidden=false;modal.setAttribute('aria-hidden','false');usr.focus();
+            }
+          } catch(ex) {mensaje(f,ex.message||'No fue posible verificar el surtido.',false);}
+          finally{validar.disabled=false;}
+        });
+      });
+      aceptar.addEventListener('click',async ()=>{
+        if(!formActual||ocupado)return;
+        if(!usr.value.trim() || !nip.value || motivo.value.trim().length<10) {
+          error.textContent='Ingresa usuario supervisor, su contraseña de SIGO y motivo (mínimo 10 caracteres).';return;
+        }
+        await enviar(formActual,'/Surtido/ValidarCaptura',{
+          usuarioAutorizador:usr.value.trim(),contrasenaAutorizador:nip.value,motivoAutorizacion:motivo.value.trim()
+        });
+      });
+      // Corrección de captura: baja lógica con motivo y evidencia en SIGO.
+      // No modifica TarimaDetalle ni SurtidoBajada (movimiento físico).
+      document.querySelectorAll('[data-quitar-caja],[data-quitar-tarima]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if(ocupado)return;
+          const esCaja=btn.hasAttribute('data-quitar-caja');
+          const elemento=esCaja?'etiqueta':'tarima completa';
+          const motivo=prompt('Motivo para quitar '+elemento+' de la captura (mínimo 5 caracteres):');
+          if(motivo===null)return;
+          if(motivo.trim().length<5 || motivo.length>500){alert('Escribe un motivo válido (5 a 500 caracteres).');return;}
+          if(!confirm('¿Confirmas retirar '+elemento+' de la captura? La bajada física seguirá registrada.'))return;
+          const f=Array.from(document.querySelectorAll('.cap-escaneo'))
+            .find(x=>x.querySelector('[name=solicitudSurtidoId]')?.value===btn.dataset.solicitud);
+          if(!f){alert('No se encontró el formulario del pedido.');return;}
+          const datos={motivo:motivo.trim()};
+          if(esCaja)datos.produccionId=btn.dataset.quitarCaja;
+          else datos.tarimaCodigo=btn.dataset.quitarTarima;
+          await enviar(f,'/Surtido/QuitarCaptura',datos);
+        });
+      });
+      document.querySelector('.cap-escaneo input[name=codigoEtiqueta]')?.focus();
+    })();
+</script>

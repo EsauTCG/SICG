@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Plataforma_CG.Data;
+using Plataforma_CG.Filters;
+using Plataforma_CG.Models;
 using Plataforma_CG.ViewModels;
 using System.Data;
 using System.Text.Json;
@@ -25,6 +27,44 @@ namespace Plataforma_CG.Controllers
             _configuracion = configuracion;
         }
 
+
+        // Control de intentos por login+IP en la instancia IIS. Para una granja
+        // de servidores debe sustituirse por rate limit distribuido.
+        private sealed class SurtidoIntentosClave
+        {
+            public int Fallos { get; set; }
+            public DateTime InicioUtc { get; set; }
+        }
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SurtidoIntentosClave>
+            _intentosSupervisor = new();
+        private static readonly object _lockIntentosSupervisor = new();
+        private static bool AutorizadorBloqueado(string clave)
+        {
+            lock (_lockIntentosSupervisor)
+            {
+                if (!_intentosSupervisor.TryGetValue(clave, out var e)) return false;
+                if (DateTime.UtcNow - e.InicioUtc > TimeSpan.FromMinutes(15))
+                {
+                    _intentosSupervisor.TryRemove(clave, out _);
+                    return false;
+                }
+                return e.Fallos >= 5;
+            }
+        }
+        private static void RegistrarFalloSupervisor(string clave)
+        {
+            lock (_lockIntentosSupervisor)
+            {
+                if (!_intentosSupervisor.TryGetValue(clave, out var e) ||
+                   DateTime.UtcNow - e.InicioUtc > TimeSpan.FromMinutes(15))
+                    _intentosSupervisor[clave] = new SurtidoIntentosClave { Fallos = 1, InicioUtc = DateTime.UtcNow };
+                else e.Fallos++;
+            }
+        }
+        private static void ReiniciarFalloSupervisor(string clave)
+        {
+            lock (_lockIntentosSupervisor) _intentosSupervisor.TryRemove(clave, out _);
+        }
 
         // ============================================================
         // CONFIGURACIÓN DE ALMACÉN LEÍDA DESDE appsettings.json
@@ -1201,6 +1241,7 @@ ORDER BY
             return lista
                 .Where(x =>
                     x.CajasPendientes > 0
+                    || (x.CajasBajadas > 0 && x.CajasSurtidas < x.CajasSolicitadas)
                 )
                 .ToList();
         }
@@ -1863,87 +1904,81 @@ ORDER BY
         // Cajas que ya fueron BAJADAS por Montacarguista.
         // Todavía NO son SalidaEmbarque.
         // ============================================================
+        // ============================================================
+        // CONTADORES PARA PICKING: DATOS REALES DE SIGO
+        // Bajadas = cajas físicas en SurtidoBajada (no tarimas).
+        // Surtidas = cajas activas capturadas por el capturista.
+        // No modifica PEPS ni genera movimientos en MEAT.
+        // ============================================================
         private async Task CompletarBajadasEnPedidosAsync(
             List<SurtidoPedidoVM> pedidos,
             SurtidoAlmacenVM almacen,
             CancellationToken ct)
         {
-            if (pedidos.Count == 0)
-            {
-                return;
-            }
+            if (pedidos.Count == 0) return;
 
-            var ids =
-                pedidos
-                    .Select(x =>
-                        Convert.ToInt64(
-                            x.SolicitudSurtidoId
-                        )
-                    )
-                    .Distinct()
-                    .ToList();
-
-            var conn =
-                await ObtenerConexionSigoAsync(ct);
+            var ids = pedidos.Select(p => p.SolicitudSurtidoId)
+                             .Distinct().ToArray();
+            var conn = await ObtenerConexionSigoAsync(ct);
 
             const string sql = @"
-SELECT
-    SolicitudSurtidoId,
-    Cajas =
-        COUNT_BIG(1)
-FROM dbo.SurtidoBajada WITH (NOLOCK)
-WHERE Activo = 1
-  AND Estatus = 'BAJADA'
-  AND Planta = @Planta
-  AND CodigoAlmacen = @CodigoAlmacen
-  AND SolicitudSurtidoId IN @Ids
-GROUP BY
-    SolicitudSurtidoId;
-";
+;WITH Bajadas AS
+(
+    SELECT SolicitudSurtidoId,
+           COUNT(DISTINCT ProduccionId) AS CajasBajadas
+    FROM dbo.SurtidoBajada
+    WHERE Activo = 1
+      AND Estatus = 'BAJADA'
+      AND Planta = @Planta
+      AND CodigoAlmacen = @Almacen
+      AND SolicitudSurtidoId IN @Ids
+    GROUP BY SolicitudSurtidoId
+),
+Capturas AS
+(
+    SELECT sc.SolicitudSurtidoId,
+           COUNT(DISTINCT d.ProduccionId) AS CajasSurtidas
+    FROM dbo.SurtidoCaptura sc
+    INNER JOIN dbo.SurtidoCapturaDetalle d
+        ON d.SurtidoCapturaId = sc.Id
+    WHERE d.Activo = 1
+      AND sc.Estatus IN ('CAPTURANDO', 'VALIDADO')
+      AND sc.Planta = @Planta
+      AND sc.CodigoAlmacen = @Almacen
+      AND sc.SolicitudSurtidoId IN @Ids
+    GROUP BY sc.SolicitudSurtidoId
+)
+SELECT ISNULL(b.SolicitudSurtidoId,c.SolicitudSurtidoId) AS SolicitudSurtidoId,
+       ISNULL(b.CajasBajadas,0) AS CajasBajadas,
+       ISNULL(c.CajasSurtidas,0) AS CajasSurtidas
+FROM Bajadas b
+FULL OUTER JOIN Capturas c
+    ON c.SolicitudSurtidoId = b.SolicitudSurtidoId;";
 
-            var rows =
-                (
-                    await conn.QueryAsync<dynamic>(
-                        new CommandDefinition(
-                            sql,
-                            new
-                            {
-                                Planta =
-                                    almacen.Planta,
+            var rows = await conn.QueryAsync<dynamic>(
+                new CommandDefinition(sql,
+                    new
+                    {
+                        Planta = almacen.Planta,
+                        Almacen = almacen.Codigo,
+                        Ids = ids
+                    },
+                    cancellationToken: ct));
 
-                                CodigoAlmacen =
-                                    almacen.Codigo,
-
-                                Ids =
-                                    ids
-                            },
-                            cancellationToken: ct
-                        )
-                    )
-                )
-                .ToList();
-
-            var mapa =
-                rows.ToDictionary(
-                    x =>
-                        Convert.ToInt64(
-                            x.SolicitudSurtidoId
-                        ),
-                    x =>
-                        Convert.ToInt32(
-                            x.Cajas
-                        )
-                );
-
+            var porSolicitud = rows.ToDictionary(
+                r => Convert.ToInt64(r.SolicitudSurtidoId));
             foreach (var pedido in pedidos)
             {
-                if (mapa.TryGetValue(
-                        pedido.SolicitudSurtidoId,
-                        out var cajas))
-                {
-                    pedido.CajasBajadas =
-                        cajas;
-                }
+                if (!porSolicitud.TryGetValue(
+                        Convert.ToInt64(pedido.SolicitudSurtidoId),
+                        out var datos)) continue;
+
+                pedido.CajasBajadas = Convert.ToInt32(datos.CajasBajadas);
+                // Mantener el valor de Meat cuando ya se haya integrado.
+                // En fase SIGO usar las etiquetas activas de la captura.
+                pedido.CajasSurtidas = Math.Max(
+                    pedido.CajasSurtidas,
+                    Convert.ToInt32(datos.CajasSurtidas));
             }
         }
 
@@ -4784,6 +4819,169 @@ VALUES
 
 
         // ============================================================
+        // BAJADA DE TARIMA: registra una fila por caja en SIGO.
+        // Nunca inserta directamente en Meat/SalidaEmbarque.
+        // Las cajas fuera de PEPS / sin ubicación / fuera del pedido
+        // NO se incluyen en la bajada.
+        // ============================================================
+        private async Task<string> RegistrarBajadaTarimaAsync(
+            SurtidoAlmacenVM almacen,
+            int solicitudId,
+            long produccionSeleccionada,
+            string codigoTarima,
+            string usuario,
+            CancellationToken ct)
+        {
+            var conexionMeat = ObtenerCadenaMeatPorAlmacen(almacen);
+            await using var meat = new SqlConnection(conexionMeat.Cadena);
+            await meat.OpenAsync(ct);
+
+            const string sqlTarima = @"
+SELECT TOP 1 t.TarimaId
+FROM dbo.Tarima t
+WHERE UPPER(LTRIM(RTRIM(t.Nombre))) = @Codigo
+  AND t.Estatus = 1;";
+            var tarimaId = await meat.QueryFirstOrDefaultAsync<int?>(
+                new CommandDefinition(sqlTarima, new { Codigo = codigoTarima },
+                    cancellationToken: ct));
+            if (!tarimaId.HasValue)
+                throw new InvalidOperationException("Tarima inexistente o inactiva en Meat.");
+
+            // Identificar todas las cajas realmente vigentes de la tarima.
+            const string sqlContenido = @"
+SELECT DISTINCT p.ProduccionId
+FROM dbo.TarimaDetalle td
+INNER JOIN dbo.Produccion p ON p.ProduccionId = td.ProduccionId
+WHERE td.TarimaId = @TarimaId
+  AND p.Estatus = 1
+  AND p.Almacen = @Almacen
+  AND NOT EXISTS
+  (SELECT 1 FROM dbo.SalidaEmbarque se WHERE se.ProduccionId = p.ProduccionId);";
+            var contenido = (await meat.QueryAsync<long>(new CommandDefinition(
+                sqlContenido, new { TarimaId = tarimaId.Value, Almacen = almacen.Codigo },
+                cancellationToken: ct))).ToHashSet();
+            if (contenido.Count == 0)
+                throw new InvalidOperationException("No hay cajas vigentes disponibles en esta tarima y almacén.");
+
+            // Recalcular selección PEPS y la cantidad todavía pendiente.
+            var picking = await ConstruirPedidoPepsAsync(almacen, solicitudId, ct);
+            if (!string.IsNullOrWhiteSpace(picking.Error))
+                throw new InvalidOperationException(picking.Error);
+            var cajasTarima = picking.Productos.SelectMany(x => x.Cajas)
+                .Where(x => contenido.Contains(x.ProduccionId)
+                    && string.Equals((x.TarimaCodigo ?? "").Trim(),
+                        codigoTarima, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (!cajasTarima.Any(x => x.ProduccionId == produccionSeleccionada))
+                throw new InvalidOperationException("La tarima no coincide con la caja seleccionada del pedido.");
+
+            var candidatas = cajasTarima
+                .Where(x => x.EsRecomendada && x.PuedeBajar)
+                .GroupBy(x => x.ProduccionId).Select(g => g.First())
+                .OrderBy(x => x.FechaProduccion ?? DateTime.MaxValue)
+                .ThenBy(x => x.ProduccionId).ToList();
+            if (candidatas.Count == 0)
+                throw new InvalidOperationException("Ninguna caja de esta tarima cumple PEPS, ubicación y pendientes del pedido.");
+
+            // Aplicar todos los INSERT en UNA transacción SIGO.
+            // Una falla revierte la bajada entera.
+            // Reutilizar la conexión EF Core de SIGO ya autenticada.
+            // No copiar ConnectionString: con Persist Security Info=false
+            // puede ocultar la contraseña y fallar el login SQL (18456).
+            // La conexión pertenece al DbContext y NO debe cerrarse aquí.
+            var sigo = (System.Data.Common.DbConnection)
+                await ObtenerConexionSigoAsync(ct);
+            await using var tx = await sigo.BeginTransactionAsync(ct);
+            var idsInsertados = new List<long>();
+            try
+            {
+                var bloqueo = await sigo.ExecuteScalarAsync<int>(new CommandDefinition(@"
+DECLARE @Resultado int;
+EXEC @Resultado = sys.sp_getapplock
+  @Resource = @Recurso,
+  @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+SELECT @Resultado;", new { Recurso = $"SIGO_BAJADA_SOLICITUD_{almacen.Planta}_{solicitudId}" },
+                    transaction: tx, cancellationToken: ct));
+                if (bloqueo < 0)
+                    throw new InvalidOperationException("No se obtuvo bloqueo de la solicitud.");
+
+                // Se bloquea la solicitud contra cambios simultáneos en esta ruta.
+                // Volver a verificar la prioridad justo antes de llamar a este método
+                // (se realiza en ConfirmarBajada).
+                const string sqlInsert = @"
+IF NOT EXISTS
+(
+ SELECT 1 FROM dbo.SurtidoBajada WITH (UPDLOCK, HOLDLOCK)
+ WHERE ProduccionId = @ProduccionId AND Activo = 1
+)
+BEGIN
+ INSERT INTO dbo.SurtidoBajada
+ (Planta, CodigoAlmacen, SolicitudSurtidoId, ProduccionId,
+  CodigoEtiqueta, TarimaId, TarimaCodigo, Articulo, Lote,
+  FechaProduccion, PesoNeto, UbicacionOrigen, Estatus,
+  Activo, UsuarioBaja, FechaBaja)
+ VALUES
+ (@Planta, @CodigoAlmacen, @SolicitudSurtidoId, @ProduccionId,
+  @CodigoEtiqueta, @TarimaId, @TarimaCodigo, @Articulo, @Lote,
+  @FechaProduccion, @PesoNeto, @UbicacionOrigen, 'BAJADA',
+  1, @UsuarioBaja, SYSDATETIME());
+ SELECT 1;
+END
+ELSE SELECT 0;";
+                foreach (var caja in candidatas)
+                {
+                    var insertada = await sigo.ExecuteScalarAsync<int>(new CommandDefinition(
+                        sqlInsert, new
+                        {
+                            Planta = almacen.Planta,
+                            CodigoAlmacen = almacen.Codigo,
+                            SolicitudSurtidoId = solicitudId,
+                            ProduccionId = caja.ProduccionId,
+                            CodigoEtiqueta = caja.CodigoEtiqueta,
+                            TarimaId = tarimaId.Value,
+                            TarimaCodigo = codigoTarima,
+                            Articulo = caja.Articulo,
+                            Lote = caja.Lote,
+                            FechaProduccion = caja.FechaProduccion,
+                            PesoNeto = caja.PesoNeto,
+                            UbicacionOrigen = string.IsNullOrWhiteSpace(caja.UbicacionOrigen)
+                                ? null : caja.UbicacionOrigen,
+                            UsuarioBaja = usuario
+                        }, transaction: tx, cancellationToken: ct));
+                    if (insertada == 1)
+                        idsInsertados.Add(caja.ProduccionId);
+                }
+                await tx.CommitAsync(ct);
+            }
+            catch
+            {
+                await tx.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+
+            // Reutilizar la liberación física del módulo existente.
+            // Se ejecuta DESPUÉS del commit; un error debe revisarse
+            // operativamente, sin volver a insertar cajas duplicadas.
+            var fallasUbicacion = 0;
+            foreach (var produccionId in idsInsertados)
+            {
+                try { await LiberarProduccionUbicacionAsync(almacen, produccionId, ct); }
+                catch (Exception ex)
+                {
+                    fallasUbicacion++;
+                    System.Diagnostics.Trace.TraceError($"Error liberando ubicación {produccionId}: {ex}");
+                }
+            }
+
+            var excluidas = contenido.Count - candidatas.Count;
+            return $"Tarima {codigoTarima}: {idsInsertados.Count} cajas bajadas; " +
+                $"{candidatas.Count - idsInsertados.Count} ya reservadas; " +
+                $"{excluidas} fuera de PEPS/pedido. " +
+                (fallasUbicacion > 0 ? $"ATENCIÓN: {fallasUbicacion} liberaciones de ubicación requieren revisión." :
+                    "Quedan pendientes de captura en SIGO.");
+        }
+
+        // ============================================================
         // Cola para Capturista.
         // ============================================================
         private async Task<List<SurtidoBajadaFilaVM>>
@@ -4827,6 +5025,14 @@ WHERE Activo = 1
   AND Estatus = 'BAJADA'
   AND Planta = @Planta
   AND CodigoAlmacen = @CodigoAlmacen
+  AND NOT EXISTS
+  (
+      SELECT 1 FROM dbo.SurtidoCaptura sc
+      WHERE sc.SolicitudSurtidoId = SurtidoBajada.SolicitudSurtidoId
+        AND sc.Planta = @Planta
+        AND sc.CodigoAlmacen = @CodigoAlmacen
+        AND sc.Estatus IN ('VALIDADO','INTEGRANDO','INTEGRADO')
+  )
 ORDER BY
     FechaProduccion ASC,
     Id ASC;
@@ -5371,6 +5577,63 @@ ORDER BY
 
 
         // ============================================================
+        // RESUMEN REAL DE BAJADAS PARA PICKING (SOLO LECTURA)
+        // Independiente de CajasPendientes, para que una tarima
+        // ya bajada siga visible mientras no se cierre la jornada.
+        // ============================================================
+        private async Task<List<SurtidoPickingBajadaResumenVM>>
+            ObtenerResumenBajadasPickingAsync(
+                List<SurtidoAlmacenVM> almacenes,
+                CancellationToken ct)
+        {
+            var resultado = new List<SurtidoPickingBajadaResumenVM>();
+            if (almacenes.Count == 0) return resultado;
+
+            // Se usa la misma conexion SIGO del controlador actual.
+            // No se dispone: la conexion pertenece a AppDbContext.
+            var cn = await ObtenerConexionSigoAsync(ct);
+            const string sql = @"
+SELECT TOP (150)
+    b.Planta,
+    b.CodigoAlmacen,
+    b.SolicitudSurtidoId,
+    ISNULL(b.TarimaCodigo, '') AS TarimaCodigo,
+    b.Articulo AS SKU,
+    COUNT(DISTINCT b.ProduccionId) AS Cajas,
+    CONVERT(decimal(18,3), SUM(ISNULL(b.PesoNeto,0))) AS Kg,
+    ISNULL(MAX(b.UsuarioBaja), '') AS UltimoOperador,
+    MAX(b.FechaBaja) AS UltimaBajada,
+    CONVERT(bit, CASE WHEN EXISTS (
+        SELECT 1 FROM dbo.SurtidoCaptura sc
+        WHERE sc.SolicitudSurtidoId = b.SolicitudSurtidoId
+          AND sc.Planta = b.Planta
+          AND sc.CodigoAlmacen = b.CodigoAlmacen
+          AND sc.Estatus IN ('VALIDADO','INTEGRANDO','INTEGRADO')
+    ) THEN 1 ELSE 0 END) AS Validado
+FROM dbo.SurtidoBajada b
+WHERE b.Activo = 1
+  AND b.Estatus = 'BAJADA'
+  AND b.Planta = @Planta
+  AND b.CodigoAlmacen = @Almacen
+  AND b.FechaBaja >= DATEADD(DAY,-14,GETDATE())
+GROUP BY b.Planta,b.CodigoAlmacen,b.SolicitudSurtidoId,
+         b.TarimaCodigo,b.Articulo
+ORDER BY MAX(b.FechaBaja) DESC;
+";
+            foreach (var a in almacenes)
+            {
+                var filas = await cn.QueryAsync<SurtidoPickingBajadaResumenVM>(
+                    new CommandDefinition(sql,
+                        new { Planta = a.Planta, Almacen = a.Codigo },
+                        cancellationToken: ct));
+                resultado.AddRange(filas);
+            }
+            return resultado
+                .OrderByDescending(x => x.UltimaBajada)
+                .Take(150).ToList();
+        }
+
+        // ============================================================
         // PICKING / MONTACARGUISTA
         // ============================================================
         [HttpGet("/Surtido/Picking")]
@@ -5528,6 +5791,24 @@ ORDER BY
                     almacenesSincronizacion,
                     ct
                 );
+
+            // Las bajadas se consultan por separado: un pedido puede
+            // desaparecer de Pendientes aun cuando sus cajas ya se bajaron.
+            try
+            {
+                ViewBag.BajadasPicking =
+                    await ObtenerResumenBajadasPickingAsync(
+                        almacenesSincronizacion, ct);
+            }
+            catch (SqlException ex)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    $"No fue posible consultar resumen de bajadas Picking: {ex}");
+                ViewBag.BajadasPicking =
+                    new List<SurtidoPickingBajadaResumenVM>();
+                ViewBag.ErrorBajadasPicking =
+                    "No fue posible consultar las bajadas de SIGO.";
+            }
 
             return View(
                 "~/Views/Surtido/Picking.cshtml",
@@ -5899,6 +6180,32 @@ ORDER BY
                 );
             }
 
+            // ESCANEO DE TARIMA: una lectura puede bajar varias producciones.
+            // La etiqueta individual sigue usando el camino original.
+            var codigoBajada = (req.CodigoEscaneado ?? "")
+                .Trim().ToUpperInvariant();
+
+            if (codigoBajada.StartsWith("TAR", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var resultadoTarima = await RegistrarBajadaTarimaAsync(
+                        acceso.Almacen!, req.SolicitudSurtidoId,
+                        req.ProduccionId, codigoBajada, usuario.Usuario, ct);
+                    TempData["Exito"] = resultadoTarima;
+                }
+                catch (Exception ex)
+                {
+                    TempData["Error"] = "No se bajó la tarima: " + ex.Message;
+                }
+
+                return RedirectToAction(nameof(PedidoPicking), new
+                {
+                    almacen = acceso.Almacen!.Codigo,
+                    solicitudSurtidoId = req.SolicitudSurtidoId
+                });
+            }
+
             var vm =
                 await ConstruirPickingTareaAsync(
                     acceso.Almacen!,
@@ -6253,11 +6560,56 @@ ORDER BY
                 return acceso.Error!;
             }
 
-            ViewBag.ZonaSurtido =
-                await ObtenerZonaSurtidoAsync(
-                    acceso.Almacen!,
-                    ct
-                );
+            var zonaSurtido = await ObtenerZonaSurtidoAsync(
+                acceso.Almacen!, ct);
+
+            ViewBag.ZonaSurtido = zonaSurtido;
+
+            // Datos de la solicitud/pedido, sólo lectura.
+            // Se utiliza la relación ya existente en Meat:
+            // SurtidoReferencia.TipoReferenciaId = 9.
+            var pedidosPorSolicitud = new Dictionary<long, string>();
+            foreach (var solicitudId in zonaSurtido
+                         .Select(x => x.SolicitudSurtidoId)
+                         .Distinct())
+            {
+                // El staging expone SolicitudSurtidoId como long.
+                // El helper existente recibe int; evitar conversión implícita.
+                if (solicitudId < 1 || solicitudId > int.MaxValue)
+                {
+                    pedidosPorSolicitud[solicitudId] = "Solicitud fuera de rango";
+                    continue;
+                }
+
+                var pedido = await ObtenerPedidoPorSolicitudAsync(
+                    acceso.Almacen!, (int)solicitudId, ct);
+                pedidosPorSolicitud[solicitudId] =
+                    string.IsNullOrWhiteSpace(pedido?.Pedido)
+                        ? "Pedido sin referencia"
+                        : pedido.Pedido;
+            }
+            ViewBag.PedidosPorSolicitud = pedidosPorSolicitud;
+            ViewBag.ClientesPorSolicitud = new Dictionary<long, string>();
+            var clientesPorSolicitud = new Dictionary<long, string>();
+            foreach (var id in zonaSurtido.Select(z => z.SolicitudSurtidoId).Distinct())
+            {
+                if (id < 1 || id > int.MaxValue) continue;
+                var p = await ObtenerPedidoPorSolicitudAsync(acceso.Almacen!, (int)id, ct);
+                clientesPorSolicitud[id] = p?.Cliente ?? "";
+            }
+            ViewBag.ClientesPorSolicitud = clientesPorSolicitud;
+
+            var cnCaptura = await ObtenerConexionSigoAsync(ct);
+            var capturas = await cnCaptura.QueryAsync<SurtidoCapturaEstadoDto>(
+                new CommandDefinition(@"
+SELECT d.ProduccionId, h.Estatus
+FROM dbo.SurtidoCapturaDetalle d
+JOIN dbo.SurtidoCaptura h ON h.Id=d.SurtidoCapturaId
+WHERE d.Activo=1 AND h.Planta=@Planta AND h.CodigoAlmacen=@Almacen",
+                new { Planta = acceso.Almacen!.Planta, Almacen = acceso.Almacen!.Codigo },
+                cancellationToken: ct));
+            ViewBag.ProduccionesCapturadas = capturas.Select(x => x.ProduccionId).ToHashSet();
+
 
             return View(
                 "~/Views/Surtido/Captura.cshtml",
@@ -9007,6 +9359,1978 @@ ELSE
             catch (Exception ex) { TempData["Error"] = $"No se pudo guardar la ubicación: {ex.Message}"; }
             return RedirectGestionLayout(alm, req.LayoutId, "ubicaciones");
         }
+
+
+        // ============================================================
+        // FASE 1B: ESCÁNER DE CAJA O TARIMA - SOLO EVIDENCIA EN SIGO
+        // No escribe en Meat, no ejecuta SP, ni modifica remisiones.
+        // ============================================================
+        [HttpPost("/Surtido/CapturarCodigo")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CapturarCodigo(
+            string almacen, int solicitudSurtidoId, string codigoEtiqueta,
+            CancellationToken ct = default)
+        {
+            string codigo = (codigoEtiqueta ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(codigo) || codigo.Length > 80)
+                return BadRequest(new { ok = false, message = "Código inválido." });
+
+            // Los códigos de tarima de Meat empiezan por TAR (p. ej. TARTIF000214005).
+            // Las etiquetas individuales siguen utilizando el método ya probado.
+            if (!codigo.StartsWith("TAR", StringComparison.OrdinalIgnoreCase))
+                return await CapturarCaja(almacen, solicitudSurtidoId, codigo, ct);
+
+            var acceso = await ValidarModuloAsync(almacen, "CAPTURA", ct);
+            if (!acceso.Ok) return acceso.Error!;
+            var a = acceso.Almacen!;
+            if (solicitudSurtidoId <= 0)
+                return BadRequest(new { ok = false, message = "Solicitud inválida." });
+
+            var pedido = await ObtenerPedidoPorSolicitudAsync(a, solicitudSurtidoId, ct);
+            if (pedido == null)
+                return BadRequest(new { ok = false, message = "La solicitud no existe en Meat." });
+
+            // Solo lectura en la base Meat de la planta correcta.
+            // Validar de nuevo el contenido actual de la tarima antes de capturar.
+            var conexionMeat = ObtenerCadenaMeatPorAlmacen(a);
+            await using var meat = new SqlConnection(conexionMeat.Cadena);
+            await meat.OpenAsync(ct);
+            const string sqlTarima = @"
+SELECT t.TarimaId, t.Nombre, t.Estatus
+FROM dbo.Tarima t
+WHERE t.Nombre = @Codigo;";
+            var tarima = await meat.QueryFirstOrDefaultAsync<SurtidoTarimaLecturaDto>(
+                new CommandDefinition(sqlTarima, new { Codigo = codigo }, cancellationToken: ct));
+            if (tarima == null)
+                return BadRequest(new { ok = false, message = "La tarima no existe en Meat." });
+            if (!tarima.Estatus)
+                return Conflict(new { ok = false, message = "La tarima está inactiva en Meat." });
+
+            const string sqlContenido = @"
+SELECT DISTINCT td.ProduccionId
+FROM dbo.TarimaDetalle td
+JOIN dbo.Produccion p ON p.ProduccionId = td.ProduccionId
+WHERE td.TarimaId = @TarimaId AND p.Estatus = 1;";
+            var ids = (await meat.QueryAsync<long>(new CommandDefinition(sqlContenido,
+                new { tarima.TarimaId }, cancellationToken: ct))).Distinct().ToList();
+            if (ids.Count == 0)
+                return BadRequest(new { ok = false, message = "La tarima no tiene cajas activas." });
+            if (ids.Count > 1000)
+                return BadRequest(new { ok = false, message = "Tarima demasiado grande; requiere revisión." });
+
+            var usuario = User.Identity?.Name ?? "SIN_USUARIO";
+            var sigo = (SqlConnection)await ObtenerConexionSigoAsync(ct);
+            using var tr = (SqlTransaction)await sigo.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            try
+            {
+                // Solamente cajas BAJADAS para ESTA solicitud y almacén.
+                // Nunca se registra todo el contenido de una tarima indiscriminadamente.
+                const string sqlPermitidas = @"
+SELECT b.ProduccionId, b.CodigoEtiqueta, b.Articulo AS SKU, b.PesoNeto
+FROM dbo.SurtidoBajada b WITH (UPDLOCK, HOLDLOCK)
+WHERE b.Planta = @Planta AND b.CodigoAlmacen = @Almacen
+  AND b.SolicitudSurtidoId = @Solicitud AND b.Activo = 1
+  AND b.Estatus = 'BAJADA' AND b.ProduccionId IN @Ids;";
+                var permitidas = (await sigo.QueryAsync<SurtidoCajaEscaneoDto>(
+                    new CommandDefinition(sqlPermitidas, new
+                    {
+                        Planta = a.Planta,
+                        Almacen = a.Codigo,
+                        Solicitud = solicitudSurtidoId,
+                        Ids = ids
+                    }, tr, cancellationToken: ct)))
+                    .GroupBy(x => x.ProduccionId).Select(g => g.First()).ToList();
+
+                if (permitidas.Count == 0)
+                {
+                    await tr.RollbackAsync(ct);
+                    return Conflict(new
+                    {
+                        ok = false,
+                        message =
+                        "Ninguna caja de esta tarima está bajada para la solicitud seleccionada."
+                    });
+                }
+
+                // No crear cabecera nueva para solicitudes cerradas.
+                const string sqlCabecera = @"
+DECLARE @Id bigint;
+SELECT @Id = Id FROM dbo.SurtidoCaptura WITH (UPDLOCK,HOLDLOCK)
+WHERE Planta=@Planta AND CodigoAlmacen=@Almacen AND SolicitudSurtidoId=@Solicitud;
+IF @Id IS NULL BEGIN
+  INSERT dbo.SurtidoCaptura(Planta,CodigoAlmacen,SolicitudSurtidoId,Pedido,Cliente,CreadoPor)
+  VALUES(@Planta,@Almacen,@Solicitud,@Pedido,@Cliente,@Usuario);
+  SET @Id = CONVERT(bigint,SCOPE_IDENTITY());
+END;
+SELECT Id,Estatus FROM dbo.SurtidoCaptura WITH (UPDLOCK,HOLDLOCK) WHERE Id=@Id;";
+                var cab = await sigo.QuerySingleAsync<SurtidoCabeceraCapturaDto>(
+                    new CommandDefinition(sqlCabecera, new
+                    {
+                        Planta = a.Planta,
+                        Almacen = a.Codigo,
+                        Solicitud = solicitudSurtidoId,
+                        Pedido = pedido.Pedido ?? "",
+                        Cliente = pedido.Cliente ?? "",
+                        Usuario = usuario
+                    }, tr, cancellationToken: ct));
+                if (cab.Estatus != "CAPTURANDO")
+                {
+                    await tr.RollbackAsync(ct);
+                    return Conflict(new { ok = false, message = "La captura ya está validada o cerrada." });
+                }
+
+                // Control de duplicados tanto en la solicitud como en otra activa.
+                int nuevas = 0, repetidas = 0, conflicto = 0;
+                foreach (var caja in permitidas)
+                {
+                    if (caja.ProduccionId < 1 || caja.ProduccionId > int.MaxValue)
+                    {
+                        await tr.RollbackAsync(ct);
+                        return Conflict(new { ok = false, message = "Una producción está fuera del rango de Meat." });
+                    }
+                    const string sqlExistente = @"
+SELECT TOP(1) SurtidoCapturaId FROM dbo.SurtidoCapturaDetalle WITH (UPDLOCK,HOLDLOCK)
+WHERE Planta=@Planta AND ProduccionId=@Produccion AND Activo=1;";
+                    var existente = await sigo.QueryFirstOrDefaultAsync<long?>(
+                        new CommandDefinition(sqlExistente,
+                            new { Planta = a.Planta, Produccion = caja.ProduccionId }, tr, cancellationToken: ct));
+                    if (existente.HasValue)
+                    {
+                        if (existente.Value == cab.Id) repetidas++;
+                        else conflicto++;
+                        continue;
+                    }
+                    const string sqlInsert = @"
+INSERT dbo.SurtidoCapturaDetalle
+ (SurtidoCapturaId,Planta,ProduccionId,CodigoEtiqueta,SKU,PesoNeto,Tarima,UsuarioCaptura)
+ VALUES(@Id,@Planta,@Produccion,@Etiqueta,@SKU,@Peso,@Tarima,@Usuario);
+INSERT dbo.SurtidoCapturaEvento
+ (SurtidoCapturaId,SolicitudSurtidoId,ProduccionId,CodigoEtiqueta,Evento,Detalle,Usuario)
+ VALUES(@Id,@Solicitud,@Produccion,@Etiqueta,'ESCANEO_TARIMA',@Tarima,@Usuario);";
+                    await sigo.ExecuteAsync(new CommandDefinition(sqlInsert, new
+                    {
+                        Id = cab.Id,
+                        Planta = a.Planta,
+                        Solicitud = solicitudSurtidoId,
+                        Produccion = caja.ProduccionId,
+                        Etiqueta = caja.CodigoEtiqueta,
+                        SKU = caja.SKU,
+                        Peso = caja.PesoNeto,
+                        Tarima = tarima.Nombre,
+                        Usuario = usuario
+                    }, tr, cancellationToken: ct));
+                    nuevas++;
+                }
+                await tr.CommitAsync(ct);
+                return Ok(new
+                {
+                    ok = true,
+                    tipo = "TARIMA",
+                    codigo = tarima.Nombre,
+                    detectadas = ids.Count,
+                    elegibles = permitidas.Count,
+                    capturadas = nuevas,
+                    repetidas,
+                    conflicto,
+                    excluidas = ids.Count - permitidas.Count,
+                    message = $"Tarima registrada en SIGO: {nuevas} nuevas, {repetidas} repetidas, {conflicto} asignadas a otra captura, {ids.Count - permitidas.Count} fuera de esta solicitud. Meat no fue modificado."
+                });
+            }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627)
+            {
+                await tr.RollbackAsync(ct);
+                return Conflict(new { ok = false, message = "Se detectó una captura simultánea. Actualiza y verifica antes de reintentar." });
+            }
+            catch { await tr.RollbackAsync(ct); throw; }
+        }
+
+        private sealed class SurtidoTarimaLecturaDto
+        {
+            public int TarimaId { get; set; }
+            public string Nombre { get; set; } = "";
+            public bool Estatus { get; set; }
+        }
+
+        // PEGAR DENTRO DE LA CLASE SurtidoController (antes del último cierre de llave).
+        // Depende de: Dapper, Microsoft.Data.SqlClient, ValidarModuloAsync,
+        // ObtenerConexionSigoAsync, ObtenerPedidoPorSolicitudAsync.
+        // Esta fase SOLO captura en SIGO y genera cola pendiente: NO escribe a Meat.
+
+        [HttpPost("/Surtido/CapturarCaja")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CapturarCaja(
+            string almacen, int solicitudSurtidoId, string codigoEtiqueta,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarModuloAsync(almacen, "CAPTURA", ct);
+            if (!acceso.Ok) return acceso.Error!;
+            var a = acceso.Almacen!;
+            var usuario = User.Identity?.Name ?? "SIN_USUARIO";
+            var etiqueta = (codigoEtiqueta ?? "").Trim();
+            if (solicitudSurtidoId <= 0 || string.IsNullOrEmpty(etiqueta))
+                return BadRequest(new { ok = false, message = "Solicitud y etiqueta requeridas." });
+
+            // Consulta externa de solo lectura: nunca se hace un INSERT a Meat al escanear.
+            var pedido = await ObtenerPedidoPorSolicitudAsync(a, solicitudSurtidoId, ct);
+            if (pedido == null)
+                return BadRequest(new { ok = false, message = "La solicitud no existe en Meat." });
+
+            var cn = (SqlConnection)await ObtenerConexionSigoAsync(ct);
+            using var tr = (SqlTransaction)await cn.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            try
+            {
+                // Bloqueo sobre la evidencia: debe estar bajada en este almacén y solicitud.
+                const string sqlBajada = @"
+SELECT TOP(1) ProduccionId, CodigoEtiqueta,
+       Articulo AS SKU, PesoNeto,
+       ISNULL(TarimaCodigo,'') AS Tarima
+FROM dbo.SurtidoBajada WITH (UPDLOCK, HOLDLOCK)
+WHERE Activo=1 AND Estatus='BAJADA'
+  AND Planta=@Planta AND CodigoAlmacen=@Almacen
+  AND SolicitudSurtidoId=@Solicitud
+  AND CodigoEtiqueta=@Etiqueta
+ORDER BY Id DESC;";
+                var caja = await cn.QueryFirstOrDefaultAsync<SurtidoCajaEscaneoDto>(
+                    new CommandDefinition(sqlBajada, new
+                    {
+                        Planta = a.Planta,
+                        Almacen = a.Codigo,
+                        Solicitud = solicitudSurtidoId,
+                        Etiqueta = etiqueta
+                    }, tr, cancellationToken: ct));
+                if (caja == null)
+                {
+                    await tr.RollbackAsync(ct);
+                    return BadRequest(new { ok = false, message = "La caja no está bajada para esta solicitud y almacén." });
+                }
+                if (caja.ProduccionId < 1 || caja.ProduccionId > int.MaxValue)
+                {
+                    await tr.RollbackAsync(ct);
+                    return BadRequest(new { ok = false, message = "Producción inválida para Meat." });
+                }
+
+                const string sqlCabecera = @"
+DECLARE @Id bigint;
+SELECT @Id=Id FROM dbo.SurtidoCaptura WITH(UPDLOCK,HOLDLOCK)
+ WHERE Planta=@Planta AND CodigoAlmacen=@Almacen AND SolicitudSurtidoId=@Solicitud;
+IF @Id IS NULL
+BEGIN
+ INSERT dbo.SurtidoCaptura(Planta,CodigoAlmacen,SolicitudSurtidoId,Pedido,Cliente,CreadoPor)
+ VALUES(@Planta,@Almacen,@Solicitud,@Pedido,@Cliente,@Usuario);
+ SET @Id=CONVERT(bigint,SCOPE_IDENTITY());
+END;
+SELECT Id,Estatus FROM dbo.SurtidoCaptura WITH(UPDLOCK,HOLDLOCK) WHERE Id=@Id;";
+                var cab = await cn.QuerySingleAsync<SurtidoCabeceraCapturaDto>(
+                    new CommandDefinition(sqlCabecera, new
+                    {
+                        Planta = a.Planta,
+                        Almacen = a.Codigo,
+                        Solicitud = solicitudSurtidoId,
+                        Pedido = pedido.Pedido ?? "",
+                        Cliente = pedido.Cliente ?? "",
+                        Usuario = usuario
+                    }, tr, cancellationToken: ct));
+                if (cab.Estatus != "CAPTURANDO")
+                {
+                    await tr.RollbackAsync(ct);
+                    return Conflict(new { ok = false, message = "La solicitud ya fue cerrada o validada." });
+                }
+
+                const string sqlInsertar = @"
+IF EXISTS(SELECT 1 FROM dbo.SurtidoCapturaDetalle WITH(UPDLOCK,HOLDLOCK)
+          WHERE Planta=@Planta AND ProduccionId=@Produccion AND Activo=1)
+ THROW 51001, 'La producción ya está capturada en una solicitud activa.', 1;
+INSERT dbo.SurtidoCapturaDetalle
+ (SurtidoCapturaId,Planta,ProduccionId,CodigoEtiqueta,SKU,PesoNeto,Tarima,UsuarioCaptura)
+ VALUES(@Id,@Planta,@Produccion,@Etiqueta,@SKU,@Peso,@Tarima,@Usuario);
+INSERT dbo.SurtidoCapturaEvento
+ (SurtidoCapturaId,SolicitudSurtidoId,ProduccionId,CodigoEtiqueta,Evento,Usuario)
+ VALUES(@Id,@Solicitud,@Produccion,@Etiqueta,'ESCANEO_ACEPTADO',@Usuario);";
+                await cn.ExecuteAsync(new CommandDefinition(sqlInsertar, new
+                {
+                    Id = cab.Id,
+                    Planta = a.Planta,
+                    Produccion = caja.ProduccionId,
+                    Etiqueta = caja.CodigoEtiqueta,
+                    SKU = caja.SKU,
+                    Peso = caja.PesoNeto,
+                    Tarima = caja.Tarima,
+                    Solicitud = solicitudSurtidoId,
+                    Usuario = usuario
+                }, tr, cancellationToken: ct));
+                await tr.CommitAsync(ct);
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Caja capturada en SIGO; pendiente de validación.",
+                    produccionId = caja.ProduccionId
+                });
+            }
+            catch (SqlException ex) when (ex.Number is 51001 or 2601 or 2627)
+            {
+                await tr.RollbackAsync(ct);
+                return Conflict(new { ok = false, message = "La caja ya había sido capturada." });
+            }
+            catch
+            {
+                await tr.RollbackAsync(ct);
+                throw;
+            }
+        }
+
+        // ============================================================
+        // SURTIDO 96%: Resumen de cierre (solo lectura).
+        // La cifra se recalcula nuevamente bajo transacción al cerrar.
+        // ============================================================
+        private sealed class SurtidoCantidadSolicitudDto
+        {
+            public string Articulo { get; set; } = "";
+            public string Almacen { get; set; } = "";
+            public decimal Cantidad { get; set; }
+        }
+        private sealed class SurtidoCantidadCapturadaDto
+        {
+            public string SKU { get; set; } = "";
+            public decimal Cajas { get; set; }
+            public decimal Kg { get; set; } // Peso real informativo, nunca porcentaje.
+        }
+        private sealed class SurtidoResumenSkuDto
+        {
+            public string SKU { get; set; } = "";
+            public decimal Solicitado { get; set; }
+            public decimal Capturado { get; set; }
+            public decimal Faltante { get; set; }
+            public decimal Porcentaje { get; set; }
+        }
+        private sealed class SurtidoResumen96Dto
+        {
+            public decimal Solicitado { get; set; }
+            public decimal Capturado { get; set; }
+            public decimal Porcentaje { get; set; }
+            public decimal KgCapturados { get; set; }
+            public bool RequiereAutorizacion { get; set; }
+            public List<SurtidoResumenSkuDto> Skus { get; set; } = new();
+        }
+        private sealed class SurtidoAutorizadorDto
+        {
+            public int UsuarioId { get; set; }
+            public string Usuario { get; set; } = "";
+            public string PasswordHash { get; set; } = "";
+        }
+
+        private async Task<List<SurtidoCantidadSolicitudDto>> ObtenerCantidadesSurtido96Async(
+            SurtidoAlmacenVM almacen, int solicitud, CancellationToken ct)
+        {
+            var origen = ObtenerCadenaMeatPorAlmacen(almacen);
+            await using var meat = new SqlConnection(origen.Cadena);
+            await meat.OpenAsync(ct);
+            const string sql = @"
+SELECT Articulo = LTRIM(RTRIM(ISNULL(Articulo,''))),
+       Almacen = LTRIM(RTRIM(CONVERT(VARCHAR(40),Almacen))),
+       Cantidad = CONVERT(DECIMAL(18,3),ISNULL(Cantidad,0))
+FROM dbo.SolicitudSurtidoDetalle
+WHERE SolicitudSurtidoId = @Solicitud;";
+            return (await meat.QueryAsync<SurtidoCantidadSolicitudDto>(
+                new CommandDefinition(sql, new { Solicitud = solicitud }, cancellationToken: ct))).ToList();
+        }
+
+        private static SurtidoResumen96Dto CalcularResumen96(
+            IReadOnlyCollection<SurtidoCantidadSolicitudDto> solicitadas,
+            IReadOnlyCollection<SurtidoCantidadCapturadaDto> capturadas, string almacen)
+        {
+            var pedido = solicitadas
+                .Where(x => string.Equals(x.Almacen?.Trim(), almacen.Trim(), StringComparison.OrdinalIgnoreCase))
+                .GroupBy(x => (x.Articulo ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.Sum(z => z.Cantidad), StringComparer.OrdinalIgnoreCase);
+            if (pedido.Count == 0 || pedido.Values.Any(x => x <= 0))
+                throw new InvalidOperationException("No hay cantidades solicitadas válidas para este almacén.");
+            var capt = capturadas.GroupBy(x => (x.SKU ?? "").Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.Sum(z => z.Cajas), StringComparer.OrdinalIgnoreCase);
+            if (capt.Any(x => !pedido.ContainsKey(x.Key) || x.Value <= 0))
+                throw new InvalidOperationException("Existen cajas de un SKU no solicitado o cantidades inválidas.");
+            // Regla obligatoria: no permitir más cajas de las solicitadas por SKU.
+            foreach (var item in capt)
+                if (item.Value > pedido[item.Key])
+                    throw new InvalidOperationException($"Exceso en SKU {item.Key}: {item.Value:N0} cajas escaneadas, {pedido[item.Key]:N0} solicitadas. Corrige la captura antes de validar.");
+            var res = new SurtidoResumen96Dto();
+            foreach (var kv in pedido.OrderBy(x => x.Key))
+            {
+                var real = capt.TryGetValue(kv.Key, out var cajas) ? cajas : 0m;
+                res.Skus.Add(new SurtidoResumenSkuDto
+                {
+                    SKU = kv.Key,
+                    Solicitado = kv.Value,
+                    Capturado = real,
+                    Faltante = Math.Max(0, kv.Value - real),
+                    Porcentaje = Math.Round(Math.Min(100m, 100m * real / kv.Value), 2)
+                });
+            }
+            res.Solicitado = res.Skus.Sum(x => x.Solicitado);
+            res.Capturado = capt.Values.Sum();
+            res.KgCapturados = capturadas.Sum(x => x.Kg);
+            // No compensar faltantes de un SKU con excedentes de otro.
+            var cumplido = res.Skus.Sum(x => Math.Min(x.Solicitado, x.Capturado));
+            res.Porcentaje = Math.Round(100m * cumplido / res.Solicitado, 2);
+            res.RequiereAutorizacion = res.Porcentaje < 96m ||
+                                        res.Skus.Any(x => x.Porcentaje < 96m);
+            return res;
+        }
+
+        private const string SQL_CAPTURADAS_96 = @"
+;WITH CajasUnicas AS
+(
+    SELECT d.SKU, d.ProduccionId,
+           Kg=MAX(CONVERT(DECIMAL(18,3),ISNULL(d.PesoNeto,0)))
+    FROM dbo.SurtidoCapturaDetalle d WITH (HOLDLOCK)
+    JOIN dbo.SurtidoCaptura h WITH (UPDLOCK,HOLDLOCK) ON h.Id=d.SurtidoCapturaId
+    WHERE h.Planta=@Planta AND h.CodigoAlmacen=@Almacen
+      AND h.SolicitudSurtidoId=@Solicitud AND d.Activo=1
+    GROUP BY d.SKU,d.ProduccionId
+)
+SELECT SKU,
+       Cajas=CONVERT(DECIMAL(18,3),COUNT_BIG(*)),
+       Kg=SUM(Kg)
+FROM CajasUnicas GROUP BY SKU;";
+
+        [HttpGet("/Surtido/ResumenCierre")]
+        public async Task<IActionResult> ResumenCierre(string almacen, int solicitudSurtidoId, CancellationToken ct = default)
+        {
+            var acceso = await ValidarModuloAsync(almacen, "CAPTURA", ct);
+            if (!acceso.Ok) return acceso.Error!;
+            if (solicitudSurtidoId <= 0) return BadRequest(new { ok = false, message = "Solicitud inválida." });
+            var a = acceso.Almacen!;
+            try
+            {
+                var origen = await ObtenerCantidadesSurtido96Async(a, solicitudSurtidoId, ct);
+                var cn = await ObtenerConexionSigoAsync(ct);
+                var capt = (await cn.QueryAsync<SurtidoCantidadCapturadaDto>(new CommandDefinition(
+                    SQL_CAPTURADAS_96, new { Planta = a.Planta, Almacen = a.Codigo, Solicitud = solicitudSurtidoId }, cancellationToken: ct))).ToList();
+                var resumen = CalcularResumen96(origen, capt, a.Codigo);
+                return Ok(new
+                {
+                    ok = true,
+                    resumen.Porcentaje,
+                    resumen.Solicitado,
+                    resumen.Capturado,
+                    resumen.KgCapturados,
+                    resumen.RequiereAutorizacion,
+                    resumen.Skus,
+                    Unidad = "CAJAS"
+                });
+            }
+            catch (Exception)
+            {
+                return Conflict(new { ok = false, message = "No se pudo calcular el cumplimiento. Comprueba la solicitud y conexión Meat." });
+            }
+        }
+
+        [HttpPost("/Surtido/ValidarCaptura")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ValidarCaptura(
+            string almacen, int solicitudSurtidoId,
+            string? usuarioAutorizador, string? contrasenaAutorizador, string? motivoAutorizacion,
+            CancellationToken ct = default)
+        {
+            var acceso = await ValidarModuloAsync(almacen, "CAPTURA", ct);
+            if (!acceso.Ok) return acceso.Error!;
+            if (solicitudSurtidoId <= 0) return BadRequest(new { ok = false, message = "Solicitud inválida." });
+            var a = acceso.Almacen!;
+            var usuario = User.Identity?.Name ?? "SIN_USUARIO";
+
+            // Consultar el pedido real antes de bloquear SIGO. Si Meat falla, no cerrar.
+            List<SurtidoCantidadSolicitudDto> origen;
+            try { origen = await ObtenerCantidadesSurtido96Async(a, solicitudSurtidoId, ct); }
+            catch { return Conflict(new { ok = false, message = "No se pudo comprobar el detalle del pedido en Meat." }); }
+
+            var cn = (SqlConnection)await ObtenerConexionSigoAsync(ct);
+            using var tr = (SqlTransaction)await cn.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            try
+            {
+                const string sqlCab = @"
+SELECT Id FROM dbo.SurtidoCaptura WITH (UPDLOCK,HOLDLOCK)
+WHERE Planta=@Planta AND CodigoAlmacen=@Almacen AND SolicitudSurtidoId=@Solicitud
+ AND Estatus='CAPTURANDO';";
+                var args = new { Planta = a.Planta, Almacen = a.Codigo, Solicitud = solicitudSurtidoId };
+                long id = await cn.QueryFirstOrDefaultAsync<long>(new CommandDefinition(sqlCab, args, tr, cancellationToken: ct));
+                if (id <= 0) { await tr.RollbackAsync(ct); return Conflict(new { ok = false, message = "No existe captura abierta para esta solicitud." }); }
+
+                var capt = (await cn.QueryAsync<SurtidoCantidadCapturadaDto>(new CommandDefinition(
+                    SQL_CAPTURADAS_96, args, tr, cancellationToken: ct))).ToList();
+                if (capt.Count == 0) { await tr.RollbackAsync(ct); return Conflict(new { ok = false, message = "No hay cajas capturadas." }); }
+                var pendientes = await cn.ExecuteScalarAsync<int>(new CommandDefinition(@"
+SELECT COUNT(1) FROM dbo.SurtidoBajada b WITH (HOLDLOCK)
+WHERE b.Activo=1 AND b.Estatus='BAJADA' AND b.Planta=@Planta AND b.CodigoAlmacen=@Almacen
+ AND b.SolicitudSurtidoId=@Solicitud AND NOT EXISTS (
+ SELECT 1 FROM dbo.SurtidoCapturaDetalle d WITH (HOLDLOCK)
+ WHERE d.SurtidoCapturaId=@Id AND d.Activo=1 AND d.ProduccionId=b.ProduccionId);",
+                new { args.Planta, args.Almacen, args.Solicitud, Id = id }, tr, cancellationToken: ct));
+                if (pendientes > 0) { await tr.RollbackAsync(ct); return Conflict(new { ok = false, message = $"Hay {pendientes} cajas bajadas sin escanear; primero captúralas o corrige su bajada." }); }
+
+                SurtidoResumen96Dto resumen;
+                try { resumen = CalcularResumen96(origen, capt, a.Codigo); }
+                catch (InvalidOperationException ex) { await tr.RollbackAsync(ct); return Conflict(new { ok = false, message = ex.Message }); }
+                string? supervisor = null;
+                if (resumen.RequiereAutorizacion)
+                {
+                    if (string.IsNullOrWhiteSpace(usuarioAutorizador) || string.IsNullOrWhiteSpace(contrasenaAutorizador) ||
+                       string.IsNullOrWhiteSpace(motivoAutorizacion) || motivoAutorizacion.Trim().Length < 10 ||
+                       motivoAutorizacion.Length > 500)
+                    {
+                        await tr.RollbackAsync(ct);
+                        return Conflict(new
+                        {
+                            ok = false,
+                            requiereAutorizacion = true,
+                            porcentaje = resumen.Porcentaje,
+                            message = "Surtido por debajo del 96%. Se requiere usuario, contraseña de SIGO y motivo de al menos 10 caracteres."
+                        });
+                    }
+                    var claveIntentos = usuarioAutorizador.Trim().ToUpperInvariant() + "|" +
+                        (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "SIN_IP");
+                    if (AutorizadorBloqueado(claveIntentos))
+                    {
+                        await tr.RollbackAsync(ct);
+                        return StatusCode(429, new { ok = false, message = "Demasiados intentos. Reintenta después de 15 minutos o consulta Sistemas." });
+                    }
+                    // Se reutiliza el hash SHA-256/Base64 de UsuarioSQL del inicio de sesión SIGO.
+                    // El permiso se revisa siempre en servidor, no en JavaScript.
+                    const string sqlPermiso = @"
+SELECT TOP(1) u.Id AS UsuarioId, u.Usuario, u.Password AS PasswordHash
+FROM dbo.UsuarioSQL u
+JOIN dbo.PerfilPermisoModulo ppm ON ppm.PerfilId=u.PerfilId
+ AND ppm.Activo=1 AND ppm.PuedeEscribir=1
+JOIN dbo.ModulosSistema m ON m.Id=ppm.ModuloId
+ AND m.Clave='SURTIDO_AUTORIZAR_MENOR_96' AND m.Activo=1
+WHERE u.Activo=1 AND u.Usuario=@Login;";
+                    var supervisorRegistro = await cn.QueryFirstOrDefaultAsync<SurtidoAutorizadorDto>(new CommandDefinition(
+                        sqlPermiso, new { Login = usuarioAutorizador.Trim() }, tr, cancellationToken: ct));
+                    var loginActual = NormalizeLogin(usuario).username;
+                    if (supervisorRegistro == null ||
+                       string.Equals(NormalizeLogin(supervisorRegistro.Usuario).username, loginActual, StringComparison.OrdinalIgnoreCase))
+                    {
+                        RegistrarFalloSupervisor(claveIntentos);
+                        await tr.RollbackAsync(ct);
+                        return StatusCode(403, new { ok = false, message = "No se pudo autorizar. Revisa usuario, contraseña y permiso del perfil." });
+                    }
+                    // Comparación en tiempo constante de SHA256(UTF8(contraseña)) contra Base64 almacenado.
+                    // Si el esquema de login de SIGO cambia, actualizar este verificador junto con CuentaController.
+                    bool valido = false;
+                    try
+                    {
+                        var guardado = Convert.FromBase64String(supervisorRegistro.PasswordHash);
+                        var recibido = System.Security.Cryptography.SHA256.HashData(
+                            System.Text.Encoding.UTF8.GetBytes(contrasenaAutorizador));
+                        valido = guardado.Length == recibido.Length &&
+                            System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(recibido, guardado);
+                    }
+                    catch (FormatException) { valido = false; }
+                    if (!valido)
+                    {
+                        RegistrarFalloSupervisor(claveIntentos);
+                        await tr.RollbackAsync(ct);
+                        return StatusCode(403, new { ok = false, message = "No se pudo autorizar. Revisa usuario, contraseña y permiso del perfil." });
+                    }
+                    ReiniciarFalloSupervisor(claveIntentos);
+                    supervisor = supervisorRegistro.Usuario;
+                    await cn.ExecuteAsync(new CommandDefinition(@"
+INSERT dbo.SurtidoAutorizacionExcepcion
+ (SurtidoCapturaId,SolicitudSurtidoId,CodigoAlmacen,Porcentaje,KgSolicitados,KgCapturados,
+  CajasSolicitadas,CajasCapturadas,KgInformativos,
+  UsuarioCaptura,UsuarioAutorizador,Motivo,DetalleSku)
+VALUES(@Id,@Solicitud,@Almacen,@Porcentaje,0,@Kg,
+       @Solicitado,@Capturado,@Kg,@Usuario,@Supervisor,@Motivo,@Detalle);",
+                    // KgSolicitados heredado: 0 = sin objetivo kg (pedido por CAJAS).
+                    // Los datos verificables se guardan en columnas explicitas.
+                    new
+                    {
+                        Id = id,
+                        Solicitud = solicitudSurtidoId,
+                        Almacen = a.Codigo,
+                        Porcentaje = resumen.Porcentaje,
+                        Solicitado = resumen.Solicitado,
+                        Capturado = resumen.Capturado,
+                        Kg = resumen.KgCapturados,
+                        Usuario = usuario,
+                        Supervisor = supervisor,
+                        Motivo = motivoAutorizacion.Trim(),
+                        Detalle = System.Text.Json.JsonSerializer.Serialize(new { Unidad = "CAJAS", KgInformativos = resumen.KgCapturados, Skus = resumen.Skus })
+                    }, tr, cancellationToken: ct));
+                }
+                // Registro de cierre y cola de integración en la misma transacción.
+                await cn.ExecuteAsync(new CommandDefinition(@"
+UPDATE dbo.SurtidoCaptura SET Estatus='VALIDADO',ValidadoPor=@Usuario,FechaValidacion=SYSDATETIME()
+WHERE Id=@Id AND Estatus='CAPTURANDO';
+IF @@ROWCOUNT<>1 THROW 51020,'La captura cambió de estado.',1;
+INSERT dbo.SurtidoIntegracionCola(SurtidoCapturaId,Tipo) VALUES(@Id,'SALIDA_EMBARQUE');
+INSERT dbo.SurtidoCapturaEvento(SurtidoCapturaId,SolicitudSurtidoId,Evento,Usuario,Detalle)
+VALUES(@Id,@Solicitud,@Evento,@Usuario,@Detalle);",
+                new
+                {
+                    Id = id,
+                    Solicitud = solicitudSurtidoId,
+                    Usuario = usuario,
+                    Evento = supervisor == null ? "CAPTURA_VALIDADA" : "CAPTURA_AUTORIZADA_96",
+                    Detalle = $"Cumplimiento por CAJAS {resumen.Porcentaje:N2}%; {resumen.Capturado:N0}/{resumen.Solicitado:N0} cajas; {resumen.KgCapturados:N3} kg; autorizado por {supervisor ?? "regla estándar"}."
+                },
+                tr, cancellationToken: ct));
+                await tr.CommitAsync(ct);
+                return Ok(new
+                {
+                    ok = true,
+                    porcentaje = resumen.Porcentaje,
+                    cajasSolicitadas = resumen.Solicitado,
+                    cajasCapturadas = resumen.Capturado,
+                    kgReales = resumen.KgCapturados,
+                    message = "Pedido validado y retirado de pendientes. Integración Meat aún pendiente.",
+                    id
+                });
+            }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627 or 51020)
+            {
+                await tr.RollbackAsync(ct);
+                return Conflict(new { ok = false, message = "La solicitud ya fue validada o se procesó simultáneamente." });
+            }
+            catch (Exception ex)
+            {
+                await tr.RollbackAsync(ct);
+                System.Diagnostics.Trace.TraceError("Error en surtido/validación: " + ex);
+                return StatusCode(500, new { ok = false, message = "Error al procesar la operación. Revisa el registro de SIGO; no se guardaron cambios." });
+            }
+        }
+
+
+        // ============================================================
+        // QUITAR CAJA / TARIMA DE LA CAPTURA: NO BORRA BAJADA FÍSICA.
+        // En caso de necesitar retirar producto de la zona física, es otro flujo
+        // del montacarguista que debe validar ubicación y asignaciones.
+        // ============================================================
+        [HttpPost("/Surtido/QuitarCaptura")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuitarCaptura(
+            string almacen, int solicitudSurtidoId, long? produccionId,
+            string? tarimaCodigo, string? motivo, CancellationToken ct = default)
+        {
+            var acceso = await ValidarModuloAsync(almacen, "CAPTURA", ct);
+            if (!acceso.Ok) return acceso.Error!;
+            var a = acceso.Almacen!;
+            var borrarCaja = produccionId.HasValue && produccionId.Value > 0;
+            var borrarTarima = !string.IsNullOrWhiteSpace(tarimaCodigo);
+            if (solicitudSurtidoId <= 0 || borrarCaja == borrarTarima)
+                return BadRequest(new { ok = false, message = "Indica solamente una caja o una tarima." });
+            var cod = (tarimaCodigo ?? "").Trim();
+            if (cod.Length > 80 || (motivo ?? "").Trim().Length < 5 || motivo!.Length > 500)
+                return BadRequest(new { ok = false, message = "Introduce un motivo de al menos 5 caracteres (máximo 500)." });
+            var usuario = User.Identity?.Name ?? "SIN_USUARIO";
+            var cn = (SqlConnection)await ObtenerConexionSigoAsync(ct);
+            using var tr = (SqlTransaction)await cn.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            try
+            {
+                var cab = await cn.QueryFirstOrDefaultAsync<SurtidoCabeceraCapturaDto>(new CommandDefinition(@"
+SELECT Id,Estatus FROM dbo.SurtidoCaptura WITH(UPDLOCK,HOLDLOCK)
+WHERE Planta=@Planta AND CodigoAlmacen=@Almacen AND SolicitudSurtidoId=@Solicitud;",
+                new { Planta = a.Planta, Almacen = a.Codigo, Solicitud = solicitudSurtidoId }, tr, cancellationToken: ct));
+                if (cab == null || cab.Estatus != "CAPTURANDO")
+                {
+                    await tr.RollbackAsync(ct);
+                    return Conflict(new { ok = false, message = "Solo se pueden retirar cajas de pedidos en captura." });
+                }
+                // Actualización lógica: el inventario de Meat NO se toca.
+                // Se acota por cabecera/solicitud, almacén y estado no integrado.
+                // Tarima completa: incluye todos los SKU bajo ese mismo código.
+                var sql = @"
+DECLARE @Afectadas TABLE(ProduccionId BIGINT,CodigoEtiqueta VARCHAR(80));
+UPDATE d SET Activo=0
+OUTPUT deleted.ProduccionId,deleted.CodigoEtiqueta INTO @Afectadas
+FROM dbo.SurtidoCapturaDetalle d WITH(UPDLOCK)
+WHERE d.SurtidoCapturaId=@Id AND d.Activo=1 AND d.EstadoIntegracion='PENDIENTE'
+AND ((@EsCaja=1 AND d.ProduccionId=@ProduccionId)
+ OR (@EsCaja=0 AND UPPER(LTRIM(RTRIM(d.Tarima)))=@Tarima));
+SELECT ProduccionId,CodigoEtiqueta FROM @Afectadas;";
+                var cajas = (await cn.QueryAsync<SurtidoCajaEliminadaDto>(new CommandDefinition(sql,
+                    new { Id = cab.Id, EsCaja = borrarCaja ? 1 : 0, ProduccionId = produccionId ?? 0, Tarima = cod.ToUpperInvariant() },
+                    tr, cancellationToken: ct))).ToList();
+                if (cajas.Count == 0)
+                {
+                    await tr.RollbackAsync(ct);
+                    return Conflict(new { ok = false, message = "No hay cajas capturadas activas para retirar; verifica el estado actual." });
+                }
+                const string sqlEvento = @"
+INSERT dbo.SurtidoCapturaEvento
+(SurtidoCapturaId,SolicitudSurtidoId,ProduccionId,CodigoEtiqueta,Evento,Detalle,Usuario)
+VALUES(@Id,@Solicitud,@Produccion,@Etiqueta,@Evento,@Detalle,@Usuario);";
+                foreach (var caja in cajas)
+                    await cn.ExecuteAsync(new CommandDefinition(sqlEvento, new
+                    {
+                        Id = cab.Id,
+                        Solicitud = solicitudSurtidoId,
+                        Produccion = caja.ProduccionId,
+                        Etiqueta = caja.CodigoEtiqueta,
+                        Evento = borrarCaja ? "CAPTURA_CAJA_RETIRADA" : "CAPTURA_TARIMA_RETIRADA",
+                        Detalle = $"{(borrarCaja ? "Caja" : "Tarima " + cod)}. Motivo: {motivo!.Trim()}",
+                        Usuario = usuario
+                    }, tr, cancellationToken: ct));
+                await tr.CommitAsync(ct);
+                return Ok(new
+                {
+                    ok = true,
+                    retiradas = cajas.Count,
+                    message = $"Se retiraron {cajas.Count} caja(s) de la captura. La bajada física sigue registrada."
+                });
+            }
+            catch (Exception ex)
+            {
+                await tr.RollbackAsync(ct);
+                System.Diagnostics.Trace.TraceError("Error en surtido/validación: " + ex);
+                return StatusCode(500, new { ok = false, message = "Error al procesar la operación. Revisa el registro de SIGO; no se guardaron cambios." });
+            }
+        }
+        private sealed class SurtidoCajaEliminadaDto
+        {
+            public long ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+        }
+
+        private sealed class SurtidoCapturaEstadoDto { public long ProduccionId { get; set; } public string Estatus { get; set; } = ""; }
+        private sealed class SurtidoCajaEscaneoDto
+        {
+            public long ProduccionId { get; set; }
+            public string CodigoEtiqueta { get; set; } = "";
+            public string SKU { get; set; } = "";
+            public decimal? PesoNeto { get; set; }
+            public string Tarima { get; set; } = "";
+        }
+        private sealed class SurtidoCabeceraCapturaDto
+        {
+            public long Id { get; set; }
+            public string Estatus { get; set; } = "";
+        }
+
+
+
+        // ============================================================
+        // HISTORIAL Y REPORTE DE SURTIDOS VALIDADOS (SOLO LECTURA)
+        // Origen: SIGO. No infiere remision ni afectacion en Meat.
+        // ============================================================
+        private sealed class SurtidoCantidadReporteSku
+        {
+            public int SolicitudSurtidoId { get; set; }
+            public string SKU { get; set; } = "";
+            public decimal CajasSolicitadas { get; set; }
+        }
+
+        [HttpGet("/Surtido/SurtidosRealizados")]
+        public async Task<IActionResult> SurtidosRealizados(
+            DateTime? fechaInicio = null,
+            DateTime? fechaFin = null,
+            string? almacen = null,
+            List<string>? clientes = null,
+            List<int>? solicitudes = null,
+            string? formato = null,
+            CancellationToken ct = default)
+        {
+            var usuario = await ObtenerUsuarioActualAsync(ct);
+            if (usuario == null) return Forbid();
+
+            // Reporte de consulta: solo capturistas/coordinadores.
+            if (!usuario.LogisticaCapturista && !usuario.LogisticaCoordinador)
+                return Forbid();
+
+            var plantas = await ObtenerPlantasUsuarioAsync(usuario.Id, ct);
+            var almacenes = ConstruirAlmacenesUsuario(usuario, plantas);
+            await AplicarConfiguracionUbicacionAsync(almacenes, ct);
+            if (almacenes.Count == 0) return Forbid();
+
+            var hoy = DateTime.Today;
+            var vm = new SurtidoReporteVM
+            {
+                FechaInicio = (fechaInicio ?? hoy.AddDays(-7)).Date,
+                FechaFin = (fechaFin ?? hoy).Date,
+                Almacen = (almacen ?? "").Trim(),
+                ClientesSeleccionados = (clientes ?? new List<string>())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(100).ToList(),
+                SolicitudesSeleccionadas = (solicitudes ?? new List<int>())
+                    .Where(x => x > 0).Distinct().Take(100).ToList(),
+                Formato = string.Equals(formato, "DETALLADO", StringComparison.OrdinalIgnoreCase)
+                    ? "DETALLADO" : "CONCENTRADO",
+                Almacenes = almacenes.Select(a => new SurtidoReporteAlmacenVM
+                { Codigo = a.Codigo, Nombre = a.Nombre })
+                    .GroupBy(a => a.Codigo, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First()).OrderBy(a => a.Codigo).ToList()
+            };
+            if (vm.FechaFin < vm.FechaInicio || (vm.FechaFin - vm.FechaInicio).TotalDays > 92)
+            {
+                vm.Error = "Selecciona un rango de fechas valido de hasta 93 dias.";
+                return View("~/Views/Surtido/SurtidosRealizados.cshtml", vm);
+            }
+
+            var seleccionados = string.IsNullOrWhiteSpace(vm.Almacen)
+                ? almacenes
+                : almacenes.Where(a => string.Equals(a.Codigo, vm.Almacen,
+                        StringComparison.OrdinalIgnoreCase)).ToList();
+            if (seleccionados.Count == 0) return Forbid();
+
+            // La seguridad se filtra en SQL por par Planta + Almacen,
+            // nunca solo por la seleccion de la interfaz.
+            var claves = seleccionados.Select(a => a.Planta + "|" + a.Codigo)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+            try
+            {
+                var cn = await ObtenerConexionSigoAsync(ct);
+                // El catalogo de filtros muestra surtidos reales validados
+                // dentro del rango y exclusivamente en almacenes autorizados.
+                const string sqlCatalogo = @"
+SELECT TOP (2001)
+    h.SolicitudSurtidoId,
+    ISNULL(h.Pedido,'') AS Pedido,
+    ISNULL(h.Cliente,'') AS Cliente
+FROM dbo.SurtidoCaptura h
+WHERE (h.Planta + '|' + h.CodigoAlmacen) IN @Claves
+  AND h.Estatus IN ('VALIDADO','INTEGRANDO','INTEGRADO','ERROR')
+  AND h.FechaValidacion >= @Inicio
+  AND h.FechaValidacion < @FinExclusivo
+ORDER BY h.FechaValidacion DESC,h.Id DESC;";
+                var catalogo = (await cn.QueryAsync<SurtidoReportePedidoVM>(
+                    new CommandDefinition(sqlCatalogo, new
+                    {
+                        Claves = claves,
+                        Inicio = vm.FechaInicio,
+                        FinExclusivo = vm.FechaFin.AddDays(1)
+                    }, cancellationToken: ct))).ToList();
+                vm.CatalogoLimitado = catalogo.Count > 2000;
+                catalogo = catalogo.Take(2000).ToList();
+                vm.ClientesDisponibles = catalogo
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Cliente))
+                    .Select(x => x.Cliente.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => new SurtidoReporteOpcionVM { Valor = x, Texto = x })
+                    .ToList();
+                vm.SolicitudesDisponibles = catalogo
+                    .GroupBy(x => x.SolicitudSurtidoId)
+                    .Select(g => g.First())
+                    .OrderBy(x => x.Pedido).ThenBy(x => x.SolicitudSurtidoId)
+                    .Select(x => new SurtidoReporteOpcionVM
+                    {
+                        Valor = x.SolicitudSurtidoId.ToString(),
+                        Texto = (string.IsNullOrWhiteSpace(x.Pedido)
+                            ? "Solicitud " + x.SolicitudSurtidoId
+                            : x.Pedido + " · Solicitud " + x.SolicitudSurtidoId)
+                            + " · " + x.Cliente
+                    }).ToList();
+
+                const string sqlPedidos = @"
+SELECT TOP (251)
+    h.Id AS CapturaId, h.SolicitudSurtidoId, h.Pedido,
+    h.Cliente, h.Planta, h.CodigoAlmacen, h.Estatus,
+    ISNULL(h.ValidadoPor,'') AS ValidadoPor,
+    h.FechaValidacion, h.FechaIntegracion,
+    ISNULL(q.Estatus,'SIN COLA') AS IntegracionEstatus,
+    ISNULL(d.Cajas,0) AS Cajas,
+    ISNULL(d.Kg,0) AS Kg
+FROM dbo.SurtidoCaptura h
+OUTER APPLY
+(
+    SELECT COUNT(*) AS Cajas, SUM(ISNULL(x.PesoNeto,0)) AS Kg
+    FROM dbo.SurtidoCapturaDetalle x
+    WHERE x.SurtidoCapturaId=h.Id AND x.Activo=1
+) d
+OUTER APPLY
+(
+    SELECT TOP (1) t.Estatus
+    FROM dbo.SurtidoIntegracionCola t
+    WHERE t.SurtidoCapturaId=h.Id AND t.Tipo='SALIDA_EMBARQUE'
+    ORDER BY t.Id DESC
+) q
+WHERE (h.Planta + '|' + h.CodigoAlmacen) IN @Claves
+  AND h.Estatus IN ('VALIDADO','INTEGRANDO','INTEGRADO','ERROR')
+  AND h.FechaValidacion >= @Inicio
+  AND h.FechaValidacion < @FinExclusivo
+  AND (@SinClientes=1 OR h.Cliente IN @Clientes)
+  AND (@SinSolicitudes=1 OR h.SolicitudSurtidoId IN @Solicitudes)
+ORDER BY h.FechaValidacion DESC,h.Id DESC;";
+                var rows = (await cn.QueryAsync<SurtidoReportePedidoVM>(
+                    new CommandDefinition(sqlPedidos, new
+                    {
+                        Claves = claves,
+                        Inicio = vm.FechaInicio,
+                        FinExclusivo = vm.FechaFin.AddDays(1),
+                        SinClientes = vm.ClientesSeleccionados.Count == 0 ? 1 : 0,
+                        Clientes = vm.ClientesSeleccionados.Count == 0
+                            ? new[] { "" } : vm.ClientesSeleccionados.ToArray(),
+                        SinSolicitudes = vm.SolicitudesSeleccionadas.Count == 0 ? 1 : 0,
+                        Solicitudes = vm.SolicitudesSeleccionadas.Count == 0
+                            ? new[] { -1 } : vm.SolicitudesSeleccionadas.ToArray()
+                    }, cancellationToken: ct))).ToList();
+                vm.LimiteAlcanzado = rows.Count > 250;
+                vm.Pedidos = rows.Take(250).ToList();
+                vm.TotalCajas = vm.Pedidos.Sum(p => p.Cajas);
+                vm.TotalKg = vm.Pedidos.Sum(p => p.Kg);
+                // Cantidades solicitadas: SolicitudSurtidoDetalle.Cantidad son CAJAS.
+                // Leer desde la conexion Meat de cada almacen autorizado.
+                foreach (var grupoAlmacen in vm.Pedidos.GroupBy(p => p.CodigoAlmacen, StringComparer.OrdinalIgnoreCase))
+                {
+                    var aReporte = seleccionados.FirstOrDefault(a =>
+                        string.Equals(a.Codigo, grupoAlmacen.Key, StringComparison.OrdinalIgnoreCase));
+                    if (aReporte == null) continue;
+                    try
+                    {
+                        var origenMeat = ObtenerCadenaMeatPorAlmacen(aReporte);
+                        await using var cnMeat = new SqlConnection(origenMeat.Cadena);
+                        await cnMeat.OpenAsync(ct);
+                        const string sqlSolicitadas = @"
+SELECT SolicitudSurtidoId, Articulo AS SKU,
+       CajasSolicitadas=SUM(CONVERT(DECIMAL(18,3),ISNULL(Cantidad,0)))
+FROM dbo.SolicitudSurtidoDetalle
+WHERE SolicitudSurtidoId IN @Ids AND LTRIM(RTRIM(Almacen))=@Almacen
+GROUP BY SolicitudSurtidoId,Articulo;";
+                        var porSku = (await cnMeat.QueryAsync<SurtidoCantidadReporteSku>(
+                            new CommandDefinition(sqlSolicitadas,
+                                new { Ids = grupoAlmacen.Select(p => p.SolicitudSurtidoId).Distinct().ToArray(), Almacen = grupoAlmacen.Key },
+                                cancellationToken: ct))).ToList();
+                        foreach (var p in grupoAlmacen)
+                        {
+                            p.SkusSolicitados = porSku.Where(x => x.SolicitudSurtidoId == p.SolicitudSurtidoId)
+                                .Select(x => new SurtidoReporteSkuVM { SKU = x.SKU, CajasSolicitadas = x.CajasSolicitadas }).ToList();
+                            p.CajasSolicitadas = p.SkusSolicitados.Sum(x => x.CajasSolicitadas);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Trace.TraceWarning("Reporte surtido: no disponible cantidad solicitada Meat: " + ex.Message);
+                        foreach (var p in grupoAlmacen) p.SolicitadasDisponibles = false;
+                    }
+                }
+
+                if (vm.Pedidos.Count != 0)
+                {
+                    var ids = vm.Pedidos.Select(p => p.CapturaId).ToArray();
+                    const string sqlCajas = @"
+SELECT d.SurtidoCapturaId AS CapturaId,
+    d.ProduccionId, d.CodigoEtiqueta,d.SKU,
+    ISNULL(d.PesoNeto,0) AS PesoNeto,
+    ISNULL(d.Tarima,'') AS Tarima,
+    d.FechaCaptura, d.UsuarioCaptura,d.EstadoIntegracion,
+    ISNULL(b.Lote,'') AS Lote,
+    b.FechaProduccion
+FROM dbo.SurtidoCapturaDetalle d
+INNER JOIN dbo.SurtidoCaptura h ON h.Id=d.SurtidoCapturaId
+OUTER APPLY
+(
+    SELECT TOP (1) sb.Lote,sb.FechaProduccion
+    FROM dbo.SurtidoBajada sb
+    WHERE sb.Planta=h.Planta AND sb.CodigoAlmacen=h.CodigoAlmacen
+      AND sb.SolicitudSurtidoId=h.SolicitudSurtidoId
+      AND sb.ProduccionId=d.ProduccionId
+    ORDER BY sb.Id DESC
+) b
+WHERE d.Activo=1 AND d.SurtidoCapturaId IN @Ids
+ORDER BY d.SurtidoCapturaId,d.Tarima,d.SKU,d.CodigoEtiqueta;";
+                    vm.Cajas = (await cn.QueryAsync<SurtidoReporteCajaVM>(
+                        new CommandDefinition(sqlCajas, new { Ids = ids },
+                            cancellationToken: ct))).ToList();
+                }
+            }
+            catch (SqlException)
+            {
+                vm.Error = "No fue posible consultar el historial de surtidos en SIGO.";
+            }
+            return View("~/Views/Surtido/SurtidosRealizados.cshtml", vm);
+        }
+
+        // =============================================================
+        // AUTORIZACION COMERCIAL KG - SIGO (no dispara remision)
+        // =============================================================
+        private sealed class SurtidoAutKgDatos
+        {
+            public int SolicitudSurtidoId { get; set; }
+            public long ColaId { get; set; }
+            public string Pedido { get; set; } = "";
+            public string Planta { get; set; } = "";
+            public string CodigoAlmacen { get; set; } = "";
+            public string EstadoCaptura { get; set; } = "";
+            public string EstadoCola { get; set; } = "";
+            public string EstadoEvaluacion { get; set; } = "";
+            public string Sku { get; set; } = "";
+            public int Cajas { get; set; }
+            public decimal KgReales { get; set; }
+            public bool YaAutorizada { get; set; }
+        }
+        private sealed class SurtidoAutKgUsuario
+        {
+            public int UsuarioId { get; set; }
+            public string Usuario { get; set; } = "";
+            public string PasswordHash { get; set; } = "";
+        }
+
+        private string CadenaComercialAutKg(string planta)
+        {
+            var p = (planta ?? "").Trim().ToUpperInvariant();
+            string nombreCom = p switch
+            {
+                "TIF" or "TIF776" or "TIF 776" => "CadenaCommerciaTIF",
+                "P1" or "PLANTA1" or "PLANTA 1" => "CadenaCommerciaP1",
+                _ => throw new InvalidOperationException("Planta desconocida.")
+            };
+            string? explicitConnection = _configuracion.GetConnectionString(nombreCom);
+            if (!string.IsNullOrWhiteSpace(explicitConnection)) return explicitConnection;
+            if (!_configuracion.GetValue<bool>("SurtidoIntegracion:CommerciaEnMismaInstanciaQueMeat"))
+                throw new InvalidOperationException("Falta conexión comercial de la planta.");
+            string meatKey = p.StartsWith("TIF", StringComparison.Ordinal)
+                ? "CadenaMeatTIF" : "CadenaMeatP1";
+            string? meatConnection = _configuracion.GetConnectionString(meatKey);
+            if (string.IsNullOrWhiteSpace(meatConnection))
+                throw new InvalidOperationException("Falta conexión Meat de la planta.");
+            var builder = new SqlConnectionStringBuilder(meatConnection)
+            {
+                InitialCatalog = p.StartsWith("TIF", StringComparison.Ordinal)
+                    ? "TIF_CommerciaNET" : "CommerciaNET"
+            };
+            return builder.ConnectionString;
+        }
+
+
+
+        private async Task<Plataforma_CG.ViewModels.SurtidoAutorizarKgVM?>
+            LeerAutorizacionKgAsync(int solicitudId, CancellationToken ct)
+        {
+            await using var cn = new SqlConnection(
+                _configuracion.GetConnectionString("CadenaSQLSIGO"));
+
+            await cn.OpenAsync(ct);
+
+            // =========================================================
+            // 1. OBTENER CAPTURA, COLA, EVALUACION Y MANIFIESTO
+            // =========================================================
+            var datos = await cn.QuerySingleOrDefaultAsync<SurtidoAutKgDatos>(
+                new CommandDefinition(@"
+SELECT
+    c.SolicitudSurtidoId,
+    q.Id AS ColaId,
+    c.Pedido,
+    c.Planta,
+    c.CodigoAlmacen,
+    c.Estatus AS EstadoCaptura,
+    q.Estatus AS EstadoCola,
+    ISNULL(e.Estado, '') AS EstadoEvaluacion,
+    MIN(m.SKU) AS Sku,
+    COUNT(DISTINCT m.ProduccionId) AS Cajas,
+    CAST(SUM(m.KgSIGO) AS decimal(18,3)) AS KgReales,
+    CAST(
+        CASE WHEN EXISTS
+        (
+            SELECT 1
+            FROM dbo.SurtidoAutorizacionKg a
+            WHERE a.ColaId = q.Id
+              AND a.Estado = 'APROBADA'
+        )
+        THEN 1 ELSE 0 END
+        AS bit
+    ) AS YaAutorizada
+FROM dbo.SurtidoCaptura c
+INNER JOIN dbo.SurtidoIntegracionCola q
+    ON q.SurtidoCapturaId = c.Id
+   AND q.Tipo = 'SALIDA_EMBARQUE'
+INNER JOIN dbo.SurtidoIntegracionEvaluacion e
+    ON e.ColaId = q.Id
+INNER JOIN dbo.SurtidoIntegracionManifiesto m
+    ON m.ColaId = q.Id
+   AND m.SolicitudSurtidoId = c.SolicitudSurtidoId
+WHERE c.SolicitudSurtidoId = @Solicitud
+GROUP BY
+    c.SolicitudSurtidoId,
+    q.Id,
+    c.Pedido,
+    c.Planta,
+    c.CodigoAlmacen,
+    c.Estatus,
+    q.Estatus,
+    e.Estado;",
+                    new { Solicitud = solicitudId },
+                    cancellationToken: ct));
+
+            if (datos is null)
+                return null;
+
+            // =========================================================
+            // 2. VALIDAR ESTADOS
+            // =========================================================
+            if (!string.Equals(
+                    datos.EstadoCaptura,
+                    "VALIDADO",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(
+                    datos.EstadoCola,
+                    "PENDIENTE",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(
+                    datos.EstadoEvaluacion,
+                    "REVISION_COMERCIAL",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "La captura no está validada o la cola no está lista " +
+                    "para revisión comercial.");
+            }
+
+            // =========================================================
+            // 3. VALIDAR MANIFIESTO
+            // =========================================================
+            if (datos.Cajas <= 0 || datos.KgReales <= 0m)
+            {
+                throw new InvalidOperationException(
+                    "El manifiesto no contiene cajas o kilogramos válidos.");
+            }
+
+            // Mantener la protección existente: un solo SKU.
+            // Para varios SKU se requiere autorización individual.
+            var numSku = await cn.ExecuteScalarAsync<int>(
+                new CommandDefinition(@"
+SELECT COUNT(DISTINCT SKU)
+FROM dbo.SurtidoIntegracionManifiesto
+WHERE ColaId = @Cola;",
+                    new { Cola = datos.ColaId },
+                    cancellationToken: ct));
+
+            if (numSku != 1)
+            {
+                throw new InvalidOperationException(
+                    "Solicitud con varios SKU: requiere autorización por SKU; " +
+                    "bloqueada en esta versión.");
+            }
+
+            // =========================================================
+            // 4. CONECTAR CON MEAT SEGUN PLANTA
+            // =========================================================
+            var meatKey = (datos.Planta ?? "")
+                .Trim()
+                .ToUpperInvariant()
+                .StartsWith("TIF", StringComparison.Ordinal)
+                    ? "CadenaMeatTIF"
+                    : "CadenaMeatP1";
+
+            await using var meat = new SqlConnection(
+                _configuracion.GetConnectionString(meatKey));
+
+            await meat.OpenAsync(ct);
+
+            // =========================================================
+            // 5. VALIDAR REFERENCIA VPED EN MEAT
+            // =========================================================
+            var referencia = await meat.QuerySingleOrDefaultAsync<string>(
+                new CommandDefinition(@"
+SELECT TOP (1)
+    Referencia
+FROM dbo.SurtidoReferencia
+WHERE SolicitudSurtidoId = @Solicitud
+  AND TipoReferenciaId = 9;",
+                    new { Solicitud = datos.SolicitudSurtidoId },
+                    cancellationToken: ct));
+
+            var partes = (referencia ?? "").Trim().Split('.');
+
+            if (partes.Length != 4 ||
+                !partes[2].Equals(
+                    "VPED",
+                    StringComparison.OrdinalIgnoreCase) ||
+                !partes[3].Equals(
+                    datos.Pedido,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "La referencia VPED de Meat no coincide con la solicitud.");
+            }
+
+            // =========================================================
+            // 6. CONECTAR A COMMERCIA SEGUN PLANTA
+            // =========================================================
+            var connCom = CadenaComercialAutKg(datos.Planta);
+
+            await using var com = new SqlConnection(connCom);
+
+            await com.OpenAsync(ct);
+
+            // =========================================================
+            // 7. CONSULTAR KG SOLICITADOS EN EL VPED
+            // =========================================================
+            var kgVped = await com.ExecuteScalarAsync<decimal?>(
+                new CommandDefinition(@"
+SELECT CAST(
+    SUM(
+        CAST(m.Unidad AS decimal(18,3)) *
+        CAST(m.FactorUnidad AS decimal(18,3))
+    ) AS decimal(18,3)
+)
+FROM dbo.Movimiento m
+INNER JOIN dbo.Documento d
+    ON d.EmpresaId = m.EmpresaId
+   AND d.SucursalId = m.SucursalId
+   AND d.OperacionId = m.OperacionId
+   AND d.Folio = m.Folio
+WHERE m.EmpresaId = @Empresa
+  AND m.SucursalId = @Sucursal
+  AND m.OperacionId = 'VPED'
+  AND m.Folio = @Folio
+  AND m.ArticuloId = @Sku
+  AND m.EmpaqueId = 'KG'
+  AND d.AlmacenId = @Almacen;",
+                    new
+                    {
+                        Empresa = partes[0],
+                        Sucursal = partes[1],
+                        Folio = partes[3],
+                        Sku = datos.Sku,
+                        Almacen = datos.CodigoAlmacen
+                    },
+                    cancellationToken: ct));
+
+            if (kgVped is null || kgVped <= 0m)
+            {
+                throw new InvalidOperationException(
+                    "No se encontró KG comercial válido para " +
+                    "el pedido, SKU y almacén.");
+            }
+
+            // =========================================================
+            // 8. CALCULAR DIFERENCIA DE KILOGRAMOS
+            // =========================================================
+            decimal pct = Math.Round(
+                Math.Abs(kgVped.Value - datos.KgReales)
+                    * 100m / kgVped.Value,
+                4);
+
+            decimal tolerancia =
+                _configuracion.GetValue<decimal?>(
+                    "SurtidoIntegracion:ToleranciaKgPorcentaje")
+                ?? 0m;
+
+            // =========================================================
+            // 9. CONFIGURACION DE AUTORIZACION EXCEPCIONAL
+            // =========================================================
+            bool permitirExcepcion =
+                _configuracion.GetValue<bool>(
+                    "SurtidoIntegracion:HabilitarAutorizacionExcepcional");
+
+            decimal maximoExcepcional =
+                _configuracion.GetValue<decimal?>(
+                    "SurtidoIntegracion:MaximoDiferenciaAutorizablePorcentaje")
+                ?? tolerancia;
+
+            // Validar límites de configuración.
+            if (tolerancia < 0m || tolerancia > 10m)
+            {
+                throw new InvalidOperationException(
+                    "La tolerancia comercial configurada no es válida.");
+            }
+
+            if (permitirExcepcion)
+            {
+                if (maximoExcepcional < tolerancia ||
+                    maximoExcepcional > 25m)
+                {
+                    throw new InvalidOperationException(
+                        "El límite de autorización excepcional " +
+                        "configurado no es válido.");
+                }
+
+                // Se permite abrir la autorización excepcional,
+                // pero NO se aprueba automáticamente.
+                if (pct > maximoExcepcional)
+                {
+                    throw new InvalidOperationException(
+                        $"La diferencia de {pct:0.00}% supera " +
+                        $"el límite excepcional de {maximoExcepcional:0.00}%.");
+                }
+            }
+            else
+            {
+                // Comportamiento anterior cuando las
+                // autorizaciones excepcionales están deshabilitadas.
+                if (pct > tolerancia)
+                {
+                    throw new InvalidOperationException(
+                        $"La diferencia de {pct:0.00}% supera " +
+                        $"la tolerancia comercial de {tolerancia:0.00}%.");
+                }
+            }
+
+            // =========================================================
+            // 10. CONSTRUIR MODELO DE AUTORIZACION
+            // =========================================================
+            // Este método NO aprueba la diferencia.
+            // El POST existente valida permiso, contraseña y motivo.
+            return new Plataforma_CG.ViewModels.SurtidoAutorizarKgVM
+            {
+                SolicitudSurtidoId = datos.SolicitudSurtidoId,
+                ColaId = datos.ColaId,
+                Pedido = datos.Pedido,
+                Planta = datos.Planta,
+                SKU = datos.Sku,
+                Cajas = datos.Cajas,
+                KgPlaneados = kgVped.Value,
+                KgReales = datos.KgReales,
+                DiferenciaPorcentaje = pct,
+                ToleranciaPorcentaje = tolerancia,
+                YaAutorizada = datos.YaAutorizada
+            };
+        }
+
+
+
+
+
+        // ============================================================
+        // VALIDAR USUARIO CON PERMISO PARA AUTORIZAR DIFERENCIA KG
+        //
+        // 1. Identifica al usuario autenticado.
+        // 2. Consulta los permisos efectivos de SIGO.
+        // 3. Exige permiso ESCRIBIR.
+        // 4. Obtiene la identidad desde UsuarioSQL.
+        // 5. Devuelve UsuarioId y PasswordHash para la validación
+        //    de contraseña que ya realiza el POST.
+        //
+        // No modifica permisos ni autoriza automáticamente.
+        // ============================================================
+        private async Task<SurtidoAutKgUsuario?>
+     UsuarioAutKgConPermisoAsync(CancellationToken ct)
+        {
+            // 1. Obtener la identidad autenticada.
+            var login = (User?.Identity?.Name ?? "").Trim();
+
+            if (User?.Identity?.IsAuthenticated != true ||
+                string.IsNullOrWhiteSpace(login))
+            {
+                return null;
+            }
+
+            // 2. Validar permiso efectivo del módulo.
+            var (_, puedeEscribir, _) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                    _context,
+                    login,
+                    "SURTIDO_AUTORIZAR_DIF_KG"
+                );
+
+            if (!puedeEscribir)
+                return null;
+
+            // 3. Usar el método de identificación ya existente
+            // en SurtidoController, que contempla Usuario y Nombre.
+            var usuarioActual = await ObtenerUsuarioActualAsync(ct);
+
+            if (usuarioActual == null || usuarioActual.Id <= 0)
+                return null;
+
+            // 4. Consultar el mismo usuario mediante su ID,
+            // usando el AppDbContext de SIGO.
+            var cn = _context.Database.GetDbConnection();
+
+            if (cn.State != ConnectionState.Open)
+                await _context.Database.OpenConnectionAsync(ct);
+
+            const string sql = @"
+SELECT
+    u.Id AS UsuarioId,
+    u.Usuario,
+    u.Password AS PasswordHash
+FROM dbo.UsuarioSQL u
+WHERE u.Id = @UsuarioId
+  AND u.Activo = 1;";
+
+            return await cn.QuerySingleOrDefaultAsync<SurtidoAutKgUsuario>(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        UsuarioId = usuarioActual.Id
+                    },
+                    cancellationToken: ct
+                )
+            );
+        }
+
+
+
+
+        // =============================================================
+        // BANDEJA COMERCIAL DE AUTORIZACIONES DE DIFERENCIA KG
+        // Solo lectura. No modifica colas, remisiones ni inventario.
+        // =============================================================
+        public sealed class SurtidoAutorizacionFilaVM
+        {
+            public long ColaId { get; set; }
+            public int SolicitudSurtidoId { get; set; }
+            public string Pedido { get; set; } = "";
+            public string Planta { get; set; } = "";
+            public string CodigoAlmacen { get; set; } = "";
+            public string EstadoCaptura { get; set; } = "";
+            public string EstadoCola { get; set; } = "";
+            public string EstadoEvaluacion { get; set; } = "";
+            public string EstadoAutorizacion { get; set; } = "";
+            public DateTime? FechaValidacion { get; set; }
+            public int Cajas { get; set; }
+            public int TotalSku { get; set; }
+            public string Sku { get; set; } = "";
+            public decimal KgReales { get; set; }
+            public string Detalle { get; set; } = "";
+            public bool PuedeAutorizar =>
+                EstadoCaptura == "VALIDADO" &&
+                EstadoCola == "PENDIENTE" &&
+                EstadoEvaluacion == "REVISION_COMERCIAL" &&
+                string.IsNullOrEmpty(EstadoAutorizacion) &&
+                Cajas > 0 && TotalSku == 1;
+        }
+
+        [HttpGet("/Surtido/AutorizacionesDiferenciaKg")]
+        [RevisarPermiso("SURTIDO_AUTORIZAR_DIF_KG", "ESCRIBIR")]
+        public async Task<IActionResult> AutorizacionesDiferenciaKg(CancellationToken ct)
+        {
+            await using var cn = new SqlConnection(
+                _configuracion.GetConnectionString("CadenaSQLSIGO"));
+            await cn.OpenAsync(ct);
+
+            // Una fila por cola. No se mezclan almacenes, solicitudes ni SKU.
+            // Estados de evaluación se muestran, pero solo REVISION_COMERCIAL
+            // es autorizable en el controlador existente.
+            const string sql = @"
+SELECT TOP (200)
+    q.Id AS ColaId,
+    c.SolicitudSurtidoId,
+    c.Pedido,
+    c.Planta,
+    c.CodigoAlmacen,
+    c.Estatus AS EstadoCaptura,
+    q.Estatus AS EstadoCola,
+    ISNULL(e.Estado, '') AS EstadoEvaluacion,
+    ISNULL(a.Estado, '') AS EstadoAutorizacion,
+    c.FechaValidacion,
+    ISNULL(man.Cajas,0) AS Cajas,
+    ISNULL(man.TotalSku,0) AS TotalSku,
+    ISNULL(man.Sku,'') AS Sku,
+    ISNULL(man.KgReales,0) AS KgReales,
+    ISNULL(e.Detalle,'') AS Detalle
+FROM dbo.SurtidoIntegracionCola q
+INNER JOIN dbo.SurtidoCaptura c ON c.Id=q.SurtidoCapturaId
+LEFT JOIN dbo.SurtidoIntegracionEvaluacion e ON e.ColaId=q.Id
+OUTER APPLY (
+    SELECT TOP (1) a0.Estado
+    FROM dbo.SurtidoAutorizacionKg a0
+    WHERE a0.ColaId=q.Id
+    ORDER BY a0.ColaId
+) a
+OUTER APPLY (
+    SELECT COUNT(DISTINCT m.ProduccionId) AS Cajas,
+           COUNT(DISTINCT m.SKU) AS TotalSku,
+           MIN(m.SKU) AS Sku,
+           CAST(SUM(m.KgSIGO) AS decimal(18,3)) AS KgReales
+    FROM dbo.SurtidoIntegracionManifiesto m
+    WHERE m.ColaId=q.Id AND m.SolicitudSurtidoId=c.SolicitudSurtidoId
+) man
+WHERE q.Tipo='SALIDA_EMBARQUE'
+  AND c.Estatus='VALIDADO'
+  AND (q.Estatus='PENDIENTE' OR a.Estado='APROBADA')
+ORDER BY
+    CASE WHEN q.Estatus='PENDIENTE'
+               AND e.Estado='REVISION_COMERCIAL'
+               AND a.Estado IS NULL
+               AND ISNULL(man.Cajas,0)>0
+               AND ISNULL(man.TotalSku,0)=1
+         THEN 0 ELSE 1 END,
+    q.Id DESC;";
+
+            var solicitudes = (await cn.QueryAsync<SurtidoAutorizacionFilaVM>(
+                new CommandDefinition(sql, cancellationToken: ct))).ToList();
+
+            return View("~/Views/Surtido/AutorizacionesDiferenciaKg.cshtml", solicitudes);
+        }
+
+        [HttpGet("/Surtido/AutorizarDiferenciaKg")]
+        [RevisarPermiso("SURTIDO_AUTORIZAR_DIF_KG", "ESCRIBIR")]
+        public async Task<IActionResult> AutorizarDiferenciaKg(
+     int solicitudSurtidoId,
+     CancellationToken ct)
+        {
+            var vm = await LeerAutorizacionKgAsync(
+                solicitudSurtidoId, ct);
+
+            if (vm is null)
+                return NotFound("No existe el surtido solicitado.");
+
+            return View(
+                "~/Views/Surtido/AutorizarDiferenciaKg.cshtml",
+                vm);
+        }
+
+
+        [HttpPost("/Surtido/AutorizarDiferenciaKg")]
+        [ValidateAntiForgeryToken]
+        [RevisarPermiso("SURTIDO_AUTORIZAR_DIF_KG", "ESCRIBIR")]
+        public async Task<IActionResult> AutorizarDiferenciaKg(
+            Plataforma_CG.ViewModels.SurtidoAutorizarKgVM entrada,
+            CancellationToken ct)
+        {
+            const string rutaVista =
+                "~/Views/Surtido/AutorizarDiferenciaKg.cshtml";
+
+            const string clavePermiso =
+                "SURTIDO_AUTORIZAR_DIF_KG";
+
+            // ==========================================================
+            // 1. VALIDAR DATOS DE ENTRADA
+            // ==========================================================
+            if (entrada == null || entrada.SolicitudSurtidoId <= 0)
+            {
+                return BadRequest(
+                    "No se recibió una solicitud de surtido válida.");
+            }
+
+            // ==========================================================
+            // 2. CARGAR ESTADO REAL DESDE SIGO
+            // No confiar en KG, cajas ni cola recibidos del navegador.
+            // ==========================================================
+            Plataforma_CG.ViewModels.SurtidoAutorizarKgVM vm;
+
+            try
+            {
+                vm = await LeerAutorizacionKgAsync(
+                    entrada.SolicitudSurtidoId,
+                    ct
+                ) ?? throw new InvalidOperationException(
+                    "No se encontró la solicitud de surtido.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ex.Message);
+            }
+
+            vm.Motivo = (entrada.Motivo ?? "").Trim();
+
+            if (vm.YaAutorizada)
+            {
+                return Conflict(
+                    "Esta solicitud ya tiene una autorización registrada.");
+            }
+
+            // ==========================================================
+            // 3. VALIDAR IDENTIDAD AUTENTICADA
+            // ==========================================================
+            var login = (User?.Identity?.Name ?? "").Trim();
+
+            if (User?.Identity?.IsAuthenticated != true ||
+                string.IsNullOrWhiteSpace(login))
+            {
+                return Unauthorized(
+                    "No se identificó una sesión de SIGO válida.");
+            }
+
+            // ==========================================================
+            // 4. VALIDAR PERMISO EFECTIVO DE SIGO
+            // Incluye la resolución habitual de permisos por usuario
+            // y perfil. No se otorgan permisos automáticamente.
+            // ==========================================================
+            var (_, puedeEscribir, _) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                    _context,
+                    login,
+                    clavePermiso
+                );
+
+            if (!puedeEscribir)
+            {
+                return StatusCode(
+                    403,
+                    "El usuario autenticado no tiene permiso efectivo " +
+                    "ESCRIBIR para autorizar diferencias de KG.");
+            }
+
+            // ==========================================================
+            // 5. OBTENER IDENTIDAD PARA CONFIRMAR CONTRASEÑA
+            // ==========================================================
+            var usuario = await UsuarioAutKgConPermisoAsync(ct);
+
+            if (usuario == null)
+            {
+                return StatusCode(
+                    403,
+                    "El permiso fue evaluado, pero no se pudo " +
+                    "identificar al usuario activo en UsuarioSQL. " +
+                    "Verifica el login de la sesión y la cuenta SQL.");
+            }
+
+            // ==========================================================
+            // 6. VALIDAR MOTIVO Y CONTRASEÑA
+            // ==========================================================
+            if (vm.Motivo.Length < 10 || vm.Motivo.Length > 500)
+            {
+                vm.Error =
+                    "El motivo debe contener entre 10 y 500 caracteres.";
+
+                return View(rutaVista, vm);
+            }
+
+            if (string.IsNullOrWhiteSpace(entrada.Contrasena))
+            {
+                vm.Error =
+                    "Debes ingresar tu contraseña de SIGO " +
+                    "para confirmar la autorización.";
+
+                return View(rutaVista, vm);
+            }
+
+            // ==========================================================
+            // 7. CONTROL DE INTENTOS
+            // ==========================================================
+            var claveIntentos =
+                usuario.Usuario.ToUpperInvariant() + "|" +
+                (HttpContext.Connection.RemoteIpAddress?.ToString()
+                 ?? "SIN_IP");
+
+            if (AutorizadorBloqueado(claveIntentos))
+            {
+                return StatusCode(
+                    429,
+                    "Demasiados intentos de autorización. " +
+                    "Intenta nuevamente más tarde.");
+            }
+
+            // ==========================================================
+            // 8. VALIDACIÓN DE CONTRASEÑA
+            //
+            // Conserva el esquema SHA256/Base64 de tu código anterior.
+            // Debe coincidir con el esquema real de acceso de SIGO.
+            // ==========================================================
+            bool passwordOk = false;
+
+            try
+            {
+                var hashGuardado =
+                    Convert.FromBase64String(usuario.PasswordHash ?? "");
+
+                var hashIngresado =
+                    System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Encoding.UTF8.GetBytes(
+                            entrada.Contrasena
+                        )
+                    );
+
+                passwordOk =
+                    hashGuardado.Length == hashIngresado.Length &&
+                    System.Security.Cryptography.CryptographicOperations
+                        .FixedTimeEquals(
+                            hashGuardado,
+                            hashIngresado
+                        );
+            }
+            catch (FormatException)
+            {
+                passwordOk = false;
+            }
+
+            if (!passwordOk)
+            {
+                RegistrarFalloSupervisor(claveIntentos);
+
+                vm.Error =
+                    "No se pudo confirmar la contraseña del usuario.";
+
+                return View(rutaVista, vm);
+            }
+
+            ReiniciarFalloSupervisor(claveIntentos);
+
+            // ==========================================================
+            // 9. REVALIDAR PERMISO ANTES DE GUARDAR
+            // ==========================================================
+            var (_, permisoEscrituraActual, _) =
+                await PermisosHelper.ObtenerPermisoEfectivoAsync(
+                    _context,
+                    login,
+                    clavePermiso
+                );
+
+            if (!permisoEscrituraActual)
+            {
+                return StatusCode(
+                    403,
+                    "El permiso de autorización ya no está vigente.");
+            }
+
+            // ==========================================================
+            // 10. CONEXIÓN SIGO
+            // ==========================================================
+            var cadena =
+                _configuracion.GetConnectionString("CadenaSQLSIGO");
+
+            if (string.IsNullOrWhiteSpace(cadena))
+            {
+                throw new InvalidOperationException(
+                    "No existe ConnectionStrings:CadenaSQLSIGO.");
+            }
+
+            await using var cn = new SqlConnection(cadena);
+
+            await cn.OpenAsync(ct);
+
+            // ==========================================================
+            // 11. GUARDAR AUTORIZACIÓN
+            //
+            // La transacción comprueba:
+            // - Cola pendiente
+            // - Captura validada
+            // - Evaluación comercial
+            // - Usuario activo
+            // - Ausencia de autorización previa
+            // - Cajas y pesos del manifiesto
+            //
+            // El permiso efectivo ya fue comprobado en el servidor.
+            // No repetir aquí un JOIN exclusivo a PerfilPermisoModulo,
+            // porque podría contradecir los permisos individuales.
+            // ==========================================================
+            const string sql = @"
+SET XACT_ABORT ON;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoIntegracionCola q
+            WITH (UPDLOCK, HOLDLOCK)
+
+        INNER JOIN dbo.SurtidoCaptura c
+            ON c.Id = q.SurtidoCapturaId
+
+        INNER JOIN dbo.SurtidoIntegracionEvaluacion e
+            ON e.ColaId = q.Id
+
+        WHERE q.Id = @Cola
+          AND c.SolicitudSurtidoId = @Solicitud
+          AND c.Pedido = @Pedido
+          AND c.Planta = @Planta
+          AND c.Estatus = 'VALIDADO'
+          AND q.Estatus = 'PENDIENTE'
+          AND e.Estado = 'REVISION_COMERCIAL'
+    )
+    BEGIN
+        THROW 51710,
+            'La cola ya no permite autorizacion.', 1;
+    END;
+
+    -- Identidad activa: la autorización siempre se atribuye
+    -- al usuario real que inició sesión.
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.UsuarioSQL u
+        WHERE u.Id = @UsuarioId
+          AND u.Activo = 1
+          AND u.Usuario = @Usuario
+    )
+    BEGIN
+        THROW 51713,
+            'El usuario autorizador ya no esta activo.', 1;
+    END;
+
+    -- Evitar duplicados.
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoAutorizacionKg
+            WITH (UPDLOCK, HOLDLOCK)
+        WHERE ColaId = @Cola
+    )
+    BEGIN
+        THROW 51711,
+            'Ya existe autorizacion para esta cola.', 1;
+    END;
+
+    -- Revisión de cajas y kilogramos reales.
+    IF
+    (
+        SELECT COUNT(DISTINCT ProduccionId)
+        FROM dbo.SurtidoIntegracionManifiesto
+        WHERE ColaId = @Cola
+          AND SolicitudSurtidoId = @Solicitud
+          AND SKU = @Sku
+    ) <> @Cajas
+    BEGIN
+        THROW 51712,
+            'La cantidad de cajas del manifiesto cambio.', 1;
+    END;
+
+    IF ABS
+    (
+        ISNULL
+        (
+            (
+                SELECT SUM(KgSIGO)
+                FROM dbo.SurtidoIntegracionManifiesto
+                WHERE ColaId = @Cola
+                  AND SolicitudSurtidoId = @Solicitud
+                  AND SKU = @Sku
+            ), 0
+        ) - @KgReales
+    ) > 0.001
+    BEGIN
+        THROW 51714,
+            'Los KG del manifiesto cambiaron.', 1;
+    END;
+
+    -- No admitir otros SKU en la cola.
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.SurtidoIntegracionManifiesto
+        WHERE ColaId = @Cola
+          AND
+          (
+              SolicitudSurtidoId <> @Solicitud
+              OR SKU <> @Sku
+          )
+    )
+    BEGIN
+        THROW 51715,
+            'El manifiesto contiene articulos inesperados.', 1;
+    END;
+
+    -- Autorizacion EXCEPCIONAL: la diferencia debe SUPERAR
+    -- la tolerancia ordinaria. La pantalla ya verifico el
+    -- maximo excepcional configurado y el permiso del usuario.
+    -- Se recalculan los porcentajes a partir de los kg del servidor.
+    IF @KgPlaneados <= 0
+       OR @KgReales <= 0
+       OR @Tolerancia < 0
+       OR @Tolerancia > 10.000
+       OR ABS(
+           (
+               ABS(@KgPlaneados - @KgReales)
+               * 100.0 / NULLIF(@KgPlaneados, 0)
+           ) - @Pct
+       ) > 0.01
+       OR @Pct <= @Tolerancia
+    BEGIN
+        THROW 51716,
+            'La diferencia no requiere autorizacion excepcional o los datos cambiaron.', 1;
+    END;
+
+    -- Registrar evidencia comercial.
+    INSERT INTO dbo.SurtidoAutorizacionKg
+    (
+        ColaId,
+        SolicitudSurtidoId,
+        FolioVPED,
+        Planta,
+        SKU,
+        Cajas,
+        KgPlaneados,
+        KgReales,
+        DiferenciaPorcentaje,
+        ToleranciaPorcentaje,
+        UsuarioAutorizadorId,
+        UsuarioAutorizador,
+        Motivo
+    )
+    VALUES
+    (
+        @Cola,
+        @Solicitud,
+        @Pedido,
+        @Planta,
+        @Sku,
+        @Cajas,
+        @KgPlaneados,
+        @KgReales,
+        @Pct,
+        @Tolerancia,
+        @UsuarioId,
+        @Usuario,
+        @Motivo
+    );
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+
+    THROW;
+END CATCH;";
+
+            try
+            {
+                await cn.ExecuteAsync(
+                    new CommandDefinition(
+                        sql,
+                        new
+                        {
+                            Cola = vm.ColaId,
+                            Solicitud = vm.SolicitudSurtidoId,
+                            Pedido = vm.Pedido,
+                            Planta = vm.Planta,
+                            Sku = vm.SKU,
+                            Cajas = vm.Cajas,
+                            KgPlaneados = vm.KgPlaneados,
+                            KgReales = vm.KgReales,
+                            Pct = vm.DiferenciaPorcentaje,
+                            Tolerancia = vm.ToleranciaPorcentaje,
+                            UsuarioId = usuario.UsuarioId,
+                            Usuario = usuario.Usuario,
+                            Motivo = vm.Motivo
+                        },
+                        cancellationToken: ct
+                    )
+                );
+            }
+            catch (SqlException ex)
+            {
+                vm.Error = ex.Number switch
+                {
+                    51710 =>
+                        "La solicitud ya no está pendiente de autorización.",
+
+                    51711 or 2601 or 2627 =>
+                        "La autorización ya fue registrada anteriormente.",
+
+                    51712 or 51714 or 51715 =>
+                        "El manifiesto cambió. Es necesario volver a revisarlo.",
+
+                    51713 =>
+                        "El usuario ya no está activo.",
+
+                    51716 =>
+                        "La diferencia no requiere autorización excepcional o cambiaron los kilogramos.",
+
+                    _ =>
+                        "No fue posible guardar la autorización. " +
+                        "Error SQL: " + ex.Number
+                };
+
+                return View(rutaVista, vm);
+            }
+
+            // ==========================================================
+            // 12. FINALIZAR
+            //
+            // No ejecutar VREM.
+            // No modificar inventario.
+            // No enviar a SAP.
+            // ==========================================================
+            TempData["Exito"] =
+                "La diferencia comercial de KG fue autorizada " +
+                "y registrada correctamente.";
+
+            return Redirect(
+      Url.Action(
+          nameof(AutorizarDiferenciaKg),
+          "Surtido",
+          new { solicitudSurtidoId = vm.SolicitudSurtidoId }
+      )!
+  );
+        }
+
 
     }
 }

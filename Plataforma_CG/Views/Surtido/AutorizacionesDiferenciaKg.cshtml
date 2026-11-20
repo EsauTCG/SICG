@@ -1,0 +1,85 @@
+@model IReadOnlyList<Plataforma_CG.Controllers.SurtidoController.SurtidoAutorizacionFilaVM>
+@{
+    ViewData["Title"] = "Solicitudes por autorizar";
+    Layout = "~/Views/Shared/_Layout2.cshtml";
+    var pendientes = Model.Count(x => x.PuedeAutorizar);
+    var aprobadas = Model.Count(x => x.EstadoAutorizacion == "APROBADA");
+}
+<style>
+    .ak-list-wrap{max-width:1250px;margin:24px auto;padding:14px;font-family:Segoe UI,Arial,sans-serif}
+    .ak-list-card{background:#fff;border:1px solid #d5dce2;border-radius:16px;padding:22px;box-shadow:0 6px 24px #0000000d}
+    .ak-list-header{display:flex;gap:15px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .ak-list-title{color:#76232e;font-size:25px;font-weight:800;margin:0}
+    .ak-list-subtitle{color:#566575;margin:8px 0 18px}
+    .ak-list-metrics{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 20px}
+    .ak-list-metric{background:#f2f5f7;border-radius:10px;padding:12px 18px;min-width:120px}
+    .ak-list-metric strong{display:block;font-size:22px}
+    .ak-list-table-wrap{overflow-x:auto}
+    .ak-list-table{width:100%;border-collapse:collapse;font-size:14px}
+    .ak-list-table th,.ak-list-table td{padding:11px;border-bottom:1px solid #e3e7ea;text-align:left;white-space:nowrap}
+    .ak-list-table th{background:#f2f5f7;color:#344355}
+    .ak-pill{padding:5px 9px;border-radius:20px;background:#f7e4c5;color:#6e4a09;font-size:12px;font-weight:700;white-space:nowrap}
+    .ak-pill.ok{background:#e2f4e7;color:#155d31}
+    .ak-pill.muted{background:#eef1f4;color:#475569}
+    .ak-list-button{display:inline-block;background:#76232e;color:white!important;padding:9px 13px;text-decoration:none;border-radius:8px;font-weight:700}
+    .ak-list-button:hover{background:#5d1c25}
+    .ak-refresh{background:#eef1f4;border-radius:8px;padding:9px 14px;color:#243447;text-decoration:none}
+    .ak-list-empty{padding:22px;background:#f6f7f9;border-radius:10px}
+    @@media(max-width:700px){.ak-list-wrap{margin:5px auto;padding:8px}.ak-list-card{padding:13px}}
+</style>
+<div class="ak-list-wrap"><div class="ak-list-card">
+    <div class="ak-list-header">
+        <h1 class="ak-list-title">Autorizaciones de diferencia de peso</h1>
+        <a class="ak-refresh" href="/Surtido/AutorizacionesDiferenciaKg">Actualizar solicitudes</a>
+    </div>
+    <p class="ak-list-subtitle">Solicitudes validadas en SIGO. Abre cada pedido para revisar el peso y autorizar con tus credenciales.</p>
+    <div class="ak-list-metrics">
+        <div class="ak-list-metric"><strong>@pendientes</strong>Pendientes por aprobar</div>
+        <div class="ak-list-metric"><strong>@aprobadas</strong>Ya aprobadas</div>
+        <div class="ak-list-metric"><strong>@Model.Count</strong>Mostradas (máx. 200)</div>
+    </div>
+    @if(Model.Count == 0)
+    {
+        <div class="ak-list-empty">No se encontraron solicitudes validadas para mostrar.</div>
+    }
+    else
+    {
+        <div class="ak-list-table-wrap"><table class="ak-list-table">
+            <thead><tr><th>Pedido</th><th>Solicitud</th><th>Planta / Almacén</th><th>SKU</th><th>Cajas</th><th>KG capturados</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody>
+            @foreach(var item in Model)
+            {
+                var etiqueta = item.EstadoAutorizacion == "APROBADA"
+                    ? "APROBADA"
+                    : item.PuedeAutorizar ? "PENDIENTE DE APROBACIÓN"
+                    : item.EstadoEvaluacion == "BLOQUEADO_COMERCIAL" ? "BLOQUEADA"
+                    : string.IsNullOrWhiteSpace(item.EstadoEvaluacion) ? "SIN EVALUACIÓN"
+                    : item.TotalSku > 1 ? "VARIOS SKU"
+                    : item.EstadoEvaluacion;
+                <tr>
+                    <td><strong>@item.Pedido</strong></td>
+                    <td>@item.SolicitudSurtidoId</td>
+                    <td>@item.Planta / @item.CodigoAlmacen</td>
+                    <td>@(item.TotalSku > 1 ? "VARIOS" : item.Sku)</td>
+                    <td>@item.Cajas</td>
+                    <td>@item.KgReales.ToString("N3")</td>
+                    <td><span class="ak-pill @(item.EstadoAutorizacion == "APROBADA" ? "ok" : (!item.PuedeAutorizar ? "muted" : ""))">@etiqueta</span></td>
+                    <td>
+                        @if(item.PuedeAutorizar || item.EstadoAutorizacion == "APROBADA")
+                        {
+                            <a class="ak-list-button"
+                               href="@Url.Action("AutorizarDiferenciaKg", "Surtido", new { solicitudSurtidoId = item.SolicitudSurtidoId })">
+                                @(item.PuedeAutorizar ? "Revisar / Autorizar" : "Ver autorización")
+                            </a>
+                        }
+                        else
+                        {
+                            <span title="No cumple los requisitos de la autorización actual">No disponible</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+    }
+</div></div>

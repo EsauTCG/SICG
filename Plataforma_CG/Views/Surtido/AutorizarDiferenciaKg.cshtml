@@ -1,0 +1,36 @@
+@model Plataforma_CG.ViewModels.SurtidoAutorizarKgVM
+@{ ViewData["Title"]="Autorizar diferencia KG"; Layout="~/Views/Shared/_Layout2.cshtml"; }
+<style>
+.ak-wrap{max-width:720px;margin:20px auto;padding:12px;font-family:Segoe UI,Arial,sans-serif}
+.ak-card{background:#fff;border:1px solid #d5dce2;border-radius:16px;padding:20px;box-shadow:0 6px 24px #0000000d}
+.ak-title{font-size:23px;font-weight:800;margin:0 0 12px;color:#6e1f29}
+.ak-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
+.ak-metric{background:#f2f5f7;padding:12px;border-radius:10px}.ak-metric b{font-size:20px;display:block}.ak-metric small{color:#566575}
+.ak-label{font-weight:700;display:block;margin:12px 0 5px}.ak-input{width:100%;min-height:44px;border-radius:8px;border:1px solid #adb9c2;padding:10px;box-sizing:border-box;font-size:16px}
+.ak-button{width:100%;padding:13px;color:white;background:#76232e;border:0;border-radius:10px;font-size:16px;font-weight:800;margin-top:16px;cursor:pointer}
+.ak-alert{padding:12px;border-radius:9px;margin:12px 0;background:#fff5e7;border:1px solid #edcf97}.ak-ok{background:#e9f7ee;border-color:#b7dec7}
+@@media(max-width:550px){.ak-grid{grid-template-columns:1fr}.ak-wrap{margin:5px auto}.ak-card{padding:14px}}
+</style>
+<div class="ak-wrap"><div class="ak-card">
+<p><a href="/Surtido/AutorizacionesDiferenciaKg" style="color:#76232e;font-weight:700;text-decoration:none">← Volver a solicitudes por autorizar</a></p>
+<h1 class="ak-title">Autorizar diferencia de peso</h1>
+<p><strong>Pedido @Model.Pedido</strong> · Solicitud @Model.SolicitudSurtidoId · @Model.Planta</p>
+<div class="ak-grid">
+<div class="ak-metric"><b>@Model.Cajas</b><small>Cajas validadas</small></div><div class="ak-metric"><b>@Model.SKU</b><small>SKU</small></div>
+<div class="ak-metric"><b>@Model.KgPlaneados.ToString("N3") kg</b><small>Planeados</small></div><div class="ak-metric"><b>@Model.KgReales.ToString("N3") kg</b><small>Reales</small></div>
+<div class="ak-metric"><b>@Model.DiferenciaPorcentaje.ToString("N2")%</b><small>Diferencia</small></div><div class="ak-metric"><b>@Model.ToleranciaPorcentaje.ToString("N2")%</b><small>Tolerancia DEV</small></div>
+</div>
+@if(!string.IsNullOrWhiteSpace(Model.Error)){<div class="ak-alert">@Model.Error</div>}
+@if(!string.IsNullOrWhiteSpace(Model.Mensaje)){<div class="ak-alert ak-ok">@Model.Mensaje</div>}
+@if(TempData["Exito"] is string exito){<div class="ak-alert ak-ok">@exito</div>}
+@if(Model.YaAutorizada){<div class="ak-alert ak-ok">La diferencia ya tiene una autorización registrada. No se permite autorizarla dos veces.</div>}
+else {
+<form method="post" action="/Surtido/AutorizarDiferenciaKg">
+@Html.AntiForgeryToken()
+<input type="hidden" name="SolicitudSurtidoId" value="@Model.SolicitudSurtidoId" />
+<label class="ak-label" for="motivo">Motivo de autorización</label><textarea id="motivo" class="ak-input" name="Motivo" rows="3" maxlength="500" minlength="10" required>@Model.Motivo</textarea>
+<label class="ak-label" for="password">Tu contraseña de SIGO</label><input id="password" class="ak-input" name="Contrasena" type="password" autocomplete="current-password" required />
+<div class="ak-alert">La autorización acepta la variación del peso de este pedido. No genera una VREM ni libera inventario.</div>
+<button class="ak-button" type="submit">CONFIRMAR AUTORIZACIÓN</button>
+</form>}
+</div></div>
