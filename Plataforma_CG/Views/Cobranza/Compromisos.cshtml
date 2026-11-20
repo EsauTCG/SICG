@@ -4,1060 +4,1084 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Compromisos de cobranza";
 
-    // Si no hay fechas seleccionadas, ambas inician con la fecha actual.
-    // Si el usuario ya filtró, conserva el rango seleccionado.
+    // Sin fechas seleccionadas, ambas inician en hoy; si el usuario filtró, se conserva su rango.
     var fechaDesde = Model.Desde ?? DateTime.Today;
     var fechaHasta = Model.Hasta ?? DateTime.Today;
+    var hoy = DateTime.Today;
 
-    var fechaEntregaPorCompromiso =
-        ViewBag.FechaEntregaPorCompromiso
-        as System.Collections.Generic.Dictionary<int, DateTime?>
+    var fechaEntregaPorCompromiso = ViewBag.FechaEntregaPorCompromiso as System.Collections.Generic.Dictionary<int, DateTime?>
         ?? new System.Collections.Generic.Dictionary<int, DateTime?>();
-
-    var montoPorCompromiso =
-        ViewBag.MontoPorCompromiso
-        as System.Collections.Generic.Dictionary<int, decimal>
+    var montoPorCompromiso = ViewBag.MontoPorCompromiso as System.Collections.Generic.Dictionary<int, decimal>
         ?? new System.Collections.Generic.Dictionary<int, decimal>();
+
+    var estatusTexto = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PENDIENTE"] = "Pendiente",
+        ["VENCE_HOY"] = "Vence hoy",
+        ["PARCIAL"] = "Parcial",
+        ["INCUMPLIDO"] = "Incumplido",
+        ["CUMPLIDO"] = "Cumplido",
+        ["REVISAR"] = "Revisar"
+    };
+    var estatusActual = string.IsNullOrWhiteSpace(Model.Estatus) ? "TODOS" : Model.Estatus.ToUpperInvariant();
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    string UrlEstatus(string est) => Url.Action("Compromisos", "Cobranza", new
+    {
+        estatus = est,
+        cliente = Model.Cliente,
+        desde = fechaDesde.ToString("yyyy-MM-dd"),
+        hasta = fechaHasta.ToString("yyyy-MM-dd")
+    });
 }
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-    /* =========================================================
-                   COBRANZA - ESTILO SIGO / ERP COMPACTO
-                   Scoped para no afectar _Layout2 ni otros módulos.
-                   ========================================================= */
-
+    /* =====================================================================
+           COMPROMISOS DE COBRANZA · SIGO — hoja de estilos única
+           ===================================================================== */
     #cobranzaApp {
-        --cob-bg: #f1e2e2;
-        --cob-panel: #f7eeee;
-        --cob-surface: #fffafa;
-        --cob-surface-2: #f9eeee;
-        --cob-line: #cfb0b0;
-        --cob-line-dark: #8f4c4c;
-        --cob-text: #2f1717;
-        --cob-muted: #705050;
-        --cob-brand: #7a1118;
-        --cob-brand-dark: #4a090d;
-        --cob-brand-2: #5b1015;
-        --cob-header: linear-gradient(180deg,#7b151b 0%,#591015 60%,#3f080c 100%);
-        --cob-toolbar: linear-gradient(180deg,#fff9f9 0%,#f1dddd 100%);
-        --cob-shadow: 0 8px 20px rgba(65,12,16,.12);
-        position: relative;
-        isolation: isolate;
-        width: 100%;
-        max-width: 100%;
+        --es-tinto: #8d3e46;
+        --es-tinto-deep: #5c2229;
+        --es-tinto-soft: #f7eced;
+        --es-tinto-line: #e8d3d6;
+        --es-paper: #f6f4f4;
+        --es-surface: #ffffff;
+        --es-field: #ffffff;
+        --es-head: #faf7f7;
+        --es-hover: #fcf9f9;
+        --es-row-line: #f0eaeb;
+        --es-ink: #231a1c;
+        --es-muted: #76686b;
+        --es-line: #e6dfe0;
+        --es-line-strong: #cfc4c6;
+        --es-ok: #2f7a55;
+        --es-ok-bg: #e7f3ec;
+        --es-warn: #9a6410;
+        --es-warn-bg: #fbf1de;
+        --es-bad: #b42d2d;
+        --es-bad-bg: #fbe9e8;
+        --es-info: #2f5d86;
+        --es-info-bg: #e9f0f7;
+        --es-orange: #b4561a;
+        --es-orange-bg: #fcefe4;
+        --es-teal: #2b7a72;
+        --es-neutral-bg: #efecec;
+        --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+        font-family: var(--es-font);
+        color: var(--es-ink);
+        font-size: 13px;
+        line-height: 1.4;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: calc(100dvh - 92px);
+        min-height: 600px;
+        padding: 14px 16px 8px;
+        background: var(--es-paper);
+        overflow: hidden;
         min-width: 0;
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: "Poppins", Tahoma, Verdana, Arial, sans-serif;
-        color: var(--cob-text);
-        container-type: inline-size;
-        container-name: cobranza-modulo;
     }
-
-        #cobranzaApp *,
-        #cobranzaApp *::before,
-        #cobranzaApp *::after {
-            box-sizing: border-box;
-        }
 
     body[data-theme="dark"] #cobranzaApp {
-        --cob-bg: #0b1120;
-        --cob-panel: #111827;
-        --cob-surface: #111827;
-        --cob-surface-2: #182235;
-        --cob-line: #374151;
-        --cob-line-dark: #4b5563;
-        --cob-text: #f9fafb;
-        --cob-muted: #a6adbb;
-        --cob-header: linear-gradient(180deg,#64151a 0%,#451014 58%,#260608 100%);
-        --cob-toolbar: linear-gradient(180deg,#1f2937 0%,#111827 100%);
-        --cob-shadow: 0 10px 24px rgba(0,0,0,.35);
+        --es-tinto: #c56b74;
+        --es-tinto-deep: #7a2d36;
+        --es-tinto-soft: #3a2427;
+        --es-tinto-line: #5a3439;
+        --es-paper: #16181c;
+        --es-surface: #202328;
+        --es-field: #181a1e;
+        --es-head: #262a30;
+        --es-hover: #2a2e34;
+        --es-row-line: #30343b;
+        --es-ink: #edf0f3;
+        --es-muted: #a9b0b9;
+        --es-line: #363b43;
+        --es-line-strong: #4a5059;
+        --es-ok: #6cc596;
+        --es-ok-bg: #1d3328;
+        --es-warn: #e0b061;
+        --es-warn-bg: #3a2f1b;
+        --es-bad: #f08a83;
+        --es-bad-bg: #3d2223;
+        --es-info: #8bb8e0;
+        --es-info-bg: #1e2b38;
+        --es-orange: #f0a36b;
+        --es-orange-bg: #3a2a1d;
+        --es-teal: #6cc5ba;
+        --es-neutral-bg: #2c3036;
     }
 
-    /* Ventana principal */
-    #cobranzaApp .cob-window {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        min-height: calc(100vh - 70px);
-        display: flex;
-        flex-direction: column;
-        border: 1px solid var(--cob-line-dark);
-        background: var(--cob-panel);
-        box-shadow: var(--cob-shadow);
-        overflow: hidden;
+    #cobranzaApp *, #cobranzaApp *::before, #cobranzaApp *::after {
+        box-sizing: border-box;
     }
 
-    /* Encabezado */
-    #cobranzaApp .cob-titlebar {
-        min-height: 54px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 7px 10px;
-        background: var(--cob-header);
-        border-bottom: 1px solid #3f080c;
-        color: #fff;
-        flex-wrap: wrap;
+    #cobranzaApp .bi {
+        font-family: "bootstrap-icons" !important;
     }
 
-    #cobranzaApp .cob-title-left {
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        gap: 9px;
-    }
-
-    #cobranzaApp .cob-title-icon {
-        width: 36px;
-        height: 36px;
-        flex: 0 0 36px;
-        display: grid;
-        place-items: center;
-        border: 1px solid rgba(255,255,255,.25);
-        background: rgba(255,255,255,.10);
-        font-size: 15px;
-    }
-
-    #cobranzaApp .cob-title-main {
-        margin: 0;
-        font-size: 15px;
-        line-height: 1.08;
-        font-weight: 900;
-        letter-spacing: -.01em;
-    }
-
-    #cobranzaApp .cob-title-sub {
-        margin-top: 2px;
-        color: #efd9da;
-        font-size: 9.5px;
-        line-height: 1.15;
-        font-weight: 400;
-    }
-
-    #cobranzaApp .cob-source {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        margin-left: auto;
-        padding: 5px 9px;
-        border: 1px solid rgba(255,255,255,.32);
-        background: rgba(0,0,0,.14);
-        color: #fff;
-        font-size: 9.5px;
-        line-height: 1;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    #cobranzaApp .cob-content {
-        min-width: 0;
-        min-height: 0;
-        flex: 1 1 auto;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 6px;
-        background: var(--cob-bg);
-        overflow: hidden;
-    }
-
-    /* Secciones */
-    #cobranzaApp .cob-section {
-        width: 100%;
-        min-width: 0;
-        border: 1px solid var(--cob-line);
-        background: var(--cob-surface);
-        overflow: hidden;
-    }
-
-    #cobranzaApp .cob-section-title {
-        min-height: 26px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 7px;
-        border-bottom: 1px solid var(--cob-line);
-        background: linear-gradient(180deg,#eef1f2 0%,#dfe5e7 100%);
-        color: #26343c;
-        font-size: 9.5px;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .015em;
-    }
-
-    body[data-theme="dark"] #cobranzaApp .cob-section-title {
-        background: linear-gradient(180deg,#263244 0%,#182235 100%);
-        color: #f3f4f6;
-    }
-
-    #cobranzaApp .cob-section-title::before {
-        content: "";
-        width: 3px;
-        align-self: stretch;
-        margin: -4px 2px -4px -7px;
-        background: var(--cob-brand);
-    }
-
-    #cobranzaApp .cob-section-body {
-        padding: 6px;
-        background: var(--cob-surface);
-    }
-
-    /* Alertas */
-    #cobranzaApp .cob-alert {
-        margin: 0;
-        padding: 7px 9px;
-        border-radius: 0;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    /* Filtros */
-    #cobranzaApp .cob-filter-wrap {
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: thin;
-    }
-
-    #cobranzaApp .cob-filters {
-        display: grid;
-        grid-template-columns: minmax(130px, .90fr) minmax(250px, 1.70fr) minmax(125px, .82fr) minmax(125px, .82fr) minmax(320px, 1.85fr);
-        gap: 5px;
-        align-items: end;
-        min-width: 970px;
-        margin: 0;
-    }
-
-    #cobranzaApp .cob-field {
-        min-width: 0;
-    }
-
-    #cobranzaApp .form-label {
-        display: block;
-        margin: 0 0 2px 0;
-        color: var(--cob-text);
-        font-size: 9px;
-        line-height: 1;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
-    #cobranzaApp .form-control,
-    #cobranzaApp .form-select {
-        width: 100%;
-        min-width: 0;
-        height: 28px;
-        min-height: 28px;
-        padding: 2px 6px;
-        border: 1px solid var(--cob-line-dark);
-        border-radius: 0;
-        background: var(--cob-surface);
-        color: var(--cob-text);
-        font-size: 10px;
-        line-height: 1;
-        box-shadow: none;
-    }
-
-        #cobranzaApp .form-control:focus,
-        #cobranzaApp .form-select:focus {
-            border-color: var(--cob-brand);
-            box-shadow: 0 0 0 2px rgba(122,17,24,.10);
-        }
-
-    #cobranzaApp .cob-actions {
-        display: grid;
-        grid-template-columns: 72px 104px 82px 72px;
-        gap: 4px;
-        align-items: end;
-        justify-content: end;
-        min-width: 0;
-    }
-
-    #cobranzaApp .cob-btn {
-        min-width: 0;
-        height: 28px;
-        min-height: 28px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        padding: 0 6px;
-        border-radius: 0;
-        font-size: 8.5px;
-        line-height: 1;
-        font-weight: 900;
-        white-space: nowrap;
-        text-decoration: none;
-        cursor: pointer;
-        box-shadow: none;
-    }
-
-    #cobranzaApp .cob-btn-search {
-        border: 1px solid #681017;
-        background: linear-gradient(180deg,#93212a 0%,#74141c 58%,#581017 100%);
-        color: #fff;
-    }
-
-    #cobranzaApp .cob-btn-export {
-        border: 1px solid #146c43;
-        background: linear-gradient(180deg,#2b9a65 0%,#198754 58%,#146c43 100%);
-        color: #fff;
-    }
-
-    #cobranzaApp .cob-btn-refresh,
-    #cobranzaApp .cob-btn-clear {
-        border: 1px solid var(--cob-line-dark);
-        background: var(--cob-toolbar);
-        color: var(--cob-text);
-    }
-
-    #cobranzaApp .cob-btn:hover {
-        filter: brightness(.97);
-        text-decoration: none;
-    }
-
-    /* KPIs */
-    #cobranzaApp .cob-kpis {
-        display: grid;
-        grid-template-columns: repeat(6,minmax(0,1fr));
-        gap: 5px;
-    }
-
-    #cobranzaApp .cob-kpi {
-        position: relative;
-        min-width: 0;
-        min-height: 58px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding: 5px 7px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,.30);
-        box-shadow: inset 3px 0 0 rgba(255,255,255,.16), 0 2px 5px rgba(45,8,8,.10);
-        color: #fff;
-    }
-
-        #cobranzaApp .cob-kpi::after {
-            content: "";
-            position: absolute;
-            width: 82px;
-            height: 82px;
-            right: -26px;
-            bottom: -34px;
-            border-radius: 999px;
-            background: rgba(255,255,255,.12);
-            pointer-events: none;
-        }
-
-    #cobranzaApp .cob-kpi-label,
-    #cobranzaApp .cob-kpi-value,
-    #cobranzaApp .cob-kpi-note {
-        position: relative;
-        z-index: 1;
-        text-align: center;
-    }
-
-    #cobranzaApp .cob-kpi-label {
-        margin-bottom: 1px;
-        color: rgba(255,255,255,.90);
-        font-size: 8px;
-        line-height: 1;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-    }
-
-    #cobranzaApp .cob-kpi-value {
-        font-size: clamp(14px,1.15vw,19px);
-        line-height: 1.05;
-        font-weight: 950;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 2px 7px rgba(0,0,0,.20);
-    }
-
-    #cobranzaApp .cob-kpi-note {
-        margin-top: 2px;
-        font-size: 7.5px;
-        line-height: 1.05;
-        color: rgba(255,255,255,.90);
-    }
-
-    #cobranzaApp .kpi-total {
-        background: linear-gradient(135deg,#5b161b 0%,#8f2c34 58%,#64171d 100%);
-    }
-
-    #cobranzaApp .kpi-pendientes {
-        background: linear-gradient(135deg,#8a3b0b 0%,#e26a13 58%,#9a3d0a 100%);
-    }
-
-    #cobranzaApp .kpi-incumplidos {
-        background: linear-gradient(135deg,#7f1d1d 0%,#dc3545 58%,#991b1b 100%);
-    }
-
-    #cobranzaApp .kpi-parciales {
-        background: linear-gradient(135deg,#9a6a08 0%,#e6ad16 58%,#a26e08 100%);
-    }
-
-    #cobranzaApp .kpi-cumplidos {
-        background: linear-gradient(135deg,#0f5132 0%,#198754 58%,#146c43 100%);
-    }
-
-    #cobranzaApp .kpi-saldo {
-        background: linear-gradient(135deg,#0d5d61 0%,#159b9f 58%,#0f6669 100%);
-    }
-
-    /* Tabla */
-    #cobranzaApp .cob-table-section {
-        min-height: 0;
-        flex: 1 1 auto;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    #cobranzaApp .cob-table-wrap {
-        width: 100%;
-        min-width: 0;
-        min-height: 260px;
-        flex: 1 1 auto;
-        overflow: auto;
-        background: var(--cob-surface);
-        scrollbar-gutter: stable;
-    }
-
-    #cobranzaApp .cob-table {
-        width: 100%;
-        min-width: 1395px;
-        margin: 0;
-        table-layout: fixed;
-        border-collapse: separate;
-        border-spacing: 0;
-        color: var(--cob-text);
-        font-size: 9.5px;
-    }
-
-        #cobranzaApp .cob-table thead th {
-            position: sticky;
-            top: 0;
-            z-index: 5;
-            padding: 5px 5px;
-            background: var(--cob-header);
-            color: #fff;
-            border-right: 1px solid rgba(255,255,255,.14);
-            border-bottom: 1px solid #3f080c;
-            font-size: 8.5px;
-            line-height: 1.05;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: .015em;
-            white-space: nowrap;
-        }
-
-        #cobranzaApp .cob-table tbody td {
-            padding: 4px 5px;
-            background: var(--cob-surface);
-            color: var(--cob-text);
-            border-right: 1px solid var(--cob-line);
-            border-bottom: 1px solid var(--cob-line);
-            vertical-align: middle;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.08;
-        }
-
-        #cobranzaApp .cob-table tbody tr:nth-child(even) td {
-            background: var(--cob-surface-2);
-        }
-
-        #cobranzaApp .cob-table tbody tr:hover td {
-            background: #f4dddd;
-        }
-
-    body[data-theme="dark"] #cobranzaApp .cob-table tbody tr:hover td {
-        background: #243044;
-    }
-
-    #cobranzaApp .cob-table .cob-cliente {
-        white-space: normal;
-        line-height: 1.12;
-    }
-
-    #cobranzaApp .cob-client-name {
-        font-weight: 800;
-    }
-
-    #cobranzaApp .cob-client-code {
-        display: block;
-        margin-top: 1px;
-        color: var(--cob-muted);
-        font-size: 8px;
-    }
-
-    #cobranzaApp .cob-money {
+    #cobranzaApp .num {
         text-align: right;
         font-variant-numeric: tabular-nums;
     }
 
-    #cobranzaApp .cob-money-strong {
-        font-weight: 900;
-    }
-
-    #cobranzaApp .cob-center {
+    #cobranzaApp .center {
         text-align: center;
     }
 
-    #cobranzaApp .cob-badge {
-        min-width: 74px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 3px 5px;
-        border-radius: 2px;
-        font-size: 7.5px;
-        line-height: 1;
-        font-weight: 900;
-        letter-spacing: .02em;
-    }
-
-    #cobranzaApp .badge-pendiente {
-        background: #c35f10;
-        color: #fff;
-    }
-
-    #cobranzaApp .badge-vence {
-        background: #0f7f91;
-        color: #fff;
-    }
-
-    #cobranzaApp .badge-parcial {
-        background: #d39e00;
-        color: #211706;
-    }
-
-    #cobranzaApp .badge-incumplido {
-        background: #c92f3d;
-        color: #fff;
-    }
-
-    #cobranzaApp .badge-cumplido {
-        background: #198754;
-        color: #fff;
-    }
-
-    #cobranzaApp .badge-revisar {
-        background: #6c757d;
-        color: #fff;
-    }
-
-    #cobranzaApp .cob-btn-detail {
-        height: 24px;
-        min-height: 24px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 8px;
-        border: 1px solid var(--cob-brand);
-        border-radius: 0;
-        background: #fff;
-        color: var(--cob-brand);
-        font-size: 8px;
-        font-weight: 900;
-        text-decoration: none;
-    }
-
-    body[data-theme="dark"] #cobranzaApp .cob-btn-detail {
-        background: #111827;
-        color: #f3d4d6;
-    }
-
-    #cobranzaApp .cob-empty {
-        padding: 35px 10px !important;
-        text-align: center;
-        color: var(--cob-muted) !important;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    /* Anchos de tabla */
-    #cobranzaApp .cob-table th:nth-child(1),
-    #cobranzaApp .cob-table td:nth-child(1) {
-        width: 92px;
-    }
-
-    #cobranzaApp .cob-table th:nth-child(2),
-    #cobranzaApp .cob-table td:nth-child(2) {
-        width: 105px;
-    }
-
-    #cobranzaApp .cob-table th:nth-child(3),
-    #cobranzaApp .cob-table td:nth-child(3) {
-        width: 245px;
-    }
-
-    /* FECHA ENTREGA */
-    #cobranzaApp .cob-table th:nth-child(4),
-    #cobranzaApp .cob-table td:nth-child(4) {
-        width: 95px;
-    }
-
-    /* MONTO OV */
-    #cobranzaApp .cob-table th:nth-child(5),
-    #cobranzaApp .cob-table td:nth-child(5) {
-        width: 120px;
-    }
-
-    /* SALDO INICIAL */
-    #cobranzaApp .cob-table th:nth-child(6),
-    #cobranzaApp .cob-table td:nth-child(6) {
-        width: 120px;
-    }
-
-    /* SALDO ACTUAL */
-    #cobranzaApp .cob-table th:nth-child(7),
-    #cobranzaApp .cob-table td:nth-child(7) {
-        width: 120px;
-    }
-
-    /* COMPROMISO */
-    #cobranzaApp .cob-table th:nth-child(8),
-    #cobranzaApp .cob-table td:nth-child(8) {
-        width: 100px;
-    }
-
-    /* FACTURAS */
-    #cobranzaApp .cob-table th:nth-child(9),
-    #cobranzaApp .cob-table td:nth-child(9) {
-        width: 70px;
-    }
-
-    /* ULTIMO PAGO SAP */
-    #cobranzaApp .cob-table th:nth-child(10),
-    #cobranzaApp .cob-table td:nth-child(10) {
-        width: 110px;
-    }
-
-    /* ULTIMA VALIDACION */
-    #cobranzaApp .cob-table th:nth-child(11),
-    #cobranzaApp .cob-table td:nth-child(11) {
-        width: 135px;
-    }
-
-    /* VER */
-    #cobranzaApp .cob-table th:nth-child(12),
-    #cobranzaApp .cob-table td:nth-child(12) {
-        width: 62px;
-    }
-
-    /* Status bar */
-    #cobranzaApp .cob-statusbar {
-        min-height: 23px;
+    /* Encabezado */
+    .cob-header {
+        flex: none;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        padding: 4px 7px;
-        border-top: 1px solid var(--cob-line);
-        background: var(--cob-toolbar);
-        color: var(--cob-muted);
-        font-size: 8px;
-        line-height: 1;
+        gap: 14px;
         flex-wrap: wrap;
     }
 
-    /* Responsive por ancho real disponible en el layout */
-    @@container cobranza-modulo (max-width: 1100px) {
-        #cobranzaApp .cob-kpis {
-            grid-template-columns: repeat(3,minmax(0,1fr));
+    .cob-header__title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .cob-header__icon {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: var(--es-tinto);
+        color: #fff;
+        font-size: 19px;
+    }
+
+    .cob-header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.15;
+        color: var(--es-ink);
+    }
+
+    .cob-header p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+    .cob-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 6px 5px 12px;
+        border-radius: 999px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+        .cob-live .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--es-ok);
+        }
+
+        .cob-live.is-paused .dot {
+            background: var(--es-line-strong);
+        }
+
+        .cob-live.is-loading .dot {
+            background: var(--es-warn);
+            animation: cob-pulse 1s infinite;
+        }
+
+    @@keyframes cob-pulse {
+        50% {
+            opacity: .3;
         }
     }
 
-    @@container cobranza-modulo (max-width: 760px) {
-        #cobranzaApp .cob-titlebar {
-            align-items: flex-start;
+    .cob-live b {
+        color: var(--es-ink);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cob-live button {
+        height: 26px;
+        padding: 0 10px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 999px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 600 11.5px var(--es-font);
+        cursor: pointer;
+    }
+
+        .cob-live button:hover {
+            background: var(--es-tinto-soft);
         }
 
-        #cobranzaApp .cob-source {
+    .cob-alert {
+        flex: none;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 9px 12px;
+        border-radius: 8px;
+        font-size: 12.5px;
+    }
+
+        .cob-alert.ok {
+            background: var(--es-ok-bg);
+            color: var(--es-ok);
+        }
+
+        .cob-alert.err {
+            background: var(--es-bad-bg);
+            color: var(--es-bad);
+        }
+
+    /* Botones */
+    .cob-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 600 12.5px/1 var(--es-font);
+        white-space: nowrap;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+        .cob-btn:hover {
+            background: var(--es-tinto-soft);
+            border-color: var(--es-tinto-line);
+            color: var(--es-ink);
+            text-decoration: none;
+        }
+
+        .cob-btn.primary {
+            background: var(--es-tinto);
+            border-color: var(--es-tinto);
+            color: #fff;
+        }
+
+            .cob-btn.primary:hover {
+                background: var(--es-tinto-deep);
+                border-color: var(--es-tinto-deep);
+                color: #fff;
+            }
+
+        .cob-btn i.ok {
+            color: var(--es-ok);
+        }
+
+        .cob-btn:focus-visible {
+            outline: 2px solid var(--es-tinto);
+            outline-offset: 2px;
+        }
+
+    /* Filtros */
+    .cob-card {
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-radius: 10px;
+        min-width: 0;
+    }
+
+    .cob-filtros {
+        flex: none;
+        padding: 10px 14px;
+    }
+
+    .cob-filters {
+        display: grid;
+        grid-template-columns: 170px minmax(220px, 1.6fr) 150px 150px auto;
+        gap: 10px;
+        align-items: end;
+        margin: 0;
+    }
+
+    .cob-field label {
+        display: block;
+        margin: 0 0 5px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--es-muted);
+    }
+
+    #cobranzaApp .cob-field .form-control, #cobranzaApp .cob-field .form-select {
+        width: 100%;
+        height: 36px;
+        padding: 0 10px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background-color: var(--es-field);
+        color: var(--es-ink);
+        font: 500 13px var(--es-font);
+        box-shadow: none;
+    }
+
+    #cobranzaApp .cob-field .form-select {
+        padding-right: 28px;
+    }
+
+        #cobranzaApp .cob-field .form-control:focus, #cobranzaApp .cob-field .form-select:focus {
+            border-color: var(--es-tinto);
+            box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+            outline: none;
+        }
+
+    body[data-theme="dark"] #cobranzaApp .cob-field .form-control, body[data-theme="dark"] #cobranzaApp .cob-field .form-select {
+        color-scheme: dark;
+    }
+
+    .cob-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .cob-aviso {
+        grid-column: 1 / -1;
+        font-size: 12px;
+        color: var(--es-warn);
+    }
+
+        .cob-aviso:empty {
             display: none;
         }
 
-        #cobranzaApp .cob-kpis {
-            grid-template-columns: repeat(2,minmax(0,1fr));
+    /* Indicadores (clic = filtrar por estatus) */
+    .cob-kpis {
+        flex: none;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.4fr);
+        gap: 10px;
+    }
+
+    .cob-kpi {
+        position: relative;
+        display: block;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-top: 3px solid var(--k);
+        color: var(--es-ink);
+        text-decoration: none;
+        min-width: 0;
+        transition: box-shadow .12s, border-color .12s;
+    }
+
+    a.cob-kpi:hover {
+        box-shadow: 0 4px 14px rgba(35,26,28,.08);
+        color: var(--es-ink);
+        text-decoration: none;
+    }
+
+    .cob-kpi.is-on {
+        border-color: var(--k);
+        box-shadow: inset 0 0 0 1px var(--k);
+        background: color-mix(in srgb, var(--k) 6%, var(--es-surface));
+    }
+
+    .cob-kpi-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--es-muted);
+    }
+
+        .cob-kpi-label i {
+            color: var(--k);
+        }
+
+    .cob-kpi-value {
+        margin-top: 2px;
+        font-size: clamp(18px, 1.5vw, 24px);
+        font-weight: 700;
+        color: var(--k-txt, var(--es-ink));
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+
+    .cob-kpi-note {
+        font-size: 11px;
+        color: var(--es-muted);
+    }
+
+    .cob-kpi-bar {
+        display: flex;
+        height: 6px;
+        margin-top: 6px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--es-neutral-bg);
+    }
+
+        .cob-kpi-bar span {
+            height: 100%;
+        }
+
+    .kpi-total {
+        --k: var(--es-tinto);
+    }
+
+    .kpi-pendientes {
+        --k: var(--es-orange);
+        --k-txt: var(--es-orange);
+    }
+
+    .kpi-incumplidos {
+        --k: var(--es-bad);
+        --k-txt: var(--es-bad);
+    }
+
+    .kpi-parciales {
+        --k: var(--es-warn);
+        --k-txt: var(--es-warn);
+    }
+
+    .kpi-cumplidos {
+        --k: var(--es-ok);
+        --k-txt: var(--es-ok);
+    }
+
+    .kpi-saldo {
+        --k: var(--es-teal);
+    }
+
+    /* Tabla: 12 columnas sin desplazamiento horizontal */
+    .cob-table-card {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .cob-table-head {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--es-line);
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+        .cob-table-head i {
+            color: var(--es-tinto);
+        }
+
+        .cob-table-head small {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--es-muted);
+        }
+
+    .cob-table-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .cob-table {
+        width: 100%;
+        table-layout: fixed;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+        color: var(--es-ink);
+    }
+
+        .cob-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            padding: 8px 7px;
+            background: var(--es-head);
+            border-bottom: 1px solid var(--es-line);
+            color: var(--es-muted);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.2;
+            white-space: normal;
+            vertical-align: bottom;
+            text-align: left;
+        }
+
+            .cob-table thead th.num {
+                text-align: right;
+            }
+
+            .cob-table thead th.center {
+                text-align: center;
+            }
+
+        .cob-table tbody td {
+            padding: 7px 7px;
+            border-bottom: 1px solid var(--es-row-line);
+            background: var(--es-surface);
+            vertical-align: middle;
+            overflow-wrap: anywhere;
+        }
+
+            .cob-table tbody td.num, .cob-table tbody td.fecha {
+                white-space: nowrap;
+                overflow-wrap: normal;
+            }
+
+        .cob-table tbody tr:hover > td {
+            background: var(--es-hover);
+        }
+
+        .cob-table tbody tr.is-vencido > td:first-child {
+            box-shadow: inset 3px 0 0 var(--es-bad);
+        }
+
+        .cob-table tbody tr.is-recien > td {
+            animation: cob-flash 1.6s ease-out;
+        }
+
+    @@keyframes cob-flash {
+        from {
+            background: var(--es-warn-bg);
         }
     }
 
-    @@container cobranza-modulo (max-width: 480px) {
-        #cobranzaApp .cob-kpis {
-            grid-template-columns: 1fr;
+    .cob-ov {
+        font-weight: 700;
+    }
+
+    .cob-client-name {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .cob-client-code {
+        display: block;
+        margin-top: 1px;
+        font-size: 11px;
+        color: var(--es-muted);
+    }
+
+    .cob-strong {
+        font-weight: 700;
+    }
+
+    .cob-muted {
+        color: var(--es-muted);
+    }
+
+    .cob-saldo-bar {
+        height: 4px;
+        margin-top: 4px;
+        border-radius: 999px;
+        background: var(--es-neutral-bg);
+        overflow: hidden;
+    }
+
+        .cob-saldo-bar span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: var(--es-ok);
+        }
+
+    .cob-saldo-pct {
+        display: block;
+        margin-top: 2px;
+        font-size: 10.5px;
+        color: var(--es-muted);
+    }
+
+    .cob-compromiso.vencido {
+        color: var(--es-bad);
+        font-weight: 700;
+    }
+
+    .cob-compromiso small {
+        display: block;
+        font-size: 10.5px;
+        font-weight: 500;
+    }
+
+    .cob-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+        .cob-badge::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+    .badge-pendiente {
+        background: var(--es-orange-bg);
+        color: var(--es-orange);
+    }
+
+    .badge-vence {
+        background: var(--es-info-bg);
+        color: var(--es-info);
+    }
+
+    .badge-parcial {
+        background: var(--es-warn-bg);
+        color: var(--es-warn);
+    }
+
+    .badge-incumplido {
+        background: var(--es-bad-bg);
+        color: var(--es-bad);
+    }
+
+    .badge-cumplido {
+        background: var(--es-ok-bg);
+        color: var(--es-ok);
+    }
+
+    .badge-revisar {
+        background: var(--es-neutral-bg);
+        color: var(--es-muted);
+    }
+
+    .cob-btn-detail {
+        display: inline-grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-tinto);
+        text-decoration: none;
+    }
+
+        .cob-btn-detail:hover {
+            background: var(--es-tinto);
+            border-color: var(--es-tinto);
+            color: #fff;
+        }
+
+    .cob-empty {
+        padding: 48px 12px !important;
+        text-align: center;
+        color: var(--es-muted);
+    }
+
+        .cob-empty i {
+            display: block;
+            font-size: 28px;
+            margin-bottom: 6px;
+            color: var(--es-line-strong);
+        }
+
+    .cob-table tfoot th {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        padding: 8px 7px;
+        background: var(--es-head);
+        border-top: 1px solid var(--es-line-strong);
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cob-statusbar {
+        flex: none;
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 11.5px;
+        color: var(--es-muted);
+    }
+
+        .cob-statusbar strong {
+            color: var(--es-ink);
+        }
+
+    @@media (max-width: 1300px) {
+        .cob-kpis {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .cob-filters {
+            grid-template-columns: 160px 1fr 140px 140px;
+        }
+
+        .cob-actions {
+            grid-column: 1 / -1;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .cob-table-wrap {
+            overflow-x: auto;
+        }
+
+        .cob-table {
+            min-width: 1060px;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        #cobranzaApp {
+            height: auto;
+            overflow: visible;
+        }
+
+        .cob-table-card {
+            min-height: 520px;
+        }
+
+        .cob-kpis, .cob-filters {
+            grid-template-columns: 1fr 1fr;
         }
     }
 </style>
 
 <div id="cobranzaApp">
-    <div class="cob-window">
-
-        <!-- =====================================================
-             ENCABEZADO
-             ===================================================== -->
-        <div class="cob-titlebar">
-            <div class="cob-title-left">
-                <div class="cob-title-icon">
-                    <i class="fa-solid fa-file-invoice-dollar"></i>
-                </div>
-
-                <div>
-                    <div class="cob-title-main">Compromisos de cobranza</div>
-                    <div class="cob-title-sub">
-                        Seguimiento automático contra SAP Business One · Actualización cada 60 segundos
-                    </div>
-                </div>
-            </div>
-
-            <div class="cob-source">
-                <i class="fa-solid fa-money-bill-wave"></i>
-                Comercial · Cobranza
+    <header class="cob-header">
+        <div class="cob-header__title">
+            <span class="cob-header__icon"><i class="bi bi-cash-coin"></i></span>
+            <div>
+                <h1>Compromisos de cobranza</h1>
+                <p>Seguimiento de las promesas de pago de clientes con saldo vencido, validado automáticamente contra los pagos en SAP Business One.</p>
             </div>
         </div>
+        <div class="cob-live" id="cobLive" role="status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="cobLiveTxt">Actualización automática en <b id="cobCuenta">60</b> s</span>
+            <button type="button" id="cobPausa" aria-pressed="false"><i class="bi bi-pause-fill"></i> Pausar</button>
+        </div>
+    </header>
 
-        <div class="cob-content">
+    @if (TempData["Success"] != null)
+    {
+        <div class="cob-alert ok"><i class="bi bi-check-circle-fill"></i> @TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="cob-alert err"><i class="bi bi-x-circle-fill"></i> @TempData["Error"]</div>
+    }
 
-            @if (TempData["Success"] != null)
-            {
-                <div class="alert alert-success cob-alert">
-                    @TempData["Success"]
-                </div>
-            }
-
-            @if (TempData["Error"] != null)
-            {
-                <div class="alert alert-danger cob-alert">
-                    @TempData["Error"]
-                </div>
-            }
-
-            <!-- =================================================
-                 FILTROS
-                 ================================================= -->
-            <div class="cob-section">
-                <div class="cob-section-title">
-                    <i class="bi bi-funnel"></i>
-                    Filtros de búsqueda
-                </div>
-
-                <div class="cob-section-body cob-filter-wrap">
-                    <form method="get"
-                          asp-controller="Cobranza"
-                          asp-action="Compromisos"
-                          class="cob-filters">
-
-                        <div class="cob-field">
-                            <label class="form-label">Estatus</label>
-
-                            <select name="estatus" class="form-select">
-                                @if (string.IsNullOrWhiteSpace(Model.Estatus) ||
-                                     Model.Estatus.Equals("TODOS", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    <option value="TODOS" selected>Todos</option>
-                                }
-                                else
-                                {
-                                    <option value="TODOS">Todos</option>
-                                }
-
-                                @foreach (var e in new[]
-                                {
-                                    "PENDIENTE",
-                                    "VENCE_HOY",
-                                    "PARCIAL",
-                                    "INCUMPLIDO",
-                                    "CUMPLIDO",
-                                    "REVISAR"
-                                })
-                                {
-                                    if (string.Equals(Model.Estatus, e, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        <option value="@e" selected>@e</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@e">@e</option>
-                                    }
-                                }
-                            </select>
-                        </div>
-
-                        <div class="cob-field">
-                            <label class="form-label">Cliente / código / OV</label>
-                            <input name="cliente"
-                                   value="@Model.Cliente"
-                                   class="form-control"
-                                   placeholder="Ej. C00123, cliente u OV-..."
-                                   autocomplete="off" />
-                        </div>
-
-                        <div class="cob-field">
-                            <label class="form-label">Desde</label>
-                            <input type="date"
-                                   id="fechaDesde"
-                                   name="desde"
-                                   value="@fechaDesde.ToString("yyyy-MM-dd")"
-                                   class="form-control" />
-                        </div>
-
-                        <div class="cob-field">
-                            <label class="form-label">Hasta</label>
-                            <input type="date"
-                                   id="fechaHasta"
-                                   name="hasta"
-                                   value="@fechaHasta.ToString("yyyy-MM-dd")"
-                                   class="form-control" />
-                        </div>
-
-                        <div class="cob-actions">
-                            <button type="submit"
-                                    class="cob-btn cob-btn-search"
-                                    title="Buscar">
-                                <i class="bi bi-search"></i>
-                                Buscar
-                            </button>
-
-                            <a class="cob-btn cob-btn-export"
-                               asp-controller="Cobranza"
-                               asp-action="ExportarCsv"
-                               asp-route-estatus="@Model.Estatus"
-                               asp-route-cliente="@Model.Cliente"
-                               asp-route-desde="@fechaDesde.ToString("yyyy-MM-dd")"
-                               asp-route-hasta="@fechaHasta.ToString("yyyy-MM-dd")">
-                                <i class="bi bi-download"></i>
-                                Exportar CSV
-                            </a>
-
-                            <button type="button"
-                                    class="cob-btn cob-btn-refresh"
-                                    onclick="location.reload()">
-                                <i class="bi bi-arrow-clockwise"></i>
-                                Refrescar
-                            </button>
-
-                            <a asp-controller="Cobranza"
-                               asp-action="Compromisos"
-                               class="cob-btn cob-btn-clear">
-                                <i class="bi bi-eraser"></i>
-                                Limpiar
-                            </a>
-                        </div>
-                    </form>
-                </div>
+    <section class="cob-card cob-filtros">
+        <form method="get" asp-controller="Cobranza" asp-action="Compromisos" class="cob-filters" id="cobForm">
+            <div class="cob-field">
+                <label for="f-estatus">Estatus</label>
+                <select name="estatus" id="f-estatus" class="form-select">
+                    <option value="TODOS" selected="@(estatusActual == "TODOS")">Todos</option>
+                    @foreach (var e in estatusTexto)
+                    {
+                        <option value="@e.Key" selected="@(estatusActual == e.Key)">@e.Value</option>
+                    }
+                </select>
             </div>
+            <div class="cob-field">
+                <label for="f-cliente">Cliente, código u OV</label>
+                <input name="cliente" id="f-cliente" value="@Model.Cliente" class="form-control" placeholder="Ej. C00123, nombre del cliente u OV-…" autocomplete="off" />
+            </div>
+            <div class="cob-field">
+                <label for="fechaDesde">Compromiso desde</label>
+                <input type="date" id="fechaDesde" name="desde" value="@fechaDesde.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="cob-field">
+                <label for="fechaHasta">Compromiso hasta</label>
+                <input type="date" id="fechaHasta" name="hasta" value="@fechaHasta.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="cob-actions">
+                <a asp-controller="Cobranza" asp-action="Compromisos" class="cob-btn"><i class="bi bi-eraser"></i> Limpiar</a>
+                <a class="cob-btn" asp-controller="Cobranza" asp-action="ExportarCsv"
+                   asp-route-estatus="@Model.Estatus" asp-route-cliente="@Model.Cliente"
+                   asp-route-desde="@fechaDesde.ToString("yyyy-MM-dd")" asp-route-hasta="@fechaHasta.ToString("yyyy-MM-dd")"><i class="bi bi-filetype-csv ok"></i> Exportar CSV</a>
+                <button type="submit" class="cob-btn primary"><i class="bi bi-search"></i> Buscar</button>
+            </div>
+            <div class="cob-aviso" id="cobAviso" role="status" aria-live="polite"></div>
+        </form>
+    </section>
 
-            <!-- =================================================
-                 RESUMEN
-                 ================================================= -->
-            <div class="cob-section">
-                <div class="cob-section-title">
-                    <i class="fa-solid fa-chart-column"></i>
-                    Resumen
-                </div>
+    <section class="cob-kpis" id="cobKpis" aria-label="Resumen (clic para filtrar)">
+        @{
+            var total = Math.Max(1, Model.Total);
+            string Pct(int n) => (n * 100.0 / total).ToString("0.##", inv);
+        }
+        <a class="cob-kpi kpi-total @(estatusActual == "TODOS" ? "is-on" : "")" href="@UrlEstatus("TODOS")" title="Ver todos">
+            <div class="cob-kpi-label"><i class="bi bi-list-check"></i> Total de compromisos</div>
+            <div class="cob-kpi-value">@Model.Total.ToString("N0")</div>
+            <div class="cob-kpi-bar" aria-hidden="true">
+                <span style="width:@Pct(Model.Cumplidos)%;background:var(--es-ok)"></span>
+                <span style="width:@Pct(Model.Parciales)%;background:var(--es-warn)"></span>
+                <span style="width:@Pct(Model.Pendientes)%;background:var(--es-orange)"></span>
+                <span style="width:@Pct(Model.Incumplidos)%;background:var(--es-bad)"></span>
+            </div>
+        </a>
+        <a class="cob-kpi kpi-pendientes @(estatusActual == "PENDIENTE" ? "is-on" : "")" href="@UrlEstatus("PENDIENTE")" title="Filtrar pendientes">
+            <div class="cob-kpi-label"><i class="bi bi-hourglass-split"></i> Pendientes</div>
+            <div class="cob-kpi-value">@Model.Pendientes.ToString("N0")</div>
+            <div class="cob-kpi-note">@((Model.Pendientes * 100.0 / total).ToString("0"))% del total</div>
+        </a>
+        <a class="cob-kpi kpi-incumplidos @(estatusActual == "INCUMPLIDO" ? "is-on" : "")" href="@UrlEstatus("INCUMPLIDO")" title="Filtrar incumplidos">
+            <div class="cob-kpi-label"><i class="bi bi-x-octagon"></i> Incumplidos</div>
+            <div class="cob-kpi-value">@Model.Incumplidos.ToString("N0")</div>
+            <div class="cob-kpi-note">@((Model.Incumplidos * 100.0 / total).ToString("0"))% del total</div>
+        </a>
+        <a class="cob-kpi kpi-parciales @(estatusActual == "PARCIAL" ? "is-on" : "")" href="@UrlEstatus("PARCIAL")" title="Filtrar parciales">
+            <div class="cob-kpi-label"><i class="bi bi-circle-half"></i> Parciales</div>
+            <div class="cob-kpi-value">@Model.Parciales.ToString("N0")</div>
+            <div class="cob-kpi-note">@((Model.Parciales * 100.0 / total).ToString("0"))% del total</div>
+        </a>
+        <a class="cob-kpi kpi-cumplidos @(estatusActual == "CUMPLIDO" ? "is-on" : "")" href="@UrlEstatus("CUMPLIDO")" title="Filtrar cumplidos">
+            <div class="cob-kpi-label"><i class="bi bi-check-circle"></i> Cumplidos</div>
+            <div class="cob-kpi-value">@Model.Cumplidos.ToString("N0")</div>
+            <div class="cob-kpi-note">@((Model.Cumplidos * 100.0 / total).ToString("0"))% de cumplimiento</div>
+        </a>
+        <div class="cob-kpi kpi-saldo">
+            <div class="cob-kpi-label"><i class="bi bi-wallet2"></i> Saldo pendiente</div>
+            <div class="cob-kpi-value">@Model.SaldoPendiente.ToString("C2")</div>
+            @if (Model.Revisar > 0)
+            {
+                <a class="cob-kpi-note" href="@UrlEstatus("REVISAR")" style="color:var(--es-warn);font-weight:600"><i class="bi bi-exclamation-triangle"></i> @Model.Revisar requieren revisión</a>
+            }
+            else
+            {
+                <div class="cob-kpi-note">Por cobrar en los compromisos listados</div>
+            }
+        </div>
+    </section>
 
-                <div class="cob-section-body">
-                    <div class="cob-kpis">
-
-                        <div class="cob-kpi kpi-total">
-                            <div class="cob-kpi-label">Total</div>
-                            <div class="cob-kpi-value">@Model.Total</div>
-                        </div>
-
-                        <div class="cob-kpi kpi-pendientes">
-                            <div class="cob-kpi-label">Pendientes</div>
-                            <div class="cob-kpi-value">@Model.Pendientes</div>
-                        </div>
-
-                        <div class="cob-kpi kpi-incumplidos">
-                            <div class="cob-kpi-label">Incumplidos</div>
-                            <div class="cob-kpi-value">@Model.Incumplidos</div>
-                        </div>
-
-                        <div class="cob-kpi kpi-parciales">
-                            <div class="cob-kpi-label">Parciales</div>
-                            <div class="cob-kpi-value">@Model.Parciales</div>
-                        </div>
-
-                        <div class="cob-kpi kpi-cumplidos">
-                            <div class="cob-kpi-label">Cumplidos</div>
-                            <div class="cob-kpi-value">@Model.Cumplidos</div>
-                        </div>
-
-                        <div class="cob-kpi kpi-saldo">
-                            <div class="cob-kpi-label">Saldo pendiente</div>
-                            <div class="cob-kpi-value">@Model.SaldoPendiente.ToString("C2")</div>
-                            @if (Model.Revisar > 0)
+    <section class="cob-card cob-table-card">
+        <div class="cob-table-head">
+            <span><i class="bi bi-table"></i> Compromisos <small id="cobConteo">· @Model.Items.Count registro(s)</small></span>
+            <small>Barra izquierda roja = compromiso vencido sin cumplir · clic derecho para copiar a Excel</small>
+        </div>
+        <div class="cob-table-wrap">
+            <table class="cob-table" id="cobTabla">
+                <colgroup>
+                    <col style="width:8.5%">
+                    <col style="width:7.5%">
+                    <col style="width:16%">
+                    <col style="width:7%">
+                    <col style="width:9%">
+                    <col style="width:9%">
+                    <col style="width:10.5%">
+                    <col style="width:8.5%">
+                    <col style="width:5.5%">
+                    <col style="width:7.5%">
+                    <col style="width:8%">
+                    <col style="width:3%">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Estatus</th>
+                        <th>OV</th>
+                        <th>Cliente</th>
+                        <th class="center">Entrega OV</th>
+                        <th class="num">Monto OV</th>
+                        <th class="num">Saldo inicial</th>
+                        <th class="num">Saldo actual</th>
+                        <th>Compromiso</th>
+                        <th class="center">Facturas</th>
+                        <th>Último pago SAP</th>
+                        <th>Última validación</th>
+                        <th class="no-copy"></th>
+                    </tr>
+                </thead>
+                <tbody id="cobTbody">
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr><td colspan="12" class="cob-empty"><i class="bi bi-inbox"></i>No hay compromisos con estos filtros.</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var x in Model.Items)
+                        {
+                            var est = (x.Estatus ?? "").ToUpperInvariant();
+                            var badgeClass = est switch
                             {
-                                <div class="cob-kpi-note">
-                                    @Model.Revisar requieren revisión
-                                </div>
-                            }
-                        </div>
+                                "CUMPLIDO" => "badge-cumplido",
+                                "PARCIAL" => "badge-parcial",
+                                "INCUMPLIDO" => "badge-incumplido",
+                                "VENCE_HOY" => "badge-vence",
+                                "REVISAR" => "badge-revisar",
+                                _ => "badge-pendiente"
+                            };
+                            var fechaEntrega = fechaEntregaPorCompromiso.TryGetValue(x.Id, out var fechaOv) ? fechaOv : null;
+                            var montoOv = montoPorCompromiso.TryGetValue(x.Id, out var montoTotal) ? montoTotal : 0m;
+                            var pagado = x.SaldoVencidoInicial > 0 ? Math.Max(0m, Math.Min(100m, (x.SaldoVencidoInicial - x.SaldoPendienteActual) / x.SaldoVencidoInicial * 100m)) : 0m;
+                            var vencido = x.FechaCompromiso.Date < hoy && est != "CUMPLIDO";
+                            var diasVencido = (hoy - x.FechaCompromiso.Date).Days;
 
-                    </div>
-                </div>
-            </div>
-
-            <!-- =================================================
-                 TABLA
-                 ================================================= -->
-            <div class="cob-section cob-table-section">
-                <div class="cob-section-title">
-                    <i class="fa-solid fa-list"></i>
-                    Compromisos
-                </div>
-
-                <div class="cob-table-wrap">
-                    <table class="cob-table">
-                        <thead>
-                            <tr>
-                                <th>Estatus</th>
-                                <th>OV</th>
-                                <th>Cliente</th>
-                                <th class="cob-center">FECHA CARGA</th>
-                                <th class="cob-money">MONTO OV</th>
-                                <th class="cob-money">Saldo inicial</th>
-                                <th class="cob-money">Saldo actual</th>
-                                <th>Compromiso</th>
-                                <th class="cob-center">Facturas</th>
-                                <th>Último pago SAP</th>
-                                <th>Última validación</th>
-                                <th></th>
+                            <tr data-id="@x.Id" class="@(vencido ? "is-vencido" : "")">
+                                <td data-copy="@(estatusTexto.TryGetValue(est, out var t1) ? t1 : x.Estatus)"><span class="cob-badge @badgeClass">@(estatusTexto.TryGetValue(est, out var t) ? t : x.Estatus)</span></td>
+                                <td class="cob-ov">@x.OrdenVentaConsecutivo</td>
+                                <td data-copy="@x.ClienteCodigo - @x.ClienteNombre" title="@x.ClienteNombre">
+                                    <span class="cob-client-name">@x.ClienteNombre</span>
+                                    <span class="cob-client-code">@x.ClienteCodigo</span>
+                                </td>
+                                <td class="center fecha">@(fechaEntrega?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="num" data-copy="@montoOv.ToString("0.00", inv)">@montoOv.ToString("C2")</td>
+                                <td class="num" data-copy="@x.SaldoVencidoInicial.ToString("0.00", inv)">@x.SaldoVencidoInicial.ToString("C2")</td>
+                                <td class="num" data-copy="@x.SaldoPendienteActual.ToString("0.00", inv)" title="Pagado: @pagado.ToString("0.#")% del saldo inicial">
+                                    <span class="cob-strong">@x.SaldoPendienteActual.ToString("C2")</span>
+                                    @if (x.SaldoVencidoInicial > 0)
+                                    {
+                                        <div class="cob-saldo-bar" aria-hidden="true"><span style="width:@pagado.ToString("0.##", inv)%"></span></div>
+                                        <span class="cob-saldo-pct">@pagado.ToString("0")% pagado</span>
+                                    }
+                                </td>
+                                <td class="fecha cob-compromiso @(vencido ? "vencido" : "")" data-copy="@x.FechaCompromiso.ToString("dd/MM/yyyy")">
+                                    @x.FechaCompromiso.ToString("dd/MM/yyyy")
+                                    @if (vencido)
+                                    {
+                                        <small>hace @diasVencido @(diasVencido == 1 ? "día" : "días")</small>
+                                    }
+                                    else if (x.FechaCompromiso.Date == hoy && est != "CUMPLIDO")
+                                    {
+                                        <small style="color:var(--es-info)">hoy</small>
+                                    }
+                                </td>
+                                <td class="center">@x.Facturas</td>
+                                <td class="fecha @(x.UltimoPagoSap.HasValue ? "" : "cob-muted")">@(x.UltimoPagoSap?.ToString("dd/MM/yyyy") ?? "Sin pagos")</td>
+                                <td class="fecha @(x.FechaUltimaValidacion.HasValue ? "" : "cob-muted")">@(x.FechaUltimaValidacion?.ToString("dd/MM HH:mm") ?? "Pendiente")</td>
+                                <td class="center no-copy">
+                                    <a class="cob-btn-detail" asp-controller="Cobranza" asp-action="Detalle" asp-route-id="@x.Id" title="Ver detalle del compromiso de @x.OrdenVentaConsecutivo" aria-label="Ver detalle de @x.OrdenVentaConsecutivo"><i class="bi bi-arrow-right"></i></a>
+                                </td>
                             </tr>
-                        </thead>
-
-                        <tbody>
-                            @if (Model.Items.Count == 0)
-                            {
-                                <tr>
-                                    <td colspan="12" class="cob-empty">
-                                        No existen compromisos para los filtros seleccionados.
-                                    </td>
-                                </tr>
-                            }
-                            else
-                            {
-                                foreach (var x in Model.Items)
-                                {
-                                    var badgeClass = x.Estatus switch
-                                    {
-                                        "CUMPLIDO" => "badge-cumplido",
-                                        "PARCIAL" => "badge-parcial",
-                                        "INCUMPLIDO" => "badge-incumplido",
-                                        "VENCE_HOY" => "badge-vence",
-                                        "REVISAR" => "badge-revisar",
-                                        _ => "badge-pendiente"
-                                    };
-
-                                    var fechaEntrega =
-                                        fechaEntregaPorCompromiso
-                                            .TryGetValue(
-                                                x.Id,
-                                                out var fechaOv)
-                                            ? fechaOv
-                                            : null;
-
-                                    var montoOv =
-                                        montoPorCompromiso
-                                            .TryGetValue(
-                                                x.Id,
-                                                out var montoTotal)
-                                            ? montoTotal
-                                            : 0m;
-
-                                    <tr>
-                                        <td>
-                                            <span class="cob-badge @badgeClass">
-                                                @x.Estatus
-                                            </span>
-                                        </td>
-
-                                        <td style="font-weight:800;">
-                                            @x.OrdenVentaConsecutivo
-                                        </td>
-
-                                        <td class="cob-cliente">
-                                            <span class="cob-client-name">@x.ClienteNombre</span>
-                                            <span class="cob-client-code">@x.ClienteCodigo</span>
-                                        </td>
-
-                                        <td class="cob-center" style="font-weight:800;">
-                                            @(fechaEntrega?.ToString("dd/MM/yyyy") ?? "—")
-                                        </td>
-
-                                        <td class="cob-money cob-money-strong">
-                                            @montoOv.ToString("C2")
-                                        </td>
-
-                                        <td class="cob-money">
-                                            @x.SaldoVencidoInicial.ToString("C2")
-                                        </td>
-
-                                        <td class="cob-money cob-money-strong">
-                                            @x.SaldoPendienteActual.ToString("C2")
-                                        </td>
-
-                                        <td>
-                                            @x.FechaCompromiso.ToString("dd/MM/yyyy")
-                                        </td>
-
-                                        <td class="cob-center">
-                                            @x.Facturas
-                                        </td>
-
-                                        <td>
-                                            @(x.UltimoPagoSap?.ToString("dd/MM/yyyy") ?? "—")
-                                        </td>
-
-                                        <td>
-                                            @(x.FechaUltimaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "Pendiente")
-                                        </td>
-
-                                        <td class="cob-center">
-                                            <a class="cob-btn-detail"
-                                               asp-controller="Cobranza"
-                                               asp-action="Detalle"
-                                               asp-route-id="@x.Id">
-                                                Ver
-                                            </a>
-                                        </td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="cob-statusbar">
-                    <span>
-                        Registros: <strong>@Model.Items.Count</strong>
-                    </span>
-
-                    <span>
-                        Periodo: <strong>@fechaDesde.ToString("dd/MM/yyyy")</strong>
-                        al <strong>@fechaHasta.ToString("dd/MM/yyyy")</strong>
-                    </span>
-
-                    <span>
-                        Actualización automática: <strong>60 s</strong>
-                    </span>
-                </div>
-            </div>
-
+                        }
+                    }
+                </tbody>
+                @if (Model.Items.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <th colspan="4" class="num">Totales de la lista</th>
+                            <th class="num">@Model.Items.Sum(x => montoPorCompromiso.TryGetValue(x.Id, out var m) ? m : 0m).ToString("C2")</th>
+                            <th class="num">@Model.Items.Sum(x => x.SaldoVencidoInicial).ToString("C2")</th>
+                            <th class="num">@Model.Items.Sum(x => x.SaldoPendienteActual).ToString("C2")</th>
+                            <th colspan="5"></th>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
         </div>
-    </div>
+    </section>
+
+    <footer class="cob-statusbar">
+        <span>Periodo de compromisos: <strong>@fechaDesde.ToString("dd/MM/yyyy")</strong> al <strong>@fechaHasta.ToString("dd/MM/yyyy")</strong></span>
+        <span>Usuario: @(User?.Identity?.Name ?? "")</span>
+        <span>Comercial · Cobranza</span>
+    </footer>
 </div>
 
 <script>
-    // Refresca la página sin perder los filtros porque conserva la URL actual.
-    setTimeout(function () {
-        window.location.reload();
-    }, 60000);
+    (() => {
+        const $ = id => document.getElementById(id);
+
+        // ---------- Fechas invertidas ----------
+        // CORRECCIÓN: si "desde" es posterior a "hasta" se intercambian antes de buscar (antes no traía nada sin explicar)
+        $('cobForm')?.addEventListener('submit', () => {
+            const d = $('fechaDesde'), h = $('fechaHasta');
+            if (d.value && h.value && d.value > h.value) { [d.value, h.value] = [h.value, d.value]; }
+        });
+
+        // ---------- Actualización automática sin recargar la página ----------
+        // CORRECCIÓN: antes se recargaba toda la página cada 60 s aunque la pestaña estuviera oculta o
+        // estuvieras escribiendo en un filtro (se perdía lo escrito y la posición de la tabla).
+        // Ahora solo se actualizan indicadores y tabla, se puede pausar y espera si estás escribiendo.
+        const INTERVALO = 60;
+        let restante = INTERVALO, pausado = false, cargando = false;
+        const live = $('cobLive'), cuenta = $('cobCuenta'), txt = $('cobLiveTxt'), btnPausa = $('cobPausa');
+        const escribiendo = () => document.activeElement?.closest?.('#cobForm');
+
+        async function actualizar() {
+            if (cargando) return;
+            cargando = true;
+            live.classList.add('is-loading');
+            try {
+                const resp = await fetch(location.href, { cache: 'no-store', credentials: 'same-origin', headers: { 'Accept': 'text/html' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+                const nuevoTbody = doc.getElementById('cobTbody'), nuevosKpis = doc.getElementById('cobKpis'), nuevaTabla = doc.getElementById('cobTabla');
+                if (!nuevoTbody || !nuevosKpis) throw new Error('respuesta inesperada');
+                const antes = new Set([...document.querySelectorAll('#cobTbody tr[data-id]')].map(tr => tr.dataset.id));
+                const wrap = document.querySelector('.cob-table-wrap'), scroll = wrap.scrollTop;
+                $('cobKpis').innerHTML = nuevosKpis.innerHTML;
+                $('cobTbody').innerHTML = nuevoTbody.innerHTML;
+                const pie = $('cobTabla').tFoot, pieNuevo = nuevaTabla?.tFoot;
+                if (pie && pieNuevo) pie.innerHTML = pieNuevo.innerHTML; else if (pie && !pieNuevo) pie.remove(); else if (!pie && pieNuevo) $('cobTabla').appendChild(pieNuevo);
+                if (antes.size) document.querySelectorAll('#cobTbody tr[data-id]').forEach(tr => { if (!antes.has(tr.dataset.id)) tr.classList.add('is-recien'); });
+                $('cobConteo').textContent = `· ${document.querySelectorAll('#cobTbody tr[data-id]').length} registro(s)`;
+                wrap.scrollTop = scroll;
+                txt.innerHTML = `Actualizado ${new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · siguiente en <b id="cobCuenta">${INTERVALO}</b> s`;
+            } catch (e) {
+                console.error('No se pudo actualizar:', e);
+                txt.innerHTML = `No se pudo actualizar; reintento en <b id="cobCuenta">${INTERVALO}</b> s`;
+            } finally {
+                cargando = false;
+                live.classList.remove('is-loading');
+                restante = INTERVALO;
+            }
+        }
+
+        setInterval(() => {
+            if (pausado || cargando || document.hidden) return;
+            if (escribiendo()) return; // espera a que termines de escribir
+            restante--;
+            const c = $('cobCuenta'); if (c) c.textContent = Math.max(0, restante);
+            if (restante <= 0) actualizar();
+        }, 1000);
+
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && !pausado && restante <= 0) actualizar(); });
+
+        btnPausa.addEventListener('click', () => {
+            pausado = !pausado;
+            live.classList.toggle('is-paused', pausado);
+            btnPausa.setAttribute('aria-pressed', String(pausado));
+            btnPausa.innerHTML = pausado ? '<i class="bi bi-play-fill"></i> Reanudar' : '<i class="bi bi-pause-fill"></i> Pausar';
+            if (pausado) txt.textContent = 'Actualización automática en pausa';
+            else { restante = INTERVALO; txt.innerHTML = `Actualización automática en <b id="cobCuenta">${INTERVALO}</b> s`; }
+        });
+    })();
 </script>

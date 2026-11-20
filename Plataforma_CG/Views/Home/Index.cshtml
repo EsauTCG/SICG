@@ -2,979 +2,495 @@
 @{
     ViewData["Title"] = "";
     Layout = null;
+    var sesionExpirada = ViewBag.SesionExpirada == true;
 }
 <!doctype html>
 <html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>@ViewData["Title"] SIGO</title>
+    <title>Acceso | SIGO · Carnes G</title>
     <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
-    <link rel="stylesheet" href="~/fonts/fonts.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/fonts/bootstrap-icons.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="~/css/acceso-sigo-grid.css" asp-append-version="true" />
+    <script>
+        // Mismo tema (claro/oscuro) que eligió el usuario dentro de SIGO; se aplica antes de pintar.
+        try { var __t = localStorage.getItem('sigoTheme'); if (__t === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) { }
+    </script>
 
-<style>
-    /* ============================================================
-       AJUSTE RESPONSIVE FINAL — PORTADA SIGO
-       Escala texto, indicadores y botones según tamaño de pantalla.
-       No modifica login, rutas, eventos ni lógica JavaScript.
-       ============================================================ */
-
-    /* ----- Contenido principal izquierdo ----- */
-    #view-home .cg-copy {
-        padding-left: clamp(42px, 4.2vw, 84px) !important;
-        padding-right: clamp(34px, 3.4vw, 68px) !important;
-        gap: clamp(12px, 1.6vh, 20px) !important;
-    }
-
-    #view-home .cg-tagline-sub {
-        font-size: clamp(.88rem, .72vw, 1.08rem) !important;
-        line-height: 1.25 !important;
-        letter-spacing: .045em !important;
-    }
-
-    #view-home .cg-hero-title {
-        font-size: clamp(3rem, 3.8vw, 5.1rem) !important;
-        line-height: .96 !important;
-        letter-spacing: .005em !important;
-        margin: 0 !important;
-    }
-
-    #view-home .cg-divider {
-        width: clamp(48px, 3.2vw, 68px) !important;
-        height: 2px !important;
-    }
-
-    #view-home .cg-hero-desc {
-        max-width: 54ch !important;
-        font-size: clamp(.92rem, .76vw, 1.08rem) !important;
-        line-height: 1.55 !important;
-    }
-
-    /* ----- Indicadores ----- */
-    #view-home .cg-features {
-        gap: clamp(18px, 2.15vw, 40px) !important;
-        margin-top: clamp(2px, .5vh, 8px) !important;
-    }
-
-    #view-home .cg-feature {
-        gap: clamp(5px, .55vh, 8px) !important;
-    }
-
-    #view-home .cg-feature-icon {
-        width: clamp(46px, 3.15vw, 62px) !important;
-        height: clamp(46px, 3.15vw, 62px) !important;
-        font-size: clamp(1rem, 1.05vw, 1.35rem) !important;
-    }
-
-    #view-home .cg-feature-label {
-        font-size: clamp(.66rem, .58vw, .84rem) !important;
-        line-height: 1.15 !important;
-        letter-spacing: .055em !important;
-    }
-
-    #view-home .cg-feature-sub {
-        font-size: clamp(.58rem, .51vw, .74rem) !important;
-        line-height: 1.2 !important;
-    }
-
-    /* ----- Botones principales ----- */
-
-    #view-home .cg-cta-area {
-    margin-top: clamp(80px, 7.6vh, 108px) !important;
-    transform: none !important;
-    position: relative !important;
-    z-index: 20 !important;
-}
-
-    #view-home .cg-btn-row {
-        display: flex !important;
-        align-items: center !important;
-        gap: clamp(12px, 1vw, 20px) !important;
-        flex-wrap: nowrap !important;
-    }
-
-    #view-home .cg-btn {
-        min-height: clamp(44px, 4.4vh, 58px) !important;
-        padding: clamp(11px, 1vh, 15px) clamp(22px, 1.8vw, 34px) !important;
-        font-size: clamp(.80rem, .68vw, 1rem) !important;
-        line-height: 1.1 !important;
-        letter-spacing: .07em !important;
-        border-radius: clamp(6px, .48vw, 10px) !important;
-        white-space: nowrap !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: clamp(7px, .55vw, 11px) !important;
-    }
-
-    #view-home .cg-btn i {
-        font-size: 1em !important;
-    }
-
-    /* ============================================================
-       MONITORES GRANDES — 1600 px en adelante
-       ============================================================ */
-    @@media (min-width: 1600px) and (min-height: 850px) {
-        #view-home .cg-copy {
-            padding-left: clamp(62px, 4.4vw, 92px) !important;
-            padding-right: clamp(44px, 3.6vw, 76px) !important;
+    <style>
+        /* =====================================================================
+           ACCESO · SIGO — hoja de estilos única
+           Mismo sistema visual que los módulos y el layout.
+           Sustituye acceso-sigo-grid.css, acceso-sigo-tinto-poppins.css y el
+           bloque de ajustes; ya no depende de Font Awesome por CDN (los íconos
+           son Bootstrap Icons locales, así la pantalla también carga sin internet).
+           ===================================================================== */
+        :root {
+            --es-tinto: #8d3e46;
+            --es-tinto-deep: #5c2229;
+            --es-tinto-soft: #f7eced;
+            --es-tinto-line: #e8d3d6;
+            --es-accent: #f3c9a1;
+            --es-paper: #f6f4f4;
+            --es-surface: #ffffff;
+            --es-field: #ffffff;
+            --es-ink: #231a1c;
+            --es-muted: #76686b;
+            --es-line: #e6dfe0;
+            --es-line-strong: #cfc4c6;
+            --es-ok: #2f7a55;
+            --es-warn: #9a6410;
+            --es-warn-bg: #fbf1de;
+            --es-bad: #b42d2d;
+            --es-bad-bg: #fbe9e8;
+            --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+        }
+        [data-theme="dark"] {
+            --es-tinto: #c56b74;
+            --es-tinto-deep: #7a2d36;
+            --es-tinto-soft: #3a2427;
+            --es-tinto-line: #5a3439;
+            --es-paper: #16181c;
+            --es-surface: #202328;
+            --es-field: #181a1e;
+            --es-ink: #edf0f3;
+            --es-muted: #a9b0b9;
+            --es-line: #363b43;
+            --es-line-strong: #4a5059;
+            --es-ok: #6cc596;
+            --es-warn: #e0b061;
+            --es-warn-bg: #3a2f1b;
+            --es-bad: #f08a83;
+            --es-bad-bg: #3d2223;
         }
 
-        #view-home .cg-tagline-sub {
-            font-size: clamp(1rem, .72vw, 1.15rem) !important;
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { margin: 0; background: var(--es-paper); color: var(--es-ink); font-family: var(--es-font); -webkit-font-smoothing: antialiased; }
+        a { color: var(--es-tinto); }
+        :focus-visible { outline: 2px solid var(--es-tinto); outline-offset: 2px; }
+
+        .cg-view-section { display: none; min-height: 100vh; min-height: 100dvh; }
+        .cg-view-section.active-view { display: grid; animation: cg-in .25s ease-out; }
+        @@keyframes cg-in { from { opacity: 0; } to { opacity: 1; } }
+        @@media (prefers-reduced-motion: reduce) { .cg-view-section.active-view { animation: none; } }
+
+        /* =============================== INICIO =============================== */
+        #view-home { grid-template-columns: minmax(0, 1.15fr) minmax(400px, .85fr); }
+
+        /* Panel izquierdo (marca) */
+        .cg-hero {
+            position: relative; overflow: hidden; color: #fff;
+            display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
+            padding: clamp(24px, 4vw, 56px) clamp(24px, 4.5vw, 72px);
+            background:
+                linear-gradient(160deg, rgba(92,34,41,.94) 0%, rgba(74,26,32,.9) 55%, rgba(40,14,18,.96) 100%),
+                url('@Url.Content("~/images/banner-cow.jpg")') center / cover no-repeat;
         }
-
-        #view-home .cg-hero-title {
-            font-size: clamp(4rem, 3.9vw, 5.35rem) !important;
+        .cg-hero::after {
+            content: ""; position: absolute; right: -120px; bottom: -120px; width: 420px; height: 420px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(243,201,161,.18) 0%, transparent 70%); pointer-events: none;
         }
+        .cg-hero > * { position: relative; z-index: 1; }
 
-        #view-home .cg-hero-desc {
-            font-size: clamp(1rem, .76vw, 1.14rem) !important;
-            line-height: 1.58 !important;
+        .cg-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .cg-hero-logo { height: clamp(40px, 4.2vw, 56px); width: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
+        .cg-clock-card { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 12px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); }
+        .cg-clock-time { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+        .cg-clock-ampm { margin-left: 4px; font-size: 12px; opacity: .75; }
+        .cg-clock-date { font-size: 11.5px; opacity: .75; display: flex; align-items: center; gap: 6px; text-transform: capitalize; }
+
+        .cg-copy { max-width: 620px; }
+        .cg-tagline-sub { font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--es-accent); }
+        .cg-hero-title { margin: 6px 0 0; font-size: clamp(2.4rem, 4.4vw, 4.4rem); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+        .cg-hero-title span { color: var(--es-accent); }
+        .cg-divider { width: 56px; height: 3px; margin: 18px 0; border-radius: 3px; background: var(--es-accent); }
+        .cg-hero-desc { margin: 0; max-width: 52ch; font-size: clamp(.95rem, 1vw, 1.05rem); line-height: 1.6; color: rgba(255,255,255,.82); }
+
+        .cg-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+        .cg-feature { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); }
+        .cg-feature-icon { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(243,201,161,.16); color: var(--es-accent); font-size: 17px; }
+        .cg-feature-label { display: block; font-size: 12.5px; font-weight: 700; line-height: 1.15; }
+        .cg-feature-sub { display: block; font-size: 11px; opacity: .7; }
+
+        .cg-hero-bottom { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 12px; color: rgba(255,255,255,.7); }
+        .cg-trust-items { display: flex; gap: 18px; flex-wrap: wrap; }
+        .cg-trust-item { display: inline-flex; align-items: center; gap: 6px; }
+        .cg-trust-item i { color: var(--es-accent); }
+        .cg-link-light { color: #fff; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; font: inherit; cursor: pointer; }
+        .cg-link-light:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+        /* Panel derecho (acceso) */
+        .cg-access { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: clamp(24px, 4vw, 56px); background: var(--es-paper); }
+        .cg-card { width: 100%; max-width: 420px; padding: clamp(24px, 3vw, 36px); border-radius: 16px; background: var(--es-surface); border: 1px solid var(--es-line); box-shadow: 0 18px 50px rgba(35,26,28,.10); }
+        .cg-card-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--es-tinto); color: #fff; font-size: 24px; margin-bottom: 16px; }
+        .cg-card h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.01em; color: var(--es-ink); }
+        .cg-card .cg-sub { margin: 4px 0 22px; font-size: 13px; color: var(--es-muted); }
+
+        .cg-field { margin-bottom: 14px; }
+        .cg-field label { display: block; margin-bottom: 6px; font-size: 12.5px; font-weight: 600; color: var(--es-muted); }
+        .cg-input-wrap { position: relative; }
+        .cg-input-wrap > i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--es-muted); font-size: 15px; pointer-events: none; }
+        .cg-input {
+            width: 100%; height: 46px; padding: 0 44px 0 40px; border: 1px solid var(--es-line-strong); border-radius: 10px;
+            background: var(--es-field); color: var(--es-ink); font: 500 14px/1 var(--es-font); transition: border-color .12s, box-shadow .12s;
         }
+        .cg-input::placeholder { color: var(--es-muted); opacity: .8; }
+        .cg-input:focus { outline: none; border-color: var(--es-tinto); box-shadow: 0 0 0 3px rgba(141,62,70,.16); }
+        [data-theme="dark"] .cg-input { color-scheme: dark; }
+        .cg-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--es-muted); display: grid; place-items: center; cursor: pointer; }
+        .cg-eye:hover { background: var(--es-tinto-soft); color: var(--es-ink); }
+        .cg-caps { display: none; margin-top: 6px; font-size: 12px; color: var(--es-warn); }
+        .cg-caps.show { display: flex; align-items: center; gap: 6px; }
 
-        #view-home .cg-feature-icon {
-            width: clamp(54px, 3vw, 66px) !important;
-            height: clamp(54px, 3vw, 66px) !important;
+        .cg-alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 4px 0 12px; border-radius: 10px; font-size: 13px; line-height: 1.45; }
+        .cg-alert i { margin-top: 2px; }
+        .cg-alert-warn { background: var(--es-warn-bg); color: var(--es-warn); }
+        .cg-alert-bad { background: var(--es-bad-bg); color: var(--es-bad); }
+        .cg-alert.d-none { display: none !important; }
+        #offlineAccessBox .cg-offline-title { font-weight: 700; margin-bottom: 2px; }
+        #btnEntrarOfflineBascula { margin-top: 10px; width: 100%; height: 40px; border-radius: 9px; border: 1px solid var(--es-warn); background: transparent; color: var(--es-warn); font: 600 13px var(--es-font); display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+        #btnEntrarOfflineBascula:hover { background: var(--es-warn); color: #fff; }
+
+        .cg-login-btn {
+            width: 100%; height: 48px; margin-top: 6px; border: 0; border-radius: 10px; background: var(--es-tinto); color: #fff;
+            font: 600 14.5px/1 var(--es-font); display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+            box-shadow: 0 8px 20px rgba(141,62,70,.28); transition: background .12s, transform .12s;
         }
+        .cg-login-btn:hover { background: var(--es-tinto-deep); }
+        .cg-login-btn:active { transform: translateY(1px); }
+        .cg-login-btn:disabled { opacity: .7; cursor: progress; }
+        .cg-spin { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: cg-spin .8s linear infinite; }
+        @@keyframes cg-spin { to { transform: rotate(360deg); } }
 
-        #view-home .cg-feature-label {
-            font-size: clamp(.76rem, .56vw, .88rem) !important;
+        .cg-card-foot { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--es-line); text-align: center; font-size: 13px; color: var(--es-muted); }
+        .cg-card-foot a { font-weight: 600; text-decoration: none; }
+        .cg-card-foot a:hover { text-decoration: underline; }
+
+        .cg-social { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
+        .cg-social a { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--es-muted); background: var(--es-surface); border: 1px solid var(--es-line); text-decoration: none; transition: color .12s, border-color .12s; }
+        .cg-social a:hover { color: var(--es-tinto); border-color: var(--es-tinto-line); }
+        .cg-copy-foot { margin-top: 14px; font-size: 11.5px; color: var(--es-muted); text-align: center; }
+
+        /* =============================== NOSOTROS =============================== */
+        #view-about { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); background: var(--es-paper); }
+        .cg-about-visual { position: relative; display: flex; align-items: center; justify-content: center; padding: 40px; background: linear-gradient(160deg, #5c2229 0%, #2c1013 100%); }
+        .cg-about-visual .carousel { width: 100%; max-width: 520px; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+        .cg-about-visual .carousel-item img { width: 100%; height: clamp(260px, 52vh, 520px); object-fit: cover; background: #fff; }
+        .cg-about-back { position: absolute; top: 20px; left: 20px; z-index: 5; }
+        .cg-about-content { display: flex; flex-direction: column; justify-content: center; padding: clamp(28px, 5vw, 72px); }
+        .cg-kicker-red { font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--es-tinto); }
+        .cg-title-about { margin: 6px 0 16px; font-size: clamp(2rem, 3.6vw, 3.2rem); font-weight: 800; letter-spacing: -.02em; }
+        .cg-desc-about { margin: 0 0 26px; max-width: 64ch; font-size: 14.5px; line-height: 1.7; color: var(--es-muted); }
+        .cards-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+        .mini-card { padding: 16px; border-radius: 12px; background: var(--es-surface); border: 1px solid var(--es-line); }
+        .mini-card-icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--es-tinto-soft); color: var(--es-tinto); font-size: 18px; margin-bottom: 10px; }
+        .mini-card h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; }
+        .mini-card p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--es-muted); }
+        .cg-about-cta { margin-top: 24px; }
+        .cg-about-cta .cg-login-btn { width: auto; padding: 0 22px; }
+
+        /* =============================== RESPONSIVO =============================== */
+        @@media (max-width: 1200px) { .cg-features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @@media (max-width: 900px) {
+            #view-home, #view-about { grid-template-columns: 1fr; }
+            .cg-hero { gap: 18px; padding: 22px 20px 26px; }
+            .cg-hero-desc, .cg-features, .cg-trust-items { display: none; }
+            .cg-divider { margin: 12px 0 0; }
+            .cg-hero-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+            .cg-access { justify-content: flex-start; padding: 22px 16px 32px; }
+            .cg-about-visual { padding: 70px 20px 24px; }
+            .cards-row { grid-template-columns: 1fr; }
         }
-
-        #view-home .cg-feature-sub {
-            font-size: clamp(.67rem, .48vw, .78rem) !important;
+        @@media (max-height: 720px) and (min-width: 901px) {
+            .cg-features { margin-top: 18px; }
+            .cg-divider { margin: 12px 0; }
+            .cg-hero-title { font-size: clamp(2.2rem, 3.6vw, 3.4rem); }
         }
-
-        #view-home .cg-cta-area {
-            margin-top: clamp(56px, 7vh, 100px) !important;
-        }
-
-        #view-home .cg-btn {
-            min-height: clamp(48px, 4.6vh, 60px) !important;
-            padding: 13px clamp(28px, 1.75vw, 38px) !important;
-            font-size: clamp(.90rem, .66vw, 1.02rem) !important;
-        }
-    }
-
-    /* ============================================================
-       PANTALLAS DE POCA ALTURA / LAPTOP
-       Reduce el espacio vertical para evitar cortes.
-       ============================================================ */
-    @@media (min-width: 901px) and (max-height: 760px) {
-        #view-home .cg-copy {
-            gap: 10px !important;
-        }
-
-        #view-home .cg-hero-title {
-            font-size: clamp(2.65rem, 3.4vw, 3.8rem) !important;
-        }
-
-        #view-home .cg-hero-desc {
-            font-size: clamp(.82rem, .68vw, .94rem) !important;
-            line-height: 1.42 !important;
-        }
-
-        #view-home .cg-feature-icon {
-            width: 42px !important;
-            height: 42px !important;
-            font-size: 1rem !important;
-        }
-
-        #view-home .cg-feature-label {
-            font-size: .68rem !important;
-        }
-
-        #view-home .cg-feature-sub {
-            font-size: .60rem !important;
-        }
-
-        #view-home .cg-cta-area {
-            margin-top: 34px !important;
-        }
-
-        #view-home .cg-btn {
-            min-height: 42px !important;
-            padding: 10px 20px !important;
-            font-size: .78rem !important;
-        }
-    }
-
-    /* ============================================================
-       TABLET
-       ============================================================ */
-    @@media (min-width: 581px) and (max-width: 900px) {
-        #view-home .cg-copy {
-            padding-left: 24px !important;
-            padding-right: 24px !important;
-            gap: 13px !important;
-        }
-
-        #view-home .cg-hero-title {
-            font-size: clamp(2.7rem, 8vw, 3.7rem) !important;
-        }
-
-        #view-home .cg-hero-desc {
-            font-size: .92rem !important;
-        }
-
-        #view-home .cg-features {
-            gap: 18px !important;
-        }
-
-        #view-home .cg-cta-area {
-            margin-top: 38px !important;
-        }
-
-        #view-home .cg-btn-row {
-            flex-wrap: wrap !important;
-            justify-content: center !important;
-        }
-
-        #view-home .cg-btn {
-            min-height: 46px !important;
-            padding: 12px 22px !important;
-            font-size: .84rem !important;
-        }
-    }
-
-    /* ============================================================
-       MÓVIL
-       ============================================================ */
-    @@media (max-width: 580px) {
-        #view-home .cg-copy {
-            padding-left: 16px !important;
-            padding-right: 16px !important;
-            gap: 12px !important;
-        }
-
-        #view-home .cg-tagline-sub {
-            font-size: .82rem !important;
-        }
-
-        #view-home .cg-hero-title {
-            font-size: clamp(2.25rem, 12vw, 2.9rem) !important;
-            line-height: .98 !important;
-        }
-
-        #view-home .cg-hero-desc {
-            font-size: .86rem !important;
-            line-height: 1.48 !important;
-        }
-
-        #view-home .cg-features {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            width: 100% !important;
-            gap: 14px !important;
-        }
-
-        #view-home .cg-feature-icon {
-            width: 44px !important;
-            height: 44px !important;
-            font-size: 1rem !important;
-        }
-
-        #view-home .cg-cta-area {
-            width: 100% !important;
-            margin-top: 28px !important;
-        }
-
-        #view-home .cg-btn-row {
-            width: 100% !important;
-            flex-direction: column !important;
-            gap: 10px !important;
-        }
-
-        #view-home .cg-btn {
-            width: 100% !important;
-            min-height: 46px !important;
-            padding: 12px 16px !important;
-            font-size: .82rem !important;
-            white-space: normal !important;
-            text-align: center !important;
-        }
-    }
-
-/* ============================================================
-   AJUSTE LOGIN MODAL — BAJAR UN POCO EL BOTÓN Y LAS ACCIONES
-   Mueve ligeramente el bloque de acciones hacia abajo para
-   aprovechar el espacio vacío de la parte inferior.
-   ============================================================ */
-
-#loginModal .cg-login-right {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    padding-top: 22px !important;
-    padding-bottom: 24px !important;
-}
-
-#loginModal #loginModalLabel {
-    margin-bottom: 18px !important;
-}
-
-#loginModal #loginForm {
-    margin-top: 6px !important;
-}
-
-#loginModal .cg-login-btn {
-    margin-top: 16px !important;
-    min-height: 50px !important;
-}
-
-#loginModal .cg-login-right .small.text-center {
-    margin-top: 14px !important;
-}
-
-#loginModal #loginError,
-#loginModal #offlineAccessBox {
-    margin-top: 10px !important;
-    margin-bottom: 10px !important;
-}
-
-/* Ajuste fino para que el bloque quede un poco más abajo
-   sin romper la vista en pantallas medianas */
-@@media (min-width: 768px) {
-    #loginModal .cg-login-right {
-        padding-top: 28px !important;
-        padding-bottom: 28px !important;
-    }
-
-    #loginModal #loginForm {
-        margin-top: 10px !important;
-    }
-
-    #loginModal .cg-login-btn {
-        margin-top: 18px !important;
-    }
-
-    #loginModal .cg-login-right .small.text-center {
-        margin-top: 16px !important;
-    }
-}
-
-/* En móvil no exagerar el desplazamiento */
-@@media (max-width: 767.98px) {
-    #loginModal .cg-login-right {
-        padding-top: 16px !important;
-        padding-bottom: 18px !important;
-    }
-
-    #loginModal #loginModalLabel {
-        margin-bottom: 14px !important;
-    }
-
-    #loginModal .cg-login-btn {
-        margin-top: 12px !important;
-        min-height: 46px !important;
-    }
-
-    #loginModal .cg-login-right .small.text-center {
-        margin-top: 10px !important;
-    }
-}
-
-
-</style>
-
-<link rel="stylesheet" href="~/css/acceso-sigo-tinto-poppins.css" asp-append-version="true" />
-
+    </style>
 </head>
 
 <body>
 
-<!-- ========== VISTA HOME ========== -->
-<section id="view-home" class="cg-view-section active-view" style="display:flex;">
+    <!-- ========== INICIO + ACCESO ========== -->
+    <section id="view-home" class="cg-view-section active-view">
 
-    <!-- TOP BAR -->
-    <header class="cg-topbar">
-            <div class="cg-logo-hero">
-                <img src="images/logoCubo.png" alt="Carnes G">
-            </div>
-
-       @*  <nav style="display:flex;gap:32px;align-items:center;position:absolute;left:50%;transform:translateX(-50%);">
-            <a href="#" id="linkHome" class="active" onclick="switchView('home'); return false;"
-               style="font-family:'Poppins',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.82);text-decoration:none;transition:color .18s;">Inicio</a>
-            <a href="#" id="linkAbout" onclick="switchView('about'); return false;"
-               style="font-family:'Poppins',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.82);text-decoration:none;transition:color .18s;">Nosotros</a>
-        </nav> *@
-@* 
-        <div class="cg-quote">
-            Comprometidos con la calidad,<br>la seguridad alimentaria y la<br>mejora continua en cada proceso.
-        </div> *@
-    </header>
-
-    <!-- STAGE -->
-    <div class="cg-stage">
-
-        <!-- LEFT COPY -->
-        <div class="cg-copy">
-            <div class="cg-tagline-sub">Bienvenido a</div>
-            <h1 class="cg-hero-title">Plataforma <span>SIGO</span></h1>
-            <div class="cg-divider"></div>
-            <p class="cg-hero-desc">
-                Sistema integral para la gestión y control de la cadena productiva:
-                sacrificio, deshuese, empaque, inventarios, ventas y trazabilidad.
-            </p>
-
-            <div class="cg-features">
-                <div class="cg-feature">
-                    <div class="cg-feature-icon"><i class="fas fa-shield-halved"></i></div>
-                    <span class="cg-feature-label">Inocuidad</span>
-                    <span class="cg-feature-sub">Garantizada</span>
-                </div>
-                <div class="cg-feature">
-                    <div class="cg-feature-icon"><i class="fas fa-award"></i></div>
-                    <span class="cg-feature-label">Calidad</span>
-                    <span class="cg-feature-sub">Premium</span>
-                </div>
-                <div class="cg-feature">
-                    <div class="cg-feature-icon"><i class="fas fa-truck-fast"></i></div>
-                    <span class="cg-feature-label">Trazabilidad</span>
-                    <span class="cg-feature-sub">Completa</span>
-                </div>
-                <div class="cg-feature">
-                    <div class="cg-feature-icon"><i class="fas fa-chart-line"></i></div>
-                    <span class="cg-feature-label">Control</span>
-                    <span class="cg-feature-sub">Total</span>
-                </div>
-            </div>
-
-            <div class="cg-cta-area">
-                <div class="cg-btn-row">
-                    <button class="cg-btn cg-btn-primary" type="button" id="btnOpenLogin">
-                        <i class="fas fa-sign-in-alt"></i> Ingresar al sistema
-                    </button>
-                        <button class="cg-btn cg-btn-outline" type="button" onclick="switchView('about');">
-                            <i class="fas fa-circle-info"></i> Conoce más
-                        </button>
-                </div>
-            </div>
-
-            <!-- hidden elements kept for JS slideshow compatibility -->
-            <div id="kicker" style="display:none;"></div>
-            <h1 class="cg-title" id="title" style="display:none;"></h1>
-            <div class="cg-price" id="price" style="display:none;"></div>
-            <p class="cg-desc" id="desc" style="display:none;"></p>
-            <div class="cg-badges" style="display:none;"></div>
-            <div class="cg-stats" style="display:none;">
-                <div class="cg-stat"><span class="cg-stat-num"></span><span class="cg-stat-label"></span></div>
-                <div class="cg-stat"><span class="cg-stat-num"></span><span class="cg-stat-label"></span></div>
-                <div class="cg-stat"><span class="cg-stat-num"></span><span class="cg-stat-label"></span></div>
-            </div>
-            <div class="cg-cats" style="display:none;"></div>
-            <a id="ctaLink" style="display:none;"></a>
-        </div>
-
-        <!-- RIGHT VISUAL -->
-        <div class="cg-visual-col">
-            <div class="cg-visual">
-                <div class="cg-product-wrap">
-                        <img id="imgMain" class="cg-img-main" src="images/logoinicio.png" alt="Producto principal" />
-                    <img id="imgNext" class="cg-img-next" src="images/banner-cow.jpg" alt="" style="display:none;" />
-                </div>
-                <div class="cg-visual-tag" id="visualTag" style="display:none;"></div>
-                <div class="cg-caption" id="caption" style="display:none;"></div>
-
-                <!-- Live clock -->
-                <div class="cg-clock-card">
-                    <div class="cg-clock-date">
-                        <i class="fas fa-calendar-days"></i>
-                        <span id="clockDate">—</span>
-                    </div>
+        <div class="cg-hero">
+            <div class="cg-hero-top">
+                <img src="~/images/logoCubo.png" alt="Carnes G" class="cg-hero-logo" />
+                <div class="cg-clock-card" aria-hidden="true">
                     <div>
-                        <span class="cg-clock-time" id="clockTime">00:00</span><span class="cg-clock-ampm" id="clockAmpm">a. m.</span>
+                        <div><span class="cg-clock-time" id="clockTime">00:00</span><span class="cg-clock-ampm" id="clockAmpm">a. m.</span></div>
+                        <div class="cg-clock-date"><i class="bi bi-calendar3"></i><span id="clockDate">—</span></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Thumbs hidden but DOM kept for JS -->
-            <div class="cg-thumbs" id="thumbsContainer" style="display:none;">
-                <div class="cg-thumb active" data-slide="0" onclick="go(0)">
-                    <span class="cg-thumb-icon"><i class="fas fa-drumstick-bite"></i></span>
-                    <span class="cg-thumb-name">Cortes premium</span>
+            <div class="cg-copy">
+                <div class="cg-tagline-sub">Bienvenido a</div>
+                <h2 class="cg-hero-title">Plataforma <span>SIGO</span></h2>
+                <div class="cg-divider"></div>
+                <p class="cg-hero-desc">
+                    Sistema integral para la gestión y control de la cadena productiva:
+                    sacrificio, deshuese, empaque, inventarios, ventas y trazabilidad.
+                </p>
+                <div class="cg-features">
+                    <div class="cg-feature"><span class="cg-feature-icon"><i class="bi bi-shield-check"></i></span><span><span class="cg-feature-label">Inocuidad</span><span class="cg-feature-sub">Garantizada</span></span></div>
+                    <div class="cg-feature"><span class="cg-feature-icon"><i class="bi bi-award"></i></span><span><span class="cg-feature-label">Calidad</span><span class="cg-feature-sub">Premium</span></span></div>
+                    <div class="cg-feature"><span class="cg-feature-icon"><i class="bi bi-truck"></i></span><span><span class="cg-feature-label">Trazabilidad</span><span class="cg-feature-sub">Completa</span></span></div>
+                    <div class="cg-feature"><span class="cg-feature-icon"><i class="bi bi-graph-up-arrow"></i></span><span><span class="cg-feature-label">Control</span><span class="cg-feature-sub">Total</span></span></div>
                 </div>
-                <div class="cg-thumb" data-slide="1" onclick="go(1)">
-                    <span class="cg-thumb-icon"><i class="fas fa-industry"></i></span>
-                    <span class="cg-thumb-name">Proceso riguroso</span>
+            </div>
+
+            <div class="cg-hero-bottom">
+                <div class="cg-trust-items">
+                    <span class="cg-trust-item"><i class="bi bi-shield-check"></i> Inocuidad certificada</span>
+                    <span class="cg-trust-item"><i class="bi bi-geo-alt"></i> San Juan de los Lagos, Jal.</span>
+                    <span class="cg-trust-item"><i class="bi bi-box-seam"></i> Embalaje controlado</span>
                 </div>
-                <div class="cg-thumb" data-slide="2" onclick="go(2)">
-                    <span class="cg-thumb-icon"><i class="fas fa-truck-fast"></i></span>
-                    <span class="cg-thumb-name">Logística nacional</span>
-                </div>
+                <button type="button" class="cg-link-light" onclick="switchView('about');">
+                    <i class="bi bi-info-circle"></i> Conoce Carnes G
+                </button>
             </div>
         </div>
 
-    </div>
+        <div class="cg-access">
+            <div class="cg-card" id="loginCard">
+                <div class="cg-card-icon"><i class="bi bi-person-lock"></i></div>
+                <h1 id="loginModalLabel">Acceso al sistema</h1>
+                <p class="cg-sub">Ingresa con tu usuario de SIGO para continuar.</p>
 
-    <!-- TRUST BAR -->
-    <div class="cg-trust-bar">
-        <div class="cg-trust-items">
-            <div class="cg-trust-item"><i class="fas fa-shield-halved"></i> Inocuidad certificada</div>
-            <div class="cg-trust-item"><i class="fas fa-location-dot"></i> San Juan de los Lagos, Jal.</div>
-            <div class="cg-trust-item"><i class="fas fa-box"></i> Embalaje controlado</div>
-            <div class="cg-trust-item"><i class="fas fa-route"></i> Trazabilidad completa</div>
-        </div>
-        <span class="cg-trust-copyright">© @DateTime.Now.Year Carnes G. Todos los derechos reservados.</span>
-        <div class="cg-nav-dots" id="navDots"></div>
-    </div>
-
-    <!-- hidden controls kept for JS -->
-    <div class="cg-controls" style="display:none!important;">
-        <button id="btnPrev" type="button">‹</button>
-        <div id="dots"></div>
-        <button id="btnNext" type="button">›</button>
-    </div>
-
-</section>
-
-<!-- ========== VISTA ABOUT ========== -->
-<section id="view-about" class="cg-view-section">
-
-    
-
-    <button class="cg-about-back" type="button" onclick="switchView('home');">
-        <i class="fas fa-arrow-left"></i>
-        Volver al inicio
-    </button>
-
-    <div class="container-fluid h-100">
-        <div class="row w-100 h-100 align-items-center justify-content-center m-0">
-
-            <div class="col-lg-5 h-100 d-flex align-items-center justify-content-center p-0">
-                <div class="carousel-wrap">
-                    <div id="heroCarousel" class="carousel slide carousel-fade"
-                         data-bs-ride="carousel" data-bs-interval="3000">
-                        <div class="carousel-inner">
-                            <div class="carousel-item active">
-                                <img src="images/logoCubo.png" alt="Vaca">
-                            </div>
-                            <div class="carousel-item">
-                                <img src="images/proceso2.png" alt="Producción">
-                            </div>
-                            <div class="carousel-item">
-                                <img src="images/Muu.jpeg" alt="Carne">
-                            </div>
-                        </div>
+                @if (sesionExpirada)
+                {
+                    <div class="cg-alert cg-alert-warn" role="alert">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Tu sesión expiró por inactividad. Inicia sesión de nuevo para continuar donde te quedaste.</span>
                     </div>
-                </div>
-            </div>
+                }
 
-            <div class="col-lg-7 h-100 d-flex align-items-center">
-                <div class="about-content-wrap">
-                    <span class="cg-kicker-red">NOSOTROS</span>
-                    <h1 class="cg-title-about">CARNES G</h1>
-                    <p class="cg-desc-about">
-                        Somos una empresa mexicana originaria de San Juan de los Lagos Jal. dedicada a la producción,
-                        procesamiento y comercialización de productos cárnicos, que a lo largo del tiempo ha logrado un
-                        crecimiento sólido y sostenido gracias a su firme compromiso con la calidad, la innovación y la
-                        satisfacción de nuestros clientes.
-                        <br><br>
-                        Nuestro principal objetivo es ofrecer productos de la más alta calidad, garantizando frescura,
-                        sabor e inocuidad en cada etapa del proceso productivo. Desde la cuidadosa selección de nuestras
-                        materias primas, pasando por estrictos controles de calidad, hasta la distribución y entrega final,
-                        trabajamos bajo altos estándares que aseguran productos confiables y seguros.
-                    </p>
+                <form id="loginForm" novalidate>
+                    <input type="hidden" name="ReturnUrl" value="@(ViewBag.ReturnUrl ?? "")" />
 
-                    <div class="cards-row">
-                        <div class="mini-card">
-                            <div class="mini-card-icon"><i class="fas fa-award"></i></div>
-                            <h4>Misión</h4>
-                            <p>Llevar a tu mesa la mejor carne con inocuidad y frescura garantizada.</p>
-                        </div>
-                        <div class="mini-card">
-                            <div class="mini-card-icon"><i class="fas fa-computer"></i></div>
-                            <h4>Plataforma SIGO</h4>
-                            <p>Integramos tecnología con nuestra plataforma SIGO para monitorear cada etapa.</p>
-                        </div>
-                        <div class="mini-card">
-                            <div class="mini-card-icon"><i class="fas fa-truck-fast"></i></div>
-                            <h4>Cobertura</h4>
-                            <p>Red logística eficiente para mantener una cadena de distribución nacional.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</section>
-
-<!-- ========== MODAL LOGIN ========== -->
-<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content cg-modal">
-            <div class="modal-body p-0">
-                <div class="cg-login">
-
-                    <div class="cg-login-left">
-                        <div class="cg-social">
-                            <a href="https://www.youtube.com/watch?v=VTn435mJVw8" target="_blank" aria-label="YouTube">
-                                <i class="fab fa-youtube"></i>
-                            </a>
-                            <a href="https://www.instagram.com/carnesg.mx/" target="_blank" aria-label="Instagram">
-                                <i class="fab fa-instagram"></i>
-                            </a>
-                            <a href="https://www.facebook.com/Carnesg.mx" target="_blank" aria-label="Facebook">
-                                <i class="fab fa-facebook-f"></i>
-                            </a>
+                    <div class="cg-field">
+                        <label for="Usuario">Usuario o correo</label>
+                        <div class="cg-input-wrap">
+                            <i class="bi bi-person"></i>
+                            <input type="text" id="Usuario" name="Usuario" class="cg-input" placeholder="tu.usuario"
+                                   autocomplete="username" autocapitalize="none" spellcheck="false" required />
                         </div>
                     </div>
 
-                    <div class="cg-login-right">
-                        <img src="~/images/Usr.png" alt="Logo" class="cg-login-logo" />
-                            <h3 class="text-center mb-3" id="loginModalLabel">Acceso al sistema</h3>
-
-                        <form id="loginForm">
-                            <input type="hidden" name="ReturnUrl" value="@(ViewBag.ReturnUrl ?? "")" />
-
-                            <div class="mb-3 input-group">
-                                <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                <input type="text" name="Usuario" class="form-control"
-                                       placeholder="Usuario o correo electrónico"
-                                       autocomplete="username" required />
-                            </div>
-
-                            <div class="mb-3 input-group">
-                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                <input type="password" name="Password" class="form-control"
-                                       placeholder="Contraseña"
-                                       autocomplete="current-password" required />
-                            </div>
-
-                                @if (ViewBag.SesionExpirada == true)
-                                {
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-clock me-2"></i>
-                                        Tu sesión expiró por inactividad. Inicia sesión nuevamente para continuar.
-                                    </div>
-                                }
-
-                            <div id="loginError" class="alert alert-danger d-none"></div>
-
-                            <div id="offlineAccessBox" class="alert alert-warning d-none">
-                                <div style="font-weight:800;margin-bottom:6px;">
-                                    Modo offline disponible
-                                </div>
-                                <div style="font-size:13px;margin-bottom:10px;">
-                                    No hay comunicación con el servidor, pero esta terminal tiene autorización local vigente.
-                                </div>
-                               <button type="button" id="btnEntrarOfflineBascula" class="btn btn-warning w-100">
-    <i class="fas fa-desktop me-2"></i> Entrar al sistema en modo offline
-</button>
-                            </div>
-
-                            <button type="submit" class="btn cg-login-btn w-100 mb-2">
-                                <i class="fas fa-sign-in-alt me-2"></i> Iniciar Sesión
+                    <div class="cg-field">
+                        <label for="Password">Contraseña</label>
+                        <div class="cg-input-wrap">
+                            <i class="bi bi-lock"></i>
+                            <input type="password" id="Password" name="Password" class="cg-input" placeholder="••••••••"
+                                   autocomplete="current-password" required />
+                            <button type="button" class="cg-eye" id="btnVerPassword" aria-label="Mostrar contraseña" aria-pressed="false">
+                                <i class="bi bi-eye"></i>
                             </button>
-                        </form>
-
-                        <p class="small text-center mb-0">
-                            ¿No tienes cuenta?
-                            <a href="@Url.Action("Registrar", "Acceso")">Regístrate aquí</a>
-                        </p>
+                        </div>
+                        <div class="cg-caps" id="capsAviso" role="status"><i class="bi bi-capslock-fill"></i> Bloq Mayús está activado</div>
                     </div>
 
+                    <div id="loginError" class="cg-alert cg-alert-bad d-none" role="alert"></div>
+
+                    <div id="offlineAccessBox" class="cg-alert cg-alert-warn d-none" role="status">
+                        <i class="bi bi-wifi-off"></i>
+                        <div style="flex:1">
+                            <div class="cg-offline-title">Modo sin conexión disponible</div>
+                            <div>No hay comunicación con el servidor, pero esta terminal tiene autorización local vigente.</div>
+                            <button type="button" id="btnEntrarOfflineBascula"><i class="bi bi-display"></i> Entrar en modo sin conexión</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="cg-login-btn" id="btnLogin">
+                        <i class="bi bi-box-arrow-in-right"></i> <span>Iniciar sesión</span>
+                    </button>
+                </form>
+
+                <div class="cg-card-foot">
+                    ¿No tienes cuenta? <a href="@Url.Action("Registrar", "Acceso")">Regístrate aquí</a>
+                </div>
+            </div>
+
+            <div class="cg-social" aria-label="Redes sociales de Carnes G">
+                <a href="https://www.youtube.com/watch?v=VTn435mJVw8" target="_blank" rel="noopener" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+                <a href="https://www.instagram.com/carnesg.mx/" target="_blank" rel="noopener" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                <a href="https://www.facebook.com/Carnesg.mx" target="_blank" rel="noopener" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+            </div>
+            <div class="cg-copy-foot">© @DateTime.Now.Year Carnes G. Todos los derechos reservados.</div>
+        </div>
+    </section>
+
+    <!-- ========== NOSOTROS ========== -->
+    <section id="view-about" class="cg-view-section">
+        <div class="cg-about-visual">
+            <button class="cg-link-light cg-about-back" type="button" onclick="switchView('home');">
+                <i class="bi bi-arrow-left"></i> Volver
+            </button>
+            <div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="3500">
+                <div class="carousel-inner">
+                    <div class="carousel-item active"><img src="~/images/logoCubo.png" alt="Carnes G"></div>
+                    <div class="carousel-item"><img src="~/images/proceso2.png" alt="Proceso de producción"></div>
+                    <div class="carousel-item"><img src="~/images/Muu.jpeg" alt="Producto cárnico"></div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-<script src="~/fonts/fonts.js"></script>
-<script src="~/lib/jquery/dist/jquery.min.js"></script>
-<script src="~/lib/bootstrap/dist/js/bootstrap.js"></script>
+        <div class="cg-about-content">
+            <span class="cg-kicker-red">NOSOTROS</span>
+            <h2 class="cg-title-about">Carnes G</h2>
+            <p class="cg-desc-about">
+                Somos una empresa mexicana originaria de San Juan de los Lagos, Jal., dedicada a la producción,
+                procesamiento y comercialización de productos cárnicos, que a lo largo del tiempo ha logrado un
+                crecimiento sólido y sostenido gracias a su firme compromiso con la calidad, la innovación y la
+                satisfacción de nuestros clientes.
+                <br><br>
+                Nuestro principal objetivo es ofrecer productos de la más alta calidad, garantizando frescura,
+                sabor e inocuidad en cada etapa del proceso productivo. Desde la cuidadosa selección de nuestras
+                materias primas, pasando por estrictos controles de calidad, hasta la distribución y entrega final,
+                trabajamos bajo altos estándares que aseguran productos confiables y seguros.
+            </p>
+            <div class="cards-row">
+                <div class="mini-card">
+                    <div class="mini-card-icon"><i class="bi bi-award"></i></div>
+                    <h4>Misión</h4>
+                    <p>Llevar a tu mesa la mejor carne con inocuidad y frescura garantizada.</p>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-card-icon"><i class="bi bi-pc-display"></i></div>
+                    <h4>Plataforma SIGO</h4>
+                    <p>Integramos tecnología con nuestra plataforma SIGO para monitorear cada etapa.</p>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-card-icon"><i class="bi bi-truck"></i></div>
+                    <h4>Cobertura</h4>
+                    <p>Red logística eficiente para mantener una cadena de distribución nacional.</p>
+                </div>
+            </div>
+            <div class="cg-about-cta">
+                <button type="button" class="cg-login-btn" id="btnOpenLogin"><i class="bi bi-box-arrow-in-right"></i> Ingresar al sistema</button>
+            </div>
+        </div>
+    </section>
 
-<script>
-    /* ===== RELOJ EN VIVO ===== */
-    (function () {
-        const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 
-        function tick() {
-            const now    = new Date();
-            const dateEl = document.getElementById('clockDate');
-            const timeEl = document.getElementById('clockTime');
-            const ampmEl = document.getElementById('clockAmpm');
-            if (!dateEl) return;
-
-            dateEl.textContent = `${now.getDate()} de ${MONTHS[now.getMonth()]} de ${now.getFullYear()}`;
-
-            let h  = now.getHours();
-            const min  = String(now.getMinutes()).padStart(2,'0');
-            const ampm = h < 12 ? 'a. m.' : 'p. m.';
-            h = h % 12 || 12;
-            timeEl.textContent = `${String(h).padStart(2,'0')}:${min}`;
-            ampmEl.textContent = ampm;
-        }
-
-        tick();
-        setInterval(tick, 1000);
-    })();
-
-        function switchView(viewName) {
-            const viewHome = document.getElementById('view-home');
-            const viewAbout = document.getElementById('view-about');
-
-            const linkHome = document.getElementById('linkHome');
-            const linkAbout = document.getElementById('linkAbout');
-
-            const entering = viewName === 'about' ? viewAbout : viewHome;
-            const leaving = viewName === 'about' ? viewHome : viewAbout;
-
-            if (!entering || !leaving) return;
-            if (entering.classList.contains('active-view')) return;
-
-            if (viewName === 'about') {
-                if (linkHome) linkHome.classList.remove('active');
-                if (linkAbout) linkAbout.classList.add('active');
-            } else {
-                if (linkAbout) linkAbout.classList.remove('active');
-                if (linkHome) linkHome.classList.add('active');
+    <script>
+        /* ===== Reloj ===== */
+        (function () {
+            const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+            const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+            function tick() {
+                const now = new Date();
+                let h = now.getHours();
+                document.getElementById('clockDate').textContent = `${DAYS[now.getDay()]} ${now.getDate()} de ${MONTHS[now.getMonth()]}`;
+                document.getElementById('clockAmpm').textContent = h < 12 ? 'a. m.' : 'p. m.';
+                h = h % 12 || 12;
+                document.getElementById('clockTime').textContent = `${String(h).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             }
+            tick();
+            setInterval(tick, 1000);
+        })();
 
+        /* ===== Cambio entre Inicio y Nosotros ===== */
+        function switchView(viewName) {
+            const entering = document.getElementById(viewName === 'about' ? 'view-about' : 'view-home');
+            const leaving = document.getElementById(viewName === 'about' ? 'view-home' : 'view-about');
+            if (!entering || !leaving || entering.classList.contains('active-view')) return;
             leaving.classList.remove('active-view');
-            leaving.style.display = 'none';
+            entering.classList.add('active-view');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (viewName === 'home') setTimeout(() => document.getElementById('Usuario')?.focus(), 50);
+        }
 
-            entering.style.display = viewName === 'home' ? 'flex' : 'block';
+        // "Ingresar al sistema" desde Nosotros regresa al formulario (que ya está siempre visible).
+        document.getElementById('btnOpenLogin')?.addEventListener('click', () => switchView('home'));
 
-            requestAnimationFrame(() => {
-                entering.classList.add('active-view');
-                window.scrollTo({ top: 0, behavior: 'instant' });
+        /* ===== Mostrar contraseña y aviso de Bloq Mayús ===== */
+        (function () {
+            const pass = document.getElementById('Password');
+            const btn = document.getElementById('btnVerPassword');
+            const caps = document.getElementById('capsAviso');
+            btn.addEventListener('click', () => {
+                const ver = pass.type === 'password';
+                pass.type = ver ? 'text' : 'password';
+                btn.setAttribute('aria-pressed', String(ver));
+                btn.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                btn.innerHTML = ver ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+                pass.focus();
             });
-        }
-
-        document.addEventListener('click', function (e) {
-        const btn = e.target.closest('#btnOpenLogin');
-        if (!btn) return;
-
-        const modalEl = document.getElementById('loginModal');
-        if (!modalEl) return;
-
-        if (window.bootstrap && bootstrap.Modal) {
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        } else if (window.jQuery) {
-        $('#loginModal').modal('show');
-        }
-        });
-
-    /* ===== SLIDESHOW ===== */
-    // (function () {
-    //     const slides = [
-    //         {
-    //             kicker:  `PRODUCTO DESTACADO · TEMPORADA ${new Date().getFullYear()}`,
-    //             title:   "Cortes Premium",
-    //             price:   "Estatus: Disponible · Entrega inmediata",
-    //             desc:    "Producidos con los más altos estándares de inocuidad, nuestros cortes llegan frescos, con trazabilidad completa desde origen hasta tu mesa.",
-    //             caption: "CORTES PREMIUM, NUEVO PRODUCTO",
-    //             tag:     "Nuevo",
-    //             mainImg: "images/corte1.png",
-    //             nextImg: "images/banner-cow.jpg",
-    //         },
-    //         {
-    //             kicker:  "PRODUCCIÓN · CONTROL TOTAL",
-    //             title:   "Proceso Riguroso",
-    //             price:   "Cumplimiento: 98%",
-    //             desc:    "Cumplimos estrictos controles de higiene y calidad en cada etapa del proceso productivo, garantizando productos seguros e inocuos.",
-    //             caption: "PRODUCCIÓN RIGUROSA, CONTROL TOTAL",
-    //             tag:     "Destacado",
-    //             mainImg: "images/proceso1.png",
-    //             nextImg: "images/proceso2.png",
-    //         },
-    //         {
-    //             kicker:  "DISTRIBUCIÓN · COBERTURA NACIONAL",
-    //             title:   "Logística",
-    //             price:   "Cobertura: Nacional",
-    //             desc:    "Servicio rápido y seguro a nivel nacional, con trazabilidad de entrega en tiempo real para cada pedido.",
-    //             caption: "DISTRIBUCIÓN, COBERTURA NACIONAL",
-    //             tag:     "Nacional",
-    //             mainImg: "images/distribucion1.png",
-    //             nextImg: "images/distribucion2.png",
-    //         }
-    //     ];
-
-    //     let idx   = 0;
-    //     let timer = null;
-    //     const AUTOPLAY_MS = 6500;
-
-    //     const dom = {
-    //         k:       document.getElementById("kicker"),
-    //         t:       document.getElementById("title"),
-    //         p:       document.getElementById("price"),
-    //         d:       document.getElementById("desc"),
-    //         c:       document.getElementById("caption"),
-    //         tag:     document.getElementById("visualTag"),
-    //         imgM:    document.getElementById("imgMain"),
-    //         imgN:    document.getElementById("imgNext"),
-    //         cta:     document.getElementById("ctaLink"),
-    //         dots:    document.getElementById("dots"),
-    //         prev:    document.getElementById("btnPrev"),
-    //         next:    document.getElementById("btnNext"),
-    //         navDots: document.getElementById("navDots"),
-    //         thumbs:  document.querySelectorAll(".cg-thumb")
-    //     };
-
-        // function buildNavDots() {
-        //     if (!dom.navDots) return;
-        //     dom.navDots.innerHTML = "";
-        //     slides.forEach((_, i) => {
-        //         const b = document.createElement("button");
-        //         b.className = "cg-controls-dot" + (i === idx ? " active" : "");
-        //         b.setAttribute("aria-label", "Slide " + (i + 1));
-        //         b.onclick = () => go(i);
-        //         dom.navDots.appendChild(b);
-        //     });
-        // }
-
-        // function updateThumbs(i) {
-        //     dom.thumbs.forEach((th, x) => th.classList.toggle("active", x === i));
-        // }
-
-        // function render(i) {
-        //     const s = slides[i];
-        //     if (dom.k)   dom.k.textContent   = s.kicker;
-        //     if (dom.t)   dom.t.textContent   = s.title;
-        //     if (dom.p)   dom.p.textContent   = s.price;
-        //     if (dom.d)   dom.d.textContent   = s.desc;
-        //     if (dom.c)   dom.c.textContent   = s.caption;
-        //     if (dom.tag) dom.tag.textContent = s.tag;
-        //     if (dom.cta) dom.cta.textContent = s.ctaText || "";
-
-        //     dom.imgM.classList.add("cg-img-out");
-        //     setTimeout(() => {
-        //         dom.imgM.src = s.mainImg;
-        //         if (dom.imgN) dom.imgN.src = s.nextImg;
-        //         dom.imgM.classList.remove("cg-img-out");
-        //         dom.imgM.classList.add("cg-img-in");
-        //         setTimeout(() => dom.imgM.classList.remove("cg-img-in"), 400);
-        //     }, 160);
-
-        //     if (dom.navDots) {
-        //         dom.navDots.querySelectorAll(".cg-controls-dot")
-        //             .forEach((d, x) => d.classList.toggle("active", x === i));
-        //     }
-
-        //     updateThumbs(i);
-        // }
-
-        // function go(n) {
-        //     idx = (n + slides.length) % slides.length;
-        //     render(idx);
-        //     restart();
-        // }
-
-        // window.go = go;
-
-        // function next() { go(idx + 1); }
-
-        // function restart() {
-        //     if (timer) clearInterval(timer);
-        //     timer = setInterval(next, AUTOPLAY_MS);
-        // }
-
-        // if (dom.next) dom.next.addEventListener("click", next);
-        // if (dom.prev) dom.prev.addEventListener("click", () => go(idx - 1));
-        // dom.thumbs.forEach((th, i) => { th.onclick = () => go(i); });
-
-        // buildNavDots();
-        // render(idx);
-        // restart();
-
-        /* ===== LOGIN MODAL ===== */
-        document.addEventListener("DOMContentLoaded", function () {
-        const btnOpen = document.getElementById("btnOpenLogin");
-        const modalEl = document.getElementById("loginModal");
-
-        if (btnOpen && modalEl && window.bootstrap) {
-        btnOpen.addEventListener("click", function () {
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        });
-        }
-        });
+            const revisarCaps = e => caps.classList.toggle('show', !!(e.getModifierState && e.getModifierState('CapsLock')));
+            pass.addEventListener('keydown', revisarCaps);
+            pass.addEventListener('keyup', revisarCaps);
+            pass.addEventListener('blur', () => caps.classList.remove('show'));
+        })();
 
         /* =========================================================
-           LOGIN ONLINE + AUTORIZACIÓN OFFLINE POR TERMINAL
-           - Con red: valida contra el servidor.
-           - Si valida correctamente: guarda permiso offline local.
-           - Sin red: permite entrar a Báscula solo si el usuario/contraseña
-             coinciden con la última autorización offline vigente.
+           LOGIN EN LÍNEA + AUTORIZACIÓN SIN CONEXIÓN POR TERMINAL
+           - Con red: valida contra el servidor y guarda permiso local por 3 días.
+           - Sin red: permite entrar a Báscula solo si usuario/contraseña coinciden
+             con la última autorización local vigente.
            ========================================================= */
-
         const OFFLINE_AUTH_KEY = "SIGO_OFFLINE_AUTH";
         const OFFLINE_AUTH_DIAS = 3;
-        const INICIO_OFFLINE_URL = "/Home/Inicio?offline=1";
+        const INICIO_OFFLINE_URL = "@Url.Content("~/Home/Inicio")?offline=1";
 
         function getTerminalIdOffline() {
             let terminal = localStorage.getItem("basculaTerminalId");
-
-            if (!terminal) {
-                terminal = "CASETA-01";
-                localStorage.setItem("basculaTerminalId", terminal);
-            }
-
+            if (!terminal) { terminal = "CASETA-01"; localStorage.setItem("basculaTerminalId", terminal); }
             return terminal;
         }
+        function normalizarUsuario(usuario) { return String(usuario || "").trim().toLowerCase(); }
+        function aHex(buffer) { return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, "0")).join(""); }
 
-        function normalizarUsuario(usuario) {
-            return String(usuario || "").trim().toLowerCase();
-        }
-
+        // Versión 1 (anterior): SHA-256 simple. Se conserva para validar autorizaciones ya guardadas.
         async function sha256Texto(texto) {
             if (!window.crypto || !window.crypto.subtle) {
-                // Fallback sencillo para navegadores viejos. No es criptográfico fuerte,
-                // pero evita guardar contraseña en texto si WebCrypto no está disponible.
                 let hash = 0;
                 const value = String(texto || "");
-                for (let i = 0; i < value.length; i++) {
-                    hash = ((hash << 5) - hash) + value.charCodeAt(i);
-                    hash |= 0;
-                }
+                for (let i = 0; i < value.length; i++) { hash = ((hash << 5) - hash) + value.charCodeAt(i); hash |= 0; }
                 return "legacy-" + String(hash);
             }
-
-            const buffer = new TextEncoder().encode(String(texto || ""));
-            const digest = await crypto.subtle.digest("SHA-256", buffer);
-            return Array.from(new Uint8Array(digest))
-                .map(b => b.toString(16).padStart(2, "0"))
-                .join("");
+            return aHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(texto || ""))));
         }
-
         async function crearHashPasswordOffline(usuario, password, terminalId) {
-            const base = [
-                "SIGO_OFFLINE_LOGIN",
-                terminalId || getTerminalIdOffline(),
-                normalizarUsuario(usuario),
-                String(password || "")
-            ].join("|");
-
-            return await sha256Texto(base);
+            return await sha256Texto(["SIGO_OFFLINE_LOGIN", terminalId || getTerminalIdOffline(), normalizarUsuario(usuario), String(password || "")].join("|"));
         }
+
+        // CORRECCIÓN DE SEGURIDAD — Versión 2: PBKDF2 con 150 000 iteraciones.
+        // La huella guardada en el navegador ya no se puede probar por fuerza bruta en segundos.
+        async function crearHashPasswordOfflineV2(usuario, password, terminalId) {
+            const enc = new TextEncoder();
+            const key = await crypto.subtle.importKey("raw", enc.encode(String(password || "")), "PBKDF2", false, ["deriveBits"]);
+            const salt = enc.encode(["SIGO_OFFLINE_LOGIN_V2", terminalId || getTerminalIdOffline(), normalizarUsuario(usuario)].join("|"));
+            const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 150000 }, key, 256);
+            return "v2-" + aHex(bits);
+        }
+        const soportaV2 = () => !!(window.crypto && window.crypto.subtle);
 
         async function guardarAutorizacionOffline(usuario, password, redirectUrl) {
             const terminalId = getTerminalIdOffline();
             const expira = new Date();
             expira.setDate(expira.getDate() + OFFLINE_AUTH_DIAS);
-
+            const v2 = soportaV2();
             const auth = {
                 usuario: String(usuario || "Usuario SIGO").trim(),
                 usuarioKey: normalizarUsuario(usuario),
-                terminalId: terminalId,
-                passwordHash: await crearHashPasswordOffline(usuario, password, terminalId),
+                terminalId,
+                passwordHash: v2 ? await crearHashPasswordOfflineV2(usuario, password, terminalId) : await crearHashPasswordOffline(usuario, password, terminalId),
                 redirectUrl: redirectUrl || INICIO_OFFLINE_URL,
                 fechaAlta: new Date().toISOString(),
                 expira: expira.toISOString(),
                 moduloPermitido: "BASCULA_CAMIONERA",
-                version: 1
+                version: v2 ? 2 : 1
             };
-
             localStorage.setItem(OFFLINE_AUTH_KEY, JSON.stringify(auth));
         }
 
@@ -982,161 +498,134 @@
             try {
                 const raw = localStorage.getItem(OFFLINE_AUTH_KEY);
                 if (!raw) return null;
-
                 const auth = JSON.parse(raw);
                 if (!auth || !auth.expira || !auth.passwordHash) return null;
-
                 const expira = new Date(auth.expira);
                 if (isNaN(expira.getTime())) return null;
-
-                if (new Date() > expira) {
-                    localStorage.removeItem(OFFLINE_AUTH_KEY);
-                    return null;
-                }
-
+                if (new Date() > expira) { localStorage.removeItem(OFFLINE_AUTH_KEY); return null; }
                 return auth;
-            } catch {
-                return null;
-            }
+            } catch { return null; }
         }
 
         async function validarCredencialesOffline(usuario, password) {
             const auth = obtenerAutorizacionOffline();
-            if (!auth) return null;
-
-            const usuarioKey = normalizarUsuario(usuario);
-            if (usuarioKey !== auth.usuarioKey) return null;
-
-            const passwordHash = await crearHashPasswordOffline(usuario, password, auth.terminalId);
-            if (passwordHash !== auth.passwordHash) return null;
-
-            return auth;
+            if (!auth || normalizarUsuario(usuario) !== auth.usuarioKey) return null;
+            const hash = auth.version === 2 && soportaV2()
+                ? await crearHashPasswordOfflineV2(usuario, password, auth.terminalId)
+                : await crearHashPasswordOffline(usuario, password, auth.terminalId);
+            return hash === auth.passwordHash ? auth : null;
         }
 
         function mostrarErrorLogin(msg) {
-            const errorBox = document.getElementById("loginError");
-            if (!errorBox) return;
-
-            errorBox.textContent = msg || "Usuario o contraseña incorrectos.";
-            errorBox.classList.remove("d-none");
+            const box = document.getElementById("loginError");
+            if (!box) return;
+            box.innerHTML = "";
+            const i = document.createElement("i"); i.className = "bi bi-exclamation-circle";
+            const t = document.createElement("span"); t.textContent = msg || "Usuario o contraseña incorrectos.";
+            box.append(i, t);
+            box.classList.remove("d-none");
         }
-
         function ocultarMensajesLogin() {
-            const errorBox = document.getElementById("loginError");
-            const offlineBox = document.getElementById("offlineAccessBox");
-
-            if (errorBox) {
-                errorBox.textContent = "";
-                errorBox.classList.add("d-none");
-            }
-
-            if (offlineBox) {
-                offlineBox.classList.add("d-none");
-            }
+            document.getElementById("loginError")?.classList.add("d-none");
+            document.getElementById("offlineAccessBox")?.classList.add("d-none");
         }
-
         function mostrarAccesoOffline(auth) {
             window.__SIGO_OFFLINE_AUTH_VALIDADA = auth || null;
-
-            const offlineBox = document.getElementById("offlineAccessBox");
-            if (offlineBox) {
-                offlineBox.classList.remove("d-none");
-            }
+            document.getElementById("offlineAccessBox")?.classList.remove("d-none");
         }
 
-function entrarSistemaOffline() {
-    const auth = obtenerAutorizacionOffline();
-
-    if (!auth) {
-        mostrarErrorLogin("No existe autorización offline vigente para esta terminal. Primero inicia sesión con red.");
-        return;
-    }
-
-    sessionStorage.setItem("SIGO_MODO_OFFLINE", "1");
-    sessionStorage.setItem("SIGO_USUARIO_OFFLINE", auth.usuario || "Usuario offline");
-    sessionStorage.setItem("SIGO_TERMINAL_OFFLINE", auth.terminalId || "CASETA-01");
-
-    window.location.href = INICIO_OFFLINE_URL;
-}
+        function entrarSistemaOffline() {
+            const auth = obtenerAutorizacionOffline();
+            if (!auth) { mostrarErrorLogin("No existe autorización sin conexión vigente para esta terminal. Primero inicia sesión con red."); return; }
+            sessionStorage.setItem("SIGO_MODO_OFFLINE", "1");
+            sessionStorage.setItem("SIGO_USUARIO_OFFLINE", auth.usuario || "Usuario offline");
+            sessionStorage.setItem("SIGO_TERMINAL_OFFLINE", auth.terminalId || "CASETA-01");
+            window.location.href = INICIO_OFFLINE_URL;
+        }
 
         const formEl = document.getElementById("loginForm");
+        const btnLogin = document.getElementById("btnLogin");
+        let enviando = false;
 
-        if (formEl) {
-            formEl.addEventListener("submit", async function (e) {
-                e.preventDefault();
-                ocultarMensajesLogin();
-
-                const form = e.target;
-                const data = {
-                    Usuario: form.Usuario.value,
-                    Password: form.Password.value,
-                    ReturnUrl: form.querySelector('input[name="ReturnUrl"]')?.value || ""
-                };
-
-                try {
-                    const response = await fetch('@Url.Action("Login", "Acceso")', {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(data)
-                    });
-
-                    const res = await response.json();
-
-                    if (res.success) {
-                        await guardarAutorizacionOffline(data.Usuario, data.Password, res.redirectUrl);
-                        window.location.href = res.redirectUrl;
-                        return;
-                    }
-
-                    // Si el servidor respondió, respetamos su respuesta. No abrimos offline
-                    // con credenciales que el servidor acaba de rechazar.
-                    mostrarErrorLogin(res.message || "Usuario o contraseña incorrectos.");
-                } catch (err) {
-                    const auth = await validarCredencialesOffline(data.Usuario, data.Password);
-
-                    if (auth) {
-                        mostrarErrorLogin("No hay comunicación con el servidor. Puedes entrar a Báscula en modo offline.");
-                        mostrarAccesoOffline(auth);
-                    } else {
-                        mostrarErrorLogin("No hay comunicación con el servidor y esta terminal no tiene autorización offline válida para ese usuario. Inicia sesión una vez con red.");
-                    }
-                }
-            });
+        function estadoBoton(cargando, texto) {
+            btnLogin.disabled = cargando;
+            btnLogin.innerHTML = cargando
+                ? `<span class="cg-spin" aria-hidden="true"></span> <span>${texto || "Verificando…"}</span>`
+                : `<i class="bi bi-box-arrow-in-right"></i> <span>Iniciar sesión</span>`;
         }
 
-        document.addEventListener("click", function (e) {
-            const btn = e.target.closest("#btnEntrarOfflineBascula");
-            if (!btn) return;
+        formEl?.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            if (enviando) return; // CORRECCIÓN: evita doble envío
+            ocultarMensajesLogin();
 
-            entrarSistemaOffline();
+            const data = {
+                Usuario: formEl.Usuario.value.trim(),
+                Password: formEl.Password.value,
+                ReturnUrl: formEl.querySelector('input[name="ReturnUrl"]')?.value || ""
+            };
+            if (!data.Usuario) { mostrarErrorLogin("Escribe tu usuario."); formEl.Usuario.focus(); return; }
+            if (!data.Password) { mostrarErrorLogin("Escribe tu contraseña."); formEl.Password.focus(); return; }
+
+            enviando = true;
+            estadoBoton(true);
+
+            let response;
+            try {
+                response = await fetch('@Url.Action("Login", "Acceso")', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
+            } catch (errRed) {
+                // Sin comunicación con el servidor: se revisa la autorización local.
+                const auth = await validarCredencialesOffline(data.Usuario, data.Password);
+                if (auth) {
+                    mostrarErrorLogin("No hay comunicación con el servidor. Puedes entrar a Báscula en modo sin conexión.");
+                    mostrarAccesoOffline(auth);
+                } else {
+                    mostrarErrorLogin("No hay comunicación con el servidor y esta terminal no tiene autorización sin conexión para ese usuario. Inicia sesión una vez con red.");
+                }
+                enviando = false; estadoBoton(false);
+                return;
+            }
+
+            // CORRECCIÓN: antes, si el servidor respondía con un error (por ejemplo 500), se trataba
+            // como "sin conexión" y se ofrecía el modo offline. Ahora se informa el error real.
+            let res = null;
+            try { res = await response.json(); } catch { }
+            if (!res) {
+                mostrarErrorLogin(`El servidor respondió con un error (HTTP ${response.status}). Intenta de nuevo; si continúa, avisa a Sistemas.`);
+                enviando = false; estadoBoton(false);
+                return;
+            }
+
+            if (res.success) {
+                estadoBoton(true, "Entrando…");
+                try { await guardarAutorizacionOffline(data.Usuario, data.Password, res.redirectUrl); } catch (e2) { console.warn("No se guardó la autorización sin conexión:", e2); }
+                window.location.href = res.redirectUrl;
+                return;
+            }
+
+            // El servidor rechazó las credenciales: no se abre el modo offline.
+            mostrarErrorLogin(res.message || "Usuario o contraseña incorrectos.");
+            formEl.Password.select();
+            enviando = false; estadoBoton(false);
         });
+
+        document.addEventListener("click", function (e) {
+            if (e.target.closest("#btnEntrarOfflineBascula")) entrarSistemaOffline();
+        });
+
+        // Foco inicial en el usuario (en celular no, para no abrir el teclado de golpe).
+        if (window.matchMedia('(min-width: 901px)').matches) document.getElementById('Usuario')?.focus();
 
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
                 navigator.serviceWorker.register("/service-worker.js")
-                    .then(function () {
-                        console.log("Service Worker registrado para modo offline.");
-                    })
-                    .catch(function (err) {
-                        console.warn("No se pudo registrar Service Worker:", err);
-                    });
+                    .catch(function (err) { console.warn("No se pudo registrar el Service Worker:", err); });
             });
         }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const sesionExpirada = '@(ViewBag.SesionExpirada == true ? "true" : "false")';
-
-            if (sesionExpirada === 'true') {
-                const modalEl = document.getElementById('loginModal');
-
-                if (modalEl && window.bootstrap && bootstrap.Modal) {
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                } else if (modalEl && window.jQuery) {
-                    $('#loginModal').modal('show');
-                }
-            }
-        });
-    // })();
-</script>
+    </script>
 </body>
 </html>

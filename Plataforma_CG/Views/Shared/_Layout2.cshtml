@@ -1,84 +1,1103 @@
+@{
+    // Iniciales para el avatar del menú (ej. "Alejandro Espinoza" -> "AE", "Administrador" -> "AD")
+    var sigoUsuario = User?.Identity?.Name ?? "";
+    var sigoPartes = sigoUsuario.Split(new[] { ' ', '.', '_', '-', '@' }, StringSplitOptions.RemoveEmptyEntries);
+    var sigoIniciales = sigoPartes.Length >= 2
+        ? $"{sigoPartes[0][0]}{sigoPartes[1][0]}"
+        : (sigoUsuario.Length >= 2 ? sigoUsuario.Substring(0, 2) : (sigoUsuario.Length == 1 ? sigoUsuario : "?"));
+    sigoIniciales = sigoIniciales.ToUpperInvariant();
+}
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    @* @RenderSection("Scripts", required: false) *@
-    @RenderSection("Styles", required: false)
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SIGO | Sistema Integral De Gestión Operativa</title>
+    <title>@(ViewData["Title"] is string t && !string.IsNullOrWhiteSpace(t) ? $"{t} | SIGO" : "SIGO | Sistema Integral De Gestión Operativa")</title>
     <link rel="icon" type="image/png" href="~/images/ico_sigo.ico" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
     <link rel="stylesheet" href="~/fonts/fonts.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/fonts/bootstrap-icons.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-   @*  <link rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" /> *@
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-
     <link rel="stylesheet" href="~/css/layout2-grid.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/layout2-mobile-sidebar-fix.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/layout2-mobile-sidebar-gapfix.css" asp-append-version="true" />
+
+    <style id="sigo-layout-es">
+            /* =====================================================================
+                       SIGO · CAPA VISUAL DEL LAYOUT
+                       Mismo sistema visual que los módulos (tinto #8d3e46, Poppins, tarjetas
+                       blancas, modo oscuro). Va DESPUÉS de site.css y layout2-*.css y solo
+                       cambia colores, tipografía, bordes y sombras: no toca posiciones ni
+                       anchos, así que la mecánica del sidebar y del contenido sigue igual.
+                       Se puede mover tal cual a ~/css/sigo.css.
+                       ===================================================================== */
+            :root {
+                --es-tinto: #8d3e46;
+                --es-tinto-deep: #5c2229;
+                --es-tinto-soft: #f7eced;
+                --es-tinto-line: #e8d3d6;
+                --es-nav: #5c2229;
+                --es-nav-2: #47191f;
+                --es-paper: #f6f4f4;
+                --es-surface: #ffffff;
+                --es-field: #ffffff;
+                --es-head: #faf7f7;
+                --es-ink: #231a1c;
+                --es-muted: #76686b;
+                --es-line: #e6dfe0;
+                --es-line-strong: #cfc4c6;
+                --es-ok: #2f7a55;
+                --es-bad: #b42d2d;
+                --es-bad-bg: #fbe9e8;
+                --es-shadow: 0 10px 30px rgba(35, 26, 28, .14);
+                --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+            }
+
+            body[data-theme="dark"] {
+                --es-tinto: #c56b74;
+                --es-tinto-deep: #7a2d36;
+                --es-tinto-soft: #3a2427;
+                --es-tinto-line: #5a3439;
+                --es-nav: #1b1d22;
+                --es-nav-2: #15171b;
+                --es-paper: #16181c;
+                --es-surface: #202328;
+                --es-field: #181a1e;
+                --es-head: #262a30;
+                --es-ink: #edf0f3;
+                --es-muted: #a9b0b9;
+                --es-line: #363b43;
+                --es-line-strong: #4a5059;
+                --es-ok: #6cc596;
+                --es-bad: #f08a83;
+                --es-bad-bg: #3d2223;
+                --es-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+            }
+
+            /* ---------- Base ---------- */
+            body.layout-body {
+                background: var(--es-paper) !important;
+                color: var(--es-ink);
+                font-family: var(--es-font) !important;
+                -webkit-font-smoothing: antialiased;
+            }
+
+                body.layout-body .layout-main-content,
+                body.layout-body .layout-container-fluid {
+                    background: var(--es-paper) !important;
+                }
+
+                /* ---------- Barra superior ---------- */
+                body.layout-body .layout-navbar {
+                    background: linear-gradient(180deg, var(--es-nav) 0%, var(--es-nav-2) 100%) !important;
+                    border-bottom: 1px solid rgba(255,255,255,.06) !important;
+                    box-shadow: 0 2px 12px rgba(35,26,28,.18) !important;
+                    font-family: var(--es-font) !important;
+                }
+
+            body[data-theme="dark"].layout-body .layout-navbar {
+                border-bottom: 2px solid var(--es-tinto) !important;
+            }
+
+            body.layout-body .layout-clock {
+                line-height: 1.15;
+            }
+
+            body.layout-body #layout-clock-time {
+                font: 600 14px/1.15 var(--es-font) !important;
+                font-variant-numeric: tabular-nums;
+                letter-spacing: .02em;
+            }
+
+            body.layout-body #layout-clock-date {
+                font: 500 11px/1.2 var(--es-font) !important;
+                opacity: .72;
+                text-transform: capitalize;
+            }
+
+            body.layout-body .layout-vr {
+                opacity: .2 !important;
+            }
+
+            body.layout-body .layout-btn-about {
+                border-radius: 999px !important;
+                border-color: rgba(255,255,255,.3) !important;
+                font: 500 12.5px/1 var(--es-font) !important;
+                padding: 7px 13px !important;
+                color: #fff !important;
+            }
+
+                body.layout-body .layout-btn-about:hover,
+                body.layout-body .layout-navbar-tools .btn.text-white:hover {
+                    background: rgba(255,255,255,.12) !important;
+                    color: #fff !important;
+                }
+
+            body.layout-body .layout-navbar-tools .btn.text-white {
+                border-radius: 999px !important;
+            }
+
+            body.layout-body .theme-switch-btn {
+                background: rgba(255,255,255,.14) !important;
+                border: 1px solid rgba(255,255,255,.22) !important;
+            }
+
+            body.layout-body .theme-switch-thumb {
+                background: #fff !important;
+                color: var(--es-tinto-deep) !important;
+            }
+
+            body[data-theme="dark"].layout-body .theme-switch-thumb {
+                background: #2a2e34 !important;
+                color: #e0b061 !important;
+            }
+
+            body.layout-body .layout-navbar :focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
+
+            /* ---------- Menú lateral (fondo tinto) ---------- */
+            :root {
+                --sb-bg-1: #6b2730;
+                --sb-bg-2: #4a1a20;
+                --sb-text: rgba(255,255,255,.92);
+                --sb-text-soft: rgba(255,255,255,.66);
+                --sb-hover: rgba(255,255,255,.10);
+                --sb-active: rgba(255,255,255,.17);
+                --sb-line: rgba(255,255,255,.12);
+                --sb-chip: rgba(255,255,255,.12);
+                --sb-accent: #f3c9a1;
+            }
+
+            body[data-theme="dark"] {
+                --sb-bg-1: #3a1d22;
+                --sb-bg-2: #1f1416;
+            }
+
+            body.layout-body .layout-sidebar {
+                background: linear-gradient(180deg, var(--sb-bg-1) 0%, var(--sb-bg-2) 100%) !important;
+                border-right: 1px solid rgba(0,0,0,.25) !important;
+                box-shadow: 6px 0 28px rgba(35,26,28,.25) !important;
+                color: var(--sb-text) !important;
+                font-family: var(--es-font) !important;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(255,255,255,.25) transparent;
+            }
+
+            /* Usuario */
+            body.layout-body .sb-user-section {
+                background: rgba(0,0,0,.18) !important;
+                color: #fff !important;
+                border: 0 !important;
+                border-bottom: 1px solid var(--sb-line) !important;
+            }
+
+            body.layout-body .sb-user-card {
+                background: transparent !important;
+                border: 0 !important;
+                box-shadow: none !important;
+            }
+
+            body.layout-body .sb-avatar {
+                border: 2px solid rgba(255,255,255,.6) !important;
+                border-radius: 50% !important;
+            }
+
+            body.layout-body .sb-user-name {
+                color: #fff !important;
+                font: 600 13.5px/1.25 var(--es-font) !important;
+            }
+
+            body.layout-body .sb-user-greeting {
+                color: var(--sb-text-soft) !important;
+                font: 400 11.5px/1.3 var(--es-font) !important;
+            }
+
+            body.layout-body .sb-user-status {
+                background: #49c27f !important;
+                box-shadow: 0 0 0 2px rgba(255,255,255,.65) !important;
+            }
+
+            body.layout-body #layout-pin-btn {
+                color: #fff !important;
+                background: var(--sb-chip) !important;
+                border: 0 !important;
+                border-radius: 8px !important;
+            }
+
+                body.layout-body #layout-pin-btn:hover {
+                    background: rgba(255,255,255,.22) !important;
+                }
+                /* Fijado: mismo botón translúcido; solo el ícono cambia a dorado para indicar que está fijo */
+                body.layout-body #layout-pin-btn.pinned {
+                    background: var(--sb-chip) !important;
+                    color: var(--sb-accent) !important;
+                    box-shadow: none !important;
+                    border: 0 !important;
+                }
+
+                    body.layout-body #layout-pin-btn.pinned:hover {
+                        background: rgba(255,255,255,.22) !important;
+                    }
+
+                    body.layout-body #layout-pin-btn.pinned i {
+                        color: var(--sb-accent) !important;
+                    }
+
+            /* Avatar con iniciales (sustituye la imagen genérica Usr.png) */
+            body.layout-body .sb-avatar-iniciales {
+                display: inline-grid !important;
+                place-items: center;
+                flex: none;
+                width: 40px !important;
+                height: 40px !important;
+                border-radius: 50% !important;
+                background: linear-gradient(140deg, #f6dcc3 0%, var(--sb-accent) 55%, #d9a274 100%) !important;
+                color: var(--sb-bg-2) !important;
+                border: 2px solid rgba(255,255,255,.75) !important;
+                box-shadow: 0 3px 10px rgba(0,0,0,.25) !important;
+                font: 700 14px/1 var(--es-font) !important;
+                letter-spacing: .04em;
+                user-select: none;
+            }
+
+            /* Botón del avatar y foto de perfil */
+            body.layout-body .sb-avatar-btn {
+                position: relative;
+                flex: none;
+                width: 40px;
+                height: 40px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                cursor: pointer;
+            }
+
+                body.layout-body .sb-avatar-btn .sb-avatar-foto {
+                    position: absolute;
+                    inset: 0;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    border: 2px solid rgba(255,255,255,.75);
+                    box-shadow: 0 3px 10px rgba(0,0,0,.25);
+                    background: var(--sb-bg-2);
+                }
+
+            body.layout-body .sb-avatar-edit {
+                position: absolute;
+                right: -3px;
+                bottom: -3px;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: #fff;
+                color: var(--sb-bg-1);
+                font-size: 10px;
+                box-shadow: 0 1px 4px rgba(0,0,0,.3);
+                opacity: 0;
+                transform: scale(.8);
+                transition: opacity .15s, transform .15s;
+            }
+
+            body.layout-body .sb-avatar-btn:hover .sb-avatar-edit,
+            body.layout-body .sb-avatar-btn:focus-visible .sb-avatar-edit {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            body.layout-body .sb-avatar-btn:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
+
+            @@media (hover: none) {
+                body.layout-body .sb-avatar-edit {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+
+            body.layout-body .perfil-preview {
+                position: relative;
+                width: 140px;
+                height: 140px;
+                margin: 4px auto 14px;
+            }
+
+            body.layout-body .perfil-preview-ini, body.layout-body #perfilPreview {
+                position: absolute;
+                inset: 0;
+                width: 140px;
+                height: 140px;
+                border-radius: 50%;
+                border: 3px solid var(--es-line);
+                box-shadow: 0 6px 18px rgba(35,26,28,.15);
+            }
+
+            body.layout-body .perfil-preview-ini {
+                display: grid;
+                place-items: center;
+                background: linear-gradient(140deg, #f6dcc3 0%, #f3c9a1 55%, #d9a274 100%);
+                color: #4a1a20;
+                font: 700 44px/1 var(--es-font);
+                letter-spacing: .04em;
+            }
+
+            body.layout-body #perfilPreview {
+                object-fit: cover;
+                background: var(--es-surface);
+            }
+
+            body.layout-body .perfil-ayuda {
+                margin: 0 auto 12px;
+                max-width: 300px;
+                font-size: 12px;
+                color: var(--es-muted);
+            }
+
+            body.layout-body .perfil-msg {
+                min-height: 18px;
+                margin-top: 10px;
+                font-size: 12.5px;
+                color: var(--es-muted);
+            }
+
+                body.layout-body .perfil-msg.is-error {
+                    color: var(--es-bad);
+                }
+
+                body.layout-body .perfil-msg.is-ok {
+                    color: var(--es-ok);
+                }
+
+            body.layout-body #perfilModal .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 36px;
+                padding: 0 14px;
+                border-radius: 7px;
+                font: 600 12.5px/1 var(--es-font);
+            }
+
+            body.layout-body .perfil-btn {
+                background: var(--es-field);
+                color: var(--es-ink);
+                border: 1px solid var(--es-line-strong);
+            }
+
+                body.layout-body .perfil-btn:hover {
+                    background: var(--es-tinto-soft);
+                    color: var(--es-ink);
+                }
+
+            body.layout-body .perfil-btn-primary {
+                background: var(--es-tinto);
+                color: #fff;
+                border: 1px solid var(--es-tinto);
+            }
+
+                body.layout-body .perfil-btn-primary:hover {
+                    background: var(--es-tinto-deep);
+                    color: #fff;
+                }
+
+                body.layout-body .perfil-btn-primary:disabled {
+                    opacity: .5;
+                }
+
+            body.layout-body .perfil-btn-quitar {
+                background: transparent;
+                color: var(--es-bad);
+                border: 1px solid transparent;
+            }
+
+                body.layout-body .perfil-btn-quitar:hover {
+                    background: var(--es-bad-bg);
+                    color: var(--es-bad);
+                }
+
+                body.layout-body .perfil-btn-quitar:disabled {
+                    visibility: hidden;
+                }
+
+            /* Separación entre el avatar y el nombre */
+            body.layout-body .sb-avatar-btn {
+                margin-right: 12px !important;
+            }
+
+            body.layout-body .sb-user-info {
+                min-width: 0;
+                padding-left: 0 !important;
+                margin-left: 0 !important;
+            }
+
+            body.layout-body .sb-user-name,
+            body.layout-body .sb-user-greeting {
+                display: block;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* Barra de desplazamiento del menú:
+                       - menú contraído: oculta (se puede seguir desplazando con la rueda del mouse)
+                       - menú abierto: delgada y discreta, sin flechas */
+            body.layout-body .layout-sidebar,
+            body.layout-body .layout-sidebar-nav {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(255,255,255,.22) transparent;
+            }
+
+                body.layout-body .layout-sidebar::-webkit-scrollbar,
+                body.layout-body .layout-sidebar-nav::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
+
+                body.layout-body .layout-sidebar::-webkit-scrollbar-track,
+                body.layout-body .layout-sidebar-nav::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+
+                body.layout-body .layout-sidebar::-webkit-scrollbar-thumb,
+                body.layout-body .layout-sidebar-nav::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,.22);
+                    border-radius: 999px;
+                }
+
+                body.layout-body .layout-sidebar::-webkit-scrollbar-button,
+                body.layout-body .layout-sidebar-nav::-webkit-scrollbar-button {
+                    display: none;
+                    height: 0;
+                    width: 0;
+                }
+
+                body.layout-body .layout-sidebar.layout-hidden,
+                body.layout-body .layout-sidebar.layout-hidden .layout-sidebar-nav {
+                    scrollbar-width: none !important;
+                    -ms-overflow-style: none !important;
+                }
+
+                    body.layout-body .layout-sidebar.layout-hidden::-webkit-scrollbar,
+                    body.layout-body .layout-sidebar.layout-hidden .layout-sidebar-nav::-webkit-scrollbar {
+                        display: none !important;
+                        width: 0 !important;
+                        height: 0 !important;
+                    }
+
+            /* Refuerzo con el id del menú (gana sobre site.css y layout2-*.css) */
+            #layout-sidebar-dinamico .sb-user-card {
+                display: flex !important;
+                align-items: center !important;
+                gap: 0 !important;
+            }
+
+            #layout-sidebar-dinamico .sb-avatar-btn {
+                margin: 0 !important;
+                flex: 0 0 40px !important;
+            }
+
+            #layout-sidebar-dinamico .sb-user-info {
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* Menú contraído: ninguna barra de desplazamiento visible, en ningún contenedor interno */
+            #layout-sidebar-dinamico.layout-hidden,
+            #layout-sidebar-dinamico.layout-hidden * {
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+
+                #layout-sidebar-dinamico.layout-hidden::-webkit-scrollbar,
+                #layout-sidebar-dinamico.layout-hidden *::-webkit-scrollbar {
+                    display: none !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    background: transparent !important;
+                }
+
+            /* Menú abierto: barra delgada y sin flechas en cualquier contenedor interno */
+            #layout-sidebar-dinamico:not(.layout-hidden),
+            #layout-sidebar-dinamico:not(.layout-hidden) * {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(255,255,255,.22) transparent;
+            }
+
+            #layout-sidebar-dinamico *::-webkit-scrollbar-button {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+            }
+
+            /* Búsqueda */
+            body.layout-body .sb-search-input {
+                background: rgba(255,255,255,.10) !important;
+                color: #fff !important;
+                border: 1px solid rgba(255,255,255,.20) !important;
+                border-radius: 8px !important;
+                font: 500 13px/1.2 var(--es-font) !important;
+                box-shadow: none !important;
+            }
+
+                body.layout-body .sb-search-input::placeholder {
+                    color: var(--sb-text-soft) !important;
+                    opacity: 1;
+                }
+
+                body.layout-body .sb-search-input:focus {
+                    background: rgba(255,255,255,.16) !important;
+                    border-color: rgba(255,255,255,.55) !important;
+                    box-shadow: 0 0 0 3px rgba(255,255,255,.12) !important;
+                    outline: none !important;
+                }
+
+            body.layout-body .sb-search-icon {
+                color: var(--sb-text-soft) !important;
+            }
+
+            /* Secciones */
+            body.layout-body .sb-section-label {
+                color: var(--sb-text-soft) !important;
+                opacity: 1 !important;
+                font: 600 10.5px/1.2 var(--es-font) !important;
+                letter-spacing: .09em !important;
+            }
+
+            body.layout-body .sb-divider {
+                background: var(--sb-line) !important;
+                border-color: var(--sb-line) !important;
+                opacity: 1 !important;
+            }
+
+            /* Módulos */
+            body.layout-body .layout-dropdown-btn {
+                color: var(--sb-text) !important;
+                background: transparent !important;
+                opacity: 1 !important;
+                border-radius: 8px !important;
+                font: 500 13px/1.25 var(--es-font) !important;
+                transition: background .12s, color .12s;
+            }
+
+                body.layout-body .layout-dropdown-btn .sb-item-label {
+                    color: var(--sb-text) !important;
+                    opacity: 1 !important;
+                }
+
+                body.layout-body .layout-dropdown-btn:hover,
+                body.layout-body .layout-menu-item.layout-open > .layout-dropdown-btn {
+                    background: var(--sb-hover) !important;
+                    color: #fff !important;
+                }
+
+                    body.layout-body .layout-dropdown-btn:hover .sb-item-label,
+                    body.layout-body .layout-menu-item.layout-open > .layout-dropdown-btn .sb-item-label {
+                        color: #fff !important;
+                    }
+
+            body.layout-body .sb-icon-wrap {
+                background: var(--sb-chip) !important;
+                color: #fff !important;
+                opacity: 1 !important;
+                border-radius: 8px !important;
+                box-shadow: none !important;
+                transition: background .12s, color .12s;
+            }
+
+                body.layout-body .sb-icon-wrap i {
+                    color: #fff !important;
+                    opacity: 1 !important;
+                }
+
+            body.layout-body .layout-dropdown-btn:hover .sb-icon-wrap,
+            body.layout-body .layout-menu-item.layout-open > .layout-dropdown-btn .sb-icon-wrap {
+                background: rgba(255,255,255,.22) !important;
+            }
+
+            body.layout-body .layout-arrow {
+                color: var(--sb-text-soft) !important;
+                opacity: 1 !important;
+            }
+
+            /* Submódulos */
+            body.layout-body .layout-dropdown-container {
+                background: rgba(0,0,0,.14) !important;
+                border-left: 1px solid var(--sb-line) !important;
+                border-radius: 0 0 8px 8px;
+            }
+
+                body.layout-body .layout-dropdown-container a {
+                    color: var(--sb-text-soft) !important;
+                    background: transparent !important;
+                    opacity: 1 !important;
+                    border-radius: 6px !important;
+                    font: 500 12.5px/1.3 var(--es-font) !important;
+                }
+
+                    body.layout-body .layout-dropdown-container a:hover {
+                        color: #fff !important;
+                        background: var(--sb-hover) !important;
+                    }
+
+                    body.layout-body .layout-dropdown-container a i {
+                        color: var(--sb-accent) !important;
+                        opacity: .9;
+                    }
+
+            /* Página actual */
+            body.layout-body .layout-sidebar a.sb-active,
+            body.layout-body .layout-sidebar a.sb-active .sb-item-label {
+                color: #fff !important;
+                font-weight: 600 !important;
+            }
+
+            body.layout-body .layout-sidebar a.sb-active {
+                background: var(--sb-active) !important;
+                box-shadow: inset 3px 0 0 var(--sb-accent) !important;
+            }
+
+            body.layout-body .layout-dropdown-btn.sb-active .sb-icon-wrap {
+                background: #fff !important;
+            }
+
+                body.layout-body .layout-dropdown-btn.sb-active .sb-icon-wrap i {
+                    color: var(--sb-bg-1) !important;
+                }
+
+            /* Etiquetas */
+            body.layout-body .sb-badge {
+                background: #fff !important;
+                color: var(--sb-bg-1) !important;
+                border-radius: 999px !important;
+                font: 700 10px/1 var(--es-font) !important;
+            }
+
+                body.layout-body .sb-badge.sb-badge-new {
+                    background: #49c27f !important;
+                    color: #fff !important;
+                }
+
+            /* Cerrar sesión */
+            body.layout-body .sb-footer {
+                background: rgba(0,0,0,.22) !important;
+                border-top: 1px solid var(--sb-line) !important;
+            }
+
+            body.layout-body #layout-logout-link,
+            body.layout-body #layout-logout-link .sb-item-label {
+                color: #ffc9c4 !important;
+                font: 500 13px var(--es-font) !important;
+                opacity: 1 !important;
+            }
+
+            body.layout-body #layout-logout-link {
+                border-radius: 8px !important;
+            }
+
+                body.layout-body #layout-logout-link:hover {
+                    background: rgba(255,255,255,.08) !important;
+                }
+
+                body.layout-body #layout-logout-link .sb-icon-wrap {
+                    background: rgba(255,120,110,.18) !important;
+                }
+
+                    body.layout-body #layout-logout-link .sb-icon-wrap i {
+                        color: #ffc9c4 !important;
+                    }
+
+            body.layout-body .layout-sidebar a:focus-visible,
+            body.layout-body .layout-sidebar button:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 1px;
+            }
+
+            /* Botón para abrir el menú */
+            body.layout-body .layout-toggle-sidebar-btn {
+                background: var(--sb-bg-1) !important;
+                color: #fff !important;
+                border: 1px solid rgba(255,255,255,.18) !important;
+                box-shadow: 0 4px 16px rgba(35,26,28,.25) !important;
+            }
+
+                body.layout-body .layout-toggle-sidebar-btn:hover {
+                    background: var(--sb-bg-2) !important;
+                    color: #fff !important;
+                }
+
+            body.layout-body .layout-sidebar-overlay {
+                background: rgba(22,24,28,.45) !important;
+                backdrop-filter: blur(2px);
+            }
+
+            /* ---------- Pie ---------- */
+            body.layout-body .layout-footer {
+                background: var(--es-surface) !important;
+                border-top: 1px solid var(--es-line) !important;
+                color: var(--es-muted) !important;
+                font: 500 11.5px/1.4 var(--es-font) !important;
+                box-shadow: none !important;
+            }
+
+                body.layout-body .layout-footer p {
+                    margin: 0 !important;
+                    color: var(--es-muted) !important;
+                }
+
+            /* ---------- Botones flotantes ---------- */
+            body.layout-body .layout-chat-fab {
+                background: var(--es-tinto) !important;
+                color: #fff !important;
+                border: 0 !important;
+                box-shadow: 0 8px 22px rgba(92,34,41,.35) !important;
+                transition: transform .12s, background .12s;
+            }
+
+                body.layout-body .layout-chat-fab:hover {
+                    background: var(--es-tinto-deep) !important;
+                    transform: translateY(-2px);
+                }
+
+            body.layout-body #layout-manual-fab {
+                background: var(--es-surface) !important;
+                color: var(--es-tinto) !important;
+                border: 1px solid var(--es-line) !important;
+                box-shadow: 0 6px 18px rgba(35,26,28,.16) !important;
+            }
+
+                body.layout-body #layout-manual-fab:hover {
+                    background: var(--es-tinto-soft) !important;
+                }
+
+            @@media (prefers-reduced-motion: reduce) {
+                body.layout-body .layout-chat-fab {
+                    transition: none;
+                }
+
+                    body.layout-body .layout-chat-fab:hover {
+                        transform: none;
+                    }
+            }
+
+            /* ---------- Chat ---------- */
+            body.layout-body .layout-chat-panel {
+                background: var(--es-surface) !important;
+                color: var(--es-ink) !important;
+                border: 1px solid var(--es-line) !important;
+                border-radius: 14px !important;
+                box-shadow: 0 18px 50px rgba(35,26,28,.28) !important;
+                overflow: hidden !important;
+                font-family: var(--es-font) !important;
+            }
+
+            body.layout-body .layout-chat-panel-header {
+                background: var(--es-nav) !important;
+                color: #fff !important;
+                border: 0 !important;
+            }
+
+            body.layout-body .layout-chat-title {
+                color: #fff !important;
+                font: 600 14px/1.2 var(--es-font) !important;
+            }
+
+                body.layout-body .layout-chat-title small {
+                    color: rgba(255,255,255,.75) !important;
+                    font: 400 11.5px/1.3 var(--es-font) !important;
+                }
+
+            body.layout-body #layout-chat-close-btn {
+                color: #fff !important;
+                background: rgba(255,255,255,.12) !important;
+                border: 0 !important;
+                border-radius: 8px !important;
+            }
+
+            body.layout-body .layout-chat-panel-body {
+                background: var(--es-surface) !important;
+                border-bottom: 1px solid var(--es-line) !important;
+            }
+
+            body.layout-body .layout-chat-area-select label {
+                color: var(--es-muted) !important;
+                font: 600 12px var(--es-font) !important;
+            }
+
+            body.layout-body #layout-chat-area {
+                background-color: var(--es-field) !important;
+                color: var(--es-ink) !important;
+                border: 1px solid var(--es-line-strong) !important;
+                border-radius: 7px !important;
+                font: 500 13px var(--es-font) !important;
+            }
+
+            body.layout-body .layout-chat-hint {
+                color: var(--es-muted) !important;
+                font-size: 11.5px !important;
+            }
+
+            body.layout-body .layout-chat-messages {
+                background: var(--es-paper) !important;
+            }
+
+            body.layout-body .layout-chat-msg .layout-bubble {
+                background: var(--es-surface) !important;
+                color: var(--es-ink) !important;
+                border: 1px solid var(--es-line) !important;
+                border-radius: 14px 14px 14px 4px !important;
+                box-shadow: none !important;
+                font: 400 13px/1.45 var(--es-font) !important;
+            }
+
+            body.layout-body .layout-chat-msg.layout-me .layout-bubble {
+                background: var(--es-tinto) !important;
+                color: #fff !important;
+                border-color: var(--es-tinto) !important;
+                border-radius: 14px 14px 4px 14px !important;
+            }
+
+            body.layout-body .layout-chat-msg .layout-meta {
+                display: block;
+                margin-top: 3px;
+                font-size: 10.5px !important;
+                opacity: .7;
+                color: inherit !important;
+            }
+
+            body.layout-body .layout-chat-msg .layout-texto {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            body.layout-body .layout-chat-input {
+                background: var(--es-surface) !important;
+                border-top: 1px solid var(--es-line) !important;
+            }
+
+            body.layout-body #layout-chat-text {
+                background: var(--es-field) !important;
+                color: var(--es-ink) !important;
+                border: 1px solid var(--es-line-strong) !important;
+                border-radius: 10px !important;
+                font: 400 13px/1.4 var(--es-font) !important;
+            }
+
+                body.layout-body #layout-chat-text:focus {
+                    border-color: var(--es-tinto) !important;
+                    box-shadow: 0 0 0 3px rgba(141,62,70,.16) !important;
+                    outline: none !important;
+                }
+
+            body.layout-body #layout-chat-send {
+                background: var(--es-tinto) !important;
+                border-color: var(--es-tinto) !important;
+                color: #fff !important;
+                border-radius: 10px !important;
+            }
+
+                body.layout-body #layout-chat-send:disabled {
+                    opacity: .45 !important;
+                }
+
+            /* ---------- Modales del layout ---------- */
+            body.layout-body #layoutAboutModal .modal-content,
+            body.layout-body #reporteModal .modal-content,
+            body.layout-body #layoutManualModal .modal-content,
+            body.layout-body #perfilModal .modal-content {
+                border: 0 !important;
+                border-radius: 12px !important;
+                overflow: hidden !important;
+                background: var(--es-surface) !important;
+                color: var(--es-ink) !important;
+                box-shadow: 0 18px 50px rgba(35,26,28,.28) !important;
+                font-family: var(--es-font) !important;
+            }
+
+            body.layout-body #layoutAboutModal .modal-header,
+            body.layout-body #reporteModal .modal-header,
+            body.layout-body #layoutManualModal .modal-header,
+            body.layout-body #perfilModal .modal-header {
+                background: var(--es-nav) !important;
+                border-bottom: 0 !important;
+                color: #fff !important;
+            }
+
+            body.layout-body #layoutAboutModal .modal-title,
+            body.layout-body #reporteModal .modal-title,
+            body.layout-body #layoutManualModal .modal-title,
+            body.layout-body #perfilModal .modal-title {
+                font: 600 15px/1.3 var(--es-font) !important;
+                color: #fff !important;
+            }
+
+            body.layout-body #perfilModal .modal-footer,
+            body.layout-body #layoutAboutModal .modal-footer {
+                background: var(--es-head) !important;
+                border-top: 1px solid var(--es-line) !important;
+            }
+
+            body.layout-body #layoutAboutModal h6 {
+                font-weight: 600;
+            }
+
+            body.layout-body #layoutAboutModal .alert-light {
+                background: var(--es-head) !important;
+                color: var(--es-muted) !important;
+                border-color: var(--es-line) !important;
+            }
+
+            body.layout-body .manual-toc-item.active,
+            body.layout-body .manual-toc-item:hover {
+                color: var(--es-tinto) !important;
+                background: var(--es-tinto-soft) !important;
+            }
+
+            /* ---------- Aviso de sesión vencida ---------- */
+            #sigo-session-expired-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 3000;
+                display: grid;
+                place-items: center;
+                background: rgba(22,24,28,.55);
+                backdrop-filter: blur(3px);
+                font-family: var(--es-font);
+            }
+
+                #sigo-session-expired-overlay .sigo-session-expired-card {
+                    width: min(380px, 90vw);
+                    padding: 26px 24px;
+                    border-radius: 14px;
+                    background: var(--es-surface);
+                    color: var(--es-ink);
+                    text-align: center;
+                    box-shadow: var(--es-shadow);
+                }
+
+                #sigo-session-expired-overlay .sigo-session-expired-icon {
+                    width: 52px;
+                    height: 52px;
+                    margin: 0 auto 12px;
+                    border-radius: 50%;
+                    display: grid;
+                    place-items: center;
+                    background: var(--es-tinto-soft);
+                    color: var(--es-tinto);
+                    font-size: 22px;
+                }
+
+                #sigo-session-expired-overlay h3 {
+                    margin: 0 0 6px;
+                    font-size: 18px;
+                    font-weight: 700;
+                }
+
+                #sigo-session-expired-overlay p {
+                    margin: 0 0 16px;
+                    font-size: 13px;
+                    color: var(--es-muted);
+                }
+
+                #sigo-session-expired-overlay .sigo-session-expired-loader {
+                    width: 28px;
+                    height: 28px;
+                    margin: 0 auto;
+                    border: 3px solid var(--es-tinto-line);
+                    border-top-color: var(--es-tinto);
+                    border-radius: 50%;
+                    animation: sigo-spin .8s linear infinite;
+                }
+
+            @@keyframes sigo-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+    </style>
+
+    @* CORRECCIÓN: los estilos de cada vista van al final para que puedan sobrescribir los del layout
+       (antes se cargaban antes que site.css y perdían contra él). *@
+    @RenderSection("Styles", required: false)
 </head>
 
 <body class="layout-body @(ViewContext.RouteData.Values["controller"]) @(ViewContext.RouteData.Values["action"])" data-theme="light">
+    <script>
+            // CORRECCIÓN: aplica el tema guardado antes de pintar la página (antes se veía un
+            // destello en modo claro en cada carga aunque el usuario tuviera el modo oscuro).
+            try { var __t = localStorage.getItem('sigoTheme'); if (__t === 'dark' || __t === 'light') document.body.setAttribute('data-theme', __t); } catch (e) { }
+    </script>
 
     <!-- HEADER -->
     <header>
         <nav class="layout-navbar navbar navbar-expand-lg navbar-dark">
             <div class="layout-navbar-container">
                 <a class="layout-navbar-brand" asp-controller="Home" asp-action="Inicio">
-                    <img src="~/images/logSIGO.png" alt="SIGO" class="layout-logo-navbar" />
+                    <img src="~/images/logSIGO.png" alt="SIGO — inicio" class="layout-logo-navbar" />
                 </a>
 
                 <div class="layout-navbar-tools d-flex align-items-center ms-auto me-3">
-                    <div class="layout-clock text-white d-none d-sm-flex flex-column text-end">
+                    <div class="layout-clock text-white d-none d-sm-flex flex-column text-end" aria-hidden="true">
                         <span id="layout-clock-time"></span>
                         <span id="layout-clock-date"></span>
                     </div>
                     <div class="layout-vr vr d-none d-sm-block"></div>
 
-                    <button type="button"
-                            id="theme-toggle-btn"
-                            class="theme-switch-btn"
-                            title="Cambiar tema claro/oscuro"
-                            aria-label="Cambiar tema claro/oscuro">
+                    <button type="button" id="theme-toggle-btn" class="theme-switch-btn"
+                            title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro/oscuro">
                         <span class="theme-switch-thumb">
-                            <i id="theme-toggle-icon" class="fa-solid fa-sun"></i>
+                            <i id="theme-toggle-icon" class="fa-solid fa-sun" aria-hidden="true"></i>
                         </span>
-                    </button> 
+                    </button>
 
                     <button type="button" class="btn btn-sm btn-outline-light layout-btn-about"
                             data-bs-toggle="modal" data-bs-target="#layoutAboutModal">
-                        <i class="bi bi-info-circle me-1"></i> <span>Acerca de</span>
+                        <i class="bi bi-info-circle me-1" aria-hidden="true"></i> <span>Acerca de</span>
                     </button>
 
-                    <button class="btn btn-sm text-white border-0" data-bs-toggle="modal" data-bs-target="#reporteModal" title="Levantar Reporte">
-                        <i class="fa-solid fa-headset fa-lg"></i>
+                    <button type="button" class="btn btn-sm text-white border-0" data-bs-toggle="modal" data-bs-target="#reporteModal"
+                            title="Levantar reporte a Sistemas" aria-label="Levantar reporte a Sistemas">
+                        <i class="fa-solid fa-headset fa-lg" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
         </nav>
     </header>
 
-    <!-- Hover zone -->
+    <!-- Zona de activación por hover -->
     <div class="layout-sidebar-hover-zone"></div>
 
-    <!-- ========== SIDEBAR MEJORADO ========== -->
+    <!-- SIDEBAR -->
     <div class="layout-sidebar layout-hidden" id="layout-sidebar-dinamico">
-
-        <!-- Tarjeta usuario -->
         <div class="sb-user-section">
-            <!-- Botón PIN -->
-            <button id="layout-pin-btn" title="Fijar sidebar">
-                <i class="fas fa-thumbtack"></i>
+            <button id="layout-pin-btn" type="button" title="Fijar sidebar" aria-label="Fijar sidebar">
+                <i class="fas fa-thumbtack" aria-hidden="true"></i>
             </button>
-
             <div class="sb-user-card">
-                <img src="~/images/Usr.png" alt="Usuario" class="sb-avatar" />
-                <div class="sb-user-info">
-                    <span class="sb-user-name">@User.Identity.Name</span>
+                <button type="button" class="sb-avatar-btn" id="sbAvatarBtn"
+                        style="position: relative !important; inset: auto !important; transform: none !important; flex: 0 0 40px !important; width: 40px !important; height: 40px !important; margin: 0 14px 0 0 !important;"
+                        data-url-avatar="@Url.Action("Avatar", "Perfil")"
+                        data-url-subir="@Url.Action("SubirAvatar", "Perfil")"
+                        data-url-quitar="@Url.Action("QuitarAvatar", "Perfil")"
+                        title="Cambiar foto de perfil" aria-label="Cambiar foto de perfil">
+                    <span class="sb-avatar sb-avatar-iniciales" aria-hidden="true">@sigoIniciales</span>
+                    <img class="sb-avatar-foto" id="sbAvatarFoto" alt="" src="@Url.Action("Avatar", "Perfil")" onerror="this.remove()" />
+                    <span class="sb-avatar-edit" aria-hidden="true"><i class="bi bi-camera-fill"></i></span>
+                </button>
+                <div class="sb-user-info" style="margin-left: 0 !important; padding-left: 0 !important; min-width: 0; flex: 1 1 auto;">
+                    <span class="sb-user-name">@(User?.Identity?.Name ?? "")</span>
                     <small id="dynamic-greeting" class="sb-user-greeting"></small>
                     <small id="dynamic-message" class="sb-user-greeting" style="margin-top:1px;"></small>
                 </div>
@@ -86,40 +1105,29 @@
             </div>
         </div>
 
-        <!-- Búsqueda -->
         <div class="sb-search">
-            <i class="fas fa-search sb-search-icon"></i>
+            <i class="fas fa-search sb-search-icon" aria-hidden="true"></i>
+            <label for="sb-search-input" class="visually-hidden">Buscar módulo</label>
             <input type="text" class="sb-search-input" id="sb-search-input" placeholder="Buscar módulo..." autocomplete="off" />
         </div>
 
-        <!-- Menú dinámico -->
-        <nav class="layout-sidebar-nav" id="layout-menu-contenedor"></nav>
+        <nav class="layout-sidebar-nav" id="layout-menu-contenedor" aria-label="Módulos"></nav>
 
-        <!-- Logout -->
         <div class="sb-footer">
             <a href="@Url.Action("Logout", "Acceso")" id="layout-logout-link">
-                <div class="sb-icon-wrap">
-                    <i class="fas fa-sign-out-alt"></i>
-                </div>
-                <span class="sb-item-label">Cerrar Sesión</span>
+                <div class="sb-icon-wrap"><i class="fas fa-sign-out-alt" aria-hidden="true"></i></div>
+                <span class="sb-item-label">Cerrar sesión</span>
             </a>
         </div>
-
     </div>
 
     <!-- Fondo para cerrar el menú lateral en móvil -->
-    <div id="layout-sidebar-overlay"
-         class="layout-sidebar-overlay"
-         aria-hidden="true"></div>
+    <div id="layout-sidebar-overlay" class="layout-sidebar-overlay" aria-hidden="true"></div>
 
-    <!-- Botón flotante toggle -->
-    <button id="layout-toggle-sidebar-btn"
-            class="layout-toggle-sidebar-btn"
-            type="button"
-            aria-label="Abrir menú lateral"
-            aria-controls="layout-sidebar-dinamico"
-            aria-expanded="false">
-        <i class="bi bi-list"></i>
+    <!-- Botón flotante del menú -->
+    <button id="layout-toggle-sidebar-btn" class="layout-toggle-sidebar-btn" type="button"
+            aria-label="Abrir menú lateral" aria-controls="layout-sidebar-dinamico" aria-expanded="false">
+        <i class="bi bi-list" aria-hidden="true"></i>
     </button>
 
     <!-- MAIN -->
@@ -131,17 +1139,45 @@
 
     <footer class="layout-footer">
         <div class="container">
-            <p>&copy; 2026 - Carnes G - Todos los derechos reservados</p>
+            <p>&copy; @DateTime.Now.Year - Carnes G - Todos los derechos reservados</p>
         </div>
     </footer>
+
+    <!-- Modal Foto de perfil -->
+    <form id="sigoAvatarToken" hidden>@Html.AntiForgeryToken()</form>
+    <div class="modal fade" id="perfilModal" tabindex="-1" aria-labelledby="perfilModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-white" id="perfilModalLabel"><i class="bi bi-person-circle me-2" aria-hidden="true"></i>Foto de perfil</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="perfil-preview">
+                        <span class="perfil-preview-ini" aria-hidden="true">@sigoIniciales</span>
+                        <img id="perfilPreview" alt="Vista previa de tu foto" hidden />
+                    </div>
+                    <p class="perfil-ayuda">JPG, PNG o WebP. La imagen se recorta al centro en cuadrado y se reduce para que cargue rápido.</p>
+                    <label class="btn perfil-btn" for="perfilArchivo"><i class="bi bi-upload" aria-hidden="true"></i> Elegir imagen</label>
+                    <input type="file" id="perfilArchivo" accept="image/jpeg,image/png,image/webp" hidden />
+                    <div id="perfilMsg" class="perfil-msg" role="status" aria-live="polite"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn perfil-btn-quitar me-auto" id="perfilQuitar"><i class="bi bi-trash" aria-hidden="true"></i> Quitar foto</button>
+                    <button type="button" class="btn perfil-btn" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn perfil-btn-primary" id="perfilGuardar" disabled><i class="bi bi-check2" aria-hidden="true"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Acerca de -->
     <div class="modal fade" id="layoutAboutModal" tabindex="-1" aria-labelledby="layoutAboutModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow">
-                <div class="modal-header" style="background: var(--layout-brand);">
+                <div class="modal-header">
                     <h5 class="modal-title text-white" id="layoutAboutModalLabel">
-                        <i class="bi bi-info-circle me-2"></i>Acerca de SIGO
+                        <i class="bi bi-info-circle me-2" aria-hidden="true"></i>Acerca de SIGO
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
@@ -153,9 +1189,9 @@
                         <div class="col-md-6">
                             <h6>Desarrollador</h6>
                             <ul class="list-unstyled small mb-0">
-                                <li><i class="bi bi-person-badge me-1"></i><strong>Nombre:</strong> Sistemas Carnes G</li>
-                                <li><i class="bi bi-envelope me-1"></i><strong>Correo:</strong> sistemascg@carnesg.net</li>
-                                <li><i class="bi bi-gear me-1"></i><strong>Versión:</strong> 1.1.0</li>
+                                <li><i class="bi bi-person-badge me-1" aria-hidden="true"></i><strong>Nombre:</strong> Sistemas Carnes G</li>
+                                <li><i class="bi bi-envelope me-1" aria-hidden="true"></i><strong>Correo:</strong> sistemascg@carnesg.net</li>
+                                <li><i class="bi bi-gear me-1" aria-hidden="true"></i><strong>Versión:</strong> 1.1.0</li>
                             </ul>
                         </div>
                         <div class="col-md-6">
@@ -168,7 +1204,7 @@
                             </ul>
                         </div>
                     </div>
-                    <div class="alert alert-light border mt-3 mb-0 small">© 2026 Carnes G — Todos los derechos reservados.</div>
+                    <div class="alert alert-light border mt-3 mb-0 small">© @DateTime.Now.Year Carnes G — Todos los derechos reservados.</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -177,97 +1213,95 @@
         </div>
     </div>
 
-    <!-- Chat FAB -->
-    <button id="layout-chat-fab" class="layout-chat-fab" type="button" title="Abrir chat interno">
-        <i class="fas fa-comments"></i>
+    <!-- Botón de chat -->
+    <button id="layout-chat-fab" class="layout-chat-fab" type="button" title="Abrir chat interno" aria-label="Abrir chat interno" aria-controls="layout-chat-panel" aria-expanded="false">
+        <i class="fas fa-comments" aria-hidden="true"></i>
     </button>
 
-    <!-- Manual FAB -->
-    <button id="layout-manual-fab" class="layout-chat-fab" type="button" title="Manual de usuario"
-            style="bottom: 90px; background: radial-gradient(circle at 30% 30%, #eef6ff, #0d6efd);">
-        <i class="fas fa-book"></i>
+    <!-- Botón de manual -->
+    <button id="layout-manual-fab" class="layout-chat-fab" type="button" title="Manual de usuario" aria-label="Manual de usuario"
+            style="bottom: 90px;">
+        <i class="fas fa-book" aria-hidden="true"></i>
     </button>
 
-    <!-- Chat panel -->
-    <div id="layout-chat-panel" class="layout-chat-panel d-none">
+    <!-- Panel de chat -->
+    <div id="layout-chat-panel" class="layout-chat-panel d-none" role="dialog" aria-label="Chat interno">
         <div class="layout-chat-panel-header">
-            <i class="fas fa-headset"></i>
+            <i class="fas fa-headset" aria-hidden="true"></i>
             <div class="layout-chat-title">
                 Chat interno
                 <small id="layout-chat-area-label">Selecciona un área para comenzar</small>
             </div>
-            <button type="button" id="layout-chat-close-btn"><i class="fas fa-times"></i></button>
+            <button type="button" id="layout-chat-close-btn" aria-label="Cerrar chat"><i class="fas fa-times" aria-hidden="true"></i></button>
         </div>
         <div class="layout-chat-panel-body">
             <div class="layout-chat-area-select">
                 <label for="layout-chat-area">Área / responsable</label>
                 <select id="layout-chat-area" class="form-select form-select-sm">
-                    <option value=""> Selecciona área </option>
-                    <option value="presupuestos">Presupuestos</option>
-                    <option value="precios">Precios</option>
-                    <option value="logistica">Logística</option>
+                    <option value="">Cargando áreas…</option>
                 </select>
             </div>
-            <div class="layout-chat-hint">Este chat enviará los mensajes sólo al área seleccionada.</div>
+            <div class="layout-chat-hint">Este chat enviará los mensajes solo al área seleccionada.</div>
         </div>
-        <div id="layout-chat-messages" class="layout-chat-messages">
+        <div id="layout-chat-messages" class="layout-chat-messages" aria-live="polite">
             <div class="text-muted small text-center mt-2">Selecciona un área para iniciar la conversación.</div>
         </div>
         <div class="layout-chat-input">
+            <label for="layout-chat-text" class="visually-hidden">Mensaje</label>
             <textarea id="layout-chat-text" rows="1" placeholder="Escribe un mensaje..." disabled></textarea>
-            <button id="layout-chat-send" class="btn btn-primary btn-sm" disabled>
-                <i class="fas fa-paper-plane"></i>
+            <button id="layout-chat-send" type="button" class="btn btn-primary btn-sm" disabled aria-label="Enviar mensaje">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
             </button>
         </div>
     </div>
 
     <!-- Modal Manual -->
-    <div class="modal fade" id="layoutManualModal" tabindex="-1">
+    <div class="modal fade" id="layoutManualModal" tabindex="-1" aria-labelledby="layoutManualTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title text-white">
-                        <i class="fas fa-book me-2"></i>
+                        <i class="fas fa-book me-2" aria-hidden="true"></i>
                         <span id="layoutManualTitle">Manual de Usuario - SIGO</span>
                     </h5>
-                    <button type="button" class="btn btn-close-white" data-bs-dismiss="modal">X</button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
-                    <button class="manual-toggle-sidebar" onclick="toggleManualSidebar()"><i class="fas fa-bars"></i></button>
+                    <button type="button" class="manual-toggle-sidebar" onclick="toggleManualSidebar()" aria-label="Mostrar índice"><i class="fas fa-bars" aria-hidden="true"></i></button>
                     <div class="manual-overlay" onclick="toggleManualSidebar()"></div>
                     <div class="manual-container">
                         <aside class="manual-sidebar" id="manualSidebar">
                             <div class="manual-sidebar-header">
-                                <h6><i class="fas fa-list me-2"></i>Índice de Contenidos</h6>
+                                <h6><i class="fas fa-list me-2" aria-hidden="true"></i>Índice de contenidos</h6>
                             </div>
                             <nav class="manual-toc" id="manualToc"></nav>
                         </aside>
                         <div class="manual-content" id="manualContent">
-                            <div class="manual-progress">
-                                <div class="manual-progress-bar" id="manualProgressBar"></div>
-                            </div>
+                            <div class="manual-progress"><div class="manual-progress-bar" id="manualProgressBar"></div></div>
                             <div class="manual-content-inner" id="manualSections"></div>
                         </div>
                     </div>
-                    <button class="manual-scroll-top" id="manualScrollTopBtn" onclick="scrollManualToTop()">
-                        <i class="fas fa-arrow-up"></i>
+                    <button type="button" class="manual-scroll-top" id="manualScrollTopBtn" onclick="scrollManualToTop()" aria-label="Volver arriba">
+                        <i class="fas fa-arrow-up" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal Reporte -->
-    <div class="modal fade" id="reporteModal" tabindex="-1" aria-hidden="true">
+    <!-- Modal Reporte a Sistemas -->
+    <div class="modal fade" id="reporteModal" tabindex="-1" aria-labelledby="reporteModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow" style="overflow:hidden;">
-                <div class="modal-header" style="background:var(--layout-brand);">
-                    <h5 class="modal-title text-white"><i class="fa-solid fa-headset me-2"></i> Solicitud Sistemas</h5>
+                <div class="modal-header">
+                    <h5 class="modal-title text-white" id="reporteModalLabel"><i class="fa-solid fa-headset me-2" aria-hidden="true"></i> Solicitud a Sistemas</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body p-0" style="height: 85vh;">
-                    <iframe src="https://forms.monday.com/forms/embed/7e2f46f5a3bb77bd42b6b28ee3a8317b?r=use1"
-                            style="width: 100%; height: 100%; border: 0;" title="Formulario de Solicitud"></iframe>
+                    @* CORRECCIÓN: el formulario de monday.com se carga al abrir el modal, no en cada página. *@
+                    <iframe id="reporteIframe"
+                            data-src="https://forms.monday.com/forms/embed/7e2f46f5a3bb77bd42b6b28ee3a8317b?r=use1"
+                            style="width: 100%; height: 100%; border: 0;" title="Formulario de solicitud a Sistemas"></iframe>
                 </div>
             </div>
         </div>
@@ -280,455 +1314,402 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     <script>
+            // ========================================
+            // SIDEBAR RESPONSIVO — ESCRITORIO + MÓVIL (sin cambios de comportamiento)
+            // ========================================
+            const layoutSidebar = document.querySelector('.layout-sidebar');
+            const layoutMain = document.querySelector('.layout-main-content');
+            const layoutToggleBtn = document.getElementById('layout-toggle-sidebar-btn');
+            const layoutToggleIcon = layoutToggleBtn?.querySelector('i');
+            const layoutPinBtn = document.getElementById('layout-pin-btn');
+            const layoutOverlay = document.getElementById('layout-sidebar-overlay');
+            const mobileSidebarMq = window.matchMedia('(max-width: 991.98px)');
 
-        // ========================================
-        // SIDEBAR RESPONSIVO — ESCRITORIO + MÓVIL
-        // ========================================
-        const layoutSidebar    = document.querySelector('.layout-sidebar');
-        const layoutMain       = document.querySelector('.layout-main-content');
-        const layoutToggleBtn  = document.getElementById('layout-toggle-sidebar-btn');
-        const layoutToggleIcon = layoutToggleBtn?.querySelector('i');
-        const layoutPinBtn     = document.getElementById('layout-pin-btn');
-        const layoutOverlay    = document.getElementById('layout-sidebar-overlay');
-        const mobileSidebarMq  = window.matchMedia('(max-width: 991.98px)');
+            let sidebarPinned = localStorage.getItem('sidebarPinned') === 'true';
 
-        let sidebarPinned = localStorage.getItem('sidebarPinned') === 'true';
+            function isMobileSidebar() { return mobileSidebarMq.matches; }
 
-        function isMobileSidebar() {
-            return mobileSidebarMq.matches;
-        }
-
-        function setToggleIcon(open) {
-            if (!layoutToggleIcon || !layoutToggleBtn) return;
-
-            if (isMobileSidebar()) {
-                layoutToggleIcon.className = open ? 'bi bi-x-lg' : 'bi bi-list';
-            } else {
-                layoutToggleIcon.className = open
-                    ? 'bi bi-chevron-left'
-                    : 'bi bi-chevron-right';
+            function setToggleIcon(open) {
+                if (!layoutToggleIcon || !layoutToggleBtn) return;
+                layoutToggleIcon.className = isMobileSidebar()
+                    ? (open ? 'bi bi-x-lg' : 'bi bi-list')
+                    : (open ? 'bi bi-chevron-left' : 'bi bi-chevron-right');
+                layoutToggleBtn.setAttribute('aria-expanded', String(open));
+                layoutToggleBtn.setAttribute('aria-label', open ? 'Cerrar menú lateral' : 'Abrir menú lateral');
             }
 
-            layoutToggleBtn.setAttribute('aria-expanded', String(open));
-            layoutToggleBtn.setAttribute(
-                'aria-label',
-                open ? 'Cerrar menú lateral' : 'Abrir menú lateral'
-            );
-        }
+            function openLayoutSidebar() {
+                if (!layoutSidebar) return;
+                layoutSidebar.classList.remove('layout-hidden');
+                if (isMobileSidebar()) {
+                    layoutMain?.classList.remove('layout-sidebar-open');
+                    document.body.classList.add('layout-mobile-sidebar-open');
+                    layoutOverlay?.classList.add('show');
+                    layoutOverlay?.setAttribute('aria-hidden', 'false');
+                } else {
+                    layoutMain?.classList.add('layout-sidebar-open');
+                }
+                setToggleIcon(true);
+            }
 
-        function openLayoutSidebar() {
-            if (!layoutSidebar) return;
-
-            layoutSidebar.classList.remove('layout-hidden');
-
-            if (isMobileSidebar()) {
+            function closeLayoutSidebar() {
+                if (!layoutSidebar) return;
+                layoutSidebar.classList.add('layout-hidden');
                 layoutMain?.classList.remove('layout-sidebar-open');
-                document.body.classList.add('layout-mobile-sidebar-open');
-                layoutOverlay?.classList.add('show');
-                layoutOverlay?.setAttribute('aria-hidden', 'false');
-            } else {
-                layoutMain?.classList.add('layout-sidebar-open');
+                document.body.classList.remove('layout-mobile-sidebar-open');
+                layoutOverlay?.classList.remove('show');
+                layoutOverlay?.setAttribute('aria-hidden', 'true');
+                setToggleIcon(false);
             }
 
-            setToggleIcon(true);
-        }
-
-        function closeLayoutSidebar() {
-            if (!layoutSidebar) return;
-
-            layoutSidebar.classList.add('layout-hidden');
-            layoutMain?.classList.remove('layout-sidebar-open');
-            document.body.classList.remove('layout-mobile-sidebar-open');
-            layoutOverlay?.classList.remove('show');
-            layoutOverlay?.setAttribute('aria-hidden', 'true');
-            setToggleIcon(false);
-        }
-
-        function applyPinState() {
-            if (isMobileSidebar()) {
-                closeLayoutSidebar();
-                return;
+            function applyPinState() {
+                if (isMobileSidebar()) { closeLayoutSidebar(); return; }
+                if (sidebarPinned) {
+                    openLayoutSidebar();
+                    layoutPinBtn?.classList.add('pinned');
+                    if (layoutPinBtn) { layoutPinBtn.title = 'Desfijar sidebar'; layoutPinBtn.setAttribute('aria-label', 'Desfijar sidebar'); }
+                } else {
+                    closeLayoutSidebar();
+                    layoutPinBtn?.classList.remove('pinned');
+                    if (layoutPinBtn) { layoutPinBtn.title = 'Fijar sidebar'; layoutPinBtn.setAttribute('aria-label', 'Fijar sidebar'); }
+                }
             }
 
-            if (sidebarPinned) {
-                openLayoutSidebar();
-                layoutPinBtn?.classList.add('pinned');
-                if (layoutPinBtn) layoutPinBtn.title = 'Desfijar sidebar';
-            } else {
-                closeLayoutSidebar();
-                layoutPinBtn?.classList.remove('pinned');
-                if (layoutPinBtn) layoutPinBtn.title = 'Fijar sidebar';
-            }
-        }
-
-        applyPinState();
-
-        layoutPinBtn?.addEventListener('click', () => {
-            if (isMobileSidebar()) return;
-
-            sidebarPinned = !sidebarPinned;
-            localStorage.setItem('sidebarPinned', String(sidebarPinned));
             applyPinState();
-        });
 
-        layoutSidebar?.addEventListener('mouseleave', () => {
-            if (isMobileSidebar() || sidebarPinned) return;
-            closeLayoutSidebar();
-        });
-
-        layoutToggleBtn?.addEventListener('click', () => {
-            const estaAbierto = !layoutSidebar?.classList.contains('layout-hidden');
-
-            if (isMobileSidebar()) {
-                estaAbierto ? closeLayoutSidebar() : openLayoutSidebar();
-                return;
-            }
-
-            if (sidebarPinned) return;
-            estaAbierto ? closeLayoutSidebar() : openLayoutSidebar();
-        });
-
-        layoutOverlay?.addEventListener('click', closeLayoutSidebar);
-
-        document.addEventListener('keydown', event => {
-            if (event.key === 'Escape' && isMobileSidebar()) {
-                closeLayoutSidebar();
-            }
-        });
-
-        layoutSidebar?.querySelectorAll('a[href]').forEach(link => {
-            link.addEventListener('click', () => {
-                if (isMobileSidebar()) closeLayoutSidebar();
+            layoutPinBtn?.addEventListener('click', () => {
+                if (isMobileSidebar()) return;
+                sidebarPinned = !sidebarPinned;
+                localStorage.setItem('sidebarPinned', String(sidebarPinned));
+                applyPinState();
             });
-        });
 
-        function handleSidebarBreakpointChange() {
-            applyPinState();
-        }
+            layoutSidebar?.addEventListener('mouseleave', () => {
+                if (isMobileSidebar() || sidebarPinned) return;
+                closeLayoutSidebar();
+            });
 
-        if (typeof mobileSidebarMq.addEventListener === 'function') {
-            mobileSidebarMq.addEventListener('change', handleSidebarBreakpointChange);
-        } else {
-            mobileSidebarMq.addListener(handleSidebarBreakpointChange);
-        }
+            layoutToggleBtn?.addEventListener('click', () => {
+                const estaAbierto = !layoutSidebar?.classList.contains('layout-hidden');
+                if (isMobileSidebar()) { estaAbierto ? closeLayoutSidebar() : openLayoutSidebar(); return; }
+                if (sidebarPinned) return;
+                estaAbierto ? closeLayoutSidebar() : openLayoutSidebar();
+            });
 
-        // ========================================
-        // RELOJ
-        // ========================================
-        (function initLayoutLiveClock() {
-            const elTime = document.getElementById('layout-clock-time');
-            const elDate = document.getElementById('layout-clock-date');
-            if (!elTime || !elDate) return;
-            function tick() {
-                const now = new Date();
-                elTime.textContent = new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true, timeZone:'America/Mexico_City' }).format(now);
-                elDate.textContent = new Intl.DateTimeFormat('es-MX', { weekday:'short', year:'numeric', month:'short', day:'2-digit', timeZone:'America/Mexico_City' }).format(now);
+            layoutOverlay?.addEventListener('click', closeLayoutSidebar);
+
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && isMobileSidebar()) closeLayoutSidebar();
+            });
+
+            // CORRECCIÓN: los enlaces del menú se crean después de cargar los módulos, así que
+            // el cierre en móvil se hace por delegación (antes no aplicaba a esos enlaces).
+            layoutSidebar?.addEventListener('click', e => {
+                const link = e.target.closest('a[href]');
+                if (!link || !isMobileSidebar()) return;
+                const href = link.getAttribute('href');
+                if (href && href !== '#') closeLayoutSidebar();
+            });
+
+            if (typeof mobileSidebarMq.addEventListener === 'function') mobileSidebarMq.addEventListener('change', applyPinState);
+            else mobileSidebarMq.addListener(applyPinState);
+
+            // ========================================
+            // RELOJ
+            // ========================================
+            (function initLayoutLiveClock() {
+                const elTime = document.getElementById('layout-clock-time');
+                const elDate = document.getElementById('layout-clock-date');
+                if (!elTime || !elDate) return;
+                const fTime = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Mexico_City' });
+                const fDate = new Intl.DateTimeFormat('es-MX', { weekday: 'short', year: 'numeric', month: 'short', day: '2-digit', timeZone: 'America/Mexico_City' });
+                function tick() { const now = new Date(); elTime.textContent = fTime.format(now); elDate.textContent = fDate.format(now); }
+                tick();
+                setInterval(tick, 1000);
+            })();
+
+            // ========================================
+            // SALUDO
+            // ========================================
+            (function initDynamicGreeting() {
+                const greetingEl = document.getElementById('dynamic-greeting');
+                const messageEl = document.getElementById('dynamic-message');
+                if (!greetingEl || !messageEl) return;
+                const hora = new Date().getHours();
+                const manana = hora >= 5 && hora < 12, tarde = hora >= 12 && hora < 19;
+                const msgs = manana ? ['¡Que tengas un excelente día!', '¡Mucho éxito hoy!', '¡Listo para conquistar el día!', '¡A darle con todo!']
+                    : tarde ? ['¡Sigue así!', '¡Vas muy bien!', '¡Ánimo con la tarde!', '¡A terminar fuerte!']
+                        : ['¡Buen trabajo hoy!', '¡A descansar!', '¡Casi terminas!', '¡Gran esfuerzo!'];
+                greetingEl.textContent = manana ? 'Buenos días' : tarde ? 'Buenas tardes' : 'Buenas noches';
+                messageEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+            })();
+
+            // ========================================
+            // MÓDULOS DEL SIDEBAR
+            // ========================================
+            const SECTION_ORDER = ["Principal", "Operaciones", "Almacén", "Gestión", "Calidad", "Auditoria y Procesos", "Sistema"];
+
+            // Las claves van normalizadas (minúsculas y sin acentos) porque así se buscan.
+            const SECTION_ALIAS = {
+                "mercados": "Principal",
+                "area comercial": "Principal",
+                "comercial": "Principal",
+                "autorizaciones": "Principal",
+
+                "operaciones": "Operaciones",
+                "logistica": "Operaciones",
+                "procesos cg": "Operaciones",
+                "integraciones": "Operaciones",
+
+                "almacen": "Almacén",
+                "almacenes": "Almacén",
+                "inventario": "Almacén",
+                "inventarios": "Almacén",
+
+                "administracion": "Gestión",
+                "reporteadores": "Gestión",
+                "reportes": "Gestión",
+                "kpi": "Gestión",
+                "kpi's": "Gestión",
+
+                "calidad": "Calidad",
+                // CORRECCIÓN: antes la clave tenía "Y" mayúscula y nunca coincidía, por eso esta
+                // categoría no respetaba el orden del menú.
+                "auditoria y procesos": "Auditoria y Procesos",
+
+                "configuracion": "Sistema",
+                "chat": "Sistema",
+                "sigo chat": "Sistema",
+                "sistema": "Sistema",
+                "sistemas": "Sistema",
+                "gestion de sistemas": "Sistema"
+            };
+
+            const ICON_MAP = {
+                'Mercados': 'fas fa-chart-line',
+                'Comercial': 'fas fa-handshake',
+                'Autorizaciones': 'fas fa-lock',
+                'Operaciones': 'fas fa-cogs',
+                'Logística': 'fas fa-truck-fast',
+                'Logistica': 'fas fa-truck-fast',
+                'Carnes G': 'fas fa-drumstick-bite',
+                'Administración': 'fas fa-folder-open',
+                'Reportes': 'fas fa-chart-bar',
+                'KPI': 'fas fa-chart-pie',
+                'Configuración': 'fas fa-sliders',
+                'SIGO Chat': 'fas fa-comments',
+                'SIGO Core': 'fas fa-layer-group'
+            };
+
+            const BADGE_MAP = {
+                'Autorizaciones': { text: '!', cls: '' },
+                'SIGO Chat': { text: 'Chat', cls: '' },
+                'Carnes G': { text: 'Nuevo', cls: 'sb-badge-new' }
+            };
+
+            function normalizeText(text) {
+                return (text || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
             }
-            tick();
-            setInterval(tick, 1000);
-        })();
 
-        // ========================================
-        // SALUDO DINÁMICO
-        // ========================================
-        (function initDynamicGreeting() {
-            const greetingEl = document.getElementById('dynamic-greeting');
-            const messageEl  = document.getElementById('dynamic-message');
-            if (!greetingEl || !messageEl) return;
-            const hora = new Date().getHours();
-            const saludo = hora >= 5 && hora < 12 ? 'Buenos días' : hora >= 12 && hora < 19 ? 'Buenas tardes' : 'Buenas noches';
-            const msgs = hora >= 5 && hora < 12
-                ? ['¡Que tengas un excelente día!','¡Mucho éxito hoy!','¡Listo para conquistar el día!','¡A darle con todo!']
-                : hora >= 12 && hora < 19
-                ? ['¡Sigue así!','¡Vas muy bien!','¡Ánimo con la tarde!','¡A terminar fuerte!']
-                : ['¡Buen trabajo hoy!','¡A descansar!','¡Casi terminas!','¡Gran esfuerzo!'];
-            greetingEl.textContent = saludo;
-            messageEl.textContent  = msgs[Math.floor(Math.random() * msgs.length)];
-        })();
+            function getIconForMod(nombre) {
+                const cleanNombre = normalizeText(nombre);
+                for (const [key, val] of Object.entries(ICON_MAP)) {
+                    if (cleanNombre.includes(normalizeText(key))) return val;
+                }
+                return 'fas fa-folder';
+            }
 
-        // ========================================
-        // MÓDULOS DINÁMICOS CON SIDEBAR MEJORADO
-        // ========================================
- const SECTION_ORDER = [
-    "Principal",
-    "Operaciones",
-    "Almacén",
-    "Gestión",
-    "Calidad",
-    "Auditoria y Procesos",
-    "Sistema"
-];
+            function getSectionForMod(mod) {
+                const raw = (mod.categoriaNombre || mod.categoria || "Principal").toString();
+                return SECTION_ALIAS[normalizeText(raw)] || raw.trim();
+            }
 
-const SECTION_ALIAS = {
-    "mercados": "Principal",
-    "area comercial": "Principal",
-    "área comercial": "Principal",
-    "comercial": "Principal",
-    "autorizaciones": "Principal",
+            // Crea un <i> con clases sin interpretar HTML (el ícono viene de la base de datos).
+            function crearIcono(clases) {
+                const i = document.createElement('i');
+                i.className = (clases || '').toString();
+                i.setAttribute('aria-hidden', 'true');
+                return i;
+            }
 
-    "operaciones": "Operaciones",
-    "logistica": "Operaciones",
-    "logística": "Operaciones",
-    "procesos cg": "Operaciones",
-    "integraciones": "Operaciones",
+            // Marca el módulo de la página actual. Solo se marca si la dirección real del enlace
+            // coincide con la página (ruta + parámetros) y si UN solo enlace coincide; los enlaces
+            // vacíos o "#" (pendientes) se ignoran.
+            function urlNormalizada(raw) {
+                const v = (raw || '').toString().trim();
+                if (!v || v === '#' || v.startsWith('#') || v.toLowerCase().startsWith('javascript:')) return null;
+                try {
+                    const u = new URL(v, window.location.origin);
+                    if (u.origin !== window.location.origin) return null;
+                    return (u.pathname.replace(/\/+$/, '') + u.search).toLowerCase();
+                } catch { return null; }
+            }
 
-        "almacen": "Almacén",
-        "almacén": "Almacén",
-        "almacenes": "Almacén",
-        "inventario": "Almacén",
-        "inventarios": "Almacén",
+            function marcarPaginaActual(contenedor) {
+                const actual = (window.location.pathname.replace(/\/+$/, '') + window.location.search).toLowerCase();
+                const coincidencias = [...contenedor.querySelectorAll('a[data-url]')]
+                    .filter(a => urlNormalizada(a.dataset.url) === actual);
+                if (coincidencias.length !== 1) return; // ninguna o ambigua: no se marca nada
 
-    "administracion": "Gestión",
-    "administración": "Gestión",
-    "reporteadores": "Gestión",
-    "reportes": "Gestión",
-    "kpi": "Gestión",
-    "kpi's": "Gestión",
+                const link = coincidencias[0];
+                link.classList.add('sb-active');
+                link.setAttribute('aria-current', 'page');
+                const item = link.closest('.layout-menu-item');
+                if (link.closest('.layout-dropdown-container') && item) {
+                    item.classList.add('layout-open');
+                    item.querySelector('.layout-dropdown-btn')?.setAttribute('aria-expanded', 'true');
+                }
+            }
 
-    "calidad": "Calidad",
-    "auditoria Y procesos": "Auditoria Y procesos",
+            function crearLayoutItemModulo(mod) {
+                const modItem = document.createElement("div");
+                modItem.classList.add("layout-menu-item");
 
-    "configuracion": "Sistema",
-    "configuración": "Sistema",
-    "chat": "Sistema",
-    "sigo chat": "Sistema",
-    "sistema": "Sistema",
-    "sistemas": "Sistema",
-    "gestion de sistemas": "Sistema",
-    "gestión de sistemas": "Sistema"
-};
+                const badgeInfo = BADGE_MAP[mod.nombre] || null;
+                const modLink = document.createElement("a");
+                modLink.classList.add("layout-dropdown-btn");
+                modLink.href = mod.url || "#";
+                modLink.dataset.url = mod.url || "";
 
-        const ICON_MAP = {
-    'Mercados':        'fas fa-chart-line',
-    'Comercial':       'fas fa-handshake',
-    'Autorizaciones':  'fas fa-lock',
-    'Operaciones':     'fas fa-cogs',
-    'Logística':       'fas fa-truck-fast',
-    'Logistica':       'fas fa-truck-fast',
-    'Carnes G':        'fas fa-drumstick-bite',
-    'Administración':  'fas fa-folder-open',
-    'Reportes':        'fas fa-chart-bar',
-    'KPI':             'fas fa-chart-pie',
-    'Configuración':   'fas fa-sliders',
-    'SIGO Chat':       'fas fa-comments',
-    'SIGO Core':       'fas fa-layer-group'
-};
+                const iconWrap = document.createElement("div");
+                iconWrap.className = "sb-icon-wrap";
+                iconWrap.appendChild(crearIcono(mod.icono || getIconForMod(mod.nombre || "")));
+                modLink.appendChild(iconWrap);
 
-        const BADGE_MAP = {
-            'Autorizaciones': { text: '!', cls: '' },
-            'SIGO Chat':      { text: 'Chat', cls: '' },
-            'Carnes G':       { text: 'Nuevo', cls: 'sb-badge-new' },
-        };
+                const labelSpan = document.createElement("span");
+                labelSpan.className = "sb-item-label";
+                labelSpan.textContent = mod.nombre || "";
+                modLink.appendChild(labelSpan);
 
-        function normalizeText(text) {
-        return (text || "")
-        .toString()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim();
-        }
+                if (badgeInfo) {
+                    const badge = document.createElement("span");
+                    badge.className = "sb-badge " + (badgeInfo.cls || "");
+                    badge.textContent = badgeInfo.text;
+                    modLink.appendChild(badge);
+                }
 
-        function getIconForMod(nombre) {
-        const cleanNombre = normalizeText(nombre);
+                const subModulos = mod.subModulos || mod.submodulos || [];
 
-        for (const [key, val] of Object.entries(ICON_MAP)) {
-        if (cleanNombre.includes(normalizeText(key))) {
-        return val;
-        }
-        }
+                if (Array.isArray(subModulos) && subModulos.length > 0) {
+                    modLink.href = "#";
+                    delete modLink.dataset.url;
+                    modLink.setAttribute('role', 'button');
+                    modLink.setAttribute('aria-expanded', 'false');
+                    const arrow = crearIcono("fas fa-chevron-down layout-arrow");
+                    modLink.appendChild(arrow);
 
-        return 'fas fa-folder';
-        }
+                    const subContainer = document.createElement("div");
+                    subContainer.classList.add("layout-dropdown-container");
 
-        function getSectionForMod(mod) {
-        const raw = mod.categoriaNombre || mod.categoria || "Principal";
-        const normalized = normalizeText(raw);
-
-        return SECTION_ALIAS[normalized] || raw.trim();
-        }
-
-        document.addEventListener("DOMContentLoaded", async () => {
-            try {
-                const res = await fetch("/Sidebar/CargarModulos", {
-    method: "GET",
-    headers: {
-        "X-Requested-With": "XMLHttpRequest",
-        "Accept": "application/json"
-    },
-    cache: "no-store"
-});
-                if (!res.ok) throw new Error("Error al cargar módulos");
-
-                if (res.redirected) {
-    window.location.href = "/Home/Inicio";
-    return;
-}
-
-if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-        window.location.href = "/Home/Inicio";
-    }
-    return;
-}
-
-const ct = (res.headers.get("content-type") || "").toLowerCase();
-
-if (!ct.includes("application/json")) {
-    window.location.href = "/Home/Inicio";
-    return;
-}
-
-                const modulos = await res.json();
-                const contenedor = document.getElementById("layout-menu-contenedor");
-                if (!contenedor) return;
-                contenedor.innerHTML = "";
-
-               function crearLayoutItemModulo(mod) {
-    const modItem = document.createElement("div");
-    modItem.classList.add("layout-menu-item");
-
-    const iconClass = mod.icono || getIconForMod(mod.nombre || "");
-    const badgeInfo = BADGE_MAP[mod.nombre] || null;
-
-    const modLink = document.createElement("a");
-    modLink.classList.add("layout-dropdown-btn");
-    modLink.href = mod.url || "#";
-
-    const iconWrap = document.createElement("div");
-    iconWrap.className = "sb-icon-wrap";
-    iconWrap.innerHTML = `<i class="${iconClass}"></i>`;
-    modLink.appendChild(iconWrap);
-
-    const labelSpan = document.createElement("span");
-    labelSpan.className = "sb-item-label";
-    labelSpan.textContent = mod.nombre || "";
-    modLink.appendChild(labelSpan);
-
-    if (badgeInfo) {
-        const badge = document.createElement("span");
-        badge.className = "sb-badge " + (badgeInfo.cls || "");
-        badge.textContent = badgeInfo.text;
-        modLink.appendChild(badge);
-    }
-
-    const subModulos = mod.subModulos || mod.submodulos || [];
-
-    if (Array.isArray(subModulos) && subModulos.length > 0) {
-        modLink.href = "#";
-
-        const arrow = document.createElement("i");
-        arrow.classList.add("fas", "fa-chevron-down", "layout-arrow");
-        modLink.appendChild(arrow);
-
-        const subContainer = document.createElement("div");
-        subContainer.classList.add("layout-dropdown-container");
-
-        subModulos.forEach(sub => {
-            const subLink = document.createElement("a");
-            subLink.href = sub.url || "#";
-
-            const subIcon = sub.icono || "fas fa-caret-right";
-            subLink.innerHTML = `<i class="${subIcon} me-1"></i>${sub.nombre || ""}`;
-
-            subContainer.appendChild(subLink);
-        });
-
-        modItem.appendChild(modLink);
-        modItem.appendChild(subContainer);
-    } else {
-        modItem.appendChild(modLink);
-    }
-
-    return modItem;
-}
-
-const grouped = {};
-
-modulos.forEach(mod => {
-    const section = getSectionForMod(mod);
-
-    if (!grouped[section]) {
-        grouped[section] = [];
-    }
-
-    grouped[section].push(mod);
-});
-
-const sectionNamesBase = [
-    ...SECTION_ORDER.filter(section => grouped[section]?.length),
-    ...Object.keys(grouped)
-        .filter(section => !SECTION_ORDER.includes(section))
-        .sort((a, b) => a.localeCompare(b))
-];
-
-// Cambio aislado: mantiene todo el orden actual y mueve únicamente
-// la categoría Sistema al final del menú.
-function esCategoriaSistema(nombre) {
-    const valor = normalizeText(nombre);
-
-    return valor === "sistema" ||
-           valor === "sistemas" ||
-           valor === "gestion de sistemas";
-}
-
-const sectionNames = [
-    ...sectionNamesBase.filter(section => !esCategoriaSistema(section)),
-    ...sectionNamesBase.filter(section => esCategoriaSistema(section))
-];
-
-sectionNames.forEach((section, index) => {
-    const items = grouped[section];
-
-    if (index > 0) {
-        const div = document.createElement("div");
-        div.className = "sb-divider";
-        contenedor.appendChild(div);
-    }
-
-    const lbl = document.createElement("div");
-    lbl.className = "sb-section-label";
-    lbl.textContent = section.toUpperCase();
-    contenedor.appendChild(lbl);
-
-    items.forEach(mod => {
-        contenedor.appendChild(crearLayoutItemModulo(mod));
-    });
-});
-
-                // Activar dropdowns
-                document.querySelectorAll('.layout-dropdown-btn').forEach(btn => {
-                    btn.addEventListener('click', e => {
-                        const item = btn.parentElement;
-                        const hasSub = item.querySelector('.layout-dropdown-container');
-                        if (hasSub) {
-                            e.preventDefault();
-                            document.querySelectorAll('.layout-menu-item').forEach(it => {
-                                if (it !== item) it.classList.remove('layout-open');
-                            });
-                            item.classList.toggle('layout-open');
-                        }
+                    subModulos.forEach(sub => {
+                        const subLink = document.createElement("a");
+                        subLink.href = sub.url || "#";
+                        const ic = crearIcono((sub.icono || "fas fa-caret-right") + " me-1");
+                        subLink.appendChild(ic);
+                        subLink.appendChild(document.createTextNode(sub.nombre || ""));
+                        subLink.dataset.url = sub.url || "";
+                        subContainer.appendChild(subLink);
                     });
-                });
 
-                // Búsqueda en tiempo real
-                const searchInput = document.getElementById("sb-search-input");
-                if (searchInput) {
-                    searchInput.addEventListener("input", function () {
-                        const q = this.value.trim().toLowerCase();
-                        document.querySelectorAll(".layout-menu-item").forEach(item => {
-                            const label = item.querySelector(".sb-item-label");
-                            const text = label ? label.textContent.toLowerCase() : "";
-                            const subTexts = Array.from(item.querySelectorAll(".layout-dropdown-container a"))
-                                .map(a => a.textContent.toLowerCase()).join(" ");
+                    modItem.appendChild(modLink);
+                    modItem.appendChild(subContainer);
+                } else {
+                    modItem.appendChild(modLink);
+                }
+                return modItem;
+            }
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                try {
+                    const res = await fetch("/Sidebar/CargarModulos", {
+                        method: "GET",
+                        headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                        cache: "no-store"
+                    });
+
+                    // CORRECCIÓN: antes se lanzaba un error con cualquier respuesta no exitosa ANTES
+                    // de revisar 401/403, así que nunca se redirigía al inicio cuando faltaba sesión o permiso.
+                    if (res.redirected) { window.location.href = "/Home/Inicio"; return; }
+                    if (!res.ok) {
+                        if (res.status === 401 || res.status === 403) window.location.href = "/Home/Inicio";
+                        else console.error("Error al cargar módulos: HTTP " + res.status);
+                        return;
+                    }
+                    const ct = (res.headers.get("content-type") || "").toLowerCase();
+                    if (!ct.includes("application/json")) { window.location.href = "/Home/Inicio"; return; }
+
+                    const modulos = await res.json();
+                    const contenedor = document.getElementById("layout-menu-contenedor");
+                    if (!contenedor) return;
+                    contenedor.innerHTML = "";
+
+                    const grouped = {};
+                    (Array.isArray(modulos) ? modulos : []).forEach(mod => {
+                        const section = getSectionForMod(mod);
+                        (grouped[section] = grouped[section] || []).push(mod);
+                    });
+
+                    const sectionNamesBase = [
+                        ...SECTION_ORDER.filter(section => grouped[section]?.length),
+                        ...Object.keys(grouped).filter(section => !SECTION_ORDER.includes(section)).sort((a, b) => a.localeCompare(b))
+                    ];
+
+                    // La categoría Sistema siempre va al final del menú.
+                    function esCategoriaSistema(nombre) {
+                        const v = normalizeText(nombre);
+                        return v === "sistema" || v === "sistemas" || v === "gestion de sistemas";
+                    }
+                    const sectionNames = [
+                        ...sectionNamesBase.filter(s => !esCategoriaSistema(s)),
+                        ...sectionNamesBase.filter(s => esCategoriaSistema(s))
+                    ];
+
+                    sectionNames.forEach((section, index) => {
+                        if (index > 0) {
+                            const div = document.createElement("div");
+                            div.className = "sb-divider";
+                            contenedor.appendChild(div);
+                        }
+                        const lbl = document.createElement("div");
+                        lbl.className = "sb-section-label";
+                        lbl.textContent = section.toUpperCase();
+                        contenedor.appendChild(lbl);
+                        grouped[section].forEach(mod => contenedor.appendChild(crearLayoutItemModulo(mod)));
+                    });
+
+                    marcarPaginaActual(contenedor);
+
+                    // Submenús
+                    contenedor.addEventListener('click', e => {
+                        const btn = e.target.closest('.layout-dropdown-btn');
+                        if (!btn) return;
+                        const item = btn.parentElement;
+                        if (!item.querySelector('.layout-dropdown-container')) return;
+                        e.preventDefault();
+                        contenedor.querySelectorAll('.layout-menu-item').forEach(it => {
+                            if (it !== item) {
+                                it.classList.remove('layout-open');
+                                it.querySelector('.layout-dropdown-btn')?.setAttribute('aria-expanded', 'false');
+                            }
+                        });
+                        const abierto = item.classList.toggle('layout-open');
+                        btn.setAttribute('aria-expanded', String(abierto));
+                    });
+
+                    // Búsqueda (ahora también ignora acentos: "logistica" encuentra "Logística")
+                    const searchInput = document.getElementById("sb-search-input");
+                    searchInput?.addEventListener("input", function() {
+                        const q = normalizeText(this.value);
+                        contenedor.querySelectorAll(".layout-menu-item").forEach(item => {
+                            const text = normalizeText(item.querySelector(".sb-item-label")?.textContent);
+                            const subTexts = normalizeText(Array.from(item.querySelectorAll(".layout-dropdown-container a")).map(a => a.textContent).join(" "));
                             const match = !q || text.includes(q) || subTexts.includes(q);
                             item.style.display = match ? "" : "none";
                             if (q && subTexts.includes(q)) item.classList.add("layout-open");
-                            else if (!q) item.classList.remove("layout-open");
+                            else if (!q && !item.querySelector('.sb-active')) item.classList.remove("layout-open");
                         });
-                        document.querySelectorAll(".sb-section-label").forEach(lbl => {
-                            let next = lbl.nextElementSibling;
-                            let hasVisible = false;
+                        contenedor.querySelectorAll(".sb-section-label").forEach(lbl => {
+                            let next = lbl.nextElementSibling, hasVisible = false;
                             while (next && !next.classList.contains("sb-section-label") && !next.classList.contains("sb-divider")) {
                                 if (next.classList.contains("layout-menu-item") && next.style.display !== "none") hasVisible = true;
                                 next = next.nextElementSibling;
@@ -736,212 +1717,446 @@ sectionNames.forEach((section, index) => {
                             lbl.style.display = hasVisible ? "" : "none";
                         });
                     });
+                } catch (e) {
+                    console.error("Error cargando el sidebar dinámico:", e);
+                }
+            });
+
+            // ========================================
+            // CHAT INTERNO
+            // ========================================
+            (function initLayoutInternalChat() {
+                const fab = document.getElementById("layout-chat-fab");
+                const panel = document.getElementById("layout-chat-panel");
+                const closeBtn = document.getElementById("layout-chat-close-btn");
+                const areaSelect = document.getElementById("layout-chat-area");
+                const areaLabel = document.getElementById("layout-chat-area-label");
+                const messages = document.getElementById("layout-chat-messages");
+                const txt = document.getElementById("layout-chat-text");
+                const btnSend = document.getElementById("layout-chat-send");
+                if (!fab || !panel) return;
+
+                let currentConversationId = null, pollTimer = null, currentAreaName = "";
+                let areasCargadas = false, enviando = false, firmaMensajes = "";
+
+                function aviso(texto) {
+                    messages.innerHTML = "";
+                    const d = document.createElement("div");
+                    d.className = "text-muted small text-center mt-2";
+                    d.textContent = texto;
+                    messages.appendChild(d);
+                }
+                function detenerPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+                function iniciarPolling() {
+                    detenerPolling();
+                    if (currentConversationId) pollTimer = setInterval(cargarMensajes, 5000);
                 }
 
-            } catch (e) {
-                console.error("Error cargando el sidebar dinámico:", e);
-            }
-        });
-
-        // ========================================
-        // CHAT FLOTANTE INTERNO
-        // ========================================
-        (function initLayoutInternalChat() {
-            const fab = document.getElementById("layout-chat-fab");
-            const panel = document.getElementById("layout-chat-panel");
-            const closeBtn = document.getElementById("layout-chat-close-btn");
-            const areaSelect = document.getElementById("layout-chat-area");
-            const areaLabel = document.getElementById("layout-chat-area-label");
-            const messages = document.getElementById("layout-chat-messages");
-            const txt = document.getElementById("layout-chat-text");
-            const btnSend = document.getElementById("layout-chat-send");
-            if (!fab || !panel) return;
-            let currentConversationId = null, pollTimer = null, currentAreaName = "";
-
-            function togglePanel(show) { show ? panel.classList.remove("d-none") : panel.classList.add("d-none"); }
-            fab.addEventListener("click", () => togglePanel(panel.classList.contains("d-none")));
-            closeBtn.addEventListener("click", () => togglePanel(false));
-
-            async function cargarAreas() {
-                try {
-                    const res = await fetch("/Chat/Areas");
-                    if (!res.ok) throw new Error();
-                    const data = await res.json();
-                    areaSelect.innerHTML = `<option value="">-- Selecciona área --</option>`;
-                    data.forEach(a => { const opt = document.createElement("option"); opt.value = a.idArea; opt.textContent = a.nombre; areaSelect.appendChild(opt); });
-                } catch { areaSelect.innerHTML = `<option value="">(Error al cargar áreas)</option>`; }
-            }
-            cargarAreas();
-
-            areaSelect.addEventListener("change", async () => {
-                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-                currentConversationId = null; messages.innerHTML = "";
-                const val = areaSelect.value;
-                if (!val) { areaLabel.textContent = "Selecciona un área para comenzar"; txt.value = ""; txt.disabled = true; btnSend.disabled = true; messages.innerHTML = `<div class="text-muted small text-center mt-2">Selecciona un área para iniciar.</div>`; return; }
-                currentAreaName = areaSelect.options[areaSelect.selectedIndex].text;
-                try {
-                    const res = await fetch("/Chat/NuevaConversacion", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ idArea: parseInt(val,10) }) });
-                    const data = await res.json();
-                    if (!res.ok || !data.ok) throw new Error(data.mensaje || "Error");
-                    currentConversationId = data.idConversacion; areaLabel.textContent = `Conversando con: ${currentAreaName}`; txt.disabled = false; btnSend.disabled = false;
-                    await cargarMensajes(); pollTimer = setInterval(cargarMensajes, 5000);
-                } catch (e) { alert(e.message || "Error"); areaSelect.value = ""; areaLabel.textContent = "Selecciona un área"; txt.disabled = true; btnSend.disabled = true; }
-            });
-
-            function renderMensajes(lista) {
-                messages.innerHTML = "";
-                if (!lista || !lista.length) { messages.innerHTML = `<div class="text-muted small text-center mt-2">No hay mensajes aún 👋</div>`; return; }
-                lista.forEach(m => {
-                    const w = document.createElement("div"); w.classList.add("layout-chat-msg", m.esMio ? "layout-me" : "layout-other");
-                    const b = document.createElement("div"); b.classList.add("layout-bubble");
-                    const h = new Date(m.fecha).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
-                    b.innerHTML = `<div>${m.texto}</div><span class="layout-meta">${m.esMio?"Tú":"Área "+currentAreaName} · ${h}</span>`;
-                    w.appendChild(b); messages.appendChild(w);
-                });
-                messages.scrollTop = messages.scrollHeight;
-            }
-
-            async function cargarMensajes() {
-                if (!currentConversationId) return;
-                try { const res = await fetch(`/Chat/Mensajes/${currentConversationId}`); if (!res.ok) throw new Error(); const data = await res.json(); if (!data.ok) throw new Error(); renderMensajes(data.mensajes); } catch {}
-            }
-
-            btnSend.addEventListener("click", async () => {
-                if (!currentConversationId) return; const raw = txt.value.trim(); if (!raw) return;
-                try { const res = await fetch("/Chat/Enviar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idConversacion:currentConversationId,texto:raw})}); const data = await res.json(); if (!res.ok || !data.ok) throw new Error(data.mensaje||"Error"); txt.value=""; txt.focus(); await cargarMensajes(); } catch(e) { alert(e.message||"No se pudo enviar."); }
-            });
-            txt.addEventListener("keydown", e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); btnSend.click(); } });
-        })();
-
-        // ========================================
-        // MANUAL DE USUARIO
-        // ========================================
-        (function initLayoutUserManual() {
-            const btn = document.getElementById("layout-manual-fab");
-            const modalEl = document.getElementById("layoutManualModal");
-            if (!btn || !modalEl) return;
-            const modal = new bootstrap.Modal(modalEl);
-            const titleEl = document.getElementById("layoutManualTitle");
-            btn.addEventListener("click", () => {
-                if (!window.manualConfig) {
-                    titleEl.textContent = "Manual no disponible";
-                    document.getElementById("manualSections").innerHTML = `<div class="alert alert-warning m-4">Por el momento este módulo aún no cuenta con manual de usuario disponible.</div>`;
-                    modal.show(); return;
+                // CORRECCIÓN: las áreas se cargan al abrir el chat por primera vez (antes en cada página)
+                // y la consulta de mensajes solo corre mientras el panel está abierto.
+                function togglePanel(show) {
+                    panel.classList.toggle("d-none", !show);
+                    fab.setAttribute('aria-expanded', String(show));
+                    if (show) {
+                        if (!areasCargadas) cargarAreas();
+                        if (currentConversationId) { cargarMensajes(); iniciarPolling(); }
+                    } else {
+                        detenerPolling();
+                    }
                 }
-                titleEl.textContent = window.manualConfig.title || "Manual de Usuario - SIGO";
-                generarManualLibro();
-                modal.show();
-                setTimeout(() => { initManualListeners(); }, 300);
-            });
-        })();
+                fab.addEventListener("click", () => togglePanel(panel.classList.contains("d-none")));
+                closeBtn.addEventListener("click", () => togglePanel(false));
 
-        function generarManualLibro() {
-            const tocNav = document.getElementById('manualToc');
-            const sectionsContainer = document.getElementById('manualSections');
-            if (!window.manualConfig || !window.manualConfig.sections) return;
-            tocNav.innerHTML = ''; sectionsContainer.innerHTML = '';
-            window.manualConfig.sections.forEach((section, index) => {
-                const tocItem = document.createElement('div');
-                tocItem.className = 'manual-toc-item';
-                tocItem.setAttribute('data-section', section.id);
-                tocItem.innerHTML = `<i class="fas ${section.icon}"></i><span>${section.title}</span>`;
-                tocItem.onclick = () => scrollToManualSection(section.id);
-                tocNav.appendChild(tocItem);
-                const sectionDiv = document.createElement('section');
-                sectionDiv.className = 'manual-section'; sectionDiv.id = section.id;
-                let stepsHTML = '';
-                section.steps.forEach(step => {
-                    stepsHTML += `<div class="manual-step"><h4 class="manual-step-title"><i class="fas fa-chevron-right"></i>${step.title}</h4><p class="manual-step-text">${step.text}</p>${renderManualMedia(step)}</div>`;
+                async function cargarAreas() {
+                    try {
+                        const res = await fetch("/Chat/Areas");
+                        if (!res.ok) throw new Error();
+                        const data = await res.json();
+                        areaSelect.innerHTML = "";
+                        const opt0 = document.createElement("option");
+                        opt0.value = ""; opt0.textContent = "-- Selecciona área --";
+                        areaSelect.appendChild(opt0);
+                        (Array.isArray(data) ? data : []).forEach(a => {
+                            const opt = document.createElement("option");
+                            opt.value = a.idArea; opt.textContent = a.nombre;
+                            areaSelect.appendChild(opt);
+                        });
+                        areasCargadas = true;
+                    } catch {
+                        areaSelect.innerHTML = `<option value="">(Error al cargar áreas; cierra y abre el chat para reintentar)</option>`;
+                    }
+                }
+
+                areaSelect.addEventListener("change", async () => {
+                    detenerPolling();
+                    currentConversationId = null;
+                    firmaMensajes = "";
+                    const val = areaSelect.value;
+                    if (!val) {
+                        areaLabel.textContent = "Selecciona un área para comenzar";
+                        txt.value = ""; txt.disabled = true; btnSend.disabled = true;
+                        aviso("Selecciona un área para iniciar.");
+                        return;
+                    }
+                    currentAreaName = areaSelect.options[areaSelect.selectedIndex].text;
+                    aviso("Abriendo conversación…");
+                    try {
+                        const res = await fetch("/Chat/NuevaConversacion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idArea: parseInt(val, 10) }) });
+                        const data = await res.json();
+                        if (!res.ok || !data.ok) throw new Error(data.mensaje || "No se pudo abrir la conversación.");
+                        currentConversationId = data.idConversacion;
+                        areaLabel.textContent = `Conversando con: ${currentAreaName}`;
+                        txt.disabled = false; btnSend.disabled = false;
+                        await cargarMensajes(true);
+                        iniciarPolling();
+                        txt.focus();
+                    } catch (e) {
+                        alert(e.message || "Error");
+                        areaSelect.value = "";
+                        areaLabel.textContent = "Selecciona un área";
+                        txt.disabled = true; btnSend.disabled = true;
+                        aviso("Selecciona un área para iniciar.");
+                    }
                 });
-                sectionDiv.innerHTML = `<div class="manual-section-header"><div class="manual-section-number">${index+1}</div><h2 class="manual-section-title">${section.title}</h2></div><div class="manual-section-content">${stepsHTML}</div>`;
-                sectionsContainer.appendChild(sectionDiv);
-            });
-        }
 
-        function initManualListeners() {
-            const contentArea = document.getElementById('manualContent');
-            const scrollTopBtn = document.getElementById('manualScrollTopBtn');
-            const progressBar = document.getElementById('manualProgressBar');
-            if (!contentArea) return;
-            contentArea.addEventListener('scroll', () => {
-                updateActiveManualTocItem();
-                scrollTopBtn.classList.toggle('show', contentArea.scrollTop > 300);
-                progressBar.style.width = ((contentArea.scrollTop / (contentArea.scrollHeight - contentArea.clientHeight)) * 100) + '%';
-            });
-        }
+                // CORRECCIÓN DE SEGURIDAD: el texto de los mensajes se pinta como texto, no como HTML.
+                // Antes un mensaje con etiquetas HTML o scripts se ejecutaba en la pantalla de quien lo recibía.
+                function renderMensajes(lista, forzarScroll) {
+                    const firma = JSON.stringify((lista || []).map(m => [m.fecha, m.texto, m.esMio]));
+                    if (firma === firmaMensajes && !forzarScroll) return; // sin cambios: no se redibuja
+                    firmaMensajes = firma;
 
-        function updateActiveManualTocItem() {
-            const sections = document.querySelectorAll('.manual-section');
-            const tocItems = document.querySelectorAll('.manual-toc-item');
-            let currentSection = null;
-            sections.forEach(s => { if (s.getBoundingClientRect().top <= 150) currentSection = s.id; });
-            tocItems.forEach(i => i.classList.toggle('active', i.getAttribute('data-section') === currentSection));
-        }
+                    const cercaDelFinal = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 60;
+                    if (!lista || !lista.length) { aviso("No hay mensajes aún 👋"); return; }
 
-        function scrollToManualSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            const contentArea = document.getElementById('manualContent');
-            if (section && contentArea) {
-                contentArea.scrollTo({ top: section.offsetTop - 20, behavior: 'smooth' });
-                if (window.innerWidth < 992) toggleManualSidebar();
+                    messages.innerHTML = "";
+                    lista.forEach(m => {
+                        const w = document.createElement("div");
+                        w.classList.add("layout-chat-msg", m.esMio ? "layout-me" : "layout-other");
+                        const b = document.createElement("div");
+                        b.classList.add("layout-bubble");
+                        const t = document.createElement("div");
+                        t.className = "layout-texto";
+                        t.textContent = m.texto ?? "";
+                        const meta = document.createElement("span");
+                        meta.className = "layout-meta";
+                        const h = new Date(m.fecha).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+                        meta.textContent = `${m.esMio ? "Tú" : "Área " + currentAreaName} · ${h}`;
+                        b.appendChild(t); b.appendChild(meta); w.appendChild(b);
+                        messages.appendChild(w);
+                    });
+                    // Solo baja al final si ya estabas abajo (no te mueve mientras lees mensajes anteriores).
+                    if (forzarScroll || cercaDelFinal) messages.scrollTop = messages.scrollHeight;
+                }
+
+                async function cargarMensajes(forzarScroll) {
+                    if (!currentConversationId) return;
+                    try {
+                        const res = await fetch(`/Chat/Mensajes/${encodeURIComponent(currentConversationId)}`);
+                        if (!res.ok) throw new Error();
+                        const data = await res.json();
+                        if (!data.ok) throw new Error();
+                        renderMensajes(data.mensajes, forzarScroll === true);
+                    } catch { }
+                }
+
+                btnSend.addEventListener("click", async () => {
+                    if (!currentConversationId || enviando) return; // CORRECCIÓN: evita mensajes duplicados
+                    const raw = txt.value.trim();
+                    if (!raw) return;
+                    enviando = true; btnSend.disabled = true;
+                    try {
+                        const res = await fetch("/Chat/Enviar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idConversacion: currentConversationId, texto: raw }) });
+                        const data = await res.json();
+                        if (!res.ok || !data.ok) throw new Error(data.mensaje || "Error");
+                        txt.value = "";
+                        txt.focus();
+                        await cargarMensajes(true);
+                    } catch (e) {
+                        alert(e.message || "No se pudo enviar.");
+                    } finally {
+                        enviando = false; btnSend.disabled = !currentConversationId;
+                    }
+                });
+                txt.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); btnSend.click(); } });
+            })();
+
+            // ========================================
+            // FOTO DE PERFIL (se guarda en el servidor por usuario)
+            // ========================================
+            (function initFotoPerfil() {
+                const btn = document.getElementById('sbAvatarBtn');
+                const modalEl = document.getElementById('perfilModal');
+                if (!btn || !modalEl) return;
+
+                const urlAvatar = btn.dataset.urlAvatar, urlSubir = btn.dataset.urlSubir, urlQuitar = btn.dataset.urlQuitar;
+                const input = document.getElementById('perfilArchivo');
+                const preview = document.getElementById('perfilPreview');
+                const msg = document.getElementById('perfilMsg');
+                const btnGuardar = document.getElementById('perfilGuardar');
+                const btnQuitar = document.getElementById('perfilQuitar');
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                const LADO = 256, MAX_BYTES = 500 * 1024;
+                let blobListo = null, urlTemporal = null, ocupado = false;
+
+                const token = () => document.querySelector('#sigoAvatarToken input[name="__RequestVerificationToken"]')?.value || '';
+                function aviso(texto, tipo) { msg.textContent = texto || ''; msg.className = 'perfil-msg' + (tipo ? ' is-' + tipo : ''); }
+                function limpiarTemporal() { if (urlTemporal) { URL.revokeObjectURL(urlTemporal); urlTemporal = null; } }
+                function mostrarPreview(src) { if (src) { preview.src = src; preview.hidden = false; } else { preview.removeAttribute('src'); preview.hidden = true; } }
+
+                function ponerFotoSidebar(src) {
+                    let img = document.getElementById('sbAvatarFoto');
+                    if (!src) { img?.remove(); return; }
+                    if (!img) {
+                        img = document.createElement('img');
+                        img.id = 'sbAvatarFoto'; img.className = 'sb-avatar-foto'; img.alt = '';
+                        img.onerror = () => img.remove();
+                        btn.insertBefore(img, btn.querySelector('.sb-avatar-edit'));
+                    }
+                    img.src = src;
+                }
+
+                btn.addEventListener('click', () => {
+                    blobListo = null; limpiarTemporal(); input.value = ''; aviso('');
+                    const actual = document.getElementById('sbAvatarFoto');
+                    mostrarPreview(actual ? actual.src : null);
+                    btnQuitar.disabled = !actual;
+                    btnGuardar.disabled = true;
+                    modal.show();
+                });
+                modalEl.addEventListener('hidden.bs.modal', () => { limpiarTemporal(); blobListo = null; });
+
+                // Recorta al centro en cuadrado y reduce a 256 px antes de subir.
+                function prepararImagen(file) {
+                    return new Promise((resolve, reject) => {
+                        const url = URL.createObjectURL(file);
+                        const img = new Image();
+                        img.onload = () => {
+                            const lado = Math.min(img.naturalWidth, img.naturalHeight);
+                            const sx = (img.naturalWidth - lado) / 2, sy = (img.naturalHeight - lado) / 2;
+                            const canvas = document.createElement('canvas');
+                            canvas.width = LADO; canvas.height = LADO;
+                            const ctx = canvas.getContext('2d');
+                            ctx.imageSmoothingQuality = 'high';
+                            ctx.drawImage(img, sx, sy, lado, lado, 0, 0, LADO, LADO);
+                            URL.revokeObjectURL(url);
+                            canvas.toBlob(b => {
+                                if (b && b.type === 'image/webp') return resolve(b);
+                                canvas.toBlob(j => j ? resolve(j) : reject(new Error('No se pudo procesar la imagen.')), 'image/jpeg', 0.88);
+                            }, 'image/webp', 0.85);
+                        };
+                        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('El archivo no es una imagen válida.')); };
+                        img.src = url;
+                    });
+                }
+
+                input.addEventListener('change', async () => {
+                    const file = input.files?.[0];
+                    if (!file) return;
+                    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { aviso('Elige una imagen JPG, PNG o WebP.', 'error'); return; }
+                    if (file.size > 15 * 1024 * 1024) { aviso('La imagen pesa más de 15 MB; elige una más ligera.', 'error'); return; }
+                    aviso('Preparando imagen…');
+                    try {
+                        const blob = await prepararImagen(file);
+                        if (blob.size > MAX_BYTES) { aviso('La imagen sigue siendo muy pesada; prueba con otra.', 'error'); return; }
+                        blobListo = blob;
+                        limpiarTemporal();
+                        urlTemporal = URL.createObjectURL(blob);
+                        mostrarPreview(urlTemporal);
+                        btnGuardar.disabled = false;
+                        aviso('Así se verá. Presiona Guardar para usarla.');
+                    } catch (e) {
+                        aviso(e.message || 'No se pudo leer la imagen.', 'error');
+                    }
+                });
+
+                btnGuardar.addEventListener('click', async () => {
+                    if (!blobListo || ocupado) return;
+                    ocupado = true; btnGuardar.disabled = true; aviso('Guardando…');
+                    try {
+                        const fd = new FormData();
+                        fd.append('archivo', blobListo, blobListo.type === 'image/webp' ? 'avatar.webp' : 'avatar.jpg');
+                        const res = await fetch(urlSubir, { method: 'POST', body: fd, headers: { 'RequestVerificationToken': token() } });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || data.ok === false) throw new Error(data.msg || `No se pudo guardar (HTTP ${res.status}).`);
+                        ponerFotoSidebar(`${urlAvatar}?v=${Date.now()}`);
+                        aviso('Foto actualizada.', 'ok');
+                        setTimeout(() => modal.hide(), 500);
+                    } catch (e) {
+                        aviso(e.message || 'No se pudo guardar.', 'error');
+                        btnGuardar.disabled = false;
+                    } finally {
+                        ocupado = false;
+                    }
+                });
+
+                btnQuitar.addEventListener('click', async () => {
+                    if (ocupado || !confirm('¿Quitar tu foto de perfil? Se mostrarán tus iniciales.')) return;
+                    ocupado = true; aviso('Quitando…');
+                    try {
+                        const res = await fetch(urlQuitar, { method: 'POST', headers: { 'RequestVerificationToken': token() } });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || data.ok === false) throw new Error(data.msg || `No se pudo quitar (HTTP ${res.status}).`);
+                        ponerFotoSidebar(null);
+                        mostrarPreview(null);
+                        btnQuitar.disabled = true;
+                        aviso('Foto quitada.', 'ok');
+                    } catch (e) {
+                        aviso(e.message || 'No se pudo quitar.', 'error');
+                    } finally {
+                        ocupado = false;
+                    }
+                });
+            })();
+
+            // ========================================
+            // FORMULARIO DE REPORTE: carga diferida
+            // ========================================
+            (function() {
+                const modalEl = document.getElementById('reporteModal');
+                const iframe = document.getElementById('reporteIframe');
+                if (!modalEl || !iframe) return;
+                modalEl.addEventListener('show.bs.modal', () => {
+                    if (!iframe.getAttribute('src')) iframe.setAttribute('src', iframe.dataset.src);
+                });
+            })();
+
+            // ========================================
+            // MANUAL DE USUARIO
+            // ========================================
+            let __manualListenersListos = false;
+
+            (function initLayoutUserManual() {
+                const btn = document.getElementById("layout-manual-fab");
+                const modalEl = document.getElementById("layoutManualModal");
+                if (!btn || !modalEl) return;
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                const titleEl = document.getElementById("layoutManualTitle");
+                btn.addEventListener("click", () => {
+                    if (!window.manualConfig) {
+                        titleEl.textContent = "Manual no disponible";
+                        document.getElementById("manualToc").innerHTML = "";
+                        document.getElementById("manualSections").innerHTML = `<div class="alert alert-warning m-4">Por el momento este módulo aún no cuenta con manual de usuario disponible.</div>`;
+                        modal.show();
+                        return;
+                    }
+                    titleEl.textContent = window.manualConfig.title || "Manual de Usuario - SIGO";
+                    generarManualLibro();
+                    modal.show();
+                    setTimeout(initManualListeners, 300);
+                });
+            })();
+
+            // El contenido del manual lo define cada vista en window.manualConfig (texto de confianza).
+            function generarManualLibro() {
+                const tocNav = document.getElementById('manualToc');
+                const sectionsContainer = document.getElementById('manualSections');
+                if (!window.manualConfig || !window.manualConfig.sections) return;
+                tocNav.innerHTML = '';
+                sectionsContainer.innerHTML = '';
+                window.manualConfig.sections.forEach((section, index) => {
+                    const tocItem = document.createElement('div');
+                    tocItem.className = 'manual-toc-item';
+                    tocItem.setAttribute('data-section', section.id);
+                    tocItem.setAttribute('role', 'button');
+                    tocItem.tabIndex = 0;
+                    tocItem.innerHTML = `<i class="fas ${section.icon}" aria-hidden="true"></i><span>${section.title}</span>`;
+                    tocItem.onclick = () => scrollToManualSection(section.id);
+                    tocItem.onkeydown = e => { if (e.key === 'Enter') scrollToManualSection(section.id); };
+                    tocNav.appendChild(tocItem);
+
+                    const sectionDiv = document.createElement('section');
+                    sectionDiv.className = 'manual-section';
+                    sectionDiv.id = section.id;
+                    const stepsHTML = (section.steps || []).map(step =>
+                        `<div class="manual-step"><h4 class="manual-step-title"><i class="fas fa-chevron-right" aria-hidden="true"></i>${step.title}</h4><p class="manual-step-text">${step.text}</p>${renderManualMedia(step)}</div>`
+                    ).join('');
+                    sectionDiv.innerHTML = `<div class="manual-section-header"><div class="manual-section-number">${index + 1}</div><h2 class="manual-section-title">${section.title}</h2></div><div class="manual-section-content">${stepsHTML}</div>`;
+                    sectionsContainer.appendChild(sectionDiv);
+                });
             }
-        }
 
-        function scrollManualToTop() { document.getElementById('manualContent').scrollTo({ top: 0, behavior: 'smooth' }); }
+            // CORRECCIÓN: los eventos de scroll del manual se registran una sola vez
+            // (antes se acumulaban cada vez que se abría el manual).
+            function initManualListeners() {
+                if (__manualListenersListos) return;
+                const contentArea = document.getElementById('manualContent');
+                const scrollTopBtn = document.getElementById('manualScrollTopBtn');
+                const progressBar = document.getElementById('manualProgressBar');
+                if (!contentArea) return;
+                contentArea.addEventListener('scroll', () => {
+                    updateActiveManualTocItem();
+                    scrollTopBtn.classList.toggle('show', contentArea.scrollTop > 300);
+                    const max = contentArea.scrollHeight - contentArea.clientHeight;
+                    progressBar.style.width = (max > 0 ? (contentArea.scrollTop / max) * 100 : 0) + '%';
+                }, { passive: true });
+                __manualListenersListos = true;
+            }
 
-        function toggleManualSidebar() {
-            const sidebar = document.getElementById('manualSidebar');
-            const overlay = document.querySelector('.manual-overlay');
-            if (sidebar && overlay) { sidebar.classList.toggle('show'); overlay.classList.toggle('show'); }
-        }
+            function updateActiveManualTocItem() {
+                let currentSection = null;
+                document.querySelectorAll('.manual-section').forEach(s => { if (s.getBoundingClientRect().top <= 150) currentSection = s.id; });
+                document.querySelectorAll('.manual-toc-item').forEach(i => i.classList.toggle('active', i.getAttribute('data-section') === currentSection));
+            }
 
-        function renderManualMedia(step) {
-            if (step.video) return `<video class="manual-step-video" controls preload="metadata"><source src="${step.video}" type="video/mp4">Tu navegador no soporta video HTML5.</video>`;
-            if (step.image) return `<img src="${step.image}" alt="${step.title||''}" class="manual-step-image">`;
-            return "";
-        }
+            function scrollToManualSection(sectionId) {
+                const section = document.getElementById(sectionId);
+                const contentArea = document.getElementById('manualContent');
+                if (section && contentArea) {
+                    contentArea.scrollTo({ top: section.offsetTop - 20, behavior: 'smooth' });
+                    if (window.innerWidth < 992) toggleManualSidebar();
+                }
+            }
 
-         // ========================================
-            // MODO OSCURO GLOBAL - PRUEBA
+            function scrollManualToTop() { document.getElementById('manualContent')?.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+            function toggleManualSidebar() {
+                const sidebar = document.getElementById('manualSidebar');
+                const overlay = document.querySelector('.manual-overlay');
+                if (sidebar && overlay) { sidebar.classList.toggle('show'); overlay.classList.toggle('show'); }
+            }
+
+            function renderManualMedia(step) {
+                if (step.video) return `<video class="manual-step-video" controls preload="metadata"><source src="${step.video}" type="video/mp4">Tu navegador no soporta video HTML5.</video>`;
+                if (step.image) return `<img src="${step.image}" alt="${step.title || ''}" class="manual-step-image" loading="lazy">`;
+                return "";
+            }
+
+            // ========================================
+            // MODO OSCURO
             // ========================================
             (function initGlobalThemeSwitch() {
                 const body = document.body;
                 const btn = document.getElementById('theme-toggle-btn');
                 const icon = document.getElementById('theme-toggle-icon');
-
                 if (!body || !btn || !icon) return;
 
                 function setSwitchIcon(theme) {
                     icon.classList.remove('fa-sun', 'fa-moon');
-
-                    if (theme === 'dark') {
-                        icon.classList.add('fa-moon');
-                        btn.title = 'Cambiar a modo claro';
-                        btn.setAttribute('aria-label', 'Cambiar a modo claro');
-                    } else {
-                        icon.classList.add('fa-sun');
-                        btn.title = 'Cambiar a modo oscuro';
-                        btn.setAttribute('aria-label', 'Cambiar a modo oscuro');
-                    }
+                    icon.classList.add(theme === 'dark' ? 'fa-moon' : 'fa-sun');
+                    const t = theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+                    btn.title = t;
+                    btn.setAttribute('aria-label', t);
+                    btn.setAttribute('aria-pressed', String(theme === 'dark'));
                 }
-
                 function applyTheme(theme) {
                     body.setAttribute('data-theme', theme);
-                    localStorage.setItem('sigoTheme', theme);
+                    try { localStorage.setItem('sigoTheme', theme); } catch { }
                     setSwitchIcon(theme);
                 }
 
-                const savedTheme = localStorage.getItem('sigoTheme') || 'light';
-                applyTheme(savedTheme);
+                let saved = 'light';
+                try { saved = localStorage.getItem('sigoTheme') || 'light'; } catch { }
+                applyTheme(saved === 'dark' ? 'dark' : 'light');
 
-                btn.addEventListener('click', function () {
-                    const currentTheme = body.getAttribute('data-theme') || 'light';
-                    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-                    applyTheme(nextTheme);
+                btn.addEventListener('click', function() {
+                    applyTheme((body.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark');
                 });
             })();
 
+            // ========================================
+            // SESIÓN VENCIDA (sin cambios de comportamiento)
+            // ========================================
             window.SIGO_SESSION = {
                 loginUrl: '@Url.Action("Index", "Home")',
                 estadoSesionUrl: '@Url.Action("EstadoSesion", "Acceso")'
@@ -951,93 +2166,53 @@ sectionNames.forEach((section, index) => {
                 return window.location.pathname + window.location.search + window.location.hash;
             }
 
-                (function () {
-                    if (window.__sigoSessionWatcherInstalled) {
-                        return;
+            (function() {
+                if (window.__sigoSessionWatcherInstalled) return;
+                window.__sigoSessionWatcherInstalled = true;
+
+                const loginUrl = window.SIGO_SESSION.loginUrl;
+                const estadoSesionUrl = window.SIGO_SESSION.estadoSesionUrl;
+                let redirigiendo = false;
+
+                // Se regresa a la vista visible, no al endpoint que respondió 401.
+                function construirLoginUrl() {
+                    return loginUrl + '?expirada=1&returnUrl=' + encodeURIComponent(getVistaActualUrl());
+                }
+
+                function mostrarAvisoYRedirigir() {
+                    if (redirigiendo) return;
+                    redirigiendo = true;
+                    const destino = construirLoginUrl();
+                    if (!document.getElementById('sigo-session-expired-overlay')) {
+                        const aviso = document.createElement('div');
+                        aviso.id = 'sigo-session-expired-overlay';
+                        aviso.setAttribute('role', 'alertdialog');
+                        aviso.innerHTML = `
+                                    <div class="sigo-session-expired-card">
+                                        <div class="sigo-session-expired-icon"><i class="fas fa-clock" aria-hidden="true"></i></div>
+                                        <h3>Sesión expirada</h3>
+                                        <p>Tu sesión terminó por inactividad. Te enviaremos al inicio de sesión para continuar trabajando.</p>
+                                        <div class="sigo-session-expired-loader"></div>
+                                    </div>`;
+                        document.body.appendChild(aviso);
                     }
+                    setTimeout(() => { window.location.href = destino; }, 900);
+                }
 
-                    window.__sigoSessionWatcherInstalled = true;
+                function revisarRespuesta(response) {
+                    if (response && response.status === 401) mostrarAvisoYRedirigir();
+                    return response;
+                }
 
-                    const loginUrl = window.SIGO_SESSION.loginUrl;
-                    const estadoSesionUrl = window.SIGO_SESSION.estadoSesionUrl;
-
-                    let redirigiendo = false;
-
-                    function construirLoginUrl(redirectUrl) {
-                        const vistaActual = getVistaActualUrl();
-
-                        // Aunque el servidor mande redirectUrl, preferimos reconstruirlo desde la vista visible.
-                        // Así evitamos regresar a endpoints tipo /api, /Chat/Mensajes, /Tif/Listar, etc.
-                        return loginUrl
-                            + '?expirada=1&returnUrl='
-                            + encodeURIComponent(vistaActual);
-                    }
-
-                    function mostrarAvisoYRedirigir(redirectUrl) {
-                        if (redirigiendo) return;
-                        redirigiendo = true;
-
-                        const destino = construirLoginUrl(redirectUrl);
-
-                        let aviso = document.getElementById('sigo-session-expired-overlay');
-
-                        if (!aviso) {
-                            aviso = document.createElement('div');
-                            aviso.id = 'sigo-session-expired-overlay';
-                            aviso.innerHTML = `
-                                <div class="sigo-session-expired-card">
-                                    <div class="sigo-session-expired-icon">
-                                        <i class="fas fa-clock"></i>
-                                    </div>
-                                    <h3>Sesión expirada</h3>
-                                    <p>Tu sesión terminó por inactividad. Te enviaremos al inicio de sesión para continuar trabajando.</p>
-                                    <div class="sigo-session-expired-loader"></div>
-                                </div>
-                            `;
-                            document.body.appendChild(aviso);
-                        }
-
-                        setTimeout(function () {
-                            window.location.href = destino;
-                        }, 900);
-                    }
-
-                    function revisarRespuesta(response) {
-                        if (!response) return response;
-
-                        if (response.status === 401) {
-                            response.clone().json()
-                                .then(function (data) {
-                                    if (data && data.sessionExpired) {
-                                        mostrarAvisoYRedirigir(data.redirectUrl);
-                                    } else {
-                                        mostrarAvisoYRedirigir(null);
-                                    }
-                                })
-                                .catch(function () {
-                                    mostrarAvisoYRedirigir(null);
-                                });
-                        }
-
-                        return response;
-                    }
-
-                    // Intercepta fetch global
-                    if (window.fetch) {
-                        const fetchOriginal = window.fetch;
-
-                        window.fetch = function (input, init) {
-                            init = init || {};
-                            init.headers = init.headers || {};
+                // Intercepta fetch global
+                if (window.fetch) {
+                    const fetchOriginal = window.fetch;
+                    window.fetch = function(input, init) {
+                        init = init || {};
+                        init.headers = init.headers || {};
                         if (init.headers instanceof Headers) {
-                            if (!init.headers.has('X-Requested-With')) {
-                                init.headers.set('X-Requested-With', 'XMLHttpRequest');
-                            }
-
-                            if (!init.headers.has('Accept')) {
-                                init.headers.set('Accept', 'application/json');
-                            }
-
+                            if (!init.headers.has('X-Requested-With')) init.headers.set('X-Requested-With', 'XMLHttpRequest');
+                            if (!init.headers.has('Accept')) init.headers.set('Accept', 'application/json');
                             init.headers.set('X-SIGO-Current-Url', getVistaActualUrl());
                         } else if (Array.isArray(init.headers)) {
                             init.headers.push(['X-Requested-With', 'XMLHttpRequest']);
@@ -1048,81 +2223,36 @@ sectionNames.forEach((section, index) => {
                             init.headers['Accept'] = init.headers['Accept'] || 'application/json';
                             init.headers['X-SIGO-Current-Url'] = getVistaActualUrl();
                         }
+                        return fetchOriginal(input, init).then(revisarRespuesta);
+                    };
+                }
 
-                            return fetchOriginal(input, init)
-                                .then(function (response) {
-                                    return revisarRespuesta(response);
-                                });
-                        };
-                    }
+                // Intercepta jQuery AJAX (solo funciona si la vista NO vuelve a cargar jQuery)
+                if (window.jQuery) {
+                    $(document).ajaxSend(function(event, jqxhr) {
+                        jqxhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                        jqxhr.setRequestHeader('Accept', 'application/json');
+                        jqxhr.setRequestHeader('X-SIGO-Current-Url', getVistaActualUrl());
+                    });
+                    $(document).ajaxError(function(event, jqxhr) {
+                        if (jqxhr.status === 401) mostrarAvisoYRedirigir();
+                    });
+                }
 
-                    // Intercepta jQuery AJAX
-                    if (window.jQuery) {
-                        $(document).ajaxSend(function (event, jqxhr) {
-                            jqxhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                            jqxhr.setRequestHeader('Accept', 'application/json');
-                            jqxhr.setRequestHeader('X-SIGO-Current-Url', getVistaActualUrl());
-                        });
-
-                        $(document).ajaxError(function (event, jqxhr) {
-                            if (jqxhr.status === 401) {
-                                let redirectUrl = null;
-
-                                try {
-                                    const data = JSON.parse(jqxhr.responseText);
-                                    if (data && data.sessionExpired) {
-                                        redirectUrl = data.redirectUrl;
-                                    }
-                                } catch (e) {
-                                    redirectUrl = null;
-                                }
-
-                                mostrarAvisoYRedirigir(redirectUrl);
-                            }
-                        });
-                    }
-
-                    // Revisión silenciosa cada minuto
-                    async function revisarSesionActual() {
-                        if (redirigiendo) return;
-
-                        try {
-                            const response = await fetch(estadoSesionUrl, {
-                                method: 'GET',
-                                cache: 'no-store',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'X-SIGO-Current-Url': getVistaActualUrl()
-                                }
-                            });
-
-                            if (response.status === 401) {
-                                let redirectUrl = null;
-
-                                try {
-                                    const data = await response.json();
-                                    if (data && data.sessionExpired) {
-                                        redirectUrl = data.redirectUrl;
-                                    }
-                                } catch (e) {
-                                    redirectUrl = null;
-                                }
-
-                                mostrarAvisoYRedirigir(redirectUrl);
-                            }
-                        } catch (e) {
-                            // Si se cae la red o el servidor tarda, no redirigimos.
-                            // Solo redirigimos cuando el servidor confirma 401.
-                        }
-                    }
-
-                    setInterval(revisarSesionActual, 30000);
-                })();
-
+                // Revisión silenciosa cada 30 segundos; solo redirige si el servidor confirma 401.
+                async function revisarSesionActual() {
+                    if (redirigiendo || document.hidden) return;
+                    try {
+                        const response = await fetch(estadoSesionUrl, { method: 'GET', cache: 'no-store' });
+                        if (response.status === 401) mostrarAvisoYRedirigir();
+                    } catch (e) { /* sin red: no se redirige */ }
+                }
+                setInterval(revisarSesionActual, 30000);
+                // Al volver a la pestaña se revisa de inmediato.
+                document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarSesionActual(); });
+            })();
     </script>
 
     @RenderSection("Scripts", required: false)
-
 </body>
 </html>

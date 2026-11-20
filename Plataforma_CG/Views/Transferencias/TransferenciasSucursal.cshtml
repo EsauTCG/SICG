@@ -2,1133 +2,1653 @@
 @model Plataforma_CG.ViewModels.TransferenciasFiltroVM
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Transferencias";
+
+    var hoy = DateTime.Today;
+    var desdeDef = (Model?.Desde ?? hoy.AddDays(-2)).ToString("yyyy-MM-dd");
+    var hastaDef = (Model?.Hasta ?? hoy).ToString("yyyy-MM-dd");
+
+    var sucSel = Model?.SucursalesSeleccionadas ?? new List<string>();
+    string TextoSucursalesFiltro(IEnumerable<string> selec)
+    {
+        if (selec == null || !selec.Any()) return "Todas";
+        var lista = selec.Distinct().ToList();
+        return lista.Count <= 2 ? string.Join(", ", lista) : $"{lista.Count} seleccionadas";
+    }
+
+    var ests = Model?.EstatusSeleccionados ?? new List<int>();
+    string TextoEstatusFiltro(IEnumerable<int> selec)
+    {
+        if (selec == null || !selec.Any()) return "Todos";
+        var set = selec.ToHashSet();
+        var nombres = new List<string>();
+        if (set.Contains(1) || set.Contains(3)) nombres.Add("Pendiente");
+        if (set.Contains(2)) nombres.Add("Autorización");
+        if (set.Contains(4)) nombres.Add("Validado");
+        if (set.Contains(5)) nombres.Add("Surtido");
+        if (set.Contains(0)) nombres.Add("Cancelada");
+        return nombres.Count <= 2 ? string.Join(", ", nombres) : $"{nombres.Count} seleccionados";
+    }
+
+    // CORRECCIÓN: orden natural del consecutivo (antes "TR-999" quedaba arriba de "TR-1000")
+    var resultadosOrdenados = Model?.Resultados?
+        .OrderByDescending(t => (t?.Consecutivo ?? "").Length)
+        .ThenByDescending(t => t?.Consecutivo ?? "")
+        .ToList();
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
 }
 
-<link rel="stylesheet" href="~/css/transferencias-grid.css" asp-append-version="true" />
-<link rel="stylesheet" href="~/css/transferencias-erp-consolidado-v2.css" asp-append-version="true" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<div class="window transferencias-app">
-    <div class="titlebar">
-        <div class="tr-main-title">
-            <i class="bi bi-arrow-left-right"></i>
-            Transferencias :: SIGO
+<style>
+    /* =====================================================================
+           TRANSFERENCIAS · SIGO — hoja de estilos única
+           Sustituye transferencias-grid.css y transferencias-erp-consolidado-v2.css.
+           ===================================================================== */
+    :root {
+        --es-tinto: #8d3e46;
+        --es-tinto-deep: #5c2229;
+        --es-tinto-soft: #f7eced;
+        --es-tinto-line: #e8d3d6;
+        --es-paper: #f6f4f4;
+        --es-surface: #ffffff;
+        --es-field: #ffffff;
+        --es-head: #faf7f7;
+        --es-hover: #fcf9f9;
+        --es-row-line: #f0eaeb;
+        --es-ink: #231a1c;
+        --es-muted: #76686b;
+        --es-line: #e6dfe0;
+        --es-line-strong: #cfc4c6;
+        --es-ok: #2f7a55;
+        --es-ok-bg: #e7f3ec;
+        --es-warn: #9a6410;
+        --es-warn-bg: #fbf1de;
+        --es-bad: #b42d2d;
+        --es-bad-bg: #fbe9e8;
+        --es-info: #2f5d86;
+        --es-info-bg: #e9f0f7;
+        --es-teal: #2b7a72;
+        --es-teal-bg: #e4f2f0;
+        --es-violet: #6b4a9a;
+        --es-violet-bg: #f0eaf7;
+        --es-neutral-bg: #efecec;
+        --es-accent-col: #fbf6ea;
+        --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    }
+
+    body[data-theme="dark"] {
+        --es-tinto: #c56b74;
+        --es-tinto-deep: #7a2d36;
+        --es-tinto-soft: #3a2427;
+        --es-tinto-line: #5a3439;
+        --es-paper: #16181c;
+        --es-surface: #202328;
+        --es-field: #181a1e;
+        --es-head: #262a30;
+        --es-hover: #2a2e34;
+        --es-row-line: #30343b;
+        --es-ink: #edf0f3;
+        --es-muted: #a9b0b9;
+        --es-line: #363b43;
+        --es-line-strong: #4a5059;
+        --es-ok: #6cc596;
+        --es-ok-bg: #1d3328;
+        --es-warn: #e0b061;
+        --es-warn-bg: #3a2f1b;
+        --es-bad: #f08a83;
+        --es-bad-bg: #3d2223;
+        --es-info: #8bb8e0;
+        --es-info-bg: #1e2b38;
+        --es-teal: #6cc5ba;
+        --es-teal-bg: #1b302d;
+        --es-violet: #b9a2e0;
+        --es-violet-bg: #2a2336;
+        --es-neutral-bg: #2c3036;
+        --es-accent-col: #2a2a22;
+    }
+
+    .trx, .trx-modal, .tr-toasts {
+        font-family: var(--es-font) !important;
+        color: var(--es-ink);
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+        .trx *, .trx-modal * {
+            box-sizing: border-box;
+        }
+
+        .trx .bi, .trx-modal .bi, .tr-toasts .bi {
+            font-family: "bootstrap-icons" !important;
+        }
+
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .trx {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: calc(100dvh - 92px);
+        min-height: 560px;
+        padding: 14px 16px 8px;
+        background: var(--es-paper);
+        overflow: hidden;
+        min-width: 0;
+    }
+
+    .tr-header {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .tr-header__icon {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: var(--es-tinto);
+        color: #fff;
+        font-size: 19px;
+    }
+
+    .tr-header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.15;
+        color: var(--es-ink);
+    }
+
+    .tr-header p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+    .pm-btn, .tr-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 600 12.5px/1 var(--es-font);
+        white-space: nowrap;
+        cursor: pointer;
+        transition: background .12s, border-color .12s;
+    }
+
+        .pm-btn:hover, .tr-btn:hover {
+            background: var(--es-tinto-soft);
+            border-color: var(--es-tinto-line);
+            color: var(--es-ink);
+        }
+
+    .pm-btn-primary, .tr-btn-primary {
+        background: var(--es-tinto);
+        border-color: var(--es-tinto);
+        color: #fff;
+    }
+
+        .pm-btn-primary:hover, .tr-btn-primary:hover {
+            background: var(--es-tinto-deep);
+            border-color: var(--es-tinto-deep);
+            color: #fff;
+        }
+
+    .tr-btn-danger {
+        color: var(--es-bad);
+    }
+
+        .tr-btn-danger:hover {
+            background: var(--es-bad-bg);
+            border-color: var(--es-bad);
+            color: var(--es-bad);
+        }
+
+    .tr-btn-sm {
+        height: 32px;
+        padding: 0 10px;
+        font-size: 12px;
+        border-radius: 6px;
+    }
+
+    .pm-btn:disabled, .tr-btn:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+    }
+
+    .pm-btn:focus-visible, .tr-btn:focus-visible {
+        outline: 2px solid var(--es-tinto);
+        outline-offset: 2px;
+    }
+
+    .tr-card {
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-radius: 10px;
+        min-width: 0;
+    }
+
+    .tr-filters {
+        flex: none;
+        padding: 10px 14px;
+        position: relative;
+        z-index: 5;
+    }
+
+    .filters {
+        display: grid;
+        grid-template-columns: 150px 150px minmax(170px, 1fr) minmax(170px, 1fr) minmax(220px, 1.5fr) auto;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .filter-group label {
+        display: block;
+        margin: 0 0 5px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--es-muted);
+    }
+
+    .filter-group input[type="date"], .filter-group input[type="text"], .btn-select-like, .trx-modal .form-control {
+        width: 100%;
+        height: 36px;
+        padding: 0 10px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background-color: var(--es-field);
+        color: var(--es-ink);
+        font: 500 13px/1.2 var(--es-font);
+        box-shadow: none;
+        outline: none;
+    }
+
+        .filter-group input:focus, .btn-select-like:focus-visible, .trx-modal .form-control:focus {
+            border-color: var(--es-tinto);
+            box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+            background-color: var(--es-field);
+            color: var(--es-ink);
+        }
+
+        .trx-modal .form-control:disabled {
+            background: var(--es-neutral-bg);
+            color: var(--es-muted);
+        }
+
+    body[data-theme="dark"] .filter-group input, body[data-theme="dark"] .trx-modal .form-control {
+        color-scheme: dark;
+    }
+
+    .btn-select-like {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        text-align: left;
+        cursor: pointer;
+    }
+
+        .btn-select-like::after {
+            content: "\F282";
+            font-family: "bootstrap-icons";
+            font-size: 11px;
+            color: var(--es-muted);
+        }
+
+        .btn-select-like.has-value {
+            border-color: var(--es-tinto);
+            background: var(--es-tinto-soft);
+            font-weight: 600;
+        }
+
+    .multi-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .multi-picker-menu {
+        width: 280px;
+        padding: 8px !important;
+        border: 1px solid var(--es-line-strong) !important;
+        border-radius: 10px !important;
+        background: var(--es-surface) !important;
+        box-shadow: 0 12px 30px rgba(0,0,0,.16) !important;
+    }
+
+    .multi-picker-search {
+        height: 32px !important;
+        margin-bottom: 6px;
+        border: 1px solid var(--es-line-strong) !important;
+        border-radius: 7px !important;
+        background: var(--es-field) !important;
+        color: var(--es-ink) !important;
+        font: 500 12.5px var(--es-font) !important;
+        box-shadow: none !important;
+    }
+
+    .multi-picker-list {
+        max-height: 260px;
+        overflow-y: auto;
+    }
+
+    .multi-picker-option {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 8px;
+        margin: 0;
+        border-radius: 6px;
+        font-size: 12.5px;
+        color: var(--es-ink);
+        cursor: pointer;
+        user-select: none;
+    }
+
+        .multi-picker-option:hover {
+            background: var(--es-tinto-soft);
+        }
+
+        .multi-picker-option input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            accent-color: var(--es-tinto);
+            cursor: pointer;
+        }
+
+    .multi-picker-tools {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid var(--es-line);
+    }
+
+        .multi-picker-tools button {
+            border: 0;
+            background: none;
+            padding: 2px 4px;
+            color: var(--es-tinto);
+            font: 600 11.5px var(--es-font);
+            cursor: pointer;
+        }
+
+    .pm-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .tr-resumen {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+        .tr-resumen b {
+            color: var(--es-ink);
+            font-variant-numeric: tabular-nums;
+        }
+
+    .tr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        cursor: pointer;
+        font: 500 12px var(--es-font);
+        color: var(--es-ink);
+    }
+
+        .tr-chip:hover {
+            border-color: var(--es-tinto-line);
+        }
+
+        .tr-chip.is-on {
+            background: var(--es-tinto);
+            border-color: var(--es-tinto);
+            color: #fff;
+        }
+
+            .tr-chip.is-on .badge-est {
+                color: #fff !important;
+            }
+
+    .tr-resumen .sep {
+        width: 1px;
+        height: 18px;
+        background: var(--es-line);
+        margin: 0 4px;
+    }
+
+    .table-card {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .table-responsive-sticky {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .tr-grid {
+        width: 100%;
+        min-width: 1050px;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+        color: var(--es-ink);
+        --bs-table-bg: transparent;
+        --bs-table-color: var(--es-ink);
+        --bs-table-striped-bg: transparent;
+        --bs-table-hover-bg: transparent;
+        --bs-table-border-color: transparent;
+    }
+
+        .tr-grid > :not(caption) > * > * {
+            border-width: 0;
+            box-shadow: none;
+        }
+
+        .tr-grid thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            padding: 9px 10px;
+            background: var(--es-head);
+            border-bottom: 1px solid var(--es-line);
+            color: var(--es-muted);
+            font-size: 11.5px;
+            font-weight: 600;
+            white-space: nowrap;
+            text-align: left;
+            user-select: none;
+        }
+
+            .tr-grid thead th.text-end {
+                text-align: right;
+            }
+
+            .tr-grid thead th[data-sort-col] {
+                cursor: pointer;
+            }
+
+                .tr-grid thead th[data-sort-col]:hover {
+                    color: var(--es-ink);
+                }
+
+            .tr-grid thead th .sort-ind {
+                display: inline-block;
+                width: 10px;
+                margin-left: 3px;
+                color: var(--es-tinto);
+                font-size: 10px;
+            }
+
+            .tr-grid thead th.asc .sort-ind::after {
+                content: "▲";
+            }
+
+            .tr-grid thead th.desc .sort-ind::after {
+                content: "▼";
+            }
+
+        .tr-grid tbody td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--es-row-line);
+            background: var(--es-surface);
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .tr-grid tbody tr:hover > td {
+            background: var(--es-hover);
+        }
+
+        .tr-grid tbody tr.is-cancelada > td {
+            color: var(--es-muted);
+        }
+
+            .tr-grid tbody tr.is-cancelada > td:nth-child(3), .tr-grid tbody tr.is-cancelada > td:nth-child(4) {
+                text-decoration: line-through;
+            }
+
+        .tr-grid tbody tr.is-actualizada > td {
+            animation: tr-flash 1.6s ease-out;
+        }
+
+    @@keyframes tr-flash {
+        from {
+            background: var(--es-warn-bg);
+        }
+    }
+
+    .tr-grid td.td-obs {
+        max-width: 360px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--es-muted);
+    }
+
+    .ver-tr {
+        font-weight: 700;
+        color: var(--es-tinto);
+        text-decoration: none;
+    }
+
+        .ver-tr:hover {
+            text-decoration: underline;
+        }
+
+    .t-msg td {
+        padding: 40px 12px !important;
+        text-align: center;
+        color: var(--es-muted);
+        white-space: normal !important;
+    }
+
+    .badge-est {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        background: var(--es-neutral-bg);
+        color: var(--es-muted);
+    }
+
+        .badge-est::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .badge-est.tr-est-0 {
+            background: var(--es-bad-bg);
+            color: var(--es-bad);
+        }
+
+        .badge-est.tr-est-1 {
+            background: var(--es-warn-bg);
+            color: var(--es-warn);
+        }
+
+        .badge-est.tr-est-2 {
+            background: var(--es-violet-bg);
+            color: var(--es-violet);
+        }
+
+        .badge-est.tr-est-4 {
+            background: var(--es-teal-bg);
+            color: var(--es-teal);
+        }
+
+        .badge-est.tr-est-5 {
+            background: var(--es-ok-bg);
+            color: var(--es-ok);
+        }
+
+    .statusbar {
+        flex: none;
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 11.5px;
+        color: var(--es-muted);
+    }
+
+    /* ---------- Modal ---------- */
+    #trModal .modal-dialog {
+        max-width: min(1240px, 96vw);
+    }
+
+    .trx-modal.modal-content {
+        border: 0;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--es-surface);
+        box-shadow: 0 18px 50px rgba(35,26,28,.25);
+    }
+
+    .trx-modal .modal-header {
+        padding: 13px 18px;
+        background: var(--es-tinto-deep);
+        color: #fff;
+        border-bottom: 0;
+    }
+
+    .trx-modal .modal-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+    }
+
+        .trx-modal .modal-title .badge-est {
+            background: rgba(255,255,255,.18);
+            color: #fff;
+        }
+
+    .trx-modal .btn-close {
+        filter: invert(1) grayscale(1) brightness(2);
+        opacity: .9;
+    }
+
+    .trx-modal .modal-body {
+        background: var(--es-paper);
+        padding: 14px 16px;
+    }
+
+    .trx-modal .modal-footer {
+        background: var(--es-head);
+        border-top: 1px solid var(--es-line);
+        gap: 8px;
+    }
+
+    .tr-datos {
+        display: grid;
+        grid-template-columns: minmax(180px, 1.2fr) 280px minmax(160px, 1fr);
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .tr-dato {
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        min-width: 0;
+    }
+
+    .tr-label {
+        margin-bottom: 3px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--es-muted);
+        letter-spacing: .02em;
+    }
+
+    .tr-value {
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .tr-fecha-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    #trm-fecha-sol-input {
+        max-width: 160px;
+        height: 32px;
+    }
+
+    #trm-fecha-sol-help {
+        display: block;
+        margin-top: 3px;
+        font-size: 11px;
+        color: var(--es-muted);
+    }
+
+    .tr-observacion {
+        padding: 9px 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+    }
+
+        .tr-observacion strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+    #trm-obs {
+        white-space: pre-wrap;
+    }
+
+        #trm-obs.vacia {
+            color: var(--es-muted);
+            font-style: italic;
+        }
+
+    .tr-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .tr-kpi {
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-top: 3px solid var(--k, var(--es-line-strong));
+    }
+
+        .tr-kpi .t {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+        .tr-kpi .v {
+            font-size: 18px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tr-kpi .s {
+            font-size: 11px;
+            color: var(--es-muted);
+        }
+
+        .tr-kpi.ok {
+            --k: var(--es-ok);
+        }
+
+        .tr-kpi.warn {
+            --k: var(--es-warn);
+        }
+
+        .tr-kpi.bad {
+            --k: var(--es-bad);
+        }
+
+        .tr-kpi.ok .v {
+            color: var(--es-ok);
+        }
+
+        .tr-kpi.warn .v {
+            color: var(--es-warn);
+        }
+
+        .tr-kpi.bad .v {
+            color: var(--es-bad);
+        }
+
+    .modal-box {
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        overflow: hidden;
+    }
+
+    .modal-box-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--es-line);
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+        .modal-box-title i {
+            color: var(--es-tinto);
+        }
+
+    .modal-box .table-responsive {
+        max-height: 46vh;
+        overflow: auto;
+    }
+
+    .trm-sap {
+        width: 100%;
+        min-width: 1100px;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+        color: var(--es-ink);
+        --bs-table-bg: transparent;
+        --bs-table-color: var(--es-ink);
+        --bs-table-striped-bg: transparent;
+        --bs-table-border-color: transparent;
+    }
+
+        .trm-sap > :not(caption) > * > * {
+            border-width: 0;
+            box-shadow: none;
+        }
+
+        .trm-sap thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 8px 10px;
+            background: var(--es-head);
+            border-bottom: 1px solid var(--es-line);
+            color: var(--es-muted);
+            font-size: 11.5px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+            .trm-sap thead th.col-conf {
+                background: #f7f1e1;
+            }
+
+    body[data-theme="dark"] .trm-sap thead th.col-conf {
+        background: #2e2c22;
+    }
+
+    .trm-sap tbody td {
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--es-row-line);
+        background: var(--es-surface);
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+        .trm-sap tbody td.col-conf {
+            background: var(--es-accent-col);
+            font-weight: 600;
+        }
+
+        .trm-sap tbody td:nth-child(2) {
+            font-weight: 600;
+        }
+
+        .trm-sap tbody td:nth-child(3) {
+            white-space: normal;
+            min-width: 240px;
+        }
+
+    .trm-sap tbody tr:hover td {
+        background: var(--es-hover);
+    }
+
+    .trm-sap tfoot th {
+        position: sticky;
+        bottom: 0;
+        padding: 9px 10px;
+        background: var(--es-head);
+        border-top: 1px solid var(--es-line);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .trm-sap td.dif-neg {
+        color: var(--es-bad);
+        font-weight: 700;
+    }
+
+    .trm-sap td.dif-pos {
+        color: var(--es-warn);
+        font-weight: 700;
+    }
+
+    .estado-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .02em;
+    }
+
+    .estado-completo .estado-pill {
+        background: var(--es-ok-bg);
+        color: var(--es-ok);
+    }
+
+    .estado-incompleto .estado-pill {
+        background: var(--es-warn-bg);
+        color: var(--es-warn);
+    }
+
+    .estado-no-surtido .estado-pill {
+        background: var(--es-bad-bg);
+        color: var(--es-bad);
+    }
+
+    .estado-sin-confirmar .estado-pill {
+        background: var(--es-neutral-bg);
+        color: var(--es-muted);
+    }
+
+    .tr-toasts {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2100;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: min(620px, 92vw);
+        pointer-events: none;
+    }
+
+    .tr-toast {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 11px 14px;
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-left: 4px solid var(--c, var(--es-info));
+        box-shadow: 0 12px 30px rgba(0,0,0,.18);
+        pointer-events: auto;
+        animation: tr-in .16s ease-out;
+    }
+
+        .tr-toast i {
+            color: var(--c);
+            font-size: 16px;
+            margin-top: 1px;
+        }
+
+        .tr-toast span {
+            flex: 1;
+        }
+
+        .tr-toast button {
+            border: 0;
+            background: none;
+            color: var(--es-muted);
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .tr-toast.success {
+            --c: var(--es-ok);
+        }
+
+        .tr-toast.danger {
+            --c: var(--es-bad);
+        }
+
+        .tr-toast.warning {
+            --c: var(--es-warn);
+        }
+
+        .tr-toast.info {
+            --c: var(--es-info);
+        }
+
+    @@keyframes tr-in {
+        from {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .tr-toast, .tr-grid tbody tr.is-actualizada > td {
+            animation: none;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .filters {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .pm-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-end;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .trx {
+            height: auto;
+            overflow: visible;
+        }
+
+        .table-card {
+            min-height: 520px;
+        }
+
+        .filters, .tr-datos, .tr-kpis {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+</style>
+
+<div class="trx window transferencias-app">
+    <header class="tr-header">
+        <span class="tr-header__icon"><i class="bi bi-arrow-left-right"></i></span>
+        <div>
+            <h1>Transferencias</h1>
+            <p>Solicitudes de traspaso entre sucursales: lo pedido, lo confirmado y lo surtido por SKU.</p>
         </div>
-        <div class="actions">
-            <div class="win-btn"></div>
-            <div class="win-btn"></div>
-            <div class="win-btn"></div>
-        </div>
-    </div>
+    </header>
 
-    <div class="content">
-       
-
-        <div class="workspace">
-            <div class="section">
-                <div class="section-title"><i class="bi bi-funnel"></i> Filtros de búsqueda</div>
-
-                <form id="frmTransferencias" method="get">
-                    <div class="filters">
-                        @{
-                            var hoy = DateTime.Today;
-                            var desdeDef = (Model?.Desde ?? hoy.AddDays(-2)).ToString("yyyy-MM-dd");
-                            var hastaDef = (Model?.Hasta ?? hoy).ToString("yyyy-MM-dd");
-                        }
-
-                        <div class="filter-group fechas-group">
-                            <div>
-                                <label>Desde</label>
-                                <input type="date" name="Desde" value="@desdeDef" />
-                            </div>
-
-                            <div>
-                                <label>Hasta</label>
-                                <input type="date" name="Hasta" value="@hastaDef" />
-                            </div>
-                        </div>
-
-                        <div class="filter-group">
-                            <label>Sucursal</label>
-                            @{
-                                var sucSel = Model?.SucursalesSeleccionadas ?? new List<string>();
-
-                                string TextoSucursalesFiltro(IEnumerable<string> selec)
+    <section class="tr-card tr-filters">
+        <form id="frmTransferencias" method="get">
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="f-desde">Desde</label>
+                    <input type="date" id="f-desde" name="Desde" value="@desdeDef" />
+                </div>
+                <div class="filter-group">
+                    <label for="f-hasta">Hasta</label>
+                    <input type="date" id="f-hasta" name="Hasta" value="@hastaDef" />
+                </div>
+                <div class="filter-group">
+                    <label for="dd-sucursal-btn">Sucursal</label>
+                    <div class="dropdown w-100" id="dd-sucursal-tr">
+                        <button class="btn-select-like w-100 @(sucSel.Any() ? "has-value" : "")" id="dd-sucursal-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span class="multi-label">@TextoSucursalesFiltro(sucSel)</span>
+                        </button>
+                        <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
+                            <input type="text" class="form-control multi-picker-search" placeholder="Buscar sucursal…" autocomplete="off" aria-label="Buscar sucursal" />
+                            <div class="multi-picker-list">
+                                @if (Model?.Sucursales != null)
                                 {
-                                    if (selec == null || !selec.Any()) return "(Todas)";
-                                    if (Model?.Sucursales == null) return string.Join(", ", selec);
-
-                                    var nombres = Model.Sucursales
-                                        .Where(s => selec.Contains(s.Codigo))
-                                        .Select(s => $"{s.Codigo}")
-                                        .ToList();
-
-                                    if (!nombres.Any()) nombres = selec.ToList();
-                                    return string.Join(", ", nombres.Distinct());
-                                }
-                            }
-
-                            <div class="dropdown w-100" id="dd-sucursal-tr">
-                                <button class="btn-select-like w-100"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-auto-close="outside"
-                                        aria-expanded="false">
-                                    <span class="multi-label">@TextoSucursalesFiltro(sucSel)</span>
-                                </button>
-                                <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
-                                    <input type="text"
-                                           class="form-control multi-picker-search"
-                                           placeholder="Buscar sucursal..."
-                                           autocomplete="off" />
-
-                                    <div class="multi-picker-list">
-                                        @if (Model?.Sucursales != null)
-                                        {
-                                            foreach (var s in Model.Sucursales)
-                                            {
-                                                var isChecked = sucSel.Contains(s.Codigo);
-                                                var text = string.IsNullOrWhiteSpace(s.Nombre) ? s.Codigo : $"{s.Nombre}";
-
-                                                <label class="multi-picker-option">
-                                                    <input class="multi-check-sucursal-tr"
-                                                           type="checkbox"
-                                                           value="@s.Codigo"
-                                                           id="tr_suc_@s.Codigo"
-                                                           data-text="@text"
-                                                    @(isChecked ? "checked" : null) />
-                                                    <span>@text</span>
-                                                </label>
-                                            }
-                                        }
-                                    </div>
-                                </div>
-
-                                <div id="dd-sucursal-tr-hidden">
-                                    @foreach (var s in sucSel)
+                                    foreach (var s in Model.Sucursales)
                                     {
-                                        <input type="hidden" name="SucursalesSeleccionadas" value="@s" />
+                                        var text = string.IsNullOrWhiteSpace(s.Nombre) ? s.Codigo : s.Nombre;
+                                        <label class="multi-picker-option">
+                                            <input class="multi-check-sucursal-tr" type="checkbox" value="@s.Codigo" data-text="@s.Codigo" @(sucSel.Contains(s.Codigo) ? "checked" : null) />
+                                            <span>@text</span>
+                                        </label>
                                     }
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="filter-group">
-                            <label>Estatus</label>
-                            @{
-                                var ests = Model?.EstatusSeleccionados ?? new List<int>();
-
-                                string TextoEstatusFiltro(IEnumerable<int> selec)
-                                {
-                                    if (selec == null || !selec.Any()) return "(Todos)";
-
-                                    var set = selec.ToHashSet();
-                                    var nombres = new List<string>();
-
-                                    if (set.Contains(1) || set.Contains(3)) nombres.Add("Pendiente");
-                                    if (set.Contains(2)) nombres.Add("Autorización");
-                                    if (set.Contains(4)) nombres.Add("Validado");
-                                    if (set.Contains(5)) nombres.Add("Surtido");
-                                    if (set.Contains(0)) nombres.Add("Cancelada");
-
-                                    return string.Join(", ", nombres);
                                 }
-                            }
-
-                            <div class="dropdown w-100" id="dd-estatus-tr">
-                                <button class="btn-select-like w-100"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-auto-close="outside"
-                                        aria-expanded="false">
-                                    <span class="multi-label">@TextoEstatusFiltro(ests)</span>
-                                </button>
-                                <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
-                                    <input type="text"
-                                           class="form-control multi-picker-search"
-                                           placeholder="Buscar estatus..."
-                                           autocomplete="off" />
-
-                                    <div class="multi-picker-list">
-                                        <label class="multi-picker-option">
-                                            <input class="multi-check-estatus-tr"
-                                                   type="checkbox"
-                                                   value="1"
-                                                   data-extra="3"
-                                                   id="tr_est_pend"
-                                                   data-text="Pendiente"
-                                            @(ests.Contains(1) || ests.Contains(3) ? "checked" : null) />
-                                            <span>Pendiente</span>
-                                        </label>
-
-                                        <label class="multi-picker-option">
-                                            <input class="multi-check-estatus-tr"
-                                                   type="checkbox"
-                                                   value="2"
-                                                   id="tr_est_2"
-                                                   data-text="Autorización"
-                                            @(ests.Contains(2) ? "checked" : null) />
-                                            <span>Autorización</span>
-                                        </label>
-
-                                        <label class="multi-picker-option">
-                                            <input class="multi-check-estatus-tr"
-                                                   type="checkbox"
-                                                   value="4"
-                                                   id="tr_est_4"
-                                                   data-text="Validado"
-                                            @(ests.Contains(4) ? "checked" : null) />
-                                            <span>Validado</span>
-                                        </label>
-
-                                        <label class="multi-picker-option">
-                                            <input class="multi-check-estatus-tr"
-                                                   type="checkbox"
-                                                   value="5"
-                                                   id="tr_est_5"
-                                                   data-text="Surtido"
-                                            @(ests.Contains(5) ? "checked" : null) />
-                                            <span>Surtido</span>
-                                        </label>
-
-                                        <label class="multi-picker-option">
-                                            <input class="multi-check-estatus-tr"
-                                                   type="checkbox"
-                                                   value="0"
-                                                   id="tr_est_0"
-                                                   data-text="Cancelada"
-                                            @(ests.Contains(0) ? "checked" : null) />
-                                            <span>Cancelada</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div id="dd-estatus-tr-hidden">
-                                    @foreach (var e in ests)
-                                    {
-                                        <input type="hidden" name="EstatusSeleccionados" value="@e" />
-                                    }
-                                </div>
                             </div>
+                            <div class="multi-picker-tools"><button type="button" data-todos>Marcar visibles</button><button type="button" data-ninguno>Ninguna</button></div>
                         </div>
-
-                        <div class="filter-group">
-                            <label>Buscar</label>
-                            <input type="text" name="Buscar"
-                                   value="@(Model?.Buscar ?? "")"
-                                   placeholder="Consecutivo / SKU / Observación" />
-                        </div>
-                        <div class="pm-actions">
-                            <button class="pm-btn pm-btn-primary" type="submit">
-                                <i class="bi bi-search"></i>
-                                <span>Aplicar</span>
-                            </button>
-
-                            <button class="pm-btn pm-btn-excel"
-                                    type="submit"
-                                    form="frmTransferencias"
-                                    name="Export"
-                                    value="xlsx">
-                                <i class="bi bi-file-earmark-excel"></i>
-                                <span>Exportar a Excel</span>
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <div class="section">
-                @* <div class="section-title">Listado de transferencias</div> *@
-
-                @Html.AntiForgeryToken()
-
-                <div class="table-card table-responsive-sticky">
-                    <table class="table table-sm table-striped table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th data-sort-col="cons" data-sort-type="text">Consecutivo</th>
-                                <th data-sort-col="suc" data-sort-type="text">Sucursal</th>
-                                <th class="text-end" data-sort-col="cajas" data-sort-type="num">Total cajas</th>
-                                <th class="text-end" data-sort-col="kg" data-sort-type="num">Total kg</th>
-                                <th data-sort-col="sol" data-sort-type="text">Solicita</th>
-                                <th data-sort-col="obs" data-sort-type="text">Observación</th>
-                                <th data-sort-col="fsol" data-sort-type="date">Fecha Embarcar</th>
-                                <th data-sort-col="est" data-sort-type="text">Estatus</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{
-                                var resultadosOrdenados = Model?.Resultados?.OrderByDescending(t => t.Consecutivo);
-                            }
-
-                            @if (resultadosOrdenados != null && resultadosOrdenados.Any())
+                        <div id="dd-sucursal-tr-hidden">
+                            @foreach (var s in sucSel)
                             {
-                                var idx = 0;
-                                foreach (var t in resultadosOrdenados)
-                                {
-                                    var estVal = t?.Estatus ?? -1;
-
-                                    var estClass =
-                                    estVal == 0 ? "tr-est-0" :
-                                    (estVal == 1 || estVal == 3) ? "tr-est-1" :
-                                    estVal == 2 ? "tr-est-2" :
-                                    estVal == 4 ? "tr-est-4" :
-                                    estVal == 5 ? "tr-est-5" : "";
-
-                                    var texto =
-                                    estVal == 0 ? "Cancelada" :
-                                    (estVal == 1 || estVal == 3) ? "Pendiente" :
-                                    estVal == 2 ? "Autorización Presupuesto" :
-                                    estVal == 4 ? "Validado" :
-                                    estVal == 5 ? "Surtido" : "Otro";
-
-                                    <tr data-index="@idx">
-                                        <td>
-                                            <a href="#" class="ver-tr"
-                                               data-id="@(t?.Id)"
-                                               data-cons="@(t?.Consecutivo ?? "")">
-                                                @(t?.Consecutivo ?? "")
-                                            </a>
-                                        </td>
-
-                                        <td>@(t?.SucursalNombre ?? "")</td>
-
-                                        <td class="text-end">
-                                            @((t?.TotalCajas ?? 0).ToString("N0"))
-                                        </td>
-
-                                        <td class="text-end">
-                                            @((t?.TotalKg ?? 0m).ToString("N2"))
-                                        </td>
-
-                                        <td>@(t?.UsuarioSolicita ?? "")</td>
-
-                                        <td>@(t?.Observacion ?? "")</td>
-
-                                        <td>@(t?.FechaSolicitud?.ToString("yyyy-MM-dd") ?? "")</td>
-
-                                        <td>
-                                            <span class="badge-est @estClass">@texto</span>
-                                        </td>
-                                    </tr>
-                                    idx++;
-                                }
+                                <input type="hidden" name="SucursalesSeleccionadas" value="@s" />
                             }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted">Sin resultados.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-
-                    <div class="modal fade" id="trModal" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">
-                                        Transferencia : <span id="trm-consecutivo"></span>
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                                </div>
-
-                                <div class="modal-body">
-                                    <div class="row g-3 mb-3 tr-header">
-                                        <div class="col-md-3 col-sm-6">
-                                            <div class="tr-label">Sucursal</div>
-                                            <div class="tr-value fw-bold" id="trm-sucursal"></div>
-                                        </div>
-
-                                        <div class="col-md-3 col-sm-6">
-                                            <div class="tr-label">Embarcar</div>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <input type="date"
-                                                       class="form-control form-control-sm"
-                                                       id="trm-fecha-sol-input"
-                                                       style="max-width: 170px;" />
-
-                                                <button type="button"
-                                                        class="btn btn-primary btn-sm d-none"
-                                                        id="btn-fecha-sol-save"
-                                                        title="Guardar">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-
-                                                <button type="button"
-                                                        class="btn btn-outline-secondary btn-sm d-none"
-                                                        id="btn-fecha-sol-cancel"
-                                                        title="Cancelar">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            </div>
-
-                                            <small class="text-muted d-block mt-1" id="trm-fecha-sol-help"></small>
-                                        </div>
-
-                                        <div class="col-md-4 col-sm-6">
-                                            <div class="tr-label">Solicitó</div>
-                                            <div class="tr-value fw-bold" id="trm-usuario"></div>
-                                        </div>
-
-                                        <div class="col-md-2 col-sm-6">
-                                            <div class="tr-label">Estatus</div>
-                                            <div class="tr-value fw-bold" id="trm-estatus"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="tr-observacion">
-                                        <strong>Observación:</strong>
-                                        <span id="trm-obs"></span>
-                                    </div>
-
-                                    <hr class="my-3" />
-                                    <h6 class="mb-2">Pedido vs surtido</h6>
-
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-striped align-middle sap-grid trm-sap">
-                                            <thead>
-                                                <tr>
-                                                    <th>#</th>
-                                                    <th>SKU</th>
-                                                    <th>Producto</th>
-                                                    <th class="text-end">Kg pedido</th>
-                                                    <th class="text-end">Cajas pedido</th>
-                                                    <th class="text-end col-conf">Kg confirmadas</th>      <!-- ← -->
-                                                    <th class="text-end col-conf">Cajas confirmadas</th>   <!-- ← -->
-                                                    <th class="text-end">Kg surtido</th>
-                                                    <th class="text-end">Cajas surtidas</th>
-                                                    <th class="text-end">Dif kg</th>
-                                                    <th class="text-end">Dif cajas</th>
-                                                    <th>Estatus</th>
-                                                </tr>
-                                            </thead>
-
-                                            <tbody id="trm-comp-tbody">
-                                                <tr><td colspan="12" class="text-center text-muted">—</td></tr>
-                                            </tbody>
-
-                                            <tfoot>
-                                                <tr>
-                                                    <th colspan="3" class="text-end">Totales:</th>
-                                                    <th class="text-end" id="trm-tot-kg-ped">0.00</th>
-                                                    <th class="text-end" id="trm-tot-caj-ped">0</th>
-                                                    <th class="text-end col-conf" id="trm-tot-kg-conf">0.00</th>   <!-- ← -->
-                                                    <th class="text-end col-conf" id="trm-tot-caj-conf">0</th>     <!-- ← -->
-                                                    <th class="text-end" id="trm-tot-kg-sur">0.00</th>
-                                                    <th class="text-end" id="trm-tot-caj-sur">0</th>
-                                                    <th colspan="3"></th>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="modal-footer">
-                                    <small class="text-muted me-auto">Folio interno: <span id="trm-id"></span></small>
-                                    <button type="button" class="btn btn-danger btn-slim d-none" id="btn-cancelar-tr">
-                                        <i class="bi bi-x-circle"></i> Cancelar transferencia
-                                    </button>
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
+                <div class="filter-group">
+                    <label for="dd-estatus-btn">Estatus</label>
+                    <div class="dropdown w-100" id="dd-estatus-tr">
+                        <button class="btn-select-like w-100 @(ests.Any() ? "has-value" : "")" id="dd-estatus-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span class="multi-label">@TextoEstatusFiltro(ests)</span>
+                        </button>
+                        <div class="dropdown-menu multi-picker-menu" onclick="event.stopPropagation();">
+                            <input type="text" class="form-control multi-picker-search" placeholder="Buscar estatus…" autocomplete="off" aria-label="Buscar estatus" />
+                            <div class="multi-picker-list">
+                                <label class="multi-picker-option"><input class="multi-check-estatus-tr" type="checkbox" value="1" data-extra="3" data-text="Pendiente" @(ests.Contains(1) || ests.Contains(3) ? "checked" : null) /><span class="badge-est tr-est-1">Pendiente</span></label>
+                                <label class="multi-picker-option"><input class="multi-check-estatus-tr" type="checkbox" value="2" data-text="Autorización" @(ests.Contains(2) ? "checked" : null) /><span class="badge-est tr-est-2">Autorización</span></label>
+                                <label class="multi-picker-option"><input class="multi-check-estatus-tr" type="checkbox" value="4" data-text="Validado" @(ests.Contains(4) ? "checked" : null) /><span class="badge-est tr-est-4">Validado</span></label>
+                                <label class="multi-picker-option"><input class="multi-check-estatus-tr" type="checkbox" value="5" data-text="Surtido" @(ests.Contains(5) ? "checked" : null) /><span class="badge-est tr-est-5">Surtido</span></label>
+                                <label class="multi-picker-option"><input class="multi-check-estatus-tr" type="checkbox" value="0" data-text="Cancelada" @(ests.Contains(0) ? "checked" : null) /><span class="badge-est tr-est-0">Cancelada</span></label>
+                            </div>
+                            <div class="multi-picker-tools"><button type="button" data-todos>Todos</button><button type="button" data-ninguno>Ninguno</button></div>
+                        </div>
+                        <div id="dd-estatus-tr-hidden">
+                            @foreach (var e in ests)
+                            {
+                                <input type="hidden" name="EstatusSeleccionados" value="@e" />
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="f-buscar">Buscar</label>
+                    <input type="text" id="f-buscar" name="Buscar" value="@(Model?.Buscar ?? "")" placeholder="Consecutivo, SKU u observación" />
+                </div>
+                <div class="pm-actions">
+                    <button class="pm-btn pm-btn-primary" type="submit"><i class="bi bi-search"></i><span>Aplicar</span></button>
+                    <button class="pm-btn" type="submit" form="frmTransferencias" name="Export" value="xlsx"><i class="bi bi-file-earmark-excel" style="color:var(--es-ok)"></i><span>Exportar a Excel</span></button>
+                </div>
             </div>
-        </div>
+        </form>
+    </section>
 
-        <div class="statusbar">
-            <div>Registro listo</div>
-            <div>Usuario: @User.Identity.Name</div>
-            <div>Empresa: Carnes G SA de CV</div>
-            <div>Módulo: Transferencias</div>
+    <div class="tr-resumen" id="trResumen" aria-live="polite"></div>
+
+    @Html.AntiForgeryToken()
+
+    <section class="table-card">
+        <div class="table-responsive-sticky">
+            <table class="table tr-grid" id="trTabla">
+                <thead>
+                    <tr>
+                        <th data-sort-col="cons" data-sort-type="text">Consecutivo<span class="sort-ind"></span></th>
+                        <th data-sort-col="suc" data-sort-type="text">Sucursal<span class="sort-ind"></span></th>
+                        <th class="text-end" data-sort-col="cajas" data-sort-type="num">Total cajas<span class="sort-ind"></span></th>
+                        <th class="text-end" data-sort-col="kg" data-sort-type="num">Total kg<span class="sort-ind"></span></th>
+                        <th data-sort-col="sol" data-sort-type="text">Solicita<span class="sort-ind"></span></th>
+                        <th data-sort-col="obs" data-sort-type="text">Observación<span class="sort-ind"></span></th>
+                        <th data-sort-col="fsol" data-sort-type="date">Fecha embarque<span class="sort-ind"></span></th>
+                        <th data-sort-col="est" data-sort-type="text">Estatus<span class="sort-ind"></span></th>
+                    </tr>
+                </thead>
+                <tbody id="tr-tbody">
+                    @if (resultadosOrdenados != null && resultadosOrdenados.Any())
+                    {
+                        var idx = 0;
+                        foreach (var t in resultadosOrdenados)
+                        {
+                            var estVal = t?.Estatus ?? -1;
+                            var estGrupo = estVal == 3 ? 1 : estVal;
+                            var estClass = estVal == 0 ? "tr-est-0" : (estVal == 1 || estVal == 3) ? "tr-est-1" : estVal == 2 ? "tr-est-2" : estVal == 4 ? "tr-est-4" : estVal == 5 ? "tr-est-5" : "";
+                            var texto = estVal == 0 ? "Cancelada" : (estVal == 1 || estVal == 3) ? "Pendiente" : estVal == 2 ? "Autorización presupuesto" : estVal == 4 ? "Validado" : estVal == 5 ? "Surtido" : "Otro";
+                            <tr data-index="@idx" data-id="@(t?.Id)" data-estatus="@estGrupo" data-cajas="@(t?.TotalCajas ?? 0)" data-kg="@((t?.TotalKg ?? 0m).ToString(inv))" class="@(estVal == 0 ? "is-cancelada" : "")">
+                                <td><a href="#" class="ver-tr" data-id="@(t?.Id)" data-cons="@(t?.Consecutivo ?? "")">@(t?.Consecutivo ?? "")</a></td>
+                                <td>@(t?.SucursalNombre ?? "")</td>
+                                <td class="text-end" data-copy="@(t?.TotalCajas ?? 0)">@((t?.TotalCajas ?? 0).ToString("N0"))</td>
+                                <td class="text-end" data-copy="@((t?.TotalKg ?? 0m).ToString("0.##", inv))">@((t?.TotalKg ?? 0m).ToString("N2"))</td>
+                                <td>@(t?.UsuarioSolicita ?? "")</td>
+                                <td class="td-obs" title="@(t?.Observacion ?? "")">@(t?.Observacion ?? "")</td>
+                                <td class="td-fecha">@(t?.FechaSolicitud?.ToString("yyyy-MM-dd") ?? "")</td>
+                                <td class="td-estatus"><span class="badge-est @estClass">@texto</span></td>
+                            </tr>
+                            idx++;
+                        }
+                    }
+                    else
+                    {
+                        <tr class="t-msg"><td colspan="8">Sin transferencias con estos filtros.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer class="statusbar">
+        <span>Usuario: @(User?.Identity?.Name ?? "")</span>
+        <span>Carnes G SA de CV</span>
+        <span>Módulo: Transferencias</span>
+        <span>Clic derecho sobre una tabla para copiarla a Excel</span>
+    </footer>
+</div>
+
+<!-- Modal fuera de la tabla (antes vivía dentro y había que moverlo con código) -->
+<div class="modal fade" id="trModal" tabindex="-1" aria-hidden="true" aria-labelledby="trmTitulo">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content trx-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="trmTitulo"><i class="bi bi-arrow-left-right"></i> Transferencia <span id="trm-consecutivo"></span> <span id="trm-estatus" class="badge-est"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="tr-datos">
+                    <div class="tr-dato"><div class="tr-label">Sucursal</div><div class="tr-value" id="trm-sucursal"></div></div>
+                    <div class="tr-dato">
+                        <div class="tr-label">Fecha de embarque</div>
+                        <div class="tr-fecha-row">
+                            <input type="date" class="form-control" id="trm-fecha-sol-input" aria-label="Fecha de embarque" />
+                            <button type="button" class="tr-btn tr-btn-sm tr-btn-primary d-none" id="btn-fecha-sol-save" title="Guardar" aria-label="Guardar fecha"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="tr-btn tr-btn-sm d-none" id="btn-fecha-sol-cancel" title="Deshacer" aria-label="Deshacer cambio de fecha"><i class="bi bi-arrow-counterclockwise"></i></button>
+                        </div>
+                        <small id="trm-fecha-sol-help"></small>
+                    </div>
+                    <div class="tr-dato"><div class="tr-label">Solicitó</div><div class="tr-value" id="trm-usuario"></div></div>
+                </div>
+                <div class="tr-observacion"><strong>Observación</strong><span id="trm-obs"></span></div>
+
+                <div class="tr-kpis" id="trmKpis"></div>
+
+                <div class="modal-box">
+                    <div class="modal-box-title"><span><i class="bi bi-list-check"></i> Pedido vs surtido por SKU</span><small style="font-weight:500;color:var(--es-muted)">Diferencia = surtido − confirmado</small></div>
+                    <div class="table-responsive">
+                        <table class="table sap-grid trm-sap">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>SKU</th>
+                                    <th>Producto</th>
+                                    <th class="text-end">Kg pedido</th>
+                                    <th class="text-end">Cajas pedido</th>
+                                    <th class="text-end col-conf">Kg confirmados</th>
+                                    <th class="text-end col-conf">Cajas confirmadas</th>
+                                    <th class="text-end">Kg surtido</th>
+                                    <th class="text-end">Cajas surtidas</th>
+                                    <th class="text-end">Dif. kg</th>
+                                    <th class="text-end">Dif. cajas</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trm-comp-tbody"><tr class="t-msg"><td colspan="12">—</td></tr></tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="3" class="text-end">Totales</th>
+                                    <th class="text-end" id="trm-tot-kg-ped">0.00</th>
+                                    <th class="text-end" id="trm-tot-caj-ped">0</th>
+                                    <th class="text-end col-conf" id="trm-tot-kg-conf">0.00</th>
+                                    <th class="text-end col-conf" id="trm-tot-caj-conf">0</th>
+                                    <th class="text-end" id="trm-tot-kg-sur">0.00</th>
+                                    <th class="text-end" id="trm-tot-caj-sur">0</th>
+                                    <th class="text-end" id="trm-tot-dif-kg"></th>
+                                    <th class="text-end" id="trm-tot-dif-caj"></th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted me-auto">Folio interno: <span id="trm-id"></span></small>
+                <button type="button" class="tr-btn tr-btn-danger d-none" id="btn-cancelar-tr"><i class="bi bi-x-circle"></i> Cancelar transferencia</button>
+                <button type="button" class="tr-btn" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
 
+<div id="trToasts" class="tr-toasts" aria-live="polite"></div>
+
 @section Scripts {
     <script>
-        function getAntiForgeryToken() {
-            const el = document.querySelector('input[name="__RequestVerificationToken"]');
-            return el ? el.value : '';
-        }
+        (() => {
+            const $id = id => document.getElementById(id);
+            const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            const getAntiForgeryToken = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+            const fmtNum = (n, d = 2) => n == null ? '' : Number(n).toLocaleString('es-MX', { minimumFractionDigits: d, maximumFractionDigits: d });
+            async function leerJson(res) { const raw = await res.text(); try { return { data: JSON.parse(raw), raw }; } catch { return { data: null, raw }; } }
 
-        function fmtNum(n, d = 2) {
-            if (n == null) return "";
-            return Number(n).toLocaleString('es-MX', {
-                minimumFractionDigits: d,
-                maximumFractionDigits: d
-            });
-        }
-
-        function showMsg(type, text) {
-            const id = 'tr-alert';
-            let box = document.getElementById(id);
-            if (!box) {
-                box = document.createElement('div');
-                box.id = id;
-                document.body.prepend(box);
+            function showMsg(type, text, ms) {
+                const cont = $id('trToasts');
+                const icon = { success: 'bi-check-circle-fill', danger: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' }[type] || 'bi-info-circle-fill';
+                const el = document.createElement('div');
+                el.className = `tr-toast ${type}`;
+                el.setAttribute('role', type === 'danger' ? 'alert' : 'status');
+                // CORRECCIÓN: el texto del servidor se muestra como texto (antes se pintaba como HTML)
+                el.innerHTML = `<i class="bi ${icon}"></i><span>${esc(text)}</span><button type="button" aria-label="Cerrar">×</button>`;
+                el.querySelector('button').onclick = () => el.remove();
+                cont.appendChild(el);
+                const dur = ms ?? (type === 'danger' ? 9000 : 4000);
+                if (dur > 0) setTimeout(() => el.remove(), dur);
             }
-            box.innerHTML = `
-                <div class="alert alert-${type} alert-dismissible fade show m-3 shadow-sm"
-                     role="alert" style="position:sticky; top:0; z-index:2000;">
-                    ${text}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>`;
-        }
 
-        // ✅ incluye estatus 5
-        function estatusTextoTr(e) {
-            const est = Number(e);
-            return est === 0 ? "Cancelada" :
-                   est === 1 ? "Pendiente" :
-                   est === 2 ? "Autorización Presupuesto" :
-                   est === 3 ? "Pendiente" :
-                   est === 4 ? "Validado" :
-                   est === 5 ? "Surtido" : "Otro";
-        }
+            const TEXTO = { 0: 'Cancelada', 1: 'Pendiente', 3: 'Pendiente', 2: 'Autorización presupuesto', 4: 'Validado', 5: 'Surtido' };
+            const CLASE = { 0: 'tr-est-0', 1: 'tr-est-1', 3: 'tr-est-1', 2: 'tr-est-2', 4: 'tr-est-4', 5: 'tr-est-5' };
+            const estatusTextoTr = e => TEXTO[Number(e)] || 'Otro';
+            // CORRECCIÓN: fechas sin hora se toman tal cual (antes podían mostrarse un día antes por zona horaria)
+            function toDateInputValue(s) {
+                const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+                const d = new Date(s);
+                return isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+            const filaDe = id => document.querySelector(`#tr-tbody tr[data-id="${CSS.escape(String(id))}"]`);
 
-        function toDateInputValue(isoString) {
-            if (!isoString) return "";
-            const d = new Date(isoString);
-            if (isNaN(d)) return "";
-            const pad = n => String(n).padStart(2, '0');
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        }
+            let trIdActual = null, trEstatusAct = null, trFechaSolOriginal = null;
 
-        let trIdActual = null;
-        let trEstatusAct = null;
-        let trFechaSolOriginal = null;
-
-
-function toggleCancelarBtnTr(estatus) {
-    const btn = document.getElementById('btn-cancelar-tr');
-    if (!btn) return;
-
-    const cancelada = Number(estatus) === 0;
-
-    btn.classList.toggle('d-none', cancelada);
-    btn.disabled = cancelada;
-    btn.title = cancelada
-        ? 'Esta transferencia ya está cancelada'
-        : 'Cancelar transferencia';
-}
-
-
-        function setFechaEditUI(show) {
-            const btnSave = document.getElementById('btn-fecha-sol-save');
-            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
-            if (!btnSave || !btnCancel) return;
-            btnSave.classList.toggle('d-none', !show);
-            btnCancel.classList.toggle('d-none', !show);
-        }
-
-        function toggleEditarFechaPermitido(estatus) {
-            const inp = document.getElementById('trm-fecha-sol-input');
-            const est = Number(estatus);
-            const permitido = (est === 1 || est === 2);
-            if (inp) inp.disabled = !permitido;
-            if (!permitido) setFechaEditUI(false);
-            return permitido;
-        }
-
-        async function guardarFechaSolicitudActual() {
-            if (!trIdActual) { showMsg("warning", "No hay transferencia seleccionada."); return; }
-            const inp = document.getElementById('trm-fecha-sol-input');
-            if (!inp) return;
-
-            const nueva = inp.value;
-            if (!nueva) { showMsg("warning", "Selecciona una fecha válida."); return; }
-            if (nueva === trFechaSolOriginal) { setFechaEditUI(false); return; }
-
-            const btnSave = document.getElementById('btn-fecha-sol-save');
-            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
-            if (btnSave) btnSave.disabled = true;
-            if (btnCancel) btnCancel.disabled = true;
-
-            try {
-                const res = await fetch('/Transferencias/ActualizarFechaSolicitud', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'RequestVerificationToken': getAntiForgeryToken()
-                    },
-                    body: JSON.stringify({ transferenciaId: Number(trIdActual), fechaSolicitud: nueva })
+            // ---------- Resumen y filtro rápido ----------
+            let filtroLocal = null;
+            function actualizarResumen() {
+                const filas = [...document.querySelectorAll('#tr-tbody tr[data-index]')];
+                const cont = $id('trResumen');
+                if (!filas.length) { cont.innerHTML = ''; return; }
+                const porEst = {};
+                let cajas = 0, kg = 0, vivas = 0;
+                filas.forEach(tr => {
+                    porEst[tr.dataset.estatus] = (porEst[tr.dataset.estatus] || 0) + 1;
+                    if (tr.dataset.estatus !== '0' && tr.style.display !== 'none') { cajas += Number(tr.dataset.cajas || 0); kg += Number(tr.dataset.kg || 0); vivas++; }
                 });
-
-                const raw = await res.text();
-                let data = null;
-                try { data = JSON.parse(raw); } catch { }
-
-                if (!res.ok || !data?.ok) {
-                    showMsg("danger", data?.msg || raw.substring(0, 160) || "No se pudo guardar la fecha.");
-                    if (btnSave) btnSave.disabled = false;
-                    if (btnCancel) btnCancel.disabled = false;
-                    return;
-                }
-
-                showMsg("success", data.msg || "Fecha actualizada.");
-                trFechaSolOriginal = nueva;
-                setFechaEditUI(false);
-                setTimeout(() => location.reload(), 400);
-
-            } catch (e) {
-                console.error(e);
-                showMsg("danger", "No se pudo conectar con el servidor.");
-                if (btnSave) btnSave.disabled = false;
-                if (btnCancel) btnCancel.disabled = false;
+                const chips = ['1', '2', '4', '5', '0'].filter(e => porEst[e]).map(e => `<button type="button" class="tr-chip ${filtroLocal === e ? 'is-on' : ''}" data-est="${e}" aria-pressed="${filtroLocal === e}"><span class="badge-est ${CLASE[e]}" style="padding:0;background:none">${e === '2' ? 'Autorización' : TEXTO[e]}</span><b>${porEst[e]}</b></button>`).join('');
+                cont.innerHTML = `<span><b>${filas.length}</b> transferencias</span><span class="sep"></span>${chips}<span class="sep"></span><span>Sin canceladas${filtroLocal ? ' (filtro en pantalla)' : ''}: <b>${vivas}</b> · <b>${fmtNum(cajas, 0)}</b> cajas · <b>${fmtNum(kg)}</b> kg</span>`;
             }
-        }
-
-    async function cancelarTransferenciaActual() {
-    if (!trIdActual) {
-        showMsg("warning", "No hay transferencia seleccionada.");
-        return;
-    }
-
-    if (Number(trEstatusAct) === 0) {
-        showMsg("warning", "Esta transferencia ya está cancelada.");
-        return;
-    }
-
-    const consecutivo = document.getElementById('trm-consecutivo')?.textContent || '';
-
-    const ok = confirm(
-        `¿Seguro que deseas CANCELAR la transferencia ${consecutivo}?`
-    );
-
-    if (!ok) return;
-
-    const btn = document.getElementById('btn-cancelar-tr');
-
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cancelando...';
-    }
-
-    try {
-       const res = await fetch('/Transferencias/Cancelar', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'RequestVerificationToken': getAntiForgeryToken()
-    },
-    body: JSON.stringify({
-        transferenciaId: Number(trIdActual)
-    })
-});
-
-        const raw = await res.text();
-        let data = null;
-
-        try {
-            data = JSON.parse(raw);
-        } catch { }
-
-        if (!res.ok || data?.ok === false) {
-            console.error("Error cancelar transferencia:", {
-                status: res.status,
-                raw,
-                data
+            $id('trResumen').addEventListener('click', e => {
+                const chip = e.target.closest('.tr-chip');
+                if (!chip) return;
+                filtroLocal = filtroLocal === chip.dataset.est ? null : chip.dataset.est;
+                document.querySelectorAll('#tr-tbody tr[data-index]').forEach(tr => tr.style.display = (!filtroLocal || tr.dataset.estatus === filtroLocal) ? '' : 'none');
+                actualizarResumen();
             });
 
-            showMsg(
-                "danger",
-                data?.msg || raw.substring(0, 300) || `No se pudo cancelar. HTTP ${res.status}`
-            );
-
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar transferencia';
+            // ---------- Modal ----------
+            const modal = () => bootstrap.Modal.getOrCreateInstance($id('trModal'));
+            function toggleCancelarBtnTr(estatus) {
+                const btn = $id('btn-cancelar-tr');
+                const cancelada = Number(estatus) === 0;
+                btn.classList.toggle('d-none', cancelada);
+                btn.disabled = cancelada;
+            }
+            function setFechaEditUI(show) {
+                $id('btn-fecha-sol-save').classList.toggle('d-none', !show);
+                $id('btn-fecha-sol-cancel').classList.toggle('d-none', !show);
+            }
+            function toggleEditarFechaPermitido(estatus) {
+                const est = Number(estatus);
+                const permitido = est === 1 || est === 2; // misma regla que antes
+                $id('trm-fecha-sol-input').disabled = !permitido;
+                $id('trm-fecha-sol-help').textContent = permitido ? 'Cambia la fecha y presiona ✓ para guardar.' : `No se puede cambiar en estatus "${estatusTextoTr(est)}".`;
+                if (!permitido) setFechaEditUI(false);
+                return permitido;
             }
 
-            return;
-        }
-
-        showMsg("success", data.msg || "Transferencia cancelada correctamente.");
-
-        trEstatusAct = 0;
-        toggleCancelarBtnTr(0);
-
-        const modalEl = document.getElementById('trModal');
-        const inst = bootstrap.Modal.getInstance(modalEl);
-        inst?.hide();
-
-        setTimeout(() => location.reload(), 500);
-
-    } catch (e) {
-        console.error(e);
-        showMsg("danger", "No se pudo conectar con el servidor.");
-
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-x-circle"></i> Cancelar transferencia';
-        }
-    }
-}
-
-
-
-
-        function escapeRegExp(s){
-            return (s ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        }
-
-        function soloNombreProducto(productoNombre, productoCodigo){
-            const d = (productoNombre ?? "").trim();
-            const c = (productoCodigo ?? "").trim();
-            if (!d) return "";
-
-            if (c) {
-                const m = d.match(new RegExp("^" + escapeRegExp(c) + "\\s*\\((.*)\\)\\s*$", "i"));
-                if (m && m[1]) return m[1].trim();
-                return d.replace(new RegExp("^" + escapeRegExp(c) + "\\s*[-–—:]?\\s*", "i"), "").trim();
-            }
-
-            const m2 = d.match(/^\((.*)\)$/);
-            return (m2 && m2[1]) ? m2[1].trim() : d;
-        }
-
-        // ✅ TABLA ÚNICA: une lineas + surtido por SKU
-        async function cargarDetalleTr(id, consecutivo) {
-            const modalEl = document.getElementById('trModal');
-            const compTbody = document.getElementById('trm-comp-tbody');
-
-            if (!modalEl || !compTbody) {
-                console.error("Falta modal #trModal o tbody #trm-comp-tbody");
-                showMsg("danger", "No existe el modal o la tabla comparativa.");
-                return;
-            }
-
-            compTbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">Cargando...</td></tr>`;
-
-            try {
-                const resp = await fetch(`/Transferencias/DetalleApi?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
-                const payload = await resp.json();
-                const h = payload.header || {};
-                const lineas = payload.lineas || [];
-                const surtido = payload.surtido || [];
-
-                trIdActual = h.id || id;
-                trEstatusAct = Number(h.estatus);
-
-                // header
-                const elCons = document.getElementById('trm-consecutivo');
-                const elId = document.getElementById('trm-id');
-                const elSuc = document.getElementById('trm-sucursal');
-                const elUsr = document.getElementById('trm-usuario');
-                const elEst = document.getElementById('trm-estatus');
-                const elObs = document.getElementById('trm-obs');
-
-                if (elCons) elCons.textContent = h.consecutivo || consecutivo || "";
-                if (elId) elId.textContent = trIdActual || "";
-                if (elSuc) elSuc.textContent = h.sucursalNombre || h.sucursal || "";
-                if (elUsr) elUsr.textContent = h.usuarioSolicita || "";
-                if (elEst) elEst.textContent = estatusTextoTr(h.estatus);
-                if (elObs) elObs.textContent = h.observacion || "";
-
-                // fecha input
-                const inpFecha = document.getElementById('trm-fecha-sol-input');
-                if (inpFecha) {
-                    const v = toDateInputValue(h.fechaSolicitud);
-                    inpFecha.value = v;
-                    trFechaSolOriginal = v;
+            async function guardarFechaSolicitudActual() {
+                if (!trIdActual) { showMsg('warning', 'No hay transferencia seleccionada.'); return; }
+                const inp = $id('trm-fecha-sol-input');
+                const nueva = inp.value;
+                if (!nueva) { showMsg('warning', 'Selecciona una fecha válida.'); return; }
+                if (nueva === trFechaSolOriginal) { setFechaEditUI(false); return; }
+                const btnSave = $id('btn-fecha-sol-save'), btnCancel = $id('btn-fecha-sol-cancel');
+                btnSave.disabled = btnCancel.disabled = true;
+                try {
+                    const res = await fetch('/Transferencias/ActualizarFechaSolicitud', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': getAntiForgeryToken() },
+                        body: JSON.stringify({ transferenciaId: Number(trIdActual), fechaSolicitud: nueva })
+                    });
+                    const { data, raw } = await leerJson(res);
+                    if (!res.ok || !data?.ok) { showMsg('danger', data?.msg || raw.substring(0, 160) || 'No se pudo guardar la fecha.'); return; }
+                    showMsg('success', data.msg || 'Fecha actualizada.');
+                    trFechaSolOriginal = nueva;
                     setFechaEditUI(false);
-                }
-
-                toggleCancelarBtnTr(trEstatusAct);
-                toggleEditarFechaPermitido(trEstatusAct);
-
-                // totales footer
-                        const totKgPedEl   = document.getElementById('trm-tot-kg-ped');
-                        const totCajPedEl  = document.getElementById('trm-tot-caj-ped');
-                        const totKgConfEl  = document.getElementById('trm-tot-kg-conf');
-                        const totCajConfEl = document.getElementById('trm-tot-caj-conf');
-                        const totKgSurEl   = document.getElementById('trm-tot-kg-sur');
-                        const totCajSurEl  = document.getElementById('trm-tot-caj-sur');
-        
-
-                const normSku = s => (s ?? "").toString().trim().toUpperCase();
-
-                const map = new Map();
-
-                // 1) Pedido (lineas)
-                (lineas || []).forEach(l => {
-                    const sku = normSku(l.productoCodigo);
-                    if (!sku) return;
-
-                    const kgPed = Number(l.cantidadKg || l.cantidad || 0);
-                    const cajPed = Number(l.cajas || 0);
-                    const kgConf = Number(l.kgConfirmadas || l.kilosConfirmados || l.cantidadKgConfirmada || 0);
-                    const cajConf = Number(l.cajasConfirmadas || l.cajasConfirmadasTotal || l.cajasConfirmada || 0);
-
-                            const ex = map.get(sku) || {
-                             sku,
-                             productoCodigo: l.productoCodigo || sku,
-                             productoNombre: l.productoNombre || "",
-                             kgPedido: 0,
-                             cajasPedido: 0,
-                             kgConfirmadas: 0,
-                             cajasConfirmadas: 0,
-                             kgSurtido: 0,
-                             cajasSurtidas: 0,
-                             etiquetas: 0,
-                             kgEscaneado: 0
-                         };
-
-                    if (!ex.productoNombre && l.productoNombre) ex.productoNombre = l.productoNombre;
-
-                   
-                   ex.kgPedido += kgPed;
-                   ex.cajasPedido += cajPed;
-                   ex.kgConfirmadas += kgConf;
-                   ex.cajasConfirmadas += cajConf;
-
-                    map.set(sku, ex);
-                });
-
-                // 2) Surtido (surtido)
-                (surtido || []).forEach(s => {
-                    const sku = normSku(s.sku);
-                    if (!sku) return;
-
-                            const ex = map.get(sku) || {
-            sku,
-            productoCodigo: sku,
-            productoNombre: "",
-            kgPedido: 0,
-            cajasPedido: 0,
-            kgConfirmadas: 0,
-            cajasConfirmadas: 0,
-            kgSurtido: 0,
-            cajasSurtidas: 0,
-            etiquetas: 0,
-            kgEscaneado: 0
-        };
-
-                    ex.kgSurtido += Number(s.kgSurtido || 0);
-                    ex.cajasSurtidas += Number(s.cajasSurtidas || 0);
-                    ex.etiquetas += Number(s.etiquetas || 0);
-                    ex.kgEscaneado += Number(s.kgEscaneado || 0);
-
-                    map.set(sku, ex);
-                });
-
-                // 3) Orden: primero como vienen en lineas y después los extras
-                const orderSkus = (lineas || []).map(x => normSku(x.productoCodigo)).filter(Boolean);
-                const seen = new Set();
-                const rows = [];
-
-                orderSkus.forEach(sku => {
-                    if (seen.has(sku)) return;
-                    seen.add(sku);
-                    if (map.has(sku)) rows.push(map.get(sku));
-                });
-
-                for (const [sku, obj] of map.entries()) {
-                    if (!seen.has(sku)) rows.push(obj);
-                }
-
-                // 4) Render
-                compTbody.innerHTML = "";
-
-                if (!rows.length) {
-                    compTbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted">Sin datos.</td></tr>`;
-                } else {
-                    let tKgPed = 0, tCajPed = 0, tKgConf = 0, tCajConf = 0, tKgSur = 0, tCajSur = 0;
-        rows.forEach((r, i) => {
-            const difKg = (r.kgSurtido || 0) - (r.kgConfirmadas || 0);
-            const difCaj = (r.cajasSurtidas || 0) - (r.cajasConfirmadas || 0);
-
-            const baseCajas = (r.cajasConfirmadas || 0);
-            const baseKg = (r.kgConfirmadas || 0);
-
-            tKgPed += Number(r.kgPedido || 0);
-            tCajPed += Number(r.cajasPedido || 0);
-            tKgConf += Number(r.kgConfirmadas || 0);
-            tCajConf += Number(r.cajasConfirmadas || 0);
-            tKgSur += Number(r.kgSurtido || 0);
-            tCajSur += Number(r.cajasSurtidas || 0);
-
-            const estado = baseCajas > 0
-                ? (r.cajasSurtidas >= baseCajas
-                    ? "COMPLETO"
-                    : (r.cajasSurtidas > 0 ? "INCOMPLETO" : "NO SURTIDO"))
-                : baseKg > 0
-                    ? (r.kgSurtido >= baseKg
-                        ? "COMPLETO"
-                        : (r.kgSurtido > 0 ? "INCOMPLETO" : "NO SURTIDO"))
-                    : ((r.kgSurtido > 0 || r.cajasSurtidas > 0) ? "SURTIDO SIN CONF." : "SIN CONFIRMAR");
-
-            const prod = soloNombreProducto(r.productoNombre, r.productoCodigo);
-
-            compTbody.insertAdjacentHTML('beforeend', `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${r.sku}</td>
-                    <td>${prod}</td>
-                    <td class="text-end">${fmtNum(r.kgPedido, 2)}</td>
-                    <td class="text-end">${fmtNum(r.cajasPedido, 0)}</td>
-                    <td class="text-end col-conf">${fmtNum(r.kgConfirmadas, 2)}</td>
-                    <td class="text-end col-conf">${fmtNum(r.cajasConfirmadas, 0)}</td>
-                    <td class="text-end">${fmtNum(r.kgSurtido, 2)}</td>
-                    <td class="text-end">${fmtNum(r.cajasSurtidas, 0)}</td>
-                    <td class="text-end">${fmtNum(difKg, 2)}</td>
-                    <td class="text-end">${fmtNum(difCaj, 0)}</td>
-                            <td class="${estado === 'COMPLETO'
-                                ? 'estado-completo'
-                                : estado === 'INCOMPLETO'
-                                    ? 'estado-incompleto'
-                                    : 'estado-sin-confirmar'
-                            }">
-            ${estado}
-        </td>
-                </tr>
-            `);
-        });
-              
-
-                           if (totKgPedEl)   totKgPedEl.textContent   = fmtNum(tKgPed, 2);
-                           if (totCajPedEl)  totCajPedEl.textContent  = fmtNum(tCajPed, 0);
-                           if (totKgConfEl)  totKgConfEl.textContent  = fmtNum(tKgConf, 2);
-                           if (totCajConfEl) totCajConfEl.textContent = fmtNum(tCajConf, 0);
-                           if (totKgSurEl)   totKgSurEl.textContent   = fmtNum(tKgSur, 2);
-                           if (totCajSurEl)  totCajSurEl.textContent  = fmtNum(tCajSur, 0);
-                  
-                }
-
-                new bootstrap.Modal(modalEl).show();
-
-            } catch (e) {
-                console.error(e);
-                compTbody.innerHTML = `<tr><td colspan="12" class="text-danger text-center">Error al cargar el detalle.</td></tr>`;
-                new bootstrap.Modal(modalEl).show();
+                    // CORRECCIÓN: se actualiza el renglón en lugar de recargar toda la página
+                    const tr = filaDe(trIdActual);
+                    if (tr) { tr.querySelector('.td-fecha').textContent = nueva; tr.classList.remove('is-actualizada'); void tr.offsetWidth; tr.classList.add('is-actualizada'); }
+                } catch (e) { console.error(e); showMsg('danger', 'No se pudo conectar con el servidor.'); }
+                finally { btnSave.disabled = btnCancel.disabled = false; }
             }
-        }
 
-        function wireClickConsecutivo() {
-            const table = document.querySelector('.table-responsive-sticky table.table');
-            if (!table) return;
+            async function cancelarTransferenciaActual() {
+                if (!trIdActual) { showMsg('warning', 'No hay transferencia seleccionada.'); return; }
+                if (Number(trEstatusAct) === 0) { showMsg('warning', 'Esta transferencia ya está cancelada.'); return; }
+                const cons = $id('trm-consecutivo').textContent || '';
+                const aviso = Number(trEstatusAct) === 5 ? '\n\nATENCIÓN: esta transferencia ya está SURTIDA.' : '';
+                if (!confirm(`¿Seguro que quieres CANCELAR la transferencia ${cons}?${aviso}`)) return;
+                const btn = $id('btn-cancelar-tr');
+                const html = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cancelando…';
+                try {
+                    const res = await fetch('/Transferencias/Cancelar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'RequestVerificationToken': getAntiForgeryToken() },
+                        body: JSON.stringify({ transferenciaId: Number(trIdActual) })
+                    });
+                    const { data, raw } = await leerJson(res);
+                    if (!res.ok || data?.ok === false) {
+                        console.error('Error al cancelar transferencia:', { status: res.status, raw, data });
+                        showMsg('danger', data?.msg || raw.substring(0, 300) || `No se pudo cancelar. HTTP ${res.status}`);
+                        return;
+                    }
+                    showMsg('success', data?.msg || 'Transferencia cancelada.');
+                    trEstatusAct = 0;
+                    const est = $id('trm-estatus');
+                    est.textContent = 'Cancelada'; est.className = 'badge-est tr-est-0';
+                    toggleEditarFechaPermitido(0);
+                    const tr = filaDe(trIdActual);
+                    if (tr) {
+                        tr.querySelector('.td-estatus').innerHTML = '<span class="badge-est tr-est-0">Cancelada</span>';
+                        tr.dataset.estatus = '0';
+                        tr.classList.add('is-cancelada');
+                        actualizarResumen();
+                    }
+                    modal().hide();
+                } catch (e) { console.error(e); showMsg('danger', 'No se pudo conectar con el servidor. Revisa el estatus antes de reintentar.'); }
+                finally { btn.innerHTML = html; toggleCancelarBtnTr(trEstatusAct); }
+            }
 
-            const tbody = table.querySelector('tbody');
-            if (!tbody) return;
+            const escapeRegExp = s => (s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            function soloNombreProducto(nombre, codigo) {
+                const d = (nombre ?? '').trim(), c = (codigo ?? '').trim();
+                if (!d) return '';
+                if (c) {
+                    const m = d.match(new RegExp('^' + escapeRegExp(c) + '\\s*\\((.*)\\)\\s*$', 'i'));
+                    if (m && m[1]) return m[1].trim();
+                    return d.replace(new RegExp('^' + escapeRegExp(c) + '\\s*[-–—:]?\\s*', 'i'), '').trim();
+                }
+                const m2 = d.match(/^\((.*)\)$/);
+                return (m2 && m2[1]) ? m2[1].trim() : d;
+            }
 
-            if (tbody.dataset.wiredClick === "1") return;
-            tbody.dataset.wiredClick = "1";
+            // Tabla única: une líneas pedidas + surtido por SKU (misma lógica)
+            let cargandoId = null;
+            async function cargarDetalleTr(id, consecutivo) {
+                cargandoId = id;
+                const compTbody = $id('trm-comp-tbody');
+                compTbody.innerHTML = '<tr class="t-msg"><td colspan="12">Cargando…</td></tr>';
+                $id('trmKpis').innerHTML = '';
+                $id('trm-consecutivo').textContent = consecutivo || '';
+                try {
+                    const resp = await fetch(`/Transferencias/DetalleApi?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const payload = await resp.json();
+                    if (cargandoId !== id) return;
+                    const h = payload.header || {}, lineas = payload.lineas || [], surtido = payload.surtido || [];
+                    trIdActual = h.id || id;
+                    trEstatusAct = Number(h.estatus);
 
-            tbody.addEventListener('click', function (ev) {
+                    $id('trm-consecutivo').textContent = h.consecutivo || consecutivo || '';
+                    $id('trm-id').textContent = trIdActual || '';
+                    $id('trm-sucursal').textContent = h.sucursalNombre || h.sucursal || '';
+                    $id('trm-usuario').textContent = h.usuarioSolicita || '';
+                    const est = $id('trm-estatus');
+                    est.textContent = estatusTextoTr(h.estatus);
+                    est.className = 'badge-est ' + (CLASE[Number(h.estatus)] || '');
+                    const obs = String(h.observacion || '').trim();
+                    $id('trm-obs').textContent = obs || 'Sin observación.';
+                    $id('trm-obs').classList.toggle('vacia', !obs);
+                    const inp = $id('trm-fecha-sol-input');
+                    inp.value = toDateInputValue(h.fechaSolicitud);
+                    trFechaSolOriginal = inp.value;
+                    setFechaEditUI(false);
+                    toggleCancelarBtnTr(trEstatusAct);
+                    toggleEditarFechaPermitido(trEstatusAct);
+
+                    const normSku = s => (s ?? '').toString().trim().toUpperCase();
+                    const nuevo = (sku, cod, nom) => ({ sku, productoCodigo: cod || sku, productoNombre: nom || '', kgPedido: 0, cajasPedido: 0, kgConfirmadas: 0, cajasConfirmadas: 0, kgSurtido: 0, cajasSurtidas: 0, etiquetas: 0, kgEscaneado: 0 });
+                    const map = new Map();
+                    lineas.forEach(l => {
+                        const sku = normSku(l.productoCodigo);
+                        if (!sku) return;
+                        const ex = map.get(sku) || nuevo(sku, l.productoCodigo, l.productoNombre);
+                        if (!ex.productoNombre && l.productoNombre) ex.productoNombre = l.productoNombre;
+                        ex.kgPedido += Number(l.cantidadKg || l.cantidad || 0);
+                        ex.cajasPedido += Number(l.cajas || 0);
+                        ex.kgConfirmadas += Number(l.kgConfirmadas || l.kilosConfirmados || l.cantidadKgConfirmada || 0);
+                        ex.cajasConfirmadas += Number(l.cajasConfirmadas || l.cajasConfirmadasTotal || l.cajasConfirmada || 0);
+                        map.set(sku, ex);
+                    });
+                    surtido.forEach(s => {
+                        const sku = normSku(s.sku);
+                        if (!sku) return;
+                        const ex = map.get(sku) || nuevo(sku);
+                        ex.kgSurtido += Number(s.kgSurtido || 0);
+                        ex.cajasSurtidas += Number(s.cajasSurtidas || 0);
+                        ex.etiquetas += Number(s.etiquetas || 0);
+                        ex.kgEscaneado += Number(s.kgEscaneado || 0);
+                        map.set(sku, ex);
+                    });
+                    const seen = new Set(), rows = [];
+                    lineas.map(x => normSku(x.productoCodigo)).filter(Boolean).forEach(sku => { if (!seen.has(sku) && map.has(sku)) { seen.add(sku); rows.push(map.get(sku)); } });
+                    for (const [sku, obj] of map.entries()) if (!seen.has(sku)) rows.push(obj);
+
+                    let t = { kgPed: 0, cajPed: 0, kgConf: 0, cajConf: 0, kgSur: 0, cajSur: 0 };
+                    const conteo = { COMPLETO: 0, INCOMPLETO: 0, 'NO SURTIDO': 0, otro: 0 };
+                    const difClass = v => v < 0 ? 'dif-neg' : v > 0 ? 'dif-pos' : '';
+                    compTbody.innerHTML = rows.length ? rows.map((r, i) => {
+                        const difKg = (r.kgSurtido || 0) - (r.kgConfirmadas || 0);
+                        const difCaj = (r.cajasSurtidas || 0) - (r.cajasConfirmadas || 0);
+                        t.kgPed += r.kgPedido; t.cajPed += r.cajasPedido; t.kgConf += r.kgConfirmadas; t.cajConf += r.cajasConfirmadas; t.kgSur += r.kgSurtido; t.cajSur += r.cajasSurtidas;
+                        const baseCajas = r.cajasConfirmadas || 0, baseKg = r.kgConfirmadas || 0;
+                        const estado = baseCajas > 0 ? (r.cajasSurtidas >= baseCajas ? 'COMPLETO' : (r.cajasSurtidas > 0 ? 'INCOMPLETO' : 'NO SURTIDO'))
+                            : baseKg > 0 ? (r.kgSurtido >= baseKg ? 'COMPLETO' : (r.kgSurtido > 0 ? 'INCOMPLETO' : 'NO SURTIDO'))
+                                : ((r.kgSurtido > 0 || r.cajasSurtidas > 0) ? 'SURTIDO SIN CONF.' : 'SIN CONFIRMAR');
+                        if (conteo[estado] !== undefined) conteo[estado]++; else conteo.otro++;
+                        const clsEstado = estado === 'COMPLETO' ? 'estado-completo' : estado === 'INCOMPLETO' ? 'estado-incompleto' : estado === 'NO SURTIDO' ? 'estado-no-surtido' : 'estado-sin-confirmar';
+                        const nd = (v, d) => `data-copy="${Math.round(v * 1000) / 1000}"`;
+                        return `<tr>
+                                    <td>${i + 1}</td>
+                                    <td>${esc(r.sku)}</td>
+                                    <td>${esc(soloNombreProducto(r.productoNombre, r.productoCodigo))}</td>
+                                    <td class="text-end" ${nd(r.kgPedido)}>${fmtNum(r.kgPedido, 2)}</td>
+                                    <td class="text-end" ${nd(r.cajasPedido)}>${fmtNum(r.cajasPedido, 0)}</td>
+                                    <td class="text-end col-conf" ${nd(r.kgConfirmadas)}>${fmtNum(r.kgConfirmadas, 2)}</td>
+                                    <td class="text-end col-conf" ${nd(r.cajasConfirmadas)}>${fmtNum(r.cajasConfirmadas, 0)}</td>
+                                    <td class="text-end" ${nd(r.kgSurtido)}>${fmtNum(r.kgSurtido, 2)}</td>
+                                    <td class="text-end" ${nd(r.cajasSurtidas)}>${fmtNum(r.cajasSurtidas, 0)}</td>
+                                    <td class="text-end ${difClass(difKg)}" ${nd(difKg)}>${fmtNum(difKg, 2)}</td>
+                                    <td class="text-end ${difClass(difCaj)}" ${nd(difCaj)}>${fmtNum(difCaj, 0)}</td>
+                                    <td class="${clsEstado}"><span class="estado-pill">${estado}</span></td>
+                                </tr>`;
+                    }).join('') : '<tr class="t-msg"><td colspan="12">Sin artículos.</td></tr>';
+
+                    $id('trm-tot-kg-ped').textContent = fmtNum(t.kgPed, 2);
+                    $id('trm-tot-caj-ped').textContent = fmtNum(t.cajPed, 0);
+                    $id('trm-tot-kg-conf').textContent = fmtNum(t.kgConf, 2);
+                    $id('trm-tot-caj-conf').textContent = fmtNum(t.cajConf, 0);
+                    $id('trm-tot-kg-sur').textContent = fmtNum(t.kgSur, 2);
+                    $id('trm-tot-caj-sur').textContent = fmtNum(t.cajSur, 0);
+                    $id('trm-tot-dif-kg').textContent = fmtNum(t.kgSur - t.kgConf, 2);
+                    $id('trm-tot-dif-caj').textContent = fmtNum(t.cajSur - t.cajConf, 0);
+
+                    // Resumen rápido del surtido
+                    const pct = t.cajConf > 0 ? t.cajSur * 100 / t.cajConf : (t.kgConf > 0 ? t.kgSur * 100 / t.kgConf : null);
+                    const nivel = pct == null ? '' : pct >= 100 ? 'ok' : pct >= 97 ? 'warn' : 'bad';
+                    $id('trmKpis').innerHTML = `
+                                <div class="tr-kpi ${nivel}"><div class="t">Cumplimiento</div><div class="v">${pct == null ? '—' : fmtNum(pct, 1) + '%'}</div><div class="s">Surtido ÷ confirmado</div></div>
+                                <div class="tr-kpi ok"><div class="t">SKU completos</div><div class="v">${conteo.COMPLETO}</div><div class="s">de ${rows.length}</div></div>
+                                <div class="tr-kpi ${conteo.INCOMPLETO ? 'warn' : ''}"><div class="t">SKU incompletos</div><div class="v">${conteo.INCOMPLETO}</div><div class="s">Surtido parcial</div></div>
+                                <div class="tr-kpi ${conteo['NO SURTIDO'] ? 'bad' : ''}"><div class="t">SKU sin surtir</div><div class="v">${conteo['NO SURTIDO']}</div><div class="s">${conteo.otro ? conteo.otro + ' sin confirmar' : 'Confirmados sin surtido'}</div></div>`;
+
+                    modal().show(); // CORRECCIÓN: se reutiliza el modal (antes se creaba uno nuevo cada vez)
+                } catch (e) {
+                    console.error(e);
+                    compTbody.innerHTML = '<tr class="t-msg"><td colspan="12" style="color:var(--es-bad)">Error al cargar el detalle.</td></tr>';
+                    modal().show();
+                }
+            }
+
+            $id('tr-tbody').addEventListener('click', ev => {
                 const a = ev.target.closest('a.ver-tr');
                 if (!a) return;
-
                 ev.preventDefault();
-
-                const id = a.getAttribute('data-id');
-                const cons = a.getAttribute('data-cons') || a.textContent.trim();
-                if (id) cargarDetalleTr(id, cons);
-            });
-        }
-
-        function normMultiText(s) {
-            return (s ?? '')
-                .toString()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase()
-                .trim();
-        }
-
-        function initMultiDropdownSearch(rootId) {
-            const root = document.getElementById(rootId);
-
-            if (!root) return;
-
-            const search = root.querySelector('.multi-picker-search');
-            const options = Array.from(root.querySelectorAll('.multi-picker-option'));
-
-            if (!search || !options.length) return;
-
-            search.addEventListener('input', function () {
-                const q = normMultiText(search.value);
-                const words = q.split(/\s+/).filter(Boolean);
-
-                options.forEach(opt => {
-                    const input = opt.querySelector('input');
-                    const text = normMultiText(`${opt.innerText} ${input?.value || ''}`);
-                    const visible = words.every(w => text.includes(w));
-
-                    opt.style.display = visible ? 'flex' : 'none';
-                });
+                if (a.dataset.id) cargarDetalleTr(a.dataset.id, a.dataset.cons || a.textContent.trim());
             });
 
-            root.addEventListener('shown.bs.dropdown', function () {
-                setTimeout(() => {
-                    search.focus();
-                    search.select();
-                }, 0);
-            });
-        }
-
-        function initMultiDropdown(rootId, checkClass, hiddenContainerId, hiddenName) {
-            const root = document.getElementById(rootId);
-            if (!root) return;
-
-            const labelSpan = root.querySelector('.multi-label');
-            const checks = root.querySelectorAll('.' + checkClass);
-            const hidden = document.getElementById(hiddenContainerId);
-
-            function refresh() {
-                hidden.innerHTML = "";
-                const texts = [];
-
-                checks.forEach(ch => {
-                    if (ch.checked) {
-                        texts.push(ch.getAttribute('data-text') || ch.value);
-
-                        const inp = document.createElement('input');
-                        inp.type = 'hidden';
-                        inp.name = hiddenName;
-                        inp.value = ch.value;
-                        hidden.appendChild(inp);
-                    }
-                });
-
-                if (texts.length === 0) labelSpan.textContent = '(Todos)';
-                else if (texts.length <= 3) labelSpan.textContent = texts.join(', ');
-                else labelSpan.textContent = texts.length + ' seleccionados';
-            }
-
-            checks.forEach(ch => ch.addEventListener('change', refresh));
-            refresh();
-        }
-
-        function initHeaderSortingTransferencias() {
-            const table = document.querySelector('.table-responsive-sticky table.table');
-            if (!table) return;
-
-            const thead = table.querySelector('thead');
-            const tbody = table.querySelector('tbody');
-            if (!thead || !tbody) return;
-
-            const ths = thead.querySelectorAll('th[data-sort-col]');
-            if (!ths.length) return;
-
-            const state = { index: null, dir: null };
-
-            function clearIcons() {
-                ths.forEach(th => th.textContent = th.textContent.replace(/\s*[▲▼]$/, ''));
-            }
-
-            function getCellValue(tr, index) {
-                const td = tr.children[index];
-                if (!td) return '';
-                return td.innerText.trim();
-            }
-
-            function parseValue(val, type) {
-                if (type === 'num') {
-                    const n = parseFloat(val.replace(/[^\d.-]/g, ''));
-                    return isNaN(n) ? 0 : n;
-                }
-                if (type === 'date') {
-                    const d = new Date(val);
-                    return isNaN(d.getTime()) ? 0 : d.getTime();
-                }
-                return val.toUpperCase();
-            }
-
-            function sortBody(index, dir) {
-                const rows = Array.from(tbody.querySelectorAll('tr'));
-                if (!rows.length) return;
-
-                if (index == null || dir == null) {
-                    rows.sort((a, b) => (parseInt(a.dataset.index || '0', 10) - parseInt(b.dataset.index || '0', 10)));
-                } else {
-                    const type = ths[index].dataset.sortType || 'text';
-                    rows.sort((a, b) => {
-                        const va = parseValue(getCellValue(a, index), type);
-                        const vb = parseValue(getCellValue(b, index), type);
-                        if (va < vb) return -1;
-                        if (va > vb) return 1;
-                        return 0;
+            // ---------- Filtros de selección múltiple ----------
+            const normTxt = s => (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            function initMultiDropdown(rootId, checkClass, hiddenId, hiddenName, vacio) {
+                const root = $id(rootId);
+                if (!root) return null;
+                const label = root.querySelector('.multi-label'), btn = root.querySelector('.btn-select-like');
+                const checks = [...root.querySelectorAll('.' + checkClass)];
+                const hidden = $id(hiddenId);
+                function refresh() {
+                    hidden.innerHTML = '';
+                    const texts = [];
+                    checks.forEach(ch => {
+                        if (!ch.checked) return;
+                        texts.push(ch.dataset.text || ch.value);
+                        // CORRECCIÓN: "Pendiente" manda también el estatus 3 (data-extra); antes se ignoraba
+                        // y las transferencias en estatus 3 desaparecían al volver a filtrar.
+                        [ch.value, ...(ch.dataset.extra ? ch.dataset.extra.split(',') : [])].forEach(v => {
+                            const inp = document.createElement('input');
+                            inp.type = 'hidden'; inp.name = hiddenName; inp.value = v.trim();
+                            hidden.appendChild(inp);
+                        });
                     });
-                    if (dir === 'desc') rows.reverse();
+                    label.textContent = !texts.length ? vacio : texts.length <= 2 ? texts.join(', ') : `${texts.length} seleccionados`;
+                    btn.classList.toggle('has-value', texts.length > 0);
                 }
-
-                rows.forEach(r => tbody.appendChild(r));
+                checks.forEach(ch => ch.addEventListener('change', refresh));
+                root.querySelector('[data-todos]')?.addEventListener('click', () => { checks.forEach(c => { if (c.closest('.multi-picker-option').style.display !== 'none') c.checked = true; }); refresh(); });
+                root.querySelector('[data-ninguno]')?.addEventListener('click', () => { checks.forEach(c => c.checked = false); refresh(); });
+                const search = root.querySelector('.multi-picker-search');
+                search?.addEventListener('input', () => {
+                    const words = normTxt(search.value).split(/\s+/).filter(Boolean);
+                    root.querySelectorAll('.multi-picker-option').forEach(opt => {
+                        const t = normTxt(`${opt.innerText} ${opt.querySelector('input')?.value || ''}`);
+                        opt.style.display = words.every(w => t.includes(w)) ? 'flex' : 'none';
+                    });
+                });
+                root.addEventListener('shown.bs.dropdown', () => setTimeout(() => { search?.focus(); search?.select(); }, 0));
+                refresh();
+                return { refresh };
             }
+            const ddSuc = initMultiDropdown('dd-sucursal-tr', 'multi-check-sucursal-tr', 'dd-sucursal-tr-hidden', 'SucursalesSeleccionadas', 'Todas');
+            const ddEst = initMultiDropdown('dd-estatus-tr', 'multi-check-estatus-tr', 'dd-estatus-tr-hidden', 'EstatusSeleccionados', 'Todos');
+            $id('frmTransferencias').addEventListener('submit', () => { ddSuc?.refresh(); ddEst?.refresh(); });
 
+            // ---------- Ordenar ----------
+            const ths = [...document.querySelectorAll('#trTabla thead th')];
+            const sortState = { index: null, dir: null };
+            function valorCelda(tr, i, type) {
+                const td = tr.children[i];
+                const v = (td?.dataset.copy ?? td?.innerText ?? '').trim();
+                if (type === 'num') { const n = parseFloat(v.replace(/[^\d.-]/g, '')); return isNaN(n) ? 0 : n; }
+                if (type === 'date') return v || '0000';
+                if (i === 0) return v.toUpperCase().replace(/\d+/g, d => d.padStart(12, '0')); // consecutivo en orden natural
+                return v.toUpperCase();
+            }
             ths.forEach((th, index) => {
-                th.style.cursor = 'pointer';
-
+                if (!th.dataset.sortCol) return;
                 th.addEventListener('click', () => {
-                    if (state.index === index) {
-                        state.dir = state.dir === 'asc' ? 'desc' : state.dir === 'desc' ? null : 'asc';
-                    } else {
-                        state.index = index;
-                        state.dir = 'asc';
+                    if (sortState.index === index) { sortState.dir = sortState.dir === 'asc' ? 'desc' : sortState.dir === 'desc' ? null : 'asc'; if (!sortState.dir) sortState.index = null; }
+                    else { sortState.index = index; sortState.dir = 'asc'; }
+                    const tbody = $id('tr-tbody');
+                    const rows = [...tbody.querySelectorAll('tr[data-index]')];
+                    if (sortState.index == null) rows.sort((a, b) => a.dataset.index - b.dataset.index);
+                    else {
+                        const type = ths[sortState.index].dataset.sortType || 'text';
+                        rows.sort((a, b) => { const va = valorCelda(a, sortState.index, type), vb = valorCelda(b, sortState.index, type); return va < vb ? -1 : va > vb ? 1 : 0; });
+                        if (sortState.dir === 'desc') rows.reverse();
                     }
-
-                    clearIcons();
-
-                    if (!state.dir) {
-                        state.index = null;
-                    } else {
-                        th.textContent = th.textContent.replace(/\s*[▲▼]$/, '') + (state.dir === 'asc' ? ' ▲' : ' ▼');
-                    }
-
-                    sortBody(state.index, state.dir);
+                    rows.forEach(r => tbody.appendChild(r));
+                    ths.forEach((h, i) => { h.classList.toggle('asc', i === sortState.index && sortState.dir === 'asc'); h.classList.toggle('desc', i === sortState.index && sortState.dir === 'desc'); h.setAttribute('aria-sort', i === sortState.index ? (sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'); });
                 });
             });
-        }
-        document.addEventListener('DOMContentLoaded', function () {
-            /*
-             * IMPORTANTE:
-             * #trModal originalmente vive dentro de .table-card.
-             * Eso lo deja atrapado dentro del stacking-context de la tabla y
-             * permite que la sección de filtros aparezca encima del modal.
-             *
-             * Bootstrap recomienda que los modales estén lo más arriba posible
-             * en el DOM. Lo movemos al <body> conservando exactamente el mismo
-             * id, eventos y lógica.
-             */
-            const trModalEl = document.getElementById('trModal');
-            if (trModalEl && trModalEl.parentElement !== document.body) {
-                document.body.appendChild(trModalEl);
-            }
 
-            initMultiDropdown('dd-sucursal-tr', 'multi-check-sucursal-tr', 'dd-sucursal-tr-hidden', 'SucursalesSeleccionadas');
-            initMultiDropdown('dd-estatus-tr', 'multi-check-estatus-tr', 'dd-estatus-tr-hidden', 'EstatusSeleccionados');
+            // ---------- Eventos del modal ----------
+            $id('btn-cancelar-tr').addEventListener('click', ev => { ev.preventDefault(); cancelarTransferenciaActual(); });
+            const inpFecha = $id('trm-fecha-sol-input');
+            inpFecha.addEventListener('change', () => { if (!inpFecha.disabled) setFechaEditUI(!!inpFecha.value && inpFecha.value !== trFechaSolOriginal); });
+            inpFecha.addEventListener('keydown', e => { if (e.key === 'Enter' && !$id('btn-fecha-sol-save').classList.contains('d-none')) { e.preventDefault(); guardarFechaSolicitudActual(); } });
+            $id('btn-fecha-sol-save').addEventListener('click', ev => { ev.preventDefault(); guardarFechaSolicitudActual(); });
+            $id('btn-fecha-sol-cancel').addEventListener('click', ev => { ev.preventDefault(); inpFecha.value = trFechaSolOriginal || ''; setFechaEditUI(false); });
 
-            initMultiDropdownSearch('dd-sucursal-tr');
-            initMultiDropdownSearch('dd-estatus-tr');
-
-            wireClickConsecutivo();
-            initHeaderSortingTransferencias();
-
-            const btn = document.getElementById('btn-cancelar-tr');
-            btn?.addEventListener('click', (ev) => { ev.preventDefault(); cancelarTransferenciaActual(); });
-
-            const inpFecha = document.getElementById('trm-fecha-sol-input');
-            const btnSave = document.getElementById('btn-fecha-sol-save');
-            const btnCancel = document.getElementById('btn-fecha-sol-cancel');
-
-            inpFecha?.addEventListener('change', () => {
-                if (inpFecha.disabled) return;
-                const changed = (inpFecha.value && inpFecha.value !== trFechaSolOriginal);
-                setFechaEditUI(changed);
-            });
-
-            btnSave?.addEventListener('click', (ev) => { ev.preventDefault(); guardarFechaSolicitudActual(); });
-
-            btnCancel?.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                if (!inpFecha) return;
-                inpFecha.value = trFechaSolOriginal || "";
-                setFechaEditUI(false);
-            });
-        });
+            actualizarResumen();
+        })();
     </script>
 }

@@ -4,1137 +4,1234 @@
     Layout = "~/Views/Shared/_Layout2.cshtml";
     ViewData["Title"] = "Detalle de cobranza";
 
-    var badge =
-        Model.Estatus switch
+    var est = (Model.Estatus ?? "").ToUpperInvariant();
+    var estTexto = est switch
+    {
+        "CUMPLIDO" => "Cumplido",
+        "PARCIAL" => "Parcial",
+        "INCUMPLIDO" => "Incumplido",
+        "VENCE_HOY" => "Vence hoy",
+        "REVISAR" => "Revisar",
+        "PENDIENTE" => "Pendiente",
+        _ => Model.Estatus
+    };
+    var estClase = est switch
+    {
+        "CUMPLIDO" => "ok",
+        "PARCIAL" => "warn",
+        "INCUMPLIDO" => "bad",
+        "VENCE_HOY" => "info",
+        "REVISAR" => "neutral",
+        _ => "orange"
+    };
+    var hoy = DateTime.Today;
+    var pagado = Model.SaldoVencidoInicial > 0
+        ? Math.Max(0m, Math.Min(100m, (Model.SaldoVencidoInicial - Model.SaldoPendienteActual) / Model.SaldoVencidoInicial * 100m))
+        : 0m;
+    var cobrado = Math.Max(0m, Model.SaldoVencidoInicial - Model.SaldoPendienteActual);
+    var diasCompromiso = (Model.FechaCompromiso.Date - hoy).Days;
+    var compromisoVencido = diasCompromiso < 0 && est != "CUMPLIDO";
+    var totalPagos = Model.Facturas.Sum(f => f.Pagos.Count);
+    var facturasPagadas = Model.Facturas.Count(f => f.Pagada);
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    string Tamano(long bytes) => bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{(bytes / 1024.0):N0} KB"
+        : $"{(bytes / 1024.0 / 1024.0):N1} MB";
+    string IconoArchivo(string nombre)
+    {
+        var ext = System.IO.Path.GetExtension(nombre ?? "").ToLowerInvariant();
+        return ext switch
         {
-            "CUMPLIDO" => "success",
-            "PARCIAL" => "warning",
-            "INCUMPLIDO" => "danger",
-            "VENCE_HOY" => "info",
-            "REVISAR" => "secondary",
-            _ => "primary"
+            ".pdf" => "bi-file-earmark-pdf",
+            ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" => "bi-file-earmark-image",
+            ".xls" or ".xlsx" or ".csv" => "bi-file-earmark-spreadsheet",
+            ".doc" or ".docx" => "bi-file-earmark-word",
+            _ => "bi-file-earmark"
         };
+    }
 }
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-    @@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
-
-    /* =========================================================
-       DETALLE DE COBRANZA - MISMO LENGUAJE VISUAL QUE COMPROMISOS
-       Todo va scoped dentro de .cob-detalle.
-       ========================================================= */
-    .cob-detalle {
-        --cob-bg: #f1e2e2;
-        --cob-panel: #f7eeee;
-        --cob-surface: #fffafa;
-        --cob-surface-2: #f9eeee;
-        --cob-line: #cfb0b0;
-        --cob-line-dark: #8f4c4c;
-        --cob-text: #2f1717;
-        --cob-muted: #705050;
-        --cob-brand: #7a1118;
-        --cob-brand-dark: #4a090d;
-        --cob-brand-2: #5b1015;
-        --cob-header: linear-gradient(180deg,#7b151b 0%,#591015 60%,#3f080c 100%);
-        --cob-toolbar: linear-gradient(180deg,#fff9f9 0%,#f1dddd 100%);
-        --cob-shadow: 0 8px 20px rgba(65,12,16,.12);
-
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        margin: 0;
-        padding: 0;
-        color: var(--cob-text);
-        background: transparent;
-        font-family: "Poppins", Tahoma, Verdana, Arial, sans-serif;
-        box-sizing: border-box;
-    }
-
-    .cob-detalle *,
-    .cob-detalle *::before,
-    .cob-detalle *::after {
-        box-sizing: border-box;
-    }
-
-    .cob-shell {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        min-height: calc(100vh - 70px);
-        margin: 0;
+    /* =====================================================================
+           DETALLE DE COBRANZA · SIGO — hoja de estilos única
+           ===================================================================== */
+    .cdx {
+        --es-tinto: #8d3e46;
+        --es-tinto-deep: #5c2229;
+        --es-tinto-soft: #f7eced;
+        --es-tinto-line: #e8d3d6;
+        --es-paper: #f6f4f4;
+        --es-surface: #ffffff;
+        --es-field: #ffffff;
+        --es-head: #faf7f7;
+        --es-hover: #fcf9f9;
+        --es-row-line: #f0eaeb;
+        --es-ink: #231a1c;
+        --es-muted: #76686b;
+        --es-line: #e6dfe0;
+        --es-line-strong: #cfc4c6;
+        --es-ok: #2f7a55;
+        --es-ok-bg: #e7f3ec;
+        --es-warn: #9a6410;
+        --es-warn-bg: #fbf1de;
+        --es-bad: #b42d2d;
+        --es-bad-bg: #fbe9e8;
+        --es-info: #2f5d86;
+        --es-info-bg: #e9f0f7;
+        --es-orange: #b4561a;
+        --es-orange-bg: #fcefe4;
+        --es-teal: #2b7a72;
+        --es-neutral-bg: #efecec;
+        --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+        font-family: var(--es-font);
+        color: var(--es-ink);
+        font-size: 13px;
+        line-height: 1.45;
         display: flex;
         flex-direction: column;
-        border: 1px solid var(--cob-line-dark);
-        background: var(--cob-panel);
-        box-shadow: var(--cob-shadow);
+        gap: 12px;
+        padding: 14px 16px 16px;
+        background: var(--es-paper);
+        min-width: 0;
+    }
+
+    body[data-theme="dark"] .cdx {
+        --es-tinto: #c56b74;
+        --es-tinto-deep: #7a2d36;
+        --es-tinto-soft: #3a2427;
+        --es-tinto-line: #5a3439;
+        --es-paper: #16181c;
+        --es-surface: #202328;
+        --es-field: #181a1e;
+        --es-head: #262a30;
+        --es-hover: #2a2e34;
+        --es-row-line: #30343b;
+        --es-ink: #edf0f3;
+        --es-muted: #a9b0b9;
+        --es-line: #363b43;
+        --es-line-strong: #4a5059;
+        --es-ok: #6cc596;
+        --es-ok-bg: #1d3328;
+        --es-warn: #e0b061;
+        --es-warn-bg: #3a2f1b;
+        --es-bad: #f08a83;
+        --es-bad-bg: #3d2223;
+        --es-info: #8bb8e0;
+        --es-info-bg: #1e2b38;
+        --es-orange: #f0a36b;
+        --es-orange-bg: #3a2a1d;
+        --es-teal: #6cc5ba;
+        --es-neutral-bg: #2c3036;
+    }
+
+    .cdx *, .cdx *::before, .cdx *::after {
+        box-sizing: border-box;
+    }
+
+    .cdx .bi {
+        font-family: "bootstrap-icons" !important;
+    }
+
+    .cdx .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cdx .muted {
+        color: var(--es-muted);
+    }
+
+    /* Botones */
+    .cd-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 600 12.5px/1 var(--es-font);
+        white-space: nowrap;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+        .cd-btn:hover {
+            background: var(--es-tinto-soft);
+            border-color: var(--es-tinto-line);
+            color: var(--es-ink);
+            text-decoration: none;
+        }
+
+        .cd-btn.primary {
+            background: var(--es-tinto);
+            border-color: var(--es-tinto);
+            color: #fff;
+        }
+
+            .cd-btn.primary:hover {
+                background: var(--es-tinto-deep);
+                border-color: var(--es-tinto-deep);
+                color: #fff;
+            }
+
+        .cd-btn.sm {
+            height: 30px;
+            padding: 0 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .cd-btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .cd-btn:focus-visible {
+            outline: 2px solid var(--es-tinto);
+            outline-offset: 2px;
+        }
+
+    .cd-spin {
+        display: inline-block;
+        width: 13px;
+        height: 13px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: cd-spin .8s linear infinite;
+    }
+
+    @@keyframes cd-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Encabezado */
+    .cd-volver {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: fit-content;
+        color: var(--es-muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+        .cd-volver:hover {
+            color: var(--es-tinto);
+        }
+
+    .cd-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .cd-header__title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .cd-header__icon {
+        width: 44px;
+        height: 44px;
+        flex: none;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: var(--es-tinto);
+        color: #fff;
+        font-size: 20px;
+    }
+
+    .cd-header h1 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.2;
+        color: var(--es-ink);
+    }
+
+    .cd-header p {
+        margin: 3px 0 0;
+        display: flex;
+        gap: 6px 14px;
+        flex-wrap: wrap;
+        font-size: 12.5px;
+        color: var(--es-muted);
+    }
+
+        .cd-header p b {
+            color: var(--es-ink);
+        }
+
+        .cd-header p i {
+            color: var(--es-tinto);
+        }
+
+    .cd-header__acciones {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+        .cd-header__acciones form {
+            margin: 0;
+        }
+
+    .cd-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+        .cd-badge::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .cd-badge.sm {
+            padding: 2px 9px;
+            font-size: 11px;
+        }
+
+        .cd-badge.ok {
+            background: var(--es-ok-bg);
+            color: var(--es-ok);
+        }
+
+        .cd-badge.warn {
+            background: var(--es-warn-bg);
+            color: var(--es-warn);
+        }
+
+        .cd-badge.bad {
+            background: var(--es-bad-bg);
+            color: var(--es-bad);
+        }
+
+        .cd-badge.info {
+            background: var(--es-info-bg);
+            color: var(--es-info);
+        }
+
+        .cd-badge.orange {
+            background: var(--es-orange-bg);
+            color: var(--es-orange);
+        }
+
+        .cd-badge.neutral {
+            background: var(--es-neutral-bg);
+            color: var(--es-muted);
+        }
+
+    .cd-alert {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 12.5px;
+    }
+
+        .cd-alert.ok {
+            background: var(--es-ok-bg);
+            color: var(--es-ok);
+        }
+
+        .cd-alert.err {
+            background: var(--es-bad-bg);
+            color: var(--es-bad);
+        }
+
+    /* Resumen */
+    .cd-resumen {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .cd-card {
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-radius: 12px;
+        min-width: 0;
+    }
+
+    .cd-kpi {
+        padding: 12px 16px;
+        border-top: 3px solid var(--k);
+    }
+
+        .cd-kpi .lbl {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+            .cd-kpi .lbl i {
+                color: var(--k);
+            }
+
+        .cd-kpi .val {
+            margin-top: 2px;
+            font-size: clamp(18px, 1.5vw, 24px);
+            font-weight: 700;
+            letter-spacing: -.01em;
+            line-height: 1.2;
+            font-variant-numeric: tabular-nums;
+            color: var(--k-txt, var(--es-ink));
+        }
+
+        .cd-kpi .sub {
+            margin-top: 2px;
+            font-size: 11.5px;
+            color: var(--es-muted);
+        }
+
+    .cd-cobro {
+        --k: var(--es-teal);
+    }
+
+        .cd-cobro .cifras {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+            .cd-cobro .cifras small {
+                font-size: 12px;
+                color: var(--es-muted);
+            }
+
+    .cd-progreso {
+        height: 10px;
+        margin: 8px 0 4px;
+        border-radius: 999px;
+        background: var(--es-neutral-bg);
         overflow: hidden;
     }
 
-    /* =========================
-       ENCABEZADO
-       ========================= */
-    .cob-titlebar {
-        min-height: 54px;
+        .cd-progreso span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--es-teal), var(--es-ok));
+        }
+
+    .cd-progreso-pie {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11.5px;
+        color: var(--es-muted);
+    }
+
+        .cd-progreso-pie b {
+            color: var(--es-ink);
+            font-variant-numeric: tabular-nums;
+        }
+
+    /* Paneles */
+    .cd-fila {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+        .cd-fila.b {
+            grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+        }
+
+    .cd-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .cd-panel-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        padding: 7px 10px;
-        background: var(--cob-header);
-        border-bottom: 1px solid #3f080c;
-        color: #fff;
-        flex-wrap: wrap;
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--es-line);
+        font-size: 13.5px;
+        font-weight: 600;
     }
 
-    .cob-title-left {
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        gap: 9px;
+        .cd-panel-head i {
+            color: var(--es-tinto);
+            margin-right: 4px;
+        }
+
+        .cd-panel-head small {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--es-muted);
+        }
+
+    .cd-panel-body {
+        flex: 1;
+        padding: 12px 16px 14px;
     }
 
-    .cob-title-icon {
-        width: 36px;
-        height: 36px;
-        flex: 0 0 36px;
+    .cd-datos {
         display: grid;
-        place-items: center;
-        border: 1px solid rgba(255,255,255,.25);
-        background: rgba(255,255,255,.10);
-        color: #fff;
-        font-size: 15px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 16px;
+        margin-bottom: 10px;
     }
 
-    .cob-title-main {
-        margin: 0;
-        color: #fff !important;
-        font-size: 15px;
-        line-height: 1.08;
-        font-weight: 900;
-        letter-spacing: -.01em;
+    .cd-dato span {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--es-muted);
     }
 
-    .cob-title-sub {
-        margin-top: 2px;
-        color: #efd9da !important;
-        font-size: 9.5px;
-        line-height: 1.15;
-        font-weight: 500;
+    .cd-dato b {
+        font-weight: 600;
     }
 
-    .cob-title-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        margin-top: 2px;
-        color: #fff !important;
-        font-size: 9px;
-        font-weight: 800;
-        text-decoration: none !important;
-    }
-
-    .cob-title-link:hover {
-        color: #ffe6e7 !important;
-        text-decoration: underline !important;
-    }
-
-    .cob-actions {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 5px;
-        margin-left: auto;
-    }
-
-    .cob-actions form {
-        margin: 0;
-    }
-
-    .cob-status-badge {
-        min-width: 88px;
-        min-height: 28px;
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
-        padding: 0 8px !important;
-        border: 1px solid rgba(255,255,255,.30);
-        border-radius: 2px !important;
-        font-size: 8.5px !important;
-        font-weight: 900 !important;
-        letter-spacing: .03em;
-        line-height: 1;
-    }
-
-    .cob-validate-btn {
-        height: 28px;
-        min-height: 28px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        padding: 0 9px !important;
-        border: 1px solid rgba(255,255,255,.45) !important;
-        border-radius: 0 !important;
-        background: rgba(255,255,255,.10) !important;
-        color: #fff !important;
-        font-size: 8.5px !important;
-        line-height: 1;
-        font-weight: 900;
-        white-space: nowrap;
-        box-shadow: none !important;
-    }
-
-    .cob-validate-btn:hover {
-        background: rgba(255,255,255,.18) !important;
-        color: #fff !important;
-    }
-
-    /* =========================
-       CONTENIDO
-       ========================= */
-    .cob-content {
-        min-width: 0;
-        min-height: 0;
-        flex: 1 1 auto;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 6px;
-        background: var(--cob-bg);
-        overflow: hidden;
-    }
-
-    .cob-content > .row {
-        --bs-gutter-x: 6px !important;
-        --bs-gutter-y: 6px !important;
-        margin-bottom: 0 !important;
-    }
-
-    .cob-detalle .alert {
-        margin: 0;
-        padding: 7px 9px;
-        border-radius: 0 !important;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    /* =========================
-       TARJETAS / SECCIONES
-       ========================= */
-    .cob-card {
-        width: 100%;
-        min-width: 0;
-        border: 1px solid var(--cob-line) !important;
-        border-radius: 0 !important;
-        background: var(--cob-surface) !important;
-        box-shadow: none !important;
-        overflow: hidden;
-    }
-
-    .cob-card > .card-header {
-        min-height: 26px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 7px !important;
-        border-bottom: 1px solid var(--cob-line) !important;
-        background: linear-gradient(180deg,#eef1f2 0%,#dfe5e7 100%) !important;
-        color: #26343c !important;
-        font-size: 9.5px !important;
-        font-weight: 900 !important;
-        text-transform: uppercase;
-        letter-spacing: .015em;
-        position: relative;
-    }
-
-    .cob-card > .card-header::before {
-        content: "";
-        width: 3px;
-        align-self: stretch;
-        margin: -4px 2px -4px -7px;
-        background: var(--cob-brand);
-    }
-
-    .cob-card .card-body {
-        padding: 6px !important;
-        background: var(--cob-surface) !important;
-        color: var(--cob-text) !important;
-        font-size: 10px;
-    }
-
-    /* =========================
-       KPIs
-       ========================= */
-    .cob-kpi {
-        position: relative;
-        min-width: 0;
-        min-height: 62px;
-        border: 1px solid rgba(255,255,255,.30) !important;
-        box-shadow: inset 3px 0 0 rgba(255,255,255,.16), 0 2px 5px rgba(45,8,8,.10) !important;
-        color: #fff !important;
-        overflow: hidden;
-    }
-
-    .cob-kpi::after {
-        content: "";
-        position: absolute;
-        width: 82px;
-        height: 82px;
-        right: -26px;
-        bottom: -34px;
-        border-radius: 999px;
-        background: rgba(255,255,255,.12);
-        pointer-events: none;
-    }
-
-    .cob-content > .row:first-of-type > div:nth-child(1) .cob-kpi {
-        background: linear-gradient(135deg,#5b161b 0%,#8f2c34 58%,#64171d 100%) !important;
-    }
-
-    .cob-content > .row:first-of-type > div:nth-child(2) .cob-kpi {
-        background: linear-gradient(135deg,#0d5d61 0%,#159b9f 58%,#0f6669 100%) !important;
-    }
-
-    .cob-content > .row:first-of-type > div:nth-child(3) .cob-kpi {
-        background: linear-gradient(135deg,#8a3b0b 0%,#e26a13 58%,#9a3d0a 100%) !important;
-    }
-
-    .cob-content > .row:first-of-type > div:nth-child(4) .cob-kpi {
-        background: linear-gradient(135deg,#374151 0%,#596273 58%,#303846 100%) !important;
-    }
-
-    .cob-kpi .card-body {
-        min-height: 62px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding: 5px 7px !important;
-        background: transparent !important;
-        color: #fff !important;
-        position: relative;
-        z-index: 1;
-    }
-
-    .cob-kpi .text-muted,
-    .cob-kpi small {
-        color: rgba(255,255,255,.90) !important;
-        font-size: 8px !important;
-        line-height: 1.05;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-
-    .cob-kpi .fs-4,
-    .cob-kpi .fw-bold {
-        color: #fff !important;
-        font-size: clamp(13px,1.15vw,18px) !important;
-        line-height: 1.05;
-        font-weight: 900 !important;
-        font-variant-numeric: tabular-nums;
-        text-shadow: 0 2px 7px rgba(0,0,0,.20);
-        margin-top: 2px;
-    }
-
-    .cob-money {
-        font-variant-numeric: tabular-nums;
-    }
-
-    /* =========================
-       CAMPOS / COMENTARIOS
-       ========================= */
-    .cob-comment {
-        min-height: 70px;
-        padding: 7px 8px;
-        border: 1px solid var(--cob-line);
-        border-left: 3px solid var(--cob-brand);
-        background: #fff;
-        color: var(--cob-text);
-        font-size: 10px;
-        line-height: 1.35;
+    .cd-comment {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--es-head);
+        border-left: 3px solid var(--es-tinto);
         white-space: pre-wrap;
+        font-size: 12.5px;
+        line-height: 1.5;
+        min-height: 64px;
     }
 
-    .cob-detalle .form-control {
+        .cd-comment.vacio {
+            color: var(--es-muted);
+            font-style: italic;
+        }
+
+    .cd-obs textarea {
         width: 100%;
-        min-width: 0;
-        border: 1px solid var(--cob-line-dark) !important;
-        border-radius: 0 !important;
-        background: var(--cob-surface) !important;
-        color: var(--cob-text) !important;
-        font-size: 10px !important;
-        box-shadow: none !important;
-    }
-
-    .cob-detalle textarea.form-control {
-        min-height: 82px;
-        padding: 5px 6px;
+        min-height: 110px;
+        padding: 10px 12px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 8px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 500 12.5px/1.5 var(--es-font);
         resize: vertical;
+        outline: none;
     }
 
-    .cob-detalle .form-control:focus {
-        border-color: var(--cob-brand) !important;
-        box-shadow: 0 0 0 2px rgba(122,17,24,.10) !important;
+        .cd-obs textarea:focus {
+            border-color: var(--es-tinto);
+            box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+        }
+
+    .cd-obs .pie {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 8px;
+        font-size: 11.5px;
+        color: var(--es-muted);
     }
 
-    .cob-detalle .btn-outline-primary,
-    .cob-detalle .btn-outline-secondary {
-        min-height: 26px;
-        border-radius: 0 !important;
-        font-size: 8.5px !important;
-        line-height: 1;
-        font-weight: 900;
-        box-shadow: none !important;
+    /* Facturas: sin desplazamiento horizontal */
+    .cd-tabla-wrap {
+        max-height: 56vh;
+        overflow-y: auto;
+        overflow-x: hidden;
     }
 
-    .cob-detalle .btn-outline-primary {
-        border: 1px solid #681017 !important;
-        background: linear-gradient(180deg,#93212a 0%,#74141c 58%,#581017 100%) !important;
-        color: #fff !important;
-    }
-
-    .cob-detalle .btn-outline-primary:hover {
-        filter: brightness(.97);
-    }
-
-    /* =========================
-       TABLA FACTURAS
-       ========================= */
-    .cob-section-gap {
-        margin: 0 !important;
-    }
-
-    .cob-detalle .table-responsive {
+    .cd-tabla {
         width: 100%;
-        min-width: 0;
-        max-height: 44vh;
-        overflow: auto;
-        background: var(--cob-surface);
-        scrollbar-gutter: stable;
-    }
-
-    .cob-detalle table {
-        width: 100%;
-        min-width: 1180px;
-        margin: 0 !important;
         table-layout: fixed;
         border-collapse: separate;
         border-spacing: 0;
-        color: var(--cob-text);
-        font-size: 9.5px;
+        font-size: 12px;
+        margin: 0;
     }
 
-    .cob-detalle .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        padding: 5px 5px !important;
-        background: var(--cob-header) !important;
-        color: #fff !important;
-        border-right: 1px solid rgba(255,255,255,.14) !important;
-        border-bottom: 1px solid #3f080c !important;
-        font-size: 8.5px;
-        line-height: 1.05;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .015em;
-        white-space: nowrap;
+        .cd-tabla thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 8px 8px;
+            background: var(--es-head);
+            border-bottom: 1px solid var(--es-line);
+            color: var(--es-muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-align: left;
+            line-height: 1.2;
+            vertical-align: bottom;
+        }
+
+            .cd-tabla thead th.num {
+                text-align: right;
+            }
+
+        .cd-tabla tbody td {
+            padding: 9px 8px;
+            border-bottom: 1px solid var(--es-row-line);
+            vertical-align: top;
+            overflow-wrap: anywhere;
+        }
+
+            .cd-tabla tbody td.num, .cd-tabla tbody td.fecha {
+                white-space: nowrap;
+                overflow-wrap: normal;
+            }
+
+        .cd-tabla tbody tr:hover td {
+            background: var(--es-hover);
+        }
+
+        .cd-tabla tbody tr.vencida td:first-child {
+            box-shadow: inset 3px 0 0 var(--es-bad);
+        }
+
+        .cd-tabla .doc {
+            font-weight: 700;
+        }
+
+            .cd-tabla .doc small {
+                display: block;
+                font-weight: 500;
+                font-size: 10.5px;
+                color: var(--es-muted);
+            }
+
+        .cd-tabla .venc.vencida {
+            color: var(--es-bad);
+            font-weight: 600;
+        }
+
+        .cd-tabla .venc small {
+            display: block;
+            font-size: 10.5px;
+            font-weight: 500;
+        }
+
+        .cd-tabla tfoot th {
+            position: sticky;
+            bottom: 0;
+            padding: 9px 8px;
+            background: var(--es-head);
+            border-top: 1px solid var(--es-line-strong);
+            font-weight: 700;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+    .cd-pagos {
+        display: grid;
+        gap: 6px;
     }
 
-    .cob-detalle .table tbody td {
-        padding: 4px 5px !important;
-        background: var(--cob-surface) !important;
-        color: var(--cob-text) !important;
-        border-right: 1px solid var(--cob-line) !important;
-        border-bottom: 1px solid var(--cob-line) !important;
-        vertical-align: middle;
-        line-height: 1.12;
+    .cd-pago {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 2px 10px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        background: var(--es-ok-bg);
+        border-left: 3px solid var(--es-ok);
+        font-size: 11.5px;
     }
 
-    .cob-detalle .table tbody tr:nth-child(even) td {
-        background: var(--cob-surface-2) !important;
+        .cd-pago .ico {
+            grid-row: span 3;
+            color: var(--es-ok);
+            font-size: 16px;
+        }
+
+        .cd-pago .monto {
+            font-weight: 700;
+            color: var(--es-ok);
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        .cd-pago .extra {
+            grid-column: 2 / -1;
+            color: var(--es-muted);
+            font-size: 11px;
+        }
+
+    .cd-sin-pago {
+        color: var(--es-muted);
+        font-size: 12px;
+        font-style: italic;
     }
 
-    .cob-detalle .table tbody tr:hover td {
-        background: #f4dddd !important;
+    .cd-vacio {
+        padding: 30px 12px;
+        text-align: center;
+        color: var(--es-muted);
     }
 
-    .cob-detalle .table th:nth-child(1),
-    .cob-detalle .table td:nth-child(1) { width: 115px; }
+        .cd-vacio i {
+            display: block;
+            font-size: 26px;
+            margin-bottom: 6px;
+            color: var(--es-line-strong);
+        }
 
-    .cob-detalle .table th:nth-child(2),
-    .cob-detalle .table td:nth-child(2) { width: 90px; }
+    /* Evidencias */
+    .cd-archivos {
+        display: grid;
+        gap: 8px;
+    }
 
-    .cob-detalle .table th:nth-child(3),
-    .cob-detalle .table td:nth-child(3) { width: 95px; }
-
-    .cob-detalle .table th:nth-child(4),
-    .cob-detalle .table td:nth-child(4) { width: 115px; }
-
-    .cob-detalle .table th:nth-child(5),
-    .cob-detalle .table td:nth-child(5) { width: 120px; }
-
-    .cob-detalle .table th:nth-child(6),
-    .cob-detalle .table td:nth-child(6) { width: 120px; }
-
-    .cob-detalle .table th:nth-child(7),
-    .cob-detalle .table td:nth-child(7) { width: 90px; }
-
-    .cob-detalle .table th:nth-child(8),
-    .cob-detalle .table td:nth-child(8) { width: 360px; }
-
-    .cob-detalle .badge {
-        min-width: 68px;
-        display: inline-flex;
+    .cd-archivo {
+        display: flex;
         align-items: center;
-        justify-content: center;
-        padding: 3px 5px !important;
-        border-radius: 2px !important;
-        font-size: 7.5px !important;
-        line-height: 1;
-        font-weight: 900;
-        letter-spacing: .02em;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--es-line);
     }
 
-    .cob-payment {
-        margin-bottom: 4px !important;
-        padding: 5px 6px !important;
-        border: 1px solid #9fcdb1 !important;
-        border-left: 3px solid #198754 !important;
-        border-radius: 0 !important;
-        background: #f3fbf5 !important;
-        color: #173b28 !important;
-        font-size: 9px;
-        line-height: 1.35;
+        .cd-archivo:hover {
+            background: var(--es-hover);
+        }
+
+        .cd-archivo .ico {
+            width: 36px;
+            height: 36px;
+            flex: none;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            background: var(--es-tinto-soft);
+            color: var(--es-tinto);
+            font-size: 17px;
+        }
+
+        .cd-archivo .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cd-archivo .nom {
+            font-weight: 600;
+            font-size: 12.5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cd-archivo .meta {
+            font-size: 11px;
+            color: var(--es-muted);
+        }
+
+        .cd-archivo .acc {
+            display: flex;
+            gap: 6px;
+        }
+
+    /* Histórico como línea de tiempo */
+    .cd-historia {
+        max-height: 420px;
+        overflow-y: auto;
     }
 
-    /* =========================
-       EVIDENCIAS / HISTÓRICO
-       ========================= */
-    .cob-file {
-        padding: 5px 6px !important;
-        border: 1px solid var(--cob-line) !important;
-        border-radius: 0 !important;
-        background: #fff !important;
-        font-size: 9.5px;
+    .cd-tl {
+        list-style: none;
+        margin: 0;
+        padding: 0 0 0 4px;
     }
 
-    .cob-history {
-        max-height: 360px;
-        overflow: auto;
-        padding-right: 2px;
+        .cd-tl li {
+            position: relative;
+            padding: 0 0 14px 22px;
+        }
+
+            .cd-tl li::before {
+                content: "";
+                position: absolute;
+                left: 5px;
+                top: 14px;
+                bottom: 0;
+                width: 2px;
+                background: var(--es-line);
+            }
+
+            .cd-tl li:last-child::before {
+                display: none;
+            }
+
+        .cd-tl .punto {
+            position: absolute;
+            left: 0;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--es-surface);
+            border: 3px solid var(--es-tinto);
+        }
+
+        .cd-tl .cab {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+            .cd-tl .cab b {
+                font-size: 12.5px;
+            }
+
+            .cd-tl .cab small {
+                font-size: 11px;
+                color: var(--es-muted);
+                white-space: nowrap;
+            }
+
+        .cd-tl .cambio {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 3px;
+            font-size: 12px;
+        }
+
+            .cd-tl .cambio i {
+                color: var(--es-muted);
+                font-size: 11px;
+            }
+
+        .cd-tl .det {
+            margin-top: 3px;
+            font-size: 12px;
+            color: var(--es-ink);
+        }
+
+        .cd-tl .usr {
+            margin-top: 2px;
+            font-size: 11px;
+            color: var(--es-muted);
+        }
+
+    @@media (max-width: 1200px) {
+        .cd-resumen {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .cd-cobro {
+            grid-column: 1 / -1;
+        }
+
+        .cd-tabla-wrap {
+            overflow-x: auto;
+        }
+
+        .cd-tabla {
+            min-width: 980px;
+        }
     }
 
-    .cob-history .list-group-item {
-        padding: 6px 2px !important;
-        border-color: var(--cob-line) !important;
-        background: transparent !important;
-        color: var(--cob-text) !important;
-        font-size: 9.5px;
-        line-height: 1.25;
-    }
-
-    .cob-detalle .text-muted {
-        color: var(--cob-muted) !important;
-    }
-
-    /* =========================
-       MODO OSCURO
-       ========================= */
-    body[data-theme="dark"] .cob-detalle {
-        --cob-bg: #0b1120;
-        --cob-panel: #111827;
-        --cob-surface: #111827;
-        --cob-surface-2: #182235;
-        --cob-line: #374151;
-        --cob-line-dark: #4b5563;
-        --cob-text: #f9fafb;
-        --cob-muted: #a6adbb;
-        --cob-header: linear-gradient(180deg,#64151a 0%,#451014 58%,#260608 100%);
-        --cob-toolbar: linear-gradient(180deg,#1f2937 0%,#111827 100%);
-        --cob-shadow: 0 10px 24px rgba(0,0,0,.35);
-    }
-
-    body[data-theme="dark"] .cob-card > .card-header {
-        background: linear-gradient(180deg,#263244 0%,#182235 100%) !important;
-        color: #f3f4f6 !important;
-    }
-
-    body[data-theme="dark"] .cob-comment,
-    body[data-theme="dark"] .cob-file,
-    body[data-theme="dark"] .cob-detalle .form-control {
-        background: #111827 !important;
-        color: #f9fafb !important;
-        border-color: #4b5563 !important;
-    }
-
-    body[data-theme="dark"] .cob-payment {
-        background: rgba(25,135,84,.10) !important;
-        color: #d1fae5 !important;
-        border-color: rgba(74,222,128,.28) !important;
-    }
-
-    body[data-theme="dark"] .cob-detalle .table tbody tr:hover td {
-        background: #243044 !important;
-    }
-
-    body[data-theme="dark"] .cob-detalle .btn-outline-secondary {
-        background: #111827 !important;
-        color: #f3f4f6 !important;
-        border-color: #4b5563 !important;
-    }
-
-    /* =========================
-       RESPONSIVE
-       ========================= */
     @@media (max-width: 900px) {
-        .cob-titlebar {
-            align-items: flex-start;
-        }
-
-        .cob-actions {
-            width: 100%;
-            justify-content: flex-start;
-        }
-
-        .cob-detalle .table-responsive {
-            max-height: 55vh;
+        .cd-fila, .cd-fila.b {
+            grid-template-columns: 1fr;
         }
     }
 
-    @@media (max-width: 600px) {
-        .cob-content {
-            padding: 4px;
+    @@media (max-width: 560px) {
+        .cdx {
+            padding: 10px 8px;
         }
 
-        .cob-titlebar {
-            padding: 6px;
+        .cd-resumen, .cd-datos {
+            grid-template-columns: 1fr;
         }
 
-        .cob-title-icon {
-            width: 32px;
-            height: 32px;
-            flex-basis: 32px;
-        }
-
-        .cob-title-main {
-            font-size: 13px;
-        }
-
-        .cob-validate-btn {
-            width: 100%;
-        }
-
-        .cob-actions form {
-            width: 100%;
+        .cd-archivo {
+            flex-wrap: wrap;
         }
     }
 </style>
 
-<div class="cob-detalle">
-<div class="cob-shell">
+<div class="cdx cob-detalle">
 
-    <div class="cob-titlebar">
+    <a asp-controller="Cobranza" asp-action="Compromisos" class="cd-volver"><i class="bi bi-arrow-left"></i> Volver a compromisos</a>
 
-        <div class="cob-title-left">
-            <div class="cob-title-icon">
-                <i class="fa-solid fa-file-invoice-dollar"></i>
-            </div>
-
+    <header class="cd-header">
+        <div class="cd-header__title">
+            <span class="cd-header__icon"><i class="bi bi-receipt"></i></span>
             <div>
-                <div class="cob-title-main">Detalle de cobranza</div>
-
-                <div class="cob-title-sub">
-                    @Model.ClienteNombre · @Model.ClienteCodigo · @Model.OrdenVentaConsecutivo
-                </div>
-
-                <a asp-controller="Cobranza"
-                   asp-action="Compromisos"
-                   class="cob-title-link">
-                    <i class="bi bi-arrow-left"></i>
-                    Volver a compromisos
-                </a>
+                <h1>Compromiso de @Model.OrdenVentaConsecutivo <span class="cd-badge @estClase">@estTexto</span></h1>
+                <p>
+                    <span><i class="bi bi-building"></i> <b>@Model.ClienteNombre</b></span>
+                    <span><i class="bi bi-hash"></i> @Model.ClienteCodigo</span>
+                    <span><i class="bi bi-receipt-cutoff"></i> @Model.Facturas.Count factura(s) · @facturasPagadas pagada(s)</span>
+                </p>
             </div>
         </div>
-
-        <div class="cob-actions">
-
-            <span class="badge bg-@badge cob-status-badge">
-                @Model.Estatus
-            </span>
-
-            <form asp-controller="Cobranza"
-                  asp-action="ValidarAhora"
-                  method="post">
-
+        <div class="cd-header__acciones">
+            <form asp-controller="Cobranza" asp-action="ValidarAhora" method="post" id="cdValidar">
                 @Html.AntiForgeryToken()
-
-                <input type="hidden"
-                       name="id"
-                       value="@Model.Id" />
-
-                <button class="cob-validate-btn">
-                    <i class="bi bi-arrow-repeat"></i>
-                    Validar ahora contra SAP
-                </button>
-
+                <input type="hidden" name="id" value="@Model.Id" />
+                <button type="submit" class="cd-btn primary" id="cdValidarBtn"><i class="bi bi-arrow-repeat"></i> Validar ahora contra SAP</button>
             </form>
-
         </div>
-
-    </div>
-
-    <div class="cob-content">
+    </header>
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success">
-            @TempData["Success"]
-        </div>
+        <div class="cd-alert ok"><i class="bi bi-check-circle-fill"></i> @TempData["Success"]</div>
     }
-
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger">
-            @TempData["Error"]
-        </div>
+        <div class="cd-alert err"><i class="bi bi-x-circle-fill"></i> @TempData["Error"]</div>
     }
 
-    <div class="row g-3 mb-3">
+    <!-- ===================== Resumen ===================== -->
+    <section class="cd-resumen" aria-label="Resumen del compromiso">
+        <div class="cd-card cd-kpi cd-cobro">
+            <div class="lbl"><i class="bi bi-wallet2"></i> Avance de cobro</div>
+            <div class="cifras">
+                <div class="val">@pagado.ToString("0")% <small>cobrado</small></div>
+                <small>Pendiente: <b style="color:var(--es-ink)">@Model.SaldoPendienteActual.ToString("C2")</b></small>
+            </div>
+            <div class="cd-progreso" role="progressbar" aria-valuenow="@pagado.ToString("0", inv)" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de cobro"><span style="width:@pagado.ToString("0.##", inv)%"></span></div>
+            <div class="cd-progreso-pie">
+                <span>Cobrado <b>@cobrado.ToString("C2")</b></span>
+                <span>Saldo vencido inicial <b>@Model.SaldoVencidoInicial.ToString("C2")</b></span>
+            </div>
+        </div>
+        <div class="cd-card cd-kpi" style="--k:@(compromisoVencido ? "var(--es-bad)" : diasCompromiso == 0 ? "var(--es-info)" : "var(--es-tinto)");@(compromisoVencido ? "--k-txt:var(--es-bad)" : "")">
+            <div class="lbl"><i class="bi bi-calendar-event"></i> Fecha compromiso</div>
+            <div class="val">@Model.FechaCompromiso.ToString("dd/MM/yyyy")</div>
+            <div class="sub">
+                @if (est == "CUMPLIDO")
+                {
+                    <span style="color:var(--es-ok)">Cumplido</span>
+                }
+                else if (compromisoVencido)
+                {
 
-        <div class="col-md-3">
-            <div class="card cob-card cob-kpi h-100">
-                <div class="card-body">
-                    <div class="text-muted small">
-                        Saldo vencido inicial
-                    </div>
-                    <div class="fs-4 fw-bold cob-money">
-                        @Model.SaldoVencidoInicial.ToString("C2")
-                    </div>
+                    <span style="color:var(--es-bad);font-weight:600">Vencido hace @(-diasCompromiso) @(diasCompromiso == -1 ? "día" : "días")</span>
+                }
+                else if (diasCompromiso == 0)
+                {
+
+                    <span style="color:var(--es-info);font-weight:600">Vence hoy</span>
+                }
+                else
+                {
+
+                    <span>Faltan @diasCompromiso @(diasCompromiso == 1 ? "día" : "días")</span>
+                }
+            </div>
+        </div>
+        <div class="cd-card cd-kpi" style="--k:var(--es-ok)">
+            <div class="lbl"><i class="bi bi-cash-stack"></i> Pagos detectados en SAP</div>
+            <div class="val">@totalPagos</div>
+            <div class="sub">En @(Model.Facturas.Count(f => f.Pagos.Count > 0)) de @Model.Facturas.Count factura(s)</div>
+        </div>
+        <div class="cd-card cd-kpi" style="--k:var(--es-info)">
+            <div class="lbl"><i class="bi bi-shield-check"></i> Última validación SAP</div>
+            <div class="val" style="font-size:clamp(15px,1.2vw,19px)">@(Model.FechaUltimaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "Pendiente")</div>
+            <div class="sub">@(string.IsNullOrWhiteSpace(Model.UsuarioUltimaValidacion) ? "Sin validar todavía" : "Por " + Model.UsuarioUltimaValidacion)</div>
+        </div>
+    </section>
+
+    <!-- ===================== Compromiso y observación ===================== -->
+    <section class="cd-fila">
+        <div class="cd-card cd-panel">
+            <div class="cd-panel-head"><span><i class="bi bi-person-check"></i> Compromiso capturado por el vendedor</span></div>
+            <div class="cd-panel-body">
+                <div class="cd-datos">
+                    <div class="cd-dato"><span>Registró</span><b>@Model.UsuarioRegistro</b></div>
+                    <div class="cd-dato"><span>Fecha de registro</span><b>@Model.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</b></div>
                 </div>
+                <div class="cd-dato"><span>Motivo / comentario</span></div>
+                <div class="cd-comment @(string.IsNullOrWhiteSpace(Model.Motivo) ? "vacio" : "")">@(string.IsNullOrWhiteSpace(Model.Motivo) ? "Sin comentario." : Model.Motivo)</div>
             </div>
         </div>
 
-        <div class="col-md-3">
-            <div class="card cob-card cob-kpi h-100">
-                <div class="card-body">
-                    <div class="text-muted small">
-                        Saldo pendiente actual
+        <div class="cd-card cd-panel">
+            <div class="cd-panel-head"><span><i class="bi bi-chat-left-text"></i> Observación del área de cobranza</span><small>Uso interno</small></div>
+            <div class="cd-panel-body">
+                <form asp-controller="Cobranza" asp-action="GuardarObservacion" method="post" class="cd-obs" id="cdObs">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <textarea name="observacionCobranza" id="cdObsTxt" maxlength="1000" placeholder="Observaciones internas de cobranza…" aria-label="Observación de cobranza">@Model.ObservacionCobranza</textarea>
+                    <div class="pie">
+                        <span><span id="cdObsCuenta">0</span>/1000</span>
+                        <button type="submit" class="cd-btn primary sm" id="cdObsBtn" disabled><i class="bi bi-check-lg"></i> Guardar observación</button>
                     </div>
-                    <div class="fs-4 fw-bold cob-money">
-                        @Model.SaldoPendienteActual.ToString("C2")
-                    </div>
-                </div>
+                </form>
             </div>
         </div>
+    </section>
 
-        <div class="col-md-3">
-            <div class="card cob-card cob-kpi h-100">
-                <div class="card-body">
-                    <div class="text-muted small">
-                        Fecha compromiso
-                    </div>
-                    <div class="fs-4 fw-bold">
-                        @Model.FechaCompromiso.ToString("dd/MM/yyyy")
-                    </div>
-                </div>
-            </div>
+    <!-- ===================== Facturas ===================== -->
+    <section class="cd-card cd-panel">
+        <div class="cd-panel-head">
+            <span><i class="bi bi-receipt-cutoff"></i> Facturas y pagos detectados en SAP</span>
+            <small>Franja roja = factura vencida con saldo · clic derecho para copiar a Excel</small>
         </div>
-
-        <div class="col-md-3">
-            <div class="card cob-card cob-kpi h-100">
-                <div class="card-body">
-                    <div class="text-muted small">
-                        Última validación SAP
-                    </div>
-                    <div class="fw-bold">
-                        @(Model.FechaUltimaValidacion?.ToString("dd/MM/yyyy HH:mm") ?? "Pendiente")
-                    </div>
-                    <small class="text-muted">
-                        @Model.UsuarioUltimaValidacion
-                    </small>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <div class="row g-3 mb-3">
-
-        <div class="col-lg-6">
-
-            <div class="card cob-card h-100">
-
-                <div class="card-header fw-bold">
-                    <i class="fa-solid fa-handshake"></i>
-                    Compromiso capturado por vendedor
-                </div>
-
-                <div class="card-body">
-
-                    <div class="mb-2">
-                        <b>Registró:</b>
-                        @Model.UsuarioRegistro
-                    </div>
-
-                    <div class="mb-2">
-                        <b>Fecha de registro:</b>
-                        @Model.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
-                    </div>
-
-                    <div>
-                        <b>Motivo / comentario:</b>
-                    </div>
-
-                    <div class="cob-comment mt-1">
-                        @Model.Motivo
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-lg-6">
-
-            <div class="card cob-card h-100">
-
-                <div class="card-header fw-bold">
-                    <i class="fa-solid fa-comment-dots"></i>
-                    Observación del área de cobranza
-                </div>
-
-                <div class="card-body">
-
-                    <form asp-controller="Cobranza"
-                          asp-action="GuardarObservacion"
-                          method="post">
-
-                        @Html.AntiForgeryToken()
-
-                        <input type="hidden"
-                               name="id"
-                               value="@Model.Id" />
-
-                        <textarea name="observacionCobranza"
-                                  class="form-control mb-2"
-                                  rows="4"
-                                  maxlength="1000"
-                                  placeholder="Observaciones internas de cobranza...">@Model.ObservacionCobranza</textarea>
-
-                        <button class="btn btn-outline-primary">
-                            Guardar observación
-                        </button>
-
-                    </form>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="card cob-card cob-section-gap">
-
-        <div class="card-header fw-bold">
-            <i class="fa-solid fa-receipt"></i>
-            Facturas y pagos detectados en SAP
-        </div>
-
-        <div class="table-responsive">
-
-            <table class="table table-sm align-middle mb-0">
-
-                <thead class="table-light">
-                    <tr>
-                        <th>Factura</th>
-                        <th>Fecha</th>
-                        <th>Vencimiento</th>
-                        <th class="text-end">Importe</th>
-                        <th class="text-end">Pendiente inicial</th>
-                        <th class="text-end">Pendiente actual</th>
-                        <th>Estatus</th>
-                        <th style="min-width:320px;">
-                            Evidencia de pago SAP
-                        </th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    @foreach (var f in Model.Facturas)
-                    {
+        @if (Model.Facturas.Count == 0)
+        {
+            <div class="cd-vacio"><i class="bi bi-inbox"></i>Este compromiso no tiene facturas asociadas.</div>
+        }
+        else
+        {
+            <div class="cd-tabla-wrap">
+                <table class="cd-tabla">
+                    <colgroup><col style="width:10%"><col style="width:8%"><col style="width:10%"><col style="width:10.5%"><col style="width:10.5%"><col style="width:10.5%"><col style="width:9%"><col style="width:31.5%"></colgroup>
+                    <thead>
                         <tr>
-
-                            <td>
-                                <b>
-                                    @(f.SapDocNum?.ToString() ?? f.SapDocEntry.ToString())
-                                </b>
-
-                                <div class="small text-muted">
-                                    DocEntry @f.SapDocEntry
-                                </div>
-                            </td>
-
-                            <td>
-                                @(f.FechaFactura?.ToString("dd/MM/yyyy") ?? "—")
-                            </td>
-
-                            <td>
-                                @(f.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
-                            </td>
-
-                            <td class="text-end cob-money">
-                                @f.Importe.ToString("C2")
-                            </td>
-
-                            <td class="text-end cob-money">
-                                @f.PendienteInicial.ToString("C2")
-                            </td>
-
-                            <td class="text-end fw-bold cob-money">
-                                @f.PendienteActual.ToString("C2")
-                            </td>
-
-                            <td>
-                                @if (f.Pagada)
-                                {
-                                    <span class="badge bg-success">
-                                        PAGADA
-                                    </span>
-                                }
-                                else if (f.PendienteActual < f.PendienteInicial)
-                                {
-                                    <span class="badge bg-warning text-dark">
-                                        PARCIAL
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">
-                                        PENDIENTE
-                                    </span>
-                                }
-                            </td>
-
-                            <td>
-
-                                @if (f.Pagos.Count == 0)
-                                {
-                                    <span class="text-muted">
-                                        Sin pago recibido identificado.
-                                    </span>
-                                }
-                                else
-                                {
-                                    foreach (var p in f.Pagos)
+                            <th>Factura</th>
+                            <th>Fecha</th>
+                            <th>Vencimiento</th>
+                            <th class="num">Importe</th>
+                            <th class="num">Pendiente inicial</th>
+                            <th class="num">Pendiente actual</th>
+                            <th>Estatus</th>
+                            <th>Pagos recibidos en SAP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in Model.Facturas)
+                        {
+                            var vencida = !f.Pagada && f.FechaVencimiento.HasValue && f.FechaVencimiento.Value.Date < hoy;
+                            var diasVenc = f.FechaVencimiento.HasValue ? (hoy - f.FechaVencimiento.Value.Date).Days : 0;
+                            <tr class="@(vencida ? "vencida" : "")">
+                                <td class="doc" data-copy="@(f.SapDocNum?.ToString() ?? f.SapDocEntry.ToString())">@(f.SapDocNum?.ToString() ?? f.SapDocEntry.ToString())<small>DocEntry @f.SapDocEntry</small></td>
+                                <td class="fecha">@(f.FechaFactura?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="fecha venc @(vencida ? "vencida" : "")" data-copy="@(f.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "")">
+                                    @(f.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                                    @if (vencida)
                                     {
-                                        <div class="cob-payment">
+                                        <small>@diasVenc @(diasVenc == 1 ? "día" : "días") vencida</small>
+                                    }
+                                </td>
+                                <td class="num" data-copy="@f.Importe.ToString("0.00", inv)">@f.Importe.ToString("C2")</td>
+                                <td class="num muted" data-copy="@f.PendienteInicial.ToString("0.00", inv)">@f.PendienteInicial.ToString("C2")</td>
+                                <td class="num" data-copy="@f.PendienteActual.ToString("0.00", inv)"><b>@f.PendienteActual.ToString("C2")</b></td>
+                                <td>
+                                    @if (f.Pagada)
+                                    {
+                                        <span class="cd-badge sm ok">Pagada</span>
+                                    }
+                                    else if (f.PendienteActual < f.PendienteInicial)
+                                    {
 
-                                            <div>
-                                                <b>Pago SAP:</b>
-                                                @(p.SapPagoDocNum?.ToString() ??
-                                                  p.SapPagoDocEntry.ToString())
-                                            </div>
+                                        <span class="cd-badge sm warn">Parcial</span>
+                                    }
+                                    else
+                                    {
 
-                                            <div>
-                                                <b>Fecha SAP:</b>
-                                                @(p.FechaPagoSap?.ToString("dd/MM/yyyy") ?? "—")
-                                            </div>
-
-                                            <div>
-                                                <b>Monto aplicado:</b>
-                                                @p.MontoAplicado.ToString("C2")
-                                            </div>
-
-                                            @if (!string.IsNullOrWhiteSpace(p.Referencia))
+                                        <span class="cd-badge sm bad">Pendiente</span>
+                                    }
+                                </td>
+                                <td data-copy="@(string.Join(" | ", f.Pagos.Select(p => (p.SapPagoDocNum?.ToString() ?? p.SapPagoDocEntry.ToString()) + " " + (p.FechaPagoSap?.ToString("dd/MM/yyyy") ?? "") + " " + p.MontoAplicado.ToString("0.00", inv))))">
+                                    @if (f.Pagos.Count == 0)
+                                    {
+                                        <span class="cd-sin-pago">Sin pago identificado.</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="cd-pagos">
+                                            @foreach (var p in f.Pagos)
                                             {
-                                                <div class="small">
-                                                    <b>Referencia:</b>
-                                                    @p.Referencia
+                                                <div class="cd-pago">
+                                                    <i class="bi bi-check-circle-fill ico"></i>
+                                                    <span><b>Pago @(p.SapPagoDocNum?.ToString() ?? p.SapPagoDocEntry.ToString())</b> · @(p.FechaPagoSap?.ToString("dd/MM/yyyy") ?? "sin fecha")</span>
+                                                    <span class="monto">@p.MontoAplicado.ToString("C2")</span>
+                                                    @if (!string.IsNullOrWhiteSpace(p.Referencia))
+                                                    {
+                                                        <span class="extra">Referencia: @p.Referencia</span>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(p.Comentario))
+                                                    {
+                                                        <span class="extra">SAP: @p.Comentario</span>
+                                                    }
+                                                    <span class="extra">SIGO lo detectó el @p.FechaDeteccion.ToString("dd/MM/yyyy HH:mm")</span>
                                                 </div>
                                             }
-
-                                            @if (!string.IsNullOrWhiteSpace(p.Comentario))
-                                            {
-                                                <div class="small">
-                                                    <b>Comentario SAP:</b>
-                                                    @p.Comentario
-                                                </div>
-                                            }
-
-                                            <div class="small text-muted">
-                                                SIGO lo detectó:
-                                                @p.FechaDeteccion.ToString("dd/MM/yyyy HH:mm")
-                                            </div>
-
                                         </div>
                                     }
-                                }
-
-                            </td>
-
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="3" class="num">Totales</th>
+                            <th class="num">@(Model.Facturas.Sum(f => f.Importe).ToString("C2"))</th>
+                            <th class="num">@(Model.Facturas.Sum(f => f.PendienteInicial).ToString("C2"))</th>
+                            <th class="num">@(Model.Facturas.Sum(f => f.PendienteActual).ToString("C2"))</th>
+                            <th colspan="2">Pagos aplicados: @(Model.Facturas.SelectMany(f => f.Pagos).Sum(p => p.MontoAplicado).ToString("C2"))</th>
                         </tr>
-                    }
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </section>
 
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
-    <div class="row g-3">
-
-        <div class="col-lg-5">
-
-            <div class="card cob-card h-100">
-
-                <div class="card-header fw-bold">
-                    <i class="fa-solid fa-paperclip"></i>
-                    Evidencias adjuntas por vendedor
-                </div>
-
-                <div class="card-body">
-
-                    @if (Model.Archivos.Count == 0)
-                    {
-                        <div class="text-muted">
-                            No se adjuntó evidencia.
-                        </div>
-                    }
-                    else
-                    {
-                        foreach (var a in Model.Archivos)
+    <!-- ===================== Evidencias e histórico ===================== -->
+    <section class="cd-fila b">
+        <div class="cd-card cd-panel">
+            <div class="cd-panel-head"><span><i class="bi bi-paperclip"></i> Evidencias adjuntas por el vendedor</span><small>@Model.Archivos.Count archivo(s)</small></div>
+            <div class="cd-panel-body">
+                @if (Model.Archivos.Count == 0)
+                {
+                    <div class="cd-vacio" style="padding:20px 8px"><i class="bi bi-file-earmark-x"></i>No se adjuntó evidencia.</div>
+                }
+                else
+                {
+                    <div class="cd-archivos">
+                        @foreach (var a in Model.Archivos)
                         {
-                            <div class="d-flex justify-content-between align-items-center gap-2 cob-file mb-2">
-
-                                <div>
-                                    <div class="fw-semibold">
-                                        @a.NombreOriginal
-                                    </div>
-
-                                    <small class="text-muted">
-                                        @((a.TamanoBytes / 1024.0).ToString("N0")) KB
-                                        ·
-                                        @a.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
-                                    </small>
+                            <div class="cd-archivo">
+                                <span class="ico"><i class="bi @IconoArchivo(a.NombreOriginal)"></i></span>
+                                <div class="info">
+                                    <div class="nom" title="@a.NombreOriginal">@a.NombreOriginal</div>
+                                    <div class="meta">@Tamano(a.TamanoBytes) · @a.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</div>
                                 </div>
-
-                                <div class="d-flex gap-1">
-
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       target="_blank"
-                                       asp-controller="Cobranza"
-                                       asp-action="Archivo"
-                                       asp-route-id="@a.Id">
-                                        Ver
-                                    </a>
-
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       asp-controller="Cobranza"
-                                       asp-action="Archivo"
-                                       asp-route-id="@a.Id"
-                                       asp-route-descargar="true">
-                                        Descargar
-                                    </a>
-
+                                <div class="acc">
+                                    <a class="cd-btn sm" target="_blank" rel="noopener" asp-controller="Cobranza" asp-action="Archivo" asp-route-id="@a.Id" title="Abrir en otra pestaña"><i class="bi bi-eye"></i> Ver</a>
+                                    <a class="cd-btn sm" asp-controller="Cobranza" asp-action="Archivo" asp-route-id="@a.Id" asp-route-descargar="true" title="Descargar" aria-label="Descargar @a.NombreOriginal"><i class="bi bi-download"></i></a>
                                 </div>
-
                             </div>
                         }
-                    }
-
-                </div>
-
+                    </div>
+                }
             </div>
-
         </div>
 
-        <div class="col-lg-7">
-
-            <div class="card cob-card h-100">
-
-                <div class="card-header fw-bold">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    Histórico de seguimiento
-                </div>
-
-                <div class="card-body cob-history">
-
-                    @if (Model.Historico.Count == 0)
-                    {
-                        <div class="text-muted">
-                            Todavía no existe histórico de validación.
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="list-group list-group-flush">
-
-                            @foreach (var h in Model.Historico)
+        <div class="cd-card cd-panel">
+            <div class="cd-panel-head"><span><i class="bi bi-clock-history"></i> Histórico de seguimiento</span><small>@Model.Historico.Count evento(s)</small></div>
+            <div class="cd-panel-body cd-historia">
+                @if (Model.Historico.Count == 0)
+                {
+                    <div class="cd-vacio" style="padding:20px 8px"><i class="bi bi-clock"></i>Todavía no hay validaciones registradas.</div>
+                }
+                else
+                {
+                    <ul class="cd-tl">
+                        @foreach (var h in Model.Historico)
+                        {
+                            string ClaseEst(string s) => (s ?? "").ToUpperInvariant() switch
                             {
-                                <div class="list-group-item px-0">
-
-                                    <div class="d-flex justify-content-between gap-2">
-
-                                        <b>@h.TipoEvento</b>
-
-                                        <small class="text-muted">
-                                            @h.FechaEvento.ToString("dd/MM/yyyy HH:mm")
-                                        </small>
-
+                                "CUMPLIDO" => "ok",
+                                "PARCIAL" => "warn",
+                                "INCUMPLIDO" => "bad",
+                                "VENCE_HOY" => "info",
+                                "REVISAR" => "neutral",
+                                _ => "orange"
+                            };
+                            <li>
+                                <span class="punto" aria-hidden="true"></span>
+                                <div class="cab"><b>@h.TipoEvento</b><small>@h.FechaEvento.ToString("dd/MM/yyyy HH:mm")</small></div>
+                                @if (!string.IsNullOrWhiteSpace(h.EstatusAnterior) || !string.IsNullOrWhiteSpace(h.EstatusNuevo))
+                                {
+                                    <div class="cambio">
+                                        @if (!string.IsNullOrWhiteSpace(h.EstatusAnterior))
+                                        {
+                                            <span class="cd-badge sm @ClaseEst(h.EstatusAnterior)">@h.EstatusAnterior</span> <i class="bi bi-arrow-right"></i>
+                                        }
+                                        <span class="cd-badge sm @ClaseEst(h.EstatusNuevo)">@h.EstatusNuevo</span>
                                     </div>
-
-                                    @if (!string.IsNullOrWhiteSpace(h.EstatusAnterior) ||
-                                         !string.IsNullOrWhiteSpace(h.EstatusNuevo))
-                                    {
-                                        <div>
-                                            @h.EstatusAnterior
-                                            →
-                                            @h.EstatusNuevo
-                                        </div>
-                                    }
-
-                                    @if (h.PendienteAnterior.HasValue ||
-                                         h.PendienteNuevo.HasValue)
-                                    {
-                                        <div class="cob-money">
-                                            @(h.PendienteAnterior?.ToString("C2") ?? "—")
-                                            →
-                                            @(h.PendienteNuevo?.ToString("C2") ?? "—")
-                                        </div>
-                                    }
-
-                                    @if (!string.IsNullOrWhiteSpace(h.Detalle))
-                                    {
-                                        <div class="small mt-1">
-                                            @h.Detalle
-                                        </div>
-                                    }
-
-                                    <small class="text-muted">
-                                        @h.UsuarioProceso
-                                    </small>
-
-                                </div>
-                            }
-
-                        </div>
-                    }
-
-                </div>
-
+                                }
+                                @if (h.PendienteAnterior.HasValue || h.PendienteNuevo.HasValue)
+                                {
+                                    var bajo = h.PendienteAnterior.HasValue && h.PendienteNuevo.HasValue && h.PendienteNuevo < h.PendienteAnterior;
+                                    <div class="cambio num" style="justify-content:flex-start">
+                                        <span class="muted">Pendiente:</span>
+                                        @(h.PendienteAnterior?.ToString("C2") ?? "—") <i class="bi bi-arrow-right"></i>
+                                        <b style="@(bajo ? "color:var(--es-ok)" : "")">@(h.PendienteNuevo?.ToString("C2") ?? "—")</b>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(h.Detalle))
+                                {
+                                    <div class="det">@h.Detalle</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(h.UsuarioProceso))
+                                {
+                                    <div class="usr"><i class="bi bi-person"></i> @h.UsuarioProceso</div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
             </div>
-
         </div>
+    </section>
+</div>
 
-    </div>
+<script>
+    (() => {
+        // Validar contra SAP: evita doble envío y muestra que está trabajando
+        // CORRECCIÓN: antes un doble clic lanzaba dos validaciones contra SAP
+        const fVal = document.getElementById('cdValidar'), bVal = document.getElementById('cdValidarBtn');
+        fVal?.addEventListener('submit', e => {
+            if (fVal.dataset.enviando) { e.preventDefault(); return; }
+            fVal.dataset.enviando = '1';
+            bVal.disabled = true;
+            bVal.innerHTML = '<span class="cd-spin"></span> Validando contra SAP…';
+        });
 
-    </div> <!-- /.cob-content -->
-</div> <!-- /.cob-shell -->
-</div> <!-- /.cob-detalle -->
+        // Observación: contador, Guardar activo solo si cambió, aviso al salir con cambios
+        const fObs = document.getElementById('cdObs'), txt = document.getElementById('cdObsTxt'), bObs = document.getElementById('cdObsBtn'), cuenta = document.getElementById('cdObsCuenta');
+        if (fObs && txt) {
+            const original = txt.value;
+            const actualizar = () => { cuenta.textContent = txt.value.length; bObs.disabled = txt.value.trim() === original.trim(); };
+            txt.addEventListener('input', actualizar);
+            txt.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter' && !bObs.disabled) fObs.requestSubmit(); });
+            actualizar();
+            let enviando = false;
+            fObs.addEventListener('submit', e => {
+                if (enviando) { e.preventDefault(); return; }
+                enviando = true;
+                bObs.disabled = true;
+                bObs.innerHTML = '<span class="cd-spin"></span> Guardando…';
+            });
+            addEventListener('beforeunload', e => { if (!enviando && txt.value.trim() !== original.trim()) { e.preventDefault(); e.returnValue = ''; } });
+        }
+    })();
+</script>

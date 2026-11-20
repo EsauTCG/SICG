@@ -8060,11 +8060,34 @@ OPTION (RECOMPILE);
 
 
 
+
+        // ============================================================
         // GET: /Comercial/ObtenerOrdenesConCredito
-        // Muestra TODAS las OV con crédito pendiente (Estatus=2 y AutorizacionCredito=0)
+        //
+        // Muestra todas las órdenes de venta con crédito pendiente.
+        //
+        // Estatus = 2
+        // AutorizacionCredito = false o null
+        //
+        // Incluye:
+        // - Orden de venta
+        // - Serie real de la orden
+        // - Cliente
+        // - Nombre del cliente
+        // - Fecha de entrega
+        // - Kilogramos
+        // - Importe del pedido
+        //
+        // Los datos financieros se consultan posteriormente en SAP.
+        // ============================================================
+
         [HttpGet]
         public async Task<IActionResult> ObtenerOrdenesConCredito()
         {
+            // ========================================================
+            // 1. CONSULTAR ÓRDENES PENDIENTES DE CRÉDITO
+            // ========================================================
+
             var datos = await (
                 from ov in _context.OrdenVenta.AsNoTracking()
 
@@ -8098,6 +8121,10 @@ OPTION (RECOMPILE);
                     Consecutivo =
                         ov.Consecutivo ?? "-",
 
+                    // SERIE REAL DE LA ORDEN DE VENTA
+                    Serie =
+                        ov.Serie,
+
                     Cliente =
                         ov.Cliente ?? "-",
 
@@ -8127,99 +8154,126 @@ OPTION (RECOMPILE);
             )
             .ToListAsync();
 
+            // ========================================================
+            // 2. SIN RESULTADOS
+            // ========================================================
 
             if (datos.Count == 0)
             {
-                return Json(
-                    Array.Empty<object>()
-                );
+                return Json(Array.Empty<object>());
             }
 
+            // ========================================================
+            // 3. AGRUPAR PARTIDAS POR ORDEN DE VENTA
+            // ========================================================
 
-            var resultado =
-                datos
-                    .GroupBy(d => new
+            var resultado = datos
+
+                .GroupBy(d => new
+                {
+                    d.Id,
+                    d.Consecutivo,
+                    d.Serie,
+                    d.Cliente,
+                    d.ClienteNombre,
+                    d.FechaEntrega
+                })
+
+                .Select(grupo =>
+                {
+                    // =================================================
+                    // KILOGRAMOS TOTALES
+                    // =================================================
+
+                    decimal kgOv = grupo.Sum(x =>
+                        x.Kg ?? 0m
+                    );
+
+                    // =================================================
+                    // IMPORTE DEL PEDIDO
+                    // =================================================
+
+                    decimal importePedido = grupo.Sum(x =>
+                        x.ImporteLinea
+                        ??
+                        (
+                            (x.PrecioOV ?? 0m)
+                            *
+                            (x.Kg ?? 0m)
+                        )
+                    );
+
+                    // =================================================
+                    // RESULTADO PARA AUTORIZACIÓN DE CRÉDITO
+                    // =================================================
+
+                    return new
                     {
-                        d.Id,
-                        d.Consecutivo,
-                        d.Cliente,
-                        d.ClienteNombre,
-                        d.FechaEntrega
-                    })
-                    .Select(grupo =>
-                    {
-                        decimal kgOv =
-                            grupo.Sum(x =>
-                                x.Kg ?? 0m
-                            );
+                        OrdenVenta =
+                            grupo.Key.Consecutivo,
 
+                        // SERIE PARA LA COLUMNA DE LA VISTA
+                        Serie =
+                            string.IsNullOrWhiteSpace(grupo.Key.Serie)
+                                ? "-"
+                                : grupo.Key.Serie.Trim(),
 
-                        decimal importePedido =
-                            grupo.Sum(x =>
-                                x.ImporteLinea
-                                ??
-                                (
-                                    (x.PrecioOV ?? 0m)
-                                    *
-                                    (x.Kg ?? 0m)
-                                )
-                            );
+                        Cliente =
+                            grupo.Key.Cliente,
 
+                        ClienteNombre =
+                            grupo.Key.ClienteNombre,
 
-                        return new
-                        {
-                            OrdenVenta =
-                                grupo.Key.Consecutivo,
+                        FechaEntrega =
+                            grupo.Key.FechaEntrega
+                                .ToString("yyyy-MM-dd"),
 
-                            Cliente =
-                                grupo.Key.Cliente,
+                        KgOv =
+                            kgOv,
 
-                            ClienteNombre =
-                                grupo.Key.ClienteNombre,
+                        ImportePedido =
+                            importePedido,
 
-                            FechaEntrega =
-                                grupo.Key.FechaEntrega
-                                    .ToString("yyyy-MM-dd"),
+                        // =================================================
+                        // DATOS FINANCIEROS PENDIENTES DE SAP
+                        // =================================================
 
-                            KgOv =
-                                kgOv,
+                        LimiteCredito =
+                            (decimal?)null,
 
-                            ImportePedido =
-                                importePedido,
+                        SaldoActual =
+                            (decimal?)null,
 
-                            // Estos datos llegarán después desde SAP.
-                            LimiteCredito =
-                                (decimal?)null,
+                        OtrosPedidos =
+                            (decimal?)null,
 
-                            SaldoActual =
-                                (decimal?)null,
+                        Disponible =
+                            (decimal?)null,
 
-                            OtrosPedidos =
-                                (decimal?)null,
+                        Excede =
+                            (decimal?)null,
 
-                            Disponible =
-                                (decimal?)null,
+                        MontoExcedido =
+                            (decimal?)null,
 
-                            Excede =
-                                (decimal?)null,
+                        SapPendiente =
+                            true
+                    };
+                })
 
-                            MontoExcedido =
-                                (decimal?)null,
+                .OrderBy(x =>
+                    x.OrdenVenta
+                )
 
-                            SapPendiente =
-                                true
-                        };
-                    })
-                    .OrderBy(x =>
-                        x.OrdenVenta
-                    )
-                    .ToList();
+                .ToList();
 
+            // ========================================================
+            // 4. RESPUESTA JSON
+            // ========================================================
 
-            return Json(
-                resultado
-            );
+            return Json(resultado);
         }
+
 
 
 

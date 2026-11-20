@@ -1,0 +1,502 @@
+@model Plataforma_CG.ViewModels.CartaPorteInternaVm
+@using System.Globalization
+@{
+    Layout = null;
+    var mx = CultureInfo.GetCultureInfo("es-MX");
+    // Cabecera fija del documento de referencia; NO se usan para el destino logístico.
+    const string empresa = "CARNES G";
+    const string rfc = "CGX1505295A8";
+    const string regimen = "601-General de Ley Personas Morales";
+    const string cp = "47000";
+    const string origenDireccion = "CAMINO AL ALCALA No. S/N Int. S/N, San Juan de los Lagos Centro, San Juan de los Lagos, San Juan de los Lagos, JAL, MEX, 47000";
+    const string claveMercancia = "50111513"; // Clave solicitada; validar por SKU si cambia su uso fiscal.
+    var logo = Url.Content("~/images/logoPDF.png");
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Carta porte operativa | SIGO</title>
+    <style>
+        :root { --wine: #833b43; --slate: #343c45; --line: #d9dce0; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #eef0f2; color: #222; font: 13px/1.45 Arial, sans-serif; }
+        body.modal-open { overflow: hidden; }
+        .toolbar { max-width: 1120px; margin: 15px auto; padding: 14px 18px; background: white; border-radius: 9px; box-shadow: 0 3px 15px #0001; }
+        .toolbar h2 { margin: 0 0 7px; color: var(--wine); }
+        .note { background: #fff5dc; border: 1px solid #edcc79; border-radius: 5px; padding: 9px 12px; margin: 10px 0; }
+        .formgrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+        .formgrid .wide { grid-column: span 2; }
+        .formgrid label { display: flex; flex-direction: column; font-weight: 700; font-size: 12px; color: #42484d; gap: 4px; }
+        input, textarea, select { font: 13px Arial; padding: 9px; border: 1px solid #bac1c6; border-radius: 5px; min-width: 0; width: 100%; }
+        input:focus, textarea:focus { outline: 2px solid #b87d84; outline-offset: 0; }
+        textarea { min-height: 66px; resize: vertical; }
+        .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+        .btn { padding: 10px 16px; border: 0; border-radius: 5px; background: var(--wine); color: #fff; font-weight: 700; cursor: pointer; }
+        .btn.alt { background: #545b63; }
+        .btn:focus-visible { outline: 3px solid #b87d84; outline-offset: 2px; }
+        .summary { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+        .summary b { color: var(--wine); }
+        .paper { position: relative; width: 216mm; min-height: 279mm; margin: 15px auto; background: #fff; padding: 13mm; box-shadow: 0 3px 15px #0002; }
+        .paper:before { content: 'DOCUMENTO INTERNO · SIN VALIDEZ FISCAL'; position: absolute; top: 49%; left: 10%; transform: rotate(-28deg); font: bold 30px Arial; color: rgba(100,100,100,.07); pointer-events: none; }
+        .heading { display: flex; justify-content: space-between; gap: 20px; border-bottom: 3px solid #555; padding-bottom: 12px; }
+        .heading h1 { font-size: 20px; margin: 4px 0; }
+        .heading .sub { font-size: 12px; color: #777; }
+        .folio { text-align: right; }
+        .band { background: #50565c; color: #fff; padding: 5px 9px; font-weight: 700; margin-top: 15px; }
+        .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+        .detail { padding: 6px 7px; border: 1px solid #ddd; min-height: 75px; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .info { display: grid; grid-template-columns: 170px 1fr; font-size: 12px; border-bottom: 1px solid #e4e4e4; padding: 4px 2px; }
+        .info span:first-child { font-weight: 700; }
+        .info span:last-child { white-space: pre-wrap; overflow-wrap: anywhere; }
+        .merc { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+        .merc th { background: #ededed; text-align: left; }
+        .merc th, .merc td { border: 1px solid #ccc; padding: 6px; }
+        .right { text-align: right; }
+        .totals { display: flex; justify-content: flex-end; margin-top: 8px; font-weight: 700; }
+        .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 36px; }
+        .sign { padding-top: 9px; border-top: 1px solid #888; text-align: center; }
+        .legal { border-top: 1px solid #aaa; padding-top: 10px; margin-top: 25px; font-size: 10px; color: #666; }
+
+        /* Modal flotante: solo captura de transporte, no forma parte del PDF. */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(19,22,28,.68); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 18px; }
+        .modal-backdrop[hidden] { display: none !important; }
+        .modal-card { width: min(1060px,100%); max-height: min(92dvh, 920px); display: flex; flex-direction: column; background: #fff; border-radius: 13px; box-shadow: 0 24px 85px #0006; overflow: hidden; }
+        .modal-head { padding: 15px 19px; background: var(--wine); color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .modal-head h2 { margin: 0; font-size: 18px; }
+        .modal-head small { opacity: .9; }
+        .modal-close { background: #ffffff26; color: #fff; border: 1px solid #ffffff50; border-radius: 6px; font-size: 22px; cursor: pointer; width: 36px; height: 36px; }
+        .modal-body { overflow: auto; padding: 17px 19px 22px; overscroll-behavior: contain; }
+        .modal-foot { padding: 12px 19px; border-top: 1px solid #e6e6e6; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #f9f8f8; flex-wrap: wrap; }
+        .modal-foot .actions { margin-left: auto; }
+        .modal-error { margin: 10px 0; padding: 9px 12px; border: 1px solid #f2aaaa; background: #fff1f1; color: #9b1515; border-radius: 6px; }
+        .modal-error[hidden] { display: none; }
+        .modal-intro { margin: 0 0 12px; color: #60656b; }
+
+        @@media (max-width: 900px) {
+            .paper { width: 100%; min-height: 0; padding: 15px; }
+            .formgrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+            .toolbar { margin: 8px; }
+        }
+        @@media (max-width: 530px) {
+            .formgrid { grid-template-columns: 1fr; }
+            .formgrid .wide { grid-column: auto; }
+            .twocol { grid-template-columns: 1fr; }
+            .heading { flex-direction: column; }
+            .folio { text-align: left; }
+            .merc { font-size: 9px; }
+            .modal-backdrop { padding: 0; }
+            .modal-card { height: 100dvh; max-height: 100dvh; border-radius: 0; }
+            .modal-body { padding: 13px; }
+            .modal-head { padding: 12px 13px; }
+            .modal-foot { padding: 10px 13px; }
+            .modal-foot .actions { width: 100%; }
+            .modal-foot .btn { flex: 1; }
+        }
+        @@page { size: letter; margin: 8mm; }
+        @@media print {
+            body { background: #fff; }
+            body.modal-open { overflow: visible; }
+            .toolbar, .modal-backdrop { display: none !important; }
+            .paper { width: 100%; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+            .band, .merc th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .paper:before { color: rgba(100,100,100,.08); }
+            tr { break-inside: avoid; }
+            .footer, .twocol { break-inside: avoid; }
+        }
+
+        /* SAP-like Carta Porte - 2 hojas, gris y blanco como referencia aportada. */
+        .sap-document{max-width:216mm;margin:auto}
+        .sap-sheet{font-family:Arial,Helvetica,sans-serif;color:#161616;font-size:10px;line-height:1.32;padding:10mm 9mm 12mm;min-height:279mm;position:relative;margin:13px auto}
+        .sap-sheet:before{display:none!important}
+        .sap-grey{background:#5d5d5d;color:#fff;font-weight:bold;font-size:11px;padding:4px 6px;line-height:1.18}
+        .sap-left{text-align:left}.sap-centered{text-align:center}
+        .sap-main-bar{margin-top:18px;font-size:12px}
+        .sap-header{display:grid;grid-template-columns:1.1fr 1fr;gap:25px;min-height:125px}
+        .sap-logo{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 0 0 36px;color:#9d1126}
+        .sap-logo img{max-width:150px;max-height:106px;object-fit:contain}
+        .sap-logo .logo-carnes-real{width:150px;height:auto;max-height:106px}
+        .sap-logo strong{font:bold 22px/1 Arial;color:#a81029;letter-spacing:-.5px}
+        .sap-logo strong span{display:inline-block;background:#ac112b;color:#fff;padding:2px 4px;border-radius:4px}
+        .sap-logo small{font-size:8px;font-weight:bold;color:#555}
+        .sap-head-data{text-align:center}.sap-head-value{padding:3px 6px 5px;font-size:10px;overflow-wrap:anywhere}
+        .sap-twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+        .sap-party-section{margin-top:6px}.sap-party{padding:3px 2px;font-size:10px;overflow-wrap:anywhere}
+        .sap-table{width:100%;border-collapse:collapse;font-size:9px;margin-top:9px;table-layout:fixed}
+        .sap-table th{background:#5d5d5d;color:#fff;font-size:9px;text-align:left;border:1px solid #d5d5d5;padding:4px 5px}
+        .sap-table td{border:1px solid #d5d5d5;padding:5px 5px;overflow-wrap:anywhere;vertical-align:top}
+        .sap-concepts th:nth-child(1){width:13%}.sap-concepts th:nth-child(2){width:41%}
+        .sap-concepts th:nth-child(3){width:13%}.sap-concepts th:nth-child(4){width:13%}
+        .sap-concepts th:nth-child(5),.sap-concepts th:nth-child(6){width:10%}
+        .sap-amount-area{margin-top:13px}.sap-line-box{border:1px solid #555;padding:5px}
+        .sap-mini{font-size:9px;margin:5px 0;overflow-wrap:anywhere}
+        .sap-subtotal{border-top:1px solid #777;display:flex;justify-content:space-between;padding:5px 10px}
+        .sap-nofiscal{font-size:9px;font-weight:bold;color:#555;margin-top:18px;border-left:3px solid #a81129;padding:5px 8px;background:#f6f6f6}
+        .sap-locations{border:1px solid #ccc;gap:0}.sap-locations>div{padding:0 8px 9px;min-width:0;overflow-wrap:anywhere}
+        .sap-locations>div:first-child{border-right:1px solid #ccc}.sap-locations .sap-grey{margin:0 -8px 7px}
+        .sap-locations>div>div:not(.sap-grey){padding:2px 0}
+        .sap-cargo th:nth-child(1){width:13%}.sap-cargo th:nth-child(2){width:13%}
+        .sap-cargo th:nth-child(3){width:33%}.sap-cargo th:nth-child(4){width:10%}
+        .sap-cargo th:nth-child(5){width:11%}.sap-cargo th:nth-child(6){width:12%}.sap-cargo th:nth-child(7){width:8%}
+        .sap-sheet-footer{position:absolute;bottom:8mm;left:9mm;right:9mm;display:flex;justify-content:space-between;gap:12px;font-size:9px}
+        .sap-second-top{display:grid;grid-template-columns:1fr 1fr;gap:20px 30px;text-align:center;margin:4px 0 21px}
+        .sigo-qr-mini{width:88px;height:88px;object-fit:contain;image-rendering:auto;border:1px solid #ddd;padding:3px;background:white}
+        .sigo-qr-large{width:166px;height:166px;object-fit:contain;border:1px solid #ddd;padding:5px;background:#fff}
+        .sigo-qr-header{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px}
+        .sigo-qr-control{display:grid;grid-template-columns:185px 1fr;gap:14px;align-items:start;margin:8px 0 15px}
+        .sigo-qr-text{font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+        .sigo-qr-text b{display:block;font-size:11px;margin:3px 0}
+        .sigo-folio{font-family:Consolas,monospace;font-size:9px;word-break:break-all}
+        .sigo-qr-label{font-size:9px;font-weight:700;text-align:center;color:#444}
+        @@media(max-width:700px){.sigo-qr-control{grid-template-columns:140px 1fr}.sigo-qr-large{width:135px;height:135px}}
+        /* Sección visual de muestra: nunca representa una certificación SAT */
+        .demo-stamp{border:1px solid #bbb;background:#f7f7f7;padding:8px 10px;margin:8px 0;font:9px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+        .demo-stamp .sap-grey{font:700 10px Arial,sans-serif;margin:-8px -10px 7px;padding:5px 8px}
+        .demo-stamp p{margin:4px 0;overflow-wrap:anywhere}
+        .demo-legend{font:700 11px Arial,sans-serif;border:1px solid #777;padding:7px 9px;margin:8px 0;text-align:center;background:#fff;letter-spacing:.3px}
+        .demo-qr-grid{display:grid;grid-template-columns:185px 1fr;gap:10px;align-items:start;margin-top:10px}
+        .demo-qr-grid img{width:164px;height:164px;object-fit:contain}
+        .demo-qr-grid--compact{grid-template-columns:185px minmax(0,1fr);align-items:start}
+        .demo-stamps-column{min-width:0}
+        .demo-stamp--flat{border:0;background:transparent;padding:0;margin:0 0 9px;font:9px/1.42 Arial,Helvetica,sans-serif}
+        .demo-stamp--flat .sap-grey{margin:0 0 4px;padding:4px 6px;font:700 10px Arial,Helvetica,sans-serif}
+        .demo-stamp--flat p{padding:0 3px;margin:0;overflow-wrap:anywhere;word-break:break-word}
+
+        @@media print {.demo-legend,.demo-stamp{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+        .sap-kv-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;row-gap:8px;margin:12px 0 20px}
+        .sap-kv-grid>div{display:grid;grid-template-columns:110px 1fr;gap:5px;overflow-wrap:anywhere}
+        .sap-observ{border:1px solid #ddd;padding:12px;min-height:75px;white-space:pre-wrap;overflow-wrap:anywhere}
+        .sap-legal-box{padding:12px 6px;line-height:1.6;font-size:10px}
+        .sap-signatures{display:grid;grid-template-columns:1fr 1fr;gap:25px;margin-top:20px}
+        .sap-signatures div{padding:10px 0;text-align:center;border-top:1px solid #777}
+        .sap-sheet-second{page-break-before:always;break-before:page}
+        @@media(max-width:700px){.sap-sheet{width:100%;min-height:0;padding:13px}.sap-header{gap:8px}.sap-logo{padding-left:5px}.sap-kv-grid>div{grid-template-columns:85px 1fr}.sap-sheet-footer{position:static;margin-top:24px}.sap-table{font-size:8px}}
+        @@media print{
+          @@page{size:letter;margin:0}
+          .sap-document{max-width:none;margin:0}
+          .sap-sheet{width:216mm!important;min-height:279mm!important;margin:0!important;padding:10mm 9mm 14mm!important;box-shadow:none!important;page-break-after:always;break-after:page}
+          .sap-sheet:last-child{page-break-after:auto;break-after:auto}
+          .sap-sheet-footer{position:absolute;bottom:8mm}
+          .sap-grey,.sap-table th,.sap-nofiscal{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+          .sap-table tr{break-inside:avoid;page-break-inside:avoid}
+        }
+    </style>
+</head>
+<body class="modal-open">
+<section class="toolbar">
+    <h2>Carta porte operativa · SIGO</h2>
+    <p>Origen: <b>@Model.Source</b> · Remisiones: <b>@string.Join(", ", Model.Referencias)</b> · Cliente SAP: <b>@Model.ClienteCodigo</b> · Solicitudes: <b>@string.Join(", ", Model.Solicitudes)</b></p>
+    <div class="summary"><span>Partidas: <b>@Model.Mercancias.Count</b></span><span>Peso: <b>@Model.PesoTotalKg.ToString("N3",mx) kg</b></span><span>Cajas: <b>@Model.TotalCajas</b></span><span>Tarimas: <b>@Model.TotalTarimas</b></span></div>
+    <div class="actions" style="margin-top:12px">
+        <button type="button" class="btn alt" onclick="abrirCaptura()">Editar datos del traslado</button>
+        <button type="button" class="btn" onclick="validarEImprimir()">Imprimir / Guardar PDF</button>
+    </div>
+</section>
+
+<div class="modal-backdrop" id="modalCaptura" role="presentation">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalCapturaTitulo" tabindex="-1">
+        <div class="modal-head">
+            <div><h2 id="modalCapturaTitulo">Datos del traslado y autotransporte</h2><small>Carta porte operativa · SIGO · Captura previa a la impresión</small></div>
+            <button type="button" class="modal-close" onclick="cerrarCaptura()" aria-label="Cerrar captura">×</button>
+        </div>
+        <div class="modal-body">
+            <p class="modal-intro">Completa los datos del chofer, vehículo, origen y destino. El detalle de mercancías proviene del surtido real.</p>
+            <div class="note"><b>Documento interno, sin timbrado.</b> No sustituye al CFDI con Complemento Carta Porte cuando sea obligatorio. Verifica los datos del traslado antes de imprimir.</div>
+            <div id="capturaError" class="modal-error" role="alert" hidden></div>
+<div class="formgrid" id="captura">
+<label>Folio interno SIGO (automático)<input data-bind="folio" value="@Model.FolioInterno" readonly aria-readonly="true" /></label>
+<label>Fecha y hora de salida<input type="datetime-local" data-bind="salida"/></label>
+<label>Fecha y hora estimada de llegada<input type="datetime-local" data-bind="llegada"/></label>
+<label>Distancia estimada (km)<input type="number" step=".1" min="0" data-bind="distancia"/></label>
+<label class="wide">Origen / Razón social<input data-bind="origenNombre" value="@empresa" readonly /></label>
+<label class="wide">RFC origen<input data-bind="origenRfc" value="@rfc" readonly /></label>
+<label class="wide">Domicilio de origen<textarea data-bind="origenDireccion" readonly>@origenDireccion</textarea></label>
+<label class="wide">Domicilio de destino<textarea data-bind="destinoDireccion" placeholder="Calle, municipio, estado, C.P."></textarea></label>
+<label class="wide">Destinatario<input data-bind="destinoNombre" value="@Model.ClienteNombre"/></label>
+<label class="wide">RFC destinatario<input data-bind="destinoRfc" placeholder="RFC (si se conoce)"/></label>
+<label class="wide">Nombre del operador / chofer<input data-bind="choferNombre"/></label>
+<label>RFC operador<input data-bind="choferRfc"/></label>
+<label>Número de licencia<input data-bind="licencia"/></label>
+<label>Placas unidad<input data-bind="placas"/></label>
+<label>Marca/modelo<input data-bind="vehiculo"/></label>
+<label>Año unidad<input data-bind="anio" type="number" min="1950" max="2100"/></label>
+<label>Configuración vehicular<input data-bind="configVehicular" placeholder="Ej. C2"/></label>
+<label>Permiso SICT / SCT<input data-bind="permisoTipo"/></label>
+<label>Número de permiso<input data-bind="permisoNumero"/></label>
+<label>Aseguradora<input data-bind="aseguradora"/></label>
+<label>Póliza de responsabilidad civil<input data-bind="poliza"/></label>
+<label>Placas remolque (si aplica)<input data-bind="remolque"/></label>
+<label>Id. ubicación origen<input data-bind="idOrigen" value="OR000001" readonly /></label>
+<label>Id. ubicación destino<input data-bind="idDestino" placeholder="DE000001" /></label>
+<label>Régimen fiscal emisor (informativo)<input data-bind="regimen" value="@regimen" readonly /></label>
+<label>Lugar de expedición / C.P.<input data-bind="lugarExpedicion" value="@cp" readonly /></label>
+<label>Clave de bienes de transporte (referencia interna)<input data-bind="claveBienes" value="@claveMercancia" readonly /></label>
+<label>Peso bruto vehicular (kg)<input type="number" min="0" step=".001" data-bind="pesoBruto" /></label>
+<label>Transporte internacional<select data-bind="internacional"><option value="No">No</option><option value="Sí">Sí</option></select></label>
+<label>Tipo figura<input data-bind="tipoFigura" value="01 Autotransporte" /></label>
+<label>Aseguradora ambiental (si aplica)<input data-bind="asegAmbiental" /></label>
+<label>Póliza ambiental (si aplica)<input data-bind="polizaAmbiental" /></label>
+<label class="wide">Observaciones del traslado<textarea data-bind="observaciones"></textarea></label>
+</div>
+        </div>
+        <div class="modal-foot">
+            <span style="color:#656565;font-size:12px">Los datos del viaje no se guardan en el servidor; el folio y QR son informativos, no fiscales.</span>
+            <div class="actions">
+                <button type="button" class="btn alt" onclick="cerrarCaptura()">Ver vista previa</button>
+                <button type="button" class="btn" onclick="guardarCaptura()">Guardar datos y ver PDF</button>
+                <button type="button" class="btn" onclick="validarEImprimir()">Imprimir / Guardar PDF</button>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- FORMATO OPERATIVO SIMILAR A LA REFERENCIA DE SAP, SIN DATOS FISCALES AUTÉNTICOS -->
+<div id="papel" class="sap-document">
+    <section class="paper sap-sheet sap-sheet-first">
+        <div class="sap-header">
+            <div class="sap-logo">
+                <img src="@logo" alt="Logo de Carnes G" class="logo-carnes-real" />
+                <small>CALIDAD GARANTIZADA</small>
+            </div>
+            <div class="sap-head-data">
+                <div class="sap-grey">Comprobante de Traslado</div>
+                <div class="sap-head-value">CARTA PORTE</div>
+                <div class="sap-grey">Folio de referencia (SIGO)</div>
+                <div class="sap-head-value sigo-folio">@Model.FolioInterno</div>
+                <div class="sap-grey">Fecha y hora de generación</div>
+                <div class="sap-head-value">@Model.FechaPreparacion.ToString("dd/MM/yyyy HH:mm")</div>
+               @*  <div class="sigo-qr-header">
+                    <img src="data:image/png;base64,@Model.CodigoQrInternoBase64" class="sigo-qr-mini" alt="QR de identificación operativa SIGO" />                    
+                </div> *@
+            </div>
+        </div>
+        <div class="sap-twocol sap-party-section">
+            <div>
+                <div class="sap-grey sap-left">Emisor</div>
+                <div class="sap-party">RFC: @rfc - @empresa</div>
+                <div class="sap-party">Régimen Fiscal: @regimen</div>
+                <div class="sap-party">Lugar de Expedición: @cp</div>
+            </div>
+            <div>
+                <div class="sap-grey sap-left">Receptor</div>
+                <div class="sap-party">RFC: @rfc - @empresa</div>
+                <div class="sap-party">Residencia Fiscal: MEX - México</div>
+                <div class="sap-party">Uso CFDI (solo referencia de diseño): S01 - Sin efectos fiscales</div>
+                <div class="sap-party">Régimen Fiscal: @regimen</div>
+                <div class="sap-party">Domicilio Fiscal: @cp</div>
+            </div>
+        </div>
+        <table class="sap-table sap-concepts">
+            <thead><tr>
+                <th>Clave</th><th>Descripción</th><th>Unidad</th><th class="right">Cantidad (kg)</th><th class="right">P.U.</th><th class="right">Importe</th>
+            </tr></thead>
+            <tbody>
+                @foreach(var m in Model.Mercancias)
+                {
+                    <tr>
+                        <td>@claveMercancia</td>
+                        <td>@m.DescripcionCompleta</td>
+                        <td>KG (KGM)</td>
+                        <td class="right">@m.PesoKg.ToString("N3", mx)</td>
+                        <td class="right">0.00 (XXX)</td><td class="right"><b>0.00 (XXX)</b></td>
+                    </tr>
+                    <tr class="sap-tax-subrow"><td colspan="6"><b>Objeto Impuesto:</b> 01 &nbsp;&nbsp; | &nbsp; </td></tr>
+                }
+            </tbody>
+        </table>
+        <div class="sap-twocol sap-amount-area">
+            <div>
+                <div class="sap-line-box"><b>CANTIDAD TOTAL:</b> @Model.PesoTotalKg.ToString("N3",mx) KG</div>
+                <p class="sap-mini"><b>Notas:</b> </p>
+                <p class="sap-mini">Remisión(es): @string.Join(", ", Model.Referencias)</p>
+                <p class="sap-mini">Solicitudes: @string.Join(", ", Model.Solicitudes)</p>
+                <p class="sap-mini">Cajas: @Model.TotalCajas · Tarimas: @Model.TotalTarimas</p>
+            </div>
+            <div><div class="sap-subtotal"><b>Subtotal</b> <span>No aplica</span></div><div class="sap-subtotal"><b>Total</b> <span>No aplica</span></div></div>
+        </div>
+        @* <div class="demo-legend">EJEMPLO VISUAL · DATOS FISCALES SIMULADOS · NO CERTIFICADO POR SAT</div> *@
+        <div class="sap-grey sap-centered sap-main-bar">Carta Porte</div>
+        <div class="sap-twocol sap-locations">
+            <div>
+                <div class="sap-grey sap-left">Origen</div>
+                <div><b>@empresa</b></div>
+                <div>@rfc</div>
+                <div>IdUbicación: OR000001</div>
+                <div>Dirección: @origenDireccion</div>
+                <div>Fecha / hora salida: <span data-show="salida">—</span></div>
+            </div>
+            <div>
+                <div class="sap-grey sap-left">Destino</div>
+                <div><b data-show="destinoNombre">—</b></div>
+                <div data-show="destinoRfc">—</div>
+                <div>IdUbicación: <span data-show="idDestino">—</span></div>
+                <div>Dirección: <span data-show="destinoDireccion">—</span></div>
+                <div>Fecha / hora estimada de llegada: <span data-show="llegada">—</span></div>
+            </div>
+        </div>
+        <div class="sap-grey sap-centered">Mercancías</div>
+        <table class="sap-table sap-cargo">
+            <thead><tr><th>Cantidad</th><th>Unidad</th><th>Descripción</th><th>Dimensiones</th><th class="right">Peso KG</th><th>Bienes transporte*</th><th>Mat. peligroso</th></tr></thead>
+            <tbody>
+                @foreach(var m in Model.Mercancias)
+                {
+                    <tr><td>@m.PesoKg.ToString("N3",mx)</td><td>KGM - KG</td><td>@m.DescripcionCompleta</td><td>—</td><td class="right">@m.PesoKg.ToString("N3",mx)</td><td>@claveMercancia</td><td>Por validar</td></tr>
+                }
+            </tbody>
+        </table>
+        <div class="sap-sheet-footer"><span>Este documento es una representación impresa de un CFDi Versión 4.0</span><span>Página 1 de 2</span></div>
+    </section>
+    <section class="paper sap-sheet sap-sheet-second">
+        <div class="sigo-qr-control">
+            <div>
+                <img src="data:image/png;base64,@Model.CodigoQrInternoBase64" class="sigo-qr-large" alt="Código QR interno de SIGO" />
+                <div class="sigo-qr-label"></div>
+            </div>
+            <div class="sap-second-top" style="margin:0">
+                <div><div class="sap-grey sap-centered">Version</div><div class="sap-head-value">3.1</div></div>
+                <div><div class="sap-grey sap-centered">IdCCP</div><div class="sap-head-value sigo-folio">@Model.FolioInterno</div></div>
+                <div><div class="sap-grey sap-centered">Transporte Internacional</div><div class="sap-head-value" data-show="internacional">No</div></div>
+                <div><div class="sap-grey sap-centered">Total Distancia Reccorrida</div><div class="sap-head-value"><span data-show="distancia">—</span> km</div></div>
+            </div>
+        </div>
+        <div class="sap-grey sap-centered sap-main-bar">Operadores</div>
+        <div class="sap-kv-grid">
+            <div><b>Nombre:</b><span data-show="choferNombre">—</span></div>
+            <div><b>RFC:</b><span data-show="choferRfc">—</span></div>
+            <div><b>Licencia:</b><span data-show="licencia">—</span></div>
+            <div><b>Tipo Figura:</b><span data-show="tipoFigura">—</span></div>
+        </div>
+        <div class="sap-grey sap-centered sap-main-bar">Autotransporte</div>
+        <div class="sap-kv-grid">
+            <div><b>Permiso SICT:</b><span data-show="permisoTipo">—</span></div>
+            <div><b>No. permiso:</b><span data-show="permisoNumero">—</span></div>
+            <div><b>Placa vehicular:</b><span data-show="placas">—</span></div>
+            <div><b>Año:</b><span data-show="anio">—</span></div>
+            <div><b>Config. vehicular:</b><span data-show="configVehicular">—</span></div>
+            <div><b>Peso bruto:</b><span data-show="pesoBruto">—</span></div>
+            <div><b>Aseguradora:</b><span data-show="aseguradora">—</span></div>
+            <div><b>Póliza resp. civil:</b><span data-show="poliza">—</span></div>
+            <div><b>Aseg. ambiental:</b><span data-show="asegAmbiental">—</span></div>
+            <div><b>Póliza ambiental:</b><span data-show="polizaAmbiental">—</span></div>
+            <div><b>Marca / Modelo:</b><span data-show="vehiculo">—</span></div>
+            <div><b>Remolque:</b><span data-show="remolque">—</span></div>
+        </div>
+        <div class="sap-grey sap-centered sap-main-bar">Observaciones del traslado</div>
+        <div class="sap-observ" data-show="observaciones">—</div>
+        <!-- Muestra visual local, claramente diferenciada de una certificación SAT. -->
+       @*  <div class="demo-legend">SIMULACIÓN DE DOCUMENTO · DATOS DE CERTIFICACIÓN FICTICIOS · NO TIMBRADO</div> *@
+        <div class="demo-qr-grid demo-qr-grid--compact">
+            <div>
+                <img src="data:image/png;base64,@Model.CodigoQrInternoBase64" alt="QR de control interno de SIGO, no validable ante SAT" />
+                <div class="sigo-qr-label"></div>
+            </div>
+            <div class="demo-stamps-column">
+                <div class="demo-stamp demo-stamp--flat">
+                    <div class="sap-grey">Cadena Original del complemento de certificación del SAT</div>
+                    <p>||SIGO-DEMO|CARTA-PORTE|@Model.FolioInterno|@Model.FechaPreparacion.ToString("yyyyMMddHHmmss")|MUESTRA-SIN-CERTIFICACION||</p>
+                </div>
+                <div class="demo-stamp demo-stamp--flat">
+                    <div class="sap-grey">Sello Digital del CFDi</div>
+                    <p>DEMO-FIRMA-CFDI-@Model.FolioInterno</p>
+                </div>
+                <div class="demo-stamp demo-stamp--flat">
+                    <div class="sap-grey">Sello Digital del SAT</div>
+                    <p>DEMO-CERTIFICACION-INTERNA-@Model.FolioInterno-ESTE-DOCUMENTO-NO-HA-SIDO-TIMBRADO</p>
+                </div>
+            </div>
+        </div>
+       @*  <div class="sap-grey sap-centered sap-main-bar">Control logístico de SIGO</div> *@
+      @*   <div class="sap-legal-box">
+            Documento operativo de control de transporte elaborado a partir de las remisiones indicadas y el surtido registrado.
+            <strong>NO ES UNA REPRESENTACIÓN IMPRESA DE CFDI.</strong> Su folio y QR son identificadores internos, no certifican autenticidad fiscal ni sustituyen el UUID, el sello digital o el QR del SAT.
+            El folio se genera para esta apertura del documento y todavía no se registra en una bitácora de emisión o reimpresión.
+            Los campos de operador, destinos, permisos y seguros deben ser verificados por el responsable del embarque.
+        </div> *@
+       @*  <div class="sap-signatures"><div>Nombre y firma de quien entrega</div><div>Nombre y firma del chofer / recepción</div></div> *@
+        <div class="sap-sheet-footer"><span>Este documento es una representación impresa de un CFDi Versión 4.0</span><span>Página 2 de 2</span></div>
+    </section>
+</div>
+
+<script>
+    const inputs = [...document.querySelectorAll('[data-bind]')];
+    const modal = document.getElementById('modalCaptura');
+    const modalPanel = modal.querySelector('.modal-card');
+    const errorBox = document.getElementById('capturaError');
+    let ultimoFoco = null;
+
+    function reflejar() {
+        for (const input of inputs) {
+            document.querySelectorAll('[data-show="' + input.dataset.bind + '"]')
+                .forEach(n => n.textContent = input.value || '—');
+        }
+    }
+    function limpiarError() { errorBox.textContent = ''; errorBox.hidden = true; }
+    function abrirCaptura() {
+        ultimoFoco = document.activeElement;
+        modal.hidden = false;
+        document.body.classList.add('modal-open');
+        limpiarError();
+        modal.querySelector('[data-bind="folio"]').focus();
+    }
+    function cerrarCaptura() {
+        reflejar();
+        modal.hidden = true;
+        document.body.classList.remove('modal-open');
+        if (ultimoFoco && typeof ultimoFoco.focus === 'function') ultimoFoco.focus();
+    }
+    function validarCaptura() {
+        const requeridos = {
+            folio:'Folio interno', origenNombre:'Origen', origenDireccion:'Domicilio de origen',
+            destinoNombre:'Destinatario', destinoDireccion:'Domicilio de destino', salida:'Fecha de salida',
+            choferNombre:'Chofer', licencia:'Licencia', placas:'Placas',
+            aseguradora:'Aseguradora', poliza:'Póliza de responsabilidad civil'
+        };
+        const faltan = Object.entries(requeridos).filter(([clave]) =>
+            !document.querySelector('[data-bind="' + clave + '"]').value.trim());
+        if (faltan.length) {
+            abrirCaptura();
+            errorBox.hidden = false;
+            errorBox.textContent = 'Completa los campos obligatorios: ' + faltan.map(x=>x[1]).join(', ');
+            const primero = document.querySelector('[data-bind="' + faltan[0][0] + '"]');
+            primero.focus();
+            primero.scrollIntoView({block:'center',behavior:'smooth'});
+            return false;
+        }
+        limpiarError();
+        return true;
+    }
+    function guardarCaptura() {
+        if (!validarCaptura()) return;
+        cerrarCaptura();
+    }
+    function validarEImprimir() {
+        if (!validarCaptura()) return;
+        reflejar();
+        cerrarCaptura();
+        // Impresión sólo después de validación; el modal está oculto al imprimir.
+        window.print();
+    }
+    inputs.forEach(x => x.addEventListener('input', reflejar));
+    (function() {
+        const d = new Date();
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+        document.querySelector('[data-bind="salida"]').value = local;
+        reflejar();
+        modal.querySelector('[data-bind="folio"]').focus();
+    })();
+    document.addEventListener('keydown', e => {
+        if (modal.hidden) return;
+        if (e.key === 'Escape') { e.preventDefault(); cerrarCaptura(); }
+        if (e.key === 'Tab') {
+            const focos = [...modalPanel.querySelectorAll('button,input,textarea,select')]
+                .filter(el => !el.disabled && el.offsetParent !== null);
+            if (!focos.length) return;
+            const primero = focos[0], ultimo = focos[focos.length - 1];
+            if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+            else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+        }
+    });
+</script>
+</body>
+</html>

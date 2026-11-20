@@ -87,7 +87,8 @@ WHERE q.Id>=@Minimo AND q.Tipo='SALIDA_EMBARQUE'
                WHERE a.ColaId=q.Id AND a.SolicitudSurtidoId=c.SolicitudSurtidoId
                  AND a.FolioVPED=c.Pedido AND a.Estado='APROBADA')
        OR NOT EXISTS (SELECT 1 FROM dbo.SurtidoAutorizacionKg a WHERE a.ColaId=q.Id))
-  AND NOT EXISTS(SELECT 1 FROM dbo.SurtidoIntegracionVremConfirmada v WHERE v.ColaId=q.Id)
+  AND NOT EXISTS(SELECT 1 FROM dbo.
+v WHERE v.ColaId=q.Id)
 ORDER BY q.Id;", new { Minimo = minimo, Maximo = maximo }, cancellationToken: ct));
 
         foreach (var c in candidatas)

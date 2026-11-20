@@ -2,119 +2,1001 @@
 
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
-    ViewData["Title"] = "Dashboard de Ventas";
+    ViewData["Title"] = "Dashboard de ventas";
 }
 
-<link rel="stylesheet"
-      href="~/css/dashboard-ventas.css"
-      asp-append-version="true" />
+@* Vista autocontenida: ya no usa dashboard-ventas.css (ni sus 3 hojas de ajuste) ni dashboard-ventas.js.
+   Los mismos 6 endpoints, la misma lógica de filtros y la selección cruzada viven aquí. *@
 
-<link rel="stylesheet"
-      href="~/css/dashboard-ventas-erp-compacto.css"
-      asp-append-version="true" />
-
-<link rel="stylesheet"
-      href="~/css/dashboard-ventas-titulos-legibles.css"
-      asp-append-version="true" />
-
-<link rel="stylesheet"
-      href="~/css/dashboard-ventas-kpi-centro-fix.css"
-      asp-append-version="true" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
-    /* =========================================================
-       MULTISELECT BUSCABLE - DASHBOARD DE VENTAS
-       ========================================================= */
-    .dvx-multi-host {
-        min-width: 180px;
+    /* =====================================================================
+           DASHBOARD DE VENTAS · SIGO — hoja de estilos única
+           ===================================================================== */
+    #dashboardVentasApp {
+        --es-tinto: #8d3e46;
+        --es-tinto-deep: #5c2229;
+        --es-tinto-soft: #f7eced;
+        --es-tinto-line: #e8d3d6;
+        --es-tinto-bar: #e4c6ca;
+        --es-paper: #f6f4f4;
+        --es-surface: #ffffff;
+        --es-field: #ffffff;
+        --es-head: #faf7f7;
+        --es-hover: #fcf9f9;
+        --es-row-line: #f0eaeb;
+        --es-ink: #231a1c;
+        --es-muted: #76686b;
+        --es-line: #e6dfe0;
+        --es-line-strong: #cfc4c6;
+        --es-grid: #eee8e9;
+        --es-ok: #2f7a55;
+        --es-ok-bg: #e7f3ec;
+        --es-warn: #b07614;
+        --es-warn-bg: #fbf1de;
+        --es-bad: #b42d2d;
+        --es-bad-bg: #fbe9e8;
+        --es-info: #2f5d86;
+        --es-teal: #2b7a72;
+        --es-gold: #c08a2e;
+        --es-line-dark: #3b3236;
+        --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+        font-family: var(--es-font);
+        color: var(--es-ink);
+        font-size: 13px;
+        line-height: 1.4;
+        background: var(--es-paper);
+        padding: 14px 16px 12px;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    body[data-theme="dark"] #dashboardVentasApp {
+        --es-tinto: #c56b74;
+        --es-tinto-deep: #7a2d36;
+        --es-tinto-soft: #3a2427;
+        --es-tinto-line: #5a3439;
+        --es-tinto-bar: #5a3439;
+        --es-paper: #16181c;
+        --es-surface: #202328;
+        --es-field: #181a1e;
+        --es-head: #262a30;
+        --es-hover: #2a2e34;
+        --es-row-line: #30343b;
+        --es-ink: #edf0f3;
+        --es-muted: #a9b0b9;
+        --es-line: #363b43;
+        --es-line-strong: #4a5059;
+        --es-grid: #2e3238;
+        --es-ok: #6cc596;
+        --es-ok-bg: #1d3328;
+        --es-warn: #e0b061;
+        --es-warn-bg: #3a2f1b;
+        --es-bad: #f08a83;
+        --es-bad-bg: #3d2223;
+        --es-info: #8bb8e0;
+        --es-teal: #6cc5ba;
+        --es-gold: #e0b061;
+        --es-line-dark: #d9d2d4;
+    }
+
+    #dashboardVentasApp *, #dashboardVentasApp *::before, #dashboardVentasApp *::after {
+        box-sizing: border-box;
+    }
+
+    #dashboardVentasApp .bi, .dvx-ms-menu .bi {
+        font-family: "bootstrap-icons" !important;
+    }
+
+    .dvx-app-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .dvx-positive {
+        color: var(--es-ok) !important;
+    }
+
+    .dvx-negative {
+        color: var(--es-bad) !important;
+    }
+
+    .dvx-warning {
+        color: var(--es-warn) !important;
+    }
+
+    /* ---------- Encabezado ---------- */
+    .dvx-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .dvx-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .dvx-brand-icon {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 10px;
+        background: var(--es-tinto);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 3px;
+        padding: 9px;
+    }
+
+        .dvx-brand-icon span {
+            width: 5px;
+            border-radius: 2px;
+            background: #fff;
+        }
+
+            .dvx-brand-icon span:nth-child(1) {
+                height: 9px;
+                opacity: .7;
+            }
+
+            .dvx-brand-icon span:nth-child(2) {
+                height: 15px;
+                opacity: .85;
+            }
+
+            .dvx-brand-icon span:nth-child(3) {
+                height: 21px;
+            }
+
+    .dvx-brand h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.15;
+        color: var(--es-ink);
+    }
+
+    .dvx-brand p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+    .dvx-last-update {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+        .dvx-last-update strong {
+            color: var(--es-ink);
+        }
+
+        .dvx-last-update .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--es-ok);
+        }
+
+    #dashboardVentasApp.dvx-loading .dvx-last-update .dot {
+        background: var(--es-warn);
+        animation: dvx-pulse 1s ease-in-out infinite;
+    }
+
+    @@keyframes dvx-pulse {
+        50% {
+            opacity: .3;
+        }
+    }
+
+    /* ---------- Filtros generales ---------- */
+    .dvx-filters-row {
+        display: grid;
+        grid-template-columns: minmax(340px, 1.1fr) minmax(360px, 1.3fr) auto;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .dvx-filter-card {
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        min-width: 0;
+    }
+
+    .dvx-filter-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--es-muted);
+    }
+
+        .dvx-filter-title i {
+            color: var(--es-tinto);
+        }
+
+    .dvx-date-grid {
+        display: grid;
+        grid-template-columns: .8fr 1.3fr .8fr;
+        gap: 10px;
+    }
+
+        .dvx-date-grid label {
+            margin: 0;
+        }
+
+            .dvx-date-grid label span {
+                display: block;
+                margin-bottom: 4px;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--es-muted);
+            }
+
+        .dvx-date-grid select {
+            width: 100%;
+            height: 36px;
+            padding: 0 10px;
+            border: 1px solid var(--es-line-strong);
+            border-radius: 7px;
+            background-color: var(--es-field);
+            color: var(--es-ink);
+            font: 600 13px var(--es-font);
+            outline: none;
+        }
+
+            .dvx-date-grid select:focus {
+                border-color: var(--es-tinto);
+                box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+            }
+
+    body[data-theme="dark"] .dvx-date-grid select {
+        color-scheme: dark;
+    }
+
+    .dvx-segmented-control {
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 9px;
+        background: var(--es-paper);
+        border: 1px solid var(--es-line);
+    }
+
+    .dvx-segment {
+        flex: 1 1 0;
+        min-height: 38px;
+        padding: 4px 10px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--es-muted);
+        font: 600 12.5px/1.2 var(--es-font);
+        cursor: pointer;
+        transition: background .15s, color .15s;
+    }
+
+        .dvx-segment small {
+            display: block;
+            font-weight: 500;
+            font-size: 10.5px;
+            opacity: .85;
+        }
+
+        .dvx-segment:hover {
+            color: var(--es-ink);
+            background: var(--es-surface);
+        }
+
+        .dvx-segment.dvx-active {
+            background: var(--es-tinto);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(141,62,70,.25);
+        }
+
+    .dvx-reset-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 18px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 10px;
+        background: var(--es-surface);
+        color: var(--es-ink);
+        font: 600 12.5px var(--es-font);
+        cursor: pointer;
+    }
+
+        .dvx-reset-btn:hover {
+            background: var(--es-tinto-soft);
+            border-color: var(--es-tinto-line);
+        }
+
+        .dvx-reset-btn i {
+            color: var(--es-tinto);
+        }
+
+    /* ---------- Selección cruzada y errores ---------- */
+    .dvx-cross-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: var(--es-tinto-soft);
+        border: 1px solid var(--es-tinto-line);
+        font-size: 12px;
+    }
+
+        .dvx-cross-filter-bar[hidden] {
+            display: none;
+        }
+
+    .dvx-cross-filter-title {
+        font-weight: 700;
+        color: var(--es-tinto);
+    }
+
+    #activeFilterChips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    .dvx-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 26px;
+        padding: 3px 10px;
+        border: 1px solid var(--es-tinto-line);
+        border-radius: 999px;
+        background: var(--es-surface);
+        color: var(--es-tinto);
+        font: 600 11.5px var(--es-font);
+        cursor: pointer;
+    }
+
+        .dvx-filter-chip:hover {
+            background: var(--es-tinto);
+            color: #fff;
+        }
+
+    .dvx-filter-chip-x {
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .dvx-cross-help {
+        color: var(--es-muted);
+        font-size: 11px;
+    }
+
+    .dvx-cross-clear {
+        margin-left: auto;
+        border: 0;
+        background: transparent;
+        color: var(--es-tinto);
+        font: 600 12px var(--es-font);
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    .dvx-dashboard-error {
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--es-bad-bg);
+        color: var(--es-bad);
+        border: 1px solid var(--es-bad);
+        font-size: 12.5px;
+    }
+
+        .dvx-dashboard-error[hidden] {
+            display: none;
+        }
+
+    /* ---------- Indicadores ---------- */
+    .dvx-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .dvx-kpi {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        padding: 10px 14px 10px 52px;
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-top: 3px solid var(--k);
+        min-width: 0;
+    }
+
+        .dvx-kpi .kpi-ico {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 15px;
+            color: var(--k);
+            background: color-mix(in srgb, var(--k) 13%, transparent);
+        }
+
+        .dvx-kpi:nth-child(1) {
+            --k: var(--es-muted);
+        }
+
+        .dvx-kpi:nth-child(2) {
+            --k: var(--es-ok);
+        }
+
+        .dvx-kpi:nth-child(3) {
+            --k: var(--es-tinto);
+        }
+
+        .dvx-kpi:nth-child(4) {
+            --k: var(--es-info);
+        }
+
+        .dvx-kpi:nth-child(5) {
+            --k: var(--es-gold);
+        }
+
+        .dvx-kpi:nth-child(6) {
+            --k: var(--es-teal);
+        }
+
+    .dvx-kpi-label {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--es-muted);
+        line-height: 1.25;
+    }
+
+        .dvx-kpi-label small, .dvx-kpi-label br {
+            font-weight: 500;
+            font-size: 10.5px;
+        }
+
+    .dvx-kpi strong {
+        font-size: clamp(18px, 1.55vw, 24px);
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.2;
+        color: var(--es-ink);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+        .dvx-kpi strong small {
+            font-size: .55em;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+    .dvx-kpi-unit, .dvx-kpi-help, .dvx-kpi-delta {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--es-muted);
+    }
+
+    .dvx-kpi-delta {
+        font-weight: 700;
+    }
+
+    .dvx-kpi-bar {
+        height: 5px;
+        margin-top: 5px;
+        border-radius: 999px;
+        background: var(--es-paper);
+        overflow: hidden;
+    }
+
+        .dvx-kpi-bar span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: var(--k);
+            transition: width .5s ease;
+        }
+
+    /* ---------- Paneles ---------- */
+    .dvx-dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .dvx-panel {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-radius: 12px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        overflow: hidden;
+    }
+
+    .dvx-panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--es-line);
+    }
+
+        .dvx-panel-head h2 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding-top: 3px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--es-ink);
+        }
+
+            .dvx-panel-head h2 .num {
+                flex: none;
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                display: grid;
+                place-items: center;
+                background: var(--es-tinto);
+                color: #fff;
+                font-size: 12px;
+            }
+
+    .dvx-mini-filter-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .dvx-mini-filter {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        width: 190px;
+        min-width: 0;
+    }
+
+        .dvx-mini-filter > span {
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+    .dvx-panel-body {
+        position: relative;
+        flex: 1;
+        padding: 10px 14px 12px;
+    }
+
+    .dvx-panel-note, .dvx-footnote {
+        margin: 0 0 8px;
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: var(--es-muted);
+    }
+
+    .dvx-footnote {
+        margin: 8px 0 0;
+        font-size: 11px;
+    }
+
+    .dvx-legend {
+        display: flex;
+        gap: 6px 16px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+        font-size: 11.5px;
+        color: var(--es-muted);
+    }
+
+        .dvx-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+    .lg-box {
+        width: 12px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+    }
+
+    .lg-line {
+        width: 18px;
+        height: 3px;
+        border-radius: 2px;
+        display: inline-block;
+        position: relative;
+    }
+
+        .lg-line.dot::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            top: -3px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: inherit;
+        }
+
+    .lg-dash {
+        width: 18px;
+        border-top: 2px dashed;
+        display: inline-block;
+    }
+
+    .dvx-price-average {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: var(--es-tinto-soft);
+        border: 1px solid var(--es-tinto-line);
+        color: var(--es-tinto);
+        font-size: 12.5px;
+        font-weight: 700;
+    }
+
+    .dvx-chart-area {
+        position: relative;
         width: 100%;
+        min-height: 250px;
+    }
+
+        .dvx-chart-area svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            overflow: visible;
+            font-family: var(--es-font);
+        }
+
+    .dvx-empty {
+        min-height: 250px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        color: var(--es-muted);
+        font-size: 12px;
+        text-align: center;
+        padding: 20px;
+    }
+
+        .dvx-empty i {
+            font-size: 26px;
+            color: var(--es-line-strong);
+        }
+
+    #dashboardVentasApp.dvx-loading .dvx-chart-area {
+        opacity: .45;
+        transition: opacity .2s;
+    }
+
+    #dashboardVentasApp.dvx-loading .dvx-kpi strong {
+        opacity: .5;
+    }
+
+    /* SVG de las gráficas */
+    .ch-grid {
+        stroke: var(--es-grid);
+        stroke-width: 1;
+    }
+
+    .ch-axis {
+        stroke: var(--es-line-strong);
+        stroke-width: 1;
+    }
+
+    .ch-tick {
+        fill: var(--es-muted);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ch-title {
+        fill: var(--es-muted);
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .ch-label {
+        fill: var(--es-ink);
+        font-size: 10.5px;
+        font-weight: 600;
+    }
+
+    .ch-value {
+        fill: var(--es-ink);
+        font-size: 10px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+        .ch-value.muted {
+            fill: var(--es-muted);
+            font-weight: 600;
+        }
+
+    .ch-pct-ok {
+        fill: var(--es-ok);
+    }
+
+    .ch-pct-warn {
+        fill: var(--es-warn);
+    }
+
+    .ch-pct-bad {
+        fill: var(--es-bad);
+    }
+
+    .ch-hit {
+        cursor: pointer;
+    }
+
+        .ch-hit:hover .ch-bar, .ch-hit:focus .ch-bar {
+            filter: brightness(.92);
+        }
+
+        .ch-hit.is-dim {
+            opacity: .35;
+        }
+
+        .ch-hit.is-sel .ch-bar {
+            stroke: var(--es-tinto);
+            stroke-width: 2;
+        }
+
+        .ch-hit:focus {
+            outline: none;
+        }
+
+        .ch-hit:focus-visible .ch-bar {
+            stroke: var(--es-ink);
+            stroke-width: 2;
+        }
+
+    /* Gráfica 2: barras horizontales */
+    .vd-table {
+        display: grid;
+        grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) 82px 82px;
+        align-items: center;
+        column-gap: 12px;
+        row-gap: 2px;
+        font-size: 12px;
+    }
+
+    .vd-head {
+        padding-bottom: 6px;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--es-muted);
+        text-align: right;
+        border-bottom: 1px solid var(--es-line);
+    }
+
+        .vd-head:nth-child(1), .vd-head:nth-child(2) {
+            text-align: left;
+        }
+
+    .vd-row {
+        display: contents;
+    }
+
+        .vd-row > * {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--es-row-line);
+            cursor: pointer;
+        }
+
+        .vd-row:hover > * {
+            background: var(--es-hover);
+        }
+
+        .vd-row.is-sel > * {
+            background: var(--es-tinto-soft);
+        }
+
+        .vd-row.is-dim > * {
+            opacity: .4;
+        }
+
+    .vd-name {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-left: 6px !important;
+    }
+
+    .vd-track {
+        position: relative;
+        height: 30px;
+    }
+
+    .vd-ref {
+        position: absolute;
+        left: 0;
+        top: 7px;
+        height: 16px;
+        border-radius: 4px;
+        background: var(--es-tinto-bar);
+    }
+
+    .vd-sales {
+        position: absolute;
+        left: 0;
+        top: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--es-tinto);
+        transition: width .5s ease;
+    }
+
+    .vd-pct {
+        position: absolute;
+        top: 50%;
+        transform: translate(6px, -50%);
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        background: var(--es-surface);
+        border: 1px solid currentColor;
+    }
+
+    .vd-num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        padding-right: 6px !important;
+    }
+
+        .vd-num.sales {
+            font-weight: 700;
+        }
+
+    /* ---------- Selector múltiple con búsqueda (lo crea el script) ---------- */
+    .dvx-multi-host {
+        width: 100%;
+        min-width: 0;
     }
 
     .dvx-ms {
         position: relative;
-        min-width: 180px;
-        font-size: 11px;
-        color: #263247;
+        width: 100%;
+        font-size: 12px;
     }
 
     .dvx-ms-toggle {
         width: 100%;
-        min-width: 180px;
         height: 32px;
-        border: 1px solid #cfd5df;
-        border-radius: 5px;
-        background: #fff;
-        color: #263247;
         padding: 0 9px 0 10px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        cursor: pointer;
-        font: inherit;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 500 12px var(--es-font);
         text-align: left;
+        cursor: pointer;
     }
 
-    .dvx-ms-toggle:hover,
-    .dvx-ms-toggle:focus {
-        border-color: #8d3e46;
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(141, 62, 70, .10);
-    }
+        .dvx-ms-toggle:hover, .dvx-ms-toggle:focus-visible {
+            border-color: var(--es-tinto);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(141,62,70,.14);
+        }
+
+        .dvx-ms-toggle.has-value {
+            border-color: var(--es-tinto);
+            background: var(--es-tinto-soft);
+            font-weight: 600;
+        }
 
     .dvx-ms-label {
-        min-width: 0;
         flex: 1;
+        min-width: 0;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
     }
 
     .dvx-ms-arrow {
-        flex: 0 0 auto;
-        font-size: 11px;
-        opacity: .75;
+        flex: none;
+        font-size: 10px;
+        color: var(--es-muted);
     }
 
     .dvx-ms-menu {
         position: fixed;
+        z-index: 2000;
         width: 300px;
         max-width: calc(100vw - 16px);
         max-height: 340px;
-        z-index: 99999;
-        background: #fff;
-        border: 1px solid #cfd5df;
-        border-radius: 7px;
-        box-shadow: 0 12px 34px rgba(18, 32, 55, .20);
         overflow: hidden;
+        border: 1px solid #cfc4c6;
+        border-radius: 10px;
+        background: #fff;
+        color: #231a1c;
+        box-shadow: 0 14px 34px rgba(35,26,28,.2);
+        font-family: "Poppins", "Segoe UI", Arial, sans-serif;
     }
 
-    .dvx-ms-menu[hidden] {
-        display: none !important;
-    }
+        .dvx-ms-menu[hidden] {
+            display: none !important;
+        }
 
     .dvx-ms-search-wrap {
         padding: 8px;
-        border-bottom: 1px solid #e5e8ee;
-        background: #f8f9fb;
+        border-bottom: 1px solid #e6dfe0;
+        background: #faf7f7;
     }
 
     .dvx-ms-search {
         width: 100%;
-        height: 30px;
-        border: 1px solid #cfd5df;
-        border-radius: 5px;
+        height: 32px;
         padding: 0 9px;
-        font-size: 11px;
-        color: #263247;
+        border: 1px solid #cfc4c6;
+        border-radius: 7px;
         background: #fff;
+        color: #231a1c;
+        font-size: 12px;
+        outline: none;
     }
 
-    .dvx-ms-search:focus {
-        outline: none;
-        border-color: #8d3e46;
-        box-shadow: 0 0 0 2px rgba(141, 62, 70, .10);
-    }
+        .dvx-ms-search:focus {
+            border-color: #8d3e46;
+        }
 
     .dvx-ms-all {
         display: flex;
@@ -122,17 +1004,16 @@
         gap: 8px;
         padding: 8px 10px;
         margin: 0;
+        font-size: 12px;
         font-weight: 700;
+        border-bottom: 1px solid #f0eaeb;
         cursor: pointer;
-        border-bottom: 1px solid #eceef2;
-        background: #fff;
     }
 
     .dvx-ms-options {
         max-height: 245px;
         overflow-y: auto;
         overscroll-behavior: contain;
-        background: #fff;
     }
 
     .dvx-ms-option {
@@ -141,21 +1022,21 @@
         gap: 8px;
         padding: 7px 10px;
         margin: 0;
+        font-size: 12px;
         line-height: 1.25;
         cursor: pointer;
         user-select: none;
     }
 
-    .dvx-ms-option:hover {
-        background: #f3f5f8;
-    }
+        .dvx-ms-option:hover {
+            background: #f7eced;
+        }
 
-    .dvx-ms-option input,
-    .dvx-ms-all input {
-        margin: 1px 0 0 0;
-        accent-color: #8d3e46;
-        flex: 0 0 auto;
-    }
+        .dvx-ms-option input, .dvx-ms-all input {
+            margin: 1px 0 0;
+            accent-color: #8d3e46;
+            flex: none;
+        }
 
     .dvx-ms-option-text {
         min-width: 0;
@@ -164,1217 +1045,907 @@
 
     .dvx-ms-empty {
         padding: 14px 10px;
-        color: #7b8494;
+        color: #76686b;
         text-align: center;
-        font-size: 11px;
+        font-size: 12px;
     }
 
-    .dvx-mini-filter {
-        min-width: 190px;
+    body[data-theme="dark"] .dvx-ms-menu {
+        background: #202328;
+        color: #edf0f3;
+        border-color: #4a5059;
     }
 
-    .dvx-mini-filter-group .dvx-mini-filter {
-        min-width: 175px;
+    body[data-theme="dark"] .dvx-ms-search-wrap {
+        background: #262a30;
+        border-color: #363b43;
     }
 
-    @@media (max-width: 900px) {
-        .dvx-ms-toggle,
-        .dvx-ms,
-        .dvx-multi-host,
-        .dvx-mini-filter {
-            min-width: 150px;
-        }
+    body[data-theme="dark"] .dvx-ms-search {
+        background: #181a1e;
+        color: #edf0f3;
+        border-color: #4a5059;
     }
 
-    /* =========================================================
-       CROSS FILTER TIPO POWER BI
-       ========================================================= */
-    .dvx-cross-filter-bar {
-        margin: 8px 0 12px;
-        padding: 8px 10px;
-        border: 1px solid #e0e4eb;
-        border-radius: 7px;
-        background: #fafbfc;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        font-size: 11px;
+    body[data-theme="dark"] .dvx-ms-all {
+        border-color: #363b43;
     }
 
-    .dvx-cross-filter-bar[hidden] {
-        display: none !important;
+    body[data-theme="dark"] .dvx-ms-option:hover {
+        background: #3a2427;
     }
 
-    .dvx-cross-filter-title {
-        font-weight: 700;
-        color: #5d6675;
-        margin-right: 2px;
+    /* ---------- Tooltip ---------- */
+    .dvx-tooltip {
+        position: fixed;
+        z-index: 2100;
+        max-width: 280px;
+        padding: 8px 11px;
+        border-radius: 8px;
+        background: #231a1c;
+        color: #fff;
+        font: 500 12px/1.45 "Poppins", "Segoe UI", Arial, sans-serif;
+        box-shadow: 0 10px 26px rgba(0,0,0,.25);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity .12s;
     }
 
-    #activeFilterChips {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-
-    .dvx-filter-chip {
-        border: 1px solid rgba(141, 62, 70, .28);
-        background: rgba(141, 62, 70, .08);
-        color: #78343c;
-        border-radius: 999px;
-        min-height: 26px;
-        padding: 4px 9px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    .dvx-filter-chip:hover {
-        background: rgba(141, 62, 70, .14);
-    }
-
-    .dvx-filter-chip-x {
-        font-size: 13px;
-        line-height: 1;
-    }
-
-    .dvx-cross-clear {
-        border: 0;
-        background: transparent;
-        color: #7d3540;
-        font-size: 10px;
-        font-weight: 700;
-        text-decoration: underline;
-        cursor: pointer;
-        margin-left: auto;
-    }
-
-    .dvx-clickable {
-        cursor: pointer;
-    }
-
-    .dvx-master-item,
-    .dvx-vendor-name,
-    .dvx-vendor-track,
-    .dvx-vendor-num,
-    .dvx-price-item,
-    .dvx-trend-svg [data-cross-date] {
-        transition:
-            opacity .15s ease,
-            filter .15s ease,
-            outline-color .15s ease;
-    }
-
-    .dvx-cross-selected {
-        filter: saturate(1.12);
-    }
-
-    .dvx-master-item.dvx-cross-selected .dvx-master-bar,
-    .dvx-price-item.dvx-cross-selected .dvx-price-bar {
-        outline: 2px solid #8d3e46;
-        outline-offset: 2px;
-    }
-
-    .dvx-vendor-name.dvx-cross-selected {
-        color: #7d3540;
-        font-weight: 800;
-    }
-
-    .dvx-vendor-track.dvx-cross-selected {
-        outline: 2px solid #8d3e46;
-        outline-offset: 2px;
-    }
-
-    .dvx-trend-svg [data-cross-date] {
-        cursor: pointer;
-    }
-
-    .dvx-trend-svg [data-cross-date]:hover {
-        opacity: .72;
-    }
-
-    /* =========================================================
-       TENDENCIA - OCULTAR VALORES FIJOS DE LA LÍNEA AMARILLA
-       Los datos continúan disponibles al posicionar el cursor
-       sobre los puntos mediante el tooltip.
-       ========================================================= */
-    /* =========================================================
-       GRÁFICA 4 - OCULTAR VALORES SOBRE BARRAS Y LÍNEAS
-       Los valores siguen disponibles mediante tooltip.
-       ========================================================= */
-
-    #trendChart .dvx-reach-value,
-    #trendChart .dvx-gap-value,
-    #trendChart .dvx-sales-value,
-    #trendChart .dvx-trend-value,
-    #trendChart .dvx-bar-value,
-    #trendChart .dvx-point-value {
-        display: none !important;
-        pointer-events: none !important;
-    }
-
-    /* =========================================================
-       RESPONSIVE - DASHBOARD DE VENTAS
-       Evita que el dashboard se corte en pantallas pequeñas.
-       En móvil/tablet los paneles se apilan y las gráficas
-       grandes usan scroll horizontal INTERNO.
-       ========================================================= */
-
-    html,
-    body {
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-
-    *,
-    *::before,
-    *::after {
-        box-sizing: border-box;
-    }
-
-    .dashboard-ventas-page,
-    .dvx-app-shell,
-    .dvx-dashboard-grid,
-    .dvx-panel,
-    .dvx-panel-head,
-    .dvx-panel-body,
-    .dvx-chart-area {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .dashboard-ventas-page {
-        width: 100%;
-        overflow-x: hidden;
-    }
-
-    .dvx-app-shell {
-        width: 100%;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .dvx-dashboard-grid {
-        width: 100%;
-        grid-template-columns:
-            minmax(0, 1fr)
-            minmax(0, 1fr);
-    }
-
-    .dvx-panel {
-        width: 100%;
-        overflow: hidden;
-    }
-
-    .dvx-panel-head {
-        min-width: 0;
-    }
-
-    .dvx-panel-head h2 {
-        min-width: 0;
-        white-space: normal;
-        overflow-wrap: anywhere;
-    }
-
-    .dvx-mini-filter-group {
-        min-width: 0;
-        max-width: 100%;
-        flex-wrap: wrap;
-    }
-
-    .dvx-mini-filter {
-        min-width: 0 !important;
-        max-width: 100%;
-    }
-
-    .dvx-multi-host,
-    .dvx-ms,
-    .dvx-ms-toggle {
-        width: 100%;
-        min-width: 0 !important;
-        max-width: 100%;
-    }
-
-    .dvx-date-grid,
-    .dvx-segmented-control {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .dvx-date-grid select,
-    .dvx-segmented-control button {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    /*
-     * La página nunca crece horizontalmente.
-     * Si una gráfica necesita más espacio para conservar
-     * legibilidad, el scroll queda dentro de su panel.
-     */
-    .dvx-chart-area,
-    .dvx-master-chart,
-    .dvx-vendor-chart,
-    .dvx-price-chart,
-    .dvx-trend-chart {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-
-    .dvx-master-svg,
-    .dvx-trend-svg {
-        display: block;
-        max-width: none;
-    }
-
-    .dvx-vendor-table {
-        max-width: 100%;
-    }
-
-    .dvx-master-x,
-    .dvx-price-x,
-    .dvx-vendor-name {
-        overflow-wrap: anywhere;
-        word-break: break-word;
-    }
-
-    .dvx-cross-filter-bar {
-        max-width: 100%;
-    }
-
-    #activeFilterChips {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    /* =========================================================
-       LAPTOP / TABLET HORIZONTAL
-       ========================================================= */
-    @@media (max-width: 1200px) {
-
-        .dvx-dashboard-grid {
-            grid-template-columns: minmax(0, 1fr) !important;
+        .dvx-tooltip.dvx-show {
+            opacity: 1;
         }
 
-        .dvx-kpi-grid {
-            grid-template-columns:
-                repeat(3, minmax(0, 1fr)) !important;
+        .dvx-tooltip strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 12.5px;
         }
 
-        .dvx-filters-row {
-            grid-template-columns:
-                minmax(0, 1fr)
-                minmax(0, 1fr) !important;
-        }
-
-        .dvx-reset-btn {
-            width: 100%;
-        }
-
-        .dvx-panel-head {
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .dvx-panel-head h2 {
-            flex: 1 1 300px;
-        }
-
-        .dvx-mini-filter,
-        .dvx-mini-filter-group {
-            flex: 1 1 320px;
-        }
-    }
-
-    /* =========================================================
-       TABLET / MÓVIL
-       ========================================================= */
-    @@media (max-width: 768px) {
-
-        .dashboard-ventas-page {
-            padding-left: 6px;
-            padding-right: 6px;
-        }
-
-        .dvx-app-shell {
-            width: 100%;
-        }
-
-        .dvx-topbar {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-        }
-
-        .dvx-brand,
-        .dvx-last-update {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .dvx-filters-row {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 8px;
-        }
-
-        .dvx-filter-card,
-        .dvx-reset-btn {
-            width: 100%;
-            max-width: 100%;
-            min-width: 0;
-        }
-
-        .dvx-date-grid {
-            grid-template-columns:
-                repeat(2, minmax(0, 1fr)) !important;
-        }
-
-        .dvx-segmented-control {
-            width: 100%;
-        }
-
-        .dvx-segment {
-            flex: 1 1 0;
-            min-width: 0;
-        }
-
-        .dvx-kpi-grid {
-            grid-template-columns:
-                repeat(2, minmax(0, 1fr)) !important;
-        }
-
-        .dvx-panel-head {
+        .dvx-tooltip .row {
             display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 14px;
         }
 
-        .dvx-panel-head h2 {
-            width: 100%;
-            margin: 0;
+            .dvx-tooltip .row b {
+                font-variant-numeric: tabular-nums;
+            }
+
+        .dvx-tooltip .hint {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,.18);
+            font-size: 10.5px;
+            opacity: .7;
         }
 
-        .dvx-mini-filter,
-        .dvx-mini-filter-group {
-            width: 100%;
-            max-width: 100%;
-            min-width: 0 !important;
-        }
-
-        .dvx-mini-filter-group {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 6px;
-        }
-
-        /*
-         * Se conserva un ancho útil para las gráficas con muchos
-         * elementos. El usuario desplaza únicamente la gráfica,
-         * no toda la página.
-         */
-        .dvx-master-row,
-        .dvx-master-svg {
-            min-width: 720px;
-        }
-
-        .dvx-vendor-table {
-            min-width: 680px;
-        }
-
-        .dvx-price-row {
-            min-width: 720px;
-        }
-
-        .dvx-trend-svg {
-            min-width: 760px;
-        }
-
-        .dvx-master-chart,
-        .dvx-vendor-chart,
-        .dvx-price-chart,
-        .dvx-trend-chart {
-            overscroll-behavior-x: contain;
-        }
-
-        .dvx-cross-filter-bar {
-            align-items: flex-start;
-        }
-
-        .dvx-cross-clear {
-            width: 100%;
-            margin-left: 0;
-            text-align: left;
-        }
-
-        .dvx-ms-menu {
-            width: min(300px, calc(100vw - 16px)) !important;
-            max-width: calc(100vw - 16px);
+    @@media (max-width: 1400px) {
+        .dvx-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
     }
 
-    /* =========================================================
-       MÓVIL PEQUEÑO
-       ========================================================= */
-    @@media (max-width: 520px) {
-
-        .dashboard-ventas-page {
-            padding-left: 4px;
-            padding-right: 4px;
+    @@media (max-width: 1200px) {
+        .dvx-dashboard-grid {
+            grid-template-columns: minmax(0, 1fr);
         }
 
-        .dvx-topbar,
-        .dvx-filter-card,
-        .dvx-panel,
-        .dvx-kpi {
-            border-radius: 6px;
+        .dvx-filters-row {
+            grid-template-columns: 1fr 1fr;
         }
 
-        .dvx-brand h1 {
-            font-size: 16px;
+        .dvx-reset-btn {
+            grid-column: 1 / -1;
+            min-height: 38px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        #dashboardVentasApp {
+            padding: 10px 8px;
         }
 
-        .dvx-brand p,
-        .dvx-last-update,
-        .dvx-panel-note,
-        .dvx-footnote {
-            font-size: 10px;
-        }
-
-        .dvx-date-grid {
-            grid-template-columns:
-                minmax(0, 1fr) !important;
+        .dvx-filters-row {
+            grid-template-columns: 1fr;
         }
 
         .dvx-kpi-grid {
-            grid-template-columns:
-                minmax(0, 1fr) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .dvx-panel-head {
-            padding-left: 10px;
-            padding-right: 10px;
+        .dvx-mini-filter {
+            width: 100%;
         }
 
-        .dvx-panel-body {
-            padding-left: 8px;
-            padding-right: 8px;
+        .dvx-chart-area {
+            overflow-x: auto;
         }
 
-        .dvx-legend {
-            flex-wrap: wrap;
-            gap: 6px 10px;
-        }
+            .dvx-chart-area svg {
+                min-width: 600px;
+            }
 
-        .dvx-ms-menu {
-            left: 8px !important;
-            right: 8px !important;
-            width: auto !important;
-            max-width: none !important;
-        }
-
-        .dvx-filter-chip {
-            max-width: 100%;
-            white-space: normal;
-            overflow-wrap: anywhere;
+        .vd-table {
+            grid-template-columns: 110px minmax(120px, 1fr) 70px 70px;
         }
     }
 
-    /* =========================================================
-       GRÁFICA 2 - DAR MÁS ESPACIO AL NOMBRE DEL VENDEDOR
-       Desplaza las barras hacia la derecha para que no tapen
-       los nombres de vendedores / sucursales.
-       ========================================================= */
+    @@media (max-width: 520px) {
+        .dvx-kpi-grid {
+            grid-template-columns: 1fr;
+        }
 
-    #vendorChart .dvx-vendor-table {
-        grid-template-columns: 165px minmax(0, 1fr) 74px 74px !important;
-        column-gap: 12px;
+        .dvx-date-grid {
+            grid-template-columns: 1fr 1fr;
+        }
     }
 
-    /* Nombre del vendedor */
-    #vendorChart .dvx-vendor-name {
-        width: 165px;
-        max-width: 165px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        padding-right: 8px;
-    }
-
-    /* La barra empieza después del nombre */
-    #vendorChart .dvx-vendor-track {
-        min-width: 0;
-    }
-
-    /* Mantener alineadas las cantidades */
-    #vendorChart .dvx-vendor-num {
-        white-space: nowrap;
-    }
-
-    /* =========================================================
-       GRÁFICA 3 - NOMBRES DE VENDEDORES MÁS PEQUEÑOS
-       No modifica posición ni distribución de las barras.
-       ========================================================= */
-    #priceChart .dvx-price-x {
-        font-size: 7px !important;
-        line-height: 1.05;
-        font-weight: 700;
-    }
-
-    /* =========================================================
-       GRÁFICA 3 - NOMBRES COMPACTOS SIN MOVER POSICIONES
-       ========================================================= */
-    #priceChart .dvx-price-x {
-        font-size: 6px !important;
-        line-height: 1 !important;
-        font-weight: 700 !important;
-        width: 92px !important;
-        white-space: nowrap !important;
-        left: 50% !important;
-        bottom: -24px !important;
-        transform: translateX(-50%) scale(0.68) !important;
-        transform-origin: center center !important;
-    }
-    /* =========================================================
-       GRÁFICA 1 - TÍTULOS DE MÁSTER SIN ENCIMARSE
-       No mueve barras ni puntos.
-       ========================================================= */
-
-    #masterChart .dvx-master-x {
-        font-size: 6px !important;
-        line-height: 1 !important;
-        font-weight: 700 !important;
-        width: 82px !important;
-        max-width: 82px !important;
-        white-space: nowrap !important;
-        overflow: visible !important;
-        left: 50% !important;
-        bottom: -24px !important;
-        transform: translateX(-50%) scale(0.72) !important;
-        transform-origin: center center !important;
+    @@media (prefers-reduced-motion: reduce) {
+        .vd-sales, .dvx-kpi-bar span {
+            transition: none;
+        }
     }
 </style>
 
-
 <div id="dashboardVentasApp" class="dashboard-ventas-page">
-
     <div class="dvx-app-shell">
 
-        @* =========================================================
-           ENCABEZADO
-           ========================================================= *@
         <header class="dvx-topbar">
-
             <div class="dvx-brand">
-                <div class="dvx-brand-icon" aria-hidden="true">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-
+                <div class="dvx-brand-icon" aria-hidden="true"><span></span><span></span><span></span></div>
                 <div>
-                    <h1>DASHBOARD DE VENTAS</h1>
-                    <p>Seguimiento al desempeño comercial</p>
+                    <h1>Dashboard de ventas</h1>
+                    <p>Venta real contra presupuesto y alcance, por máster, vendedor, precio y día. Haz clic en cualquier barra para filtrar todo el tablero.</p>
                 </div>
             </div>
-
-            <div class="dvx-last-update">
-                <span class="dvx-refresh-icon">↻</span>
-
-                <div>
-                    <span>Último surtido validado:</span>
-                    <strong id="lastUpdate">Cargando...</strong>
-                </div>
+            <div class="dvx-last-update" role="status" aria-live="polite">
+                <span class="dot" aria-hidden="true"></span>
+                <span>Último surtido validado:</span>
+                <strong id="lastUpdate">Cargando…</strong>
             </div>
-
         </header>
 
-
-        @* =========================================================
-           FILTROS GENERALES
-           ========================================================= *@
         <section class="dvx-filters-row">
-
-            @* ==========================
-               FECHA
-               ========================== *@
-            <div class="dvx-filter-card dvx-date-card">
-
-                <div class="dvx-filter-title">
-                    FILTRO DE FECHA (VENTAS AL DÍA)
-                </div>
-
+            <div class="dvx-filter-card">
+                <div class="dvx-filter-title"><i class="bi bi-calendar3"></i> Fecha de corte (ventas al día)</div>
                 <div class="dvx-date-grid">
-
-                    <label>
-                        <span>Mes</span>
-                        <select id="monthSelect">
-                        </select>
-                    </label>
-
-                    <label>
-                        <span>Día del mes</span>
-                        <select id="daySelect">
-                        </select>
-                    </label>
-
+                    <label><span>Año</span><select id="yearSelect"></select></label>
+                    <label><span>Mes</span><select id="monthSelect"></select></label>
+                    <label><span>Día</span><select id="daySelect"></select></label>
                 </div>
-
             </div>
-
-
-            @* ==========================
-               COMPARACIÓN
-               ========================== *@
-            <div class="dvx-filter-card dvx-compare-card">
-
-                <div class="dvx-filter-title">
-                    COMPARAR CONTRA
+            <div class="dvx-filter-card">
+                <div class="dvx-filter-title"><i class="bi bi-arrow-left-right"></i> Comparar contra</div>
+                <div class="dvx-segmented-control" id="compareControl" role="group" aria-label="Comparar contra">
+                    <button type="button" class="dvx-segment dvx-active" data-mode="budget" aria-pressed="true">Presupuesto mensual<small>Meta completa del mes</small></button>
+                    <button type="button" class="dvx-segment" data-mode="reach" aria-pressed="false">Alcance<small>Lo esperado a la fecha de corte</small></button>
                 </div>
-
-                <div class="dvx-segmented-control"
-                     id="compareControl">
-
-                    <button type="button"
-                            class="dvx-segment dvx-active"
-                            data-mode="budget">
-
-                        Presupuesto Mensual
-
-                    </button>
-
-                    <button type="button"
-                            class="dvx-segment"
-                            data-mode="reach">
-
-                        Alcance <small>(Ventas Esperadas)</small>
-
-                    </button>
-
-                </div>
-
             </div>
-
-
-            @* ==========================
-               LIMPIAR
-               ========================== *@
-            <button type="button"
-                    class="dvx-reset-btn"
-                    id="resetFilters">
-
-                <span>▽</span>
-
-                Limpiar filtros
-
-            </button>
-
+            <button type="button" class="dvx-reset-btn" id="resetFilters"><i class="bi bi-arrow-counterclockwise"></i> Limpiar filtros</button>
         </section>
 
-
-
-        @* =========================================================
-           FILTROS ACTIVOS / INTERACCIÓN TIPO POWER BI
-           ========================================================= *@
-        <section id="activeFiltersBar"
-                 class="dvx-cross-filter-bar"
-                 hidden>
-            <span class="dvx-cross-filter-title">
-                Filtros activos:
-            </span>
-
-            <div id="activeFilterChips">
-            </div>
-
-            <button type="button"
-                    id="clearCrossFilters"
-                    class="dvx-cross-clear">
-                Limpiar selección
-            </button>
+        <section id="activeFiltersBar" class="dvx-cross-filter-bar" hidden>
+            <span class="dvx-cross-filter-title"><i class="bi bi-funnel-fill"></i> Filtrando por:</span>
+            <div id="activeFilterChips"></div>
+            <span class="dvx-cross-help">Ctrl + clic en una barra para sumar varios</span>
+            <button type="button" id="clearCrossFilters" class="dvx-cross-clear">Quitar todos</button>
         </section>
 
-        @* =========================================================
-           MENSAJE DE ERROR
-           ========================================================= *@
-        <div id="dashboardError"
-             class="dvx-dashboard-error"
-             hidden>
-        </div>
+        <div id="dashboardError" class="dvx-dashboard-error" role="alert" hidden></div>
 
-
-        @* =========================================================
-           KPIs
-           ========================================================= *@
-        <section class="dvx-kpi-grid">
-
-            @* Día laboral *@
+        <section class="dvx-kpi-grid" aria-label="Indicadores">
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label">
-                    Día laboral
-                </span>
-
-                <strong id="kpiWorkday">
-                    -
-                </strong>
-
-                <span class="dvx-kpi-help">
-                    (Lunes a sábado)
-                </span>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+                <span class="dvx-kpi-label">Día laboral</span>
+                <strong id="kpiWorkday">-</strong>
+                <span class="dvx-kpi-help">Lunes a sábado</span>
+                <div class="dvx-kpi-bar" aria-hidden="true"><span id="kpiWorkdayBar" style="width:0"></span></div>
             </article>
-
-
-            @* Venta Real *@
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label">
-                    Venta Real <small>(al día seleccionado)</small>
-                </span>
-
-                <strong id="kpiSales">
-                    -
-                </strong>
-
-                <span class="dvx-kpi-unit">
-                    KGS
-                </span>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-cart-check"></i></span>
+                <span class="dvx-kpi-label">Venta real <small>(al día)</small></span>
+                <strong id="kpiSales">-</strong>
+                <span class="dvx-kpi-unit">kg</span>
             </article>
-
-
-            @* Presupuesto *@
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label">
-                    Presupuesto Mensual
-                </span>
-
-                <strong id="kpiBudget">
-                    -
-                </strong>
-
-                <span class="dvx-kpi-unit">
-                    KGS
-                </span>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-bullseye"></i></span>
+                <span class="dvx-kpi-label">Presupuesto mensual</span>
+                <strong id="kpiBudget">-</strong>
+                <span class="dvx-kpi-unit">kg</span>
             </article>
-
-
-            @* Cumplimiento *@
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label"
-                      id="kpiComplianceLabel">
-
-                    % Cumplimiento <small>vs Presupuesto</small>
-
-                </span>
-
-                <strong id="kpiCompliance">
-                    -
-                </strong>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-percent"></i></span>
+                <span class="dvx-kpi-label" id="kpiComplianceLabel">% Cumplimiento <small>vs presupuesto</small></span>
+                <strong id="kpiCompliance">-</strong>
+                <div class="dvx-kpi-bar" aria-hidden="true"><span id="kpiComplianceBar" style="width:0"></span></div>
             </article>
-
-
-            @* Alcance *@
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label">
-                    Alcance <small>(Ventas Esperadas)</small>
-                </span>
-
-                <strong id="kpiReach">
-                    -
-                </strong>
-
-                <span class="dvx-kpi-unit">
-                    KGS
-                </span>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></span>
+                <span class="dvx-kpi-label">Alcance <small>(esperado al día)</small></span>
+                <strong id="kpiReach">-</strong>
+                <span class="dvx-kpi-unit">kg</span>
             </article>
-
-
-            @* Diferencia contra Alcance *@
             <article class="dvx-kpi">
-
-                <span class="dvx-kpi-label"
-                      id="kpiGapLabel">
-
-                    % Cumplimiento vs Alcance <small>(Diferencia)</small>
-
-                </span>
-
-                <strong id="kpiGap">
-                    -
-                </strong>
-
-                <span class="dvx-kpi-delta"
-                      id="kpiGapKg">
-                    -
-                </span>
-
+                <span class="kpi-ico" aria-hidden="true"><i class="bi bi-arrow-down-up"></i></span>
+                <span class="dvx-kpi-label" id="kpiGapLabel">Diferencia vs alcance</span>
+                <strong id="kpiGap">-</strong>
+                <span class="dvx-kpi-delta" id="kpiGapKg">-</span>
             </article>
-
         </section>
 
-
-        @* =========================================================
-           DASHBOARD
-           ========================================================= *@
         <main class="dvx-dashboard-grid">
-
-
-            @* =====================================================
-               1. VENTAS X MÁSTER
-               ===================================================== *@
             <section class="dvx-panel">
-
                 <div class="dvx-panel-head">
-
-                    <h2>
-                        1. VENTAS X MÁSTER
-                    </h2>
-
-                    <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por VENDEDOR / SUCURSAL:
-                            </span>
-
-                            <div id="masterVendorFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
+                    <h2><span class="num">1</span> Ventas por máster</h2>
+                    <div class="dvx-mini-filter"><span>Vendedor / sucursal</span><div id="masterVendorFilter" class="dvx-multi-host"></div></div>
                 </div>
-
-
                 <div class="dvx-panel-body">
-
-                    <p class="dvx-panel-note">
-
-                        Participación de cada Máster en la referencia seleccionada
-                        (barra) y % de avance de Ventas Reales al día seleccionado
-                        (línea).
-
-                    </p>
-
-
                     <div class="dvx-legend">
-
-                        <span>
-                            <i class="dvx-legend-box dvx-light"></i>
-                            Participación en referencia (%)
-                        </span>
-
-                        <span>
-                            <i class="dvx-legend-line"></i>
-                            % Avance Ventas Reales
-                        </span>
-
+                        <span><i class="lg-box" style="background:var(--es-tinto-bar)"></i> Participación en la referencia (%)</span>
+                        <span><i class="lg-line dot" style="background:var(--es-line-dark)"></i> Avance de venta real (%)</span>
+                        <span><i class="lg-dash" style="border-color:var(--es-ok)"></i> Meta 100%</span>
                     </div>
-
-
-                    <div id="masterChart"
-                         class="dvx-master-chart dvx-chart-area">
-                    </div>
-
-
-                    <p class="dvx-footnote">
-
-                        * El % de avance puede superar 100% cuando las ventas
-                        reales son mayores a la referencia seleccionada.
-
-                    </p>
-
+                    <div id="masterChart" class="dvx-chart-area"></div>
+                    <p class="dvx-footnote">El avance puede superar 100% cuando la venta real es mayor que la referencia. Se muestran los 14 másters principales.</p>
                 </div>
-
             </section>
 
-
-            @* =====================================================
-               2. VENTAS X VENDEDOR / SUCURSAL
-               ===================================================== *@
             <section class="dvx-panel">
-
                 <div class="dvx-panel-head">
-
-                    <h2>
-                        2. VENTAS X VENDEDOR / SUCURSAL
-                    </h2>
-
-
+                    <h2><span class="num">2</span> Ventas por vendedor / sucursal</h2>
                     <div class="dvx-mini-filter-group">
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por MÁSTER:
-                            </span>
-
-                            <div id="vendorMasterFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por SKU:
-                            </span>
-
-                            <div id="vendorSkuFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
+                        <div class="dvx-mini-filter"><span>Máster</span><div id="vendorMasterFilter" class="dvx-multi-host"></div></div>
+                        <div class="dvx-mini-filter"><span>SKU</span><div id="vendorSkuFilter" class="dvx-multi-host"></div></div>
                     </div>
-
                 </div>
-
-
                 <div class="dvx-panel-body">
-
-                    <div class="dvx-legend dvx-vendor-legend">
-
-                        <span>
-                            <i class="dvx-legend-box dvx-light"></i>
-                            Referencia seleccionada
-                        </span>
-
-                        <span>
-                            <i class="dvx-legend-box dvx-dark"></i>
-                            Ventas Reales al día seleccionado
-                        </span>
-
-                    </div>
-
-
-                    <div id="vendorChart"
-                         class="dvx-vendor-chart dvx-chart-area">
-                    </div>
-
-
-                    <p class="dvx-footnote">
-
-                        * Los porcentajes se recalculan según Presupuesto Mensual
-                        o Alcance. El filtro SKU aplica únicamente a
-                        Ventas x Vendedor.
-
-                    </p>
-
-                </div>
-
-            </section>
-
-
-            @* =====================================================
-               3. ANÁLISIS DE PRECIOS
-               ===================================================== *@
-            <section class="dvx-panel">
-
-                <div class="dvx-panel-head">
-
-                    <h2>
-                        3. ANÁLISIS DE PRECIOS (POR SKU)
-                    </h2>
-
-
-                    <div class="dvx-mini-filter-group">
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por MÁSTER:
-                            </span>
-
-                            <div id="priceMasterFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por SKU:
-                            </span>
-
-                            <div id="priceSkuFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div class="dvx-panel-body">
-
-                    <div class="dvx-price-average"
-                         id="weightedAverage">
-
-                        Precio Promedio Ponderado (-)
-
-                    </div>
-
-
-                    <div id="priceChart"
-                         class="dvx-price-chart dvx-chart-area">
-                    </div>
-
-
-                    <p id="priceFootnote"
-                       class="dvx-footnote">
-
-                        * Precio ponderado calculado con base en el volumen vendido.
-
-                    </p>
-
-                </div>
-
-            </section>
-
-
-            @* =====================================================
-               4. TENDENCIA ACUMULADA
-               ===================================================== *@
-            <section class="dvx-panel">
-
-                <div class="dvx-panel-head">
-
-                    <h2>
-                        4. TENDENCIA ACUMULADA: VENTAS REALES VS ALCANCE
-                    </h2>
-
-
-                    <div class="dvx-mini-filter-group">
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por MÁSTER:
-                            </span>
-
-                            <div id="trendMasterFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
-
-                        <div class="dvx-mini-filter">
-
-                            <span>
-                                Filtro por SKU:
-                            </span>
-
-                            <div id="trendSkuFilter"
-                                 class="dvx-multi-host">
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div class="dvx-panel-body">
-
                     <div class="dvx-legend">
-
-                        <span>
-                            <i class="dvx-legend-box dvx-dark"></i>
-                            Ventas Reales Acumuladas (KGS)
-                        </span>
-
-                        <span>
-                            <i class="dvx-legend-dot dvx-orange"></i>
-                            Alcance (Ventas Esperadas) (KGS)
-                        </span>
-
-                        <span>
-                            <i class="dvx-legend-dot dvx-gray"></i>
-                            Brecha (Ventas - Alcance) (KGS)
-                        </span>
-
+                        <span><i class="lg-box" style="background:var(--es-tinto-bar)"></i> Referencia</span>
+                        <span><i class="lg-box" style="background:var(--es-tinto)"></i> Venta real al día</span>
+                        <span><i class="lg-box" style="background:transparent;border:1px solid var(--es-ok)"></i> % de cumplimiento</span>
                     </div>
-
-
-                    <div id="trendChart"
-                         class="dvx-trend-chart dvx-chart-area">
-                    </div>
-
+                    <div id="vendorChart" class="dvx-chart-area"></div>
+                    <p class="dvx-footnote">Los porcentajes se recalculan según presupuesto mensual o alcance. Se muestran los 12 principales.</p>
                 </div>
-
             </section>
 
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2><span class="num">3</span> Precio ponderado por vendedor</h2>
+                    <div class="dvx-mini-filter-group">
+                        <div class="dvx-mini-filter"><span>Máster</span><div id="priceMasterFilter" class="dvx-multi-host"></div></div>
+                        <div class="dvx-mini-filter"><span>SKU</span><div id="priceSkuFilter" class="dvx-multi-host"></div></div>
+                    </div>
+                </div>
+                <div class="dvx-panel-body">
+                    <div class="dvx-price-average" id="weightedAverage">Precio promedio ponderado (-)</div>
+                    <div class="dvx-legend">
+                        <span><i class="lg-box" style="background:var(--es-ok)"></i> Igual o arriba del promedio</span>
+                        <span><i class="lg-box" style="background:var(--es-bad)"></i> Abajo del promedio</span>
+                    </div>
+                    <div id="priceChart" class="dvx-chart-area"></div>
+                    <p id="priceFootnote" class="dvx-footnote">Precio ponderado por el volumen vendido.</p>
+                </div>
+            </section>
+
+            <section class="dvx-panel">
+                <div class="dvx-panel-head">
+                    <h2><span class="num">4</span> Tendencia acumulada: venta real vs alcance</h2>
+                    <div class="dvx-mini-filter-group">
+                        <div class="dvx-mini-filter"><span>Máster</span><div id="trendMasterFilter" class="dvx-multi-host"></div></div>
+                        <div class="dvx-mini-filter"><span>SKU</span><div id="trendSkuFilter" class="dvx-multi-host"></div></div>
+                    </div>
+                </div>
+                <div class="dvx-panel-body">
+                    <div class="dvx-legend">
+                        <span><i class="lg-box" style="background:var(--es-tinto)"></i> Venta real acumulada</span>
+                        <span><i class="lg-line dot" style="background:var(--es-gold)"></i> Alcance esperado</span>
+                        <span><i class="lg-line" style="background:var(--es-muted)"></i> Brecha (eje derecho)</span>
+                    </div>
+                    <div id="trendChart" class="dvx-chart-area"></div>
+                    <p class="dvx-footnote">Pasa el mouse sobre un día para ver sus cifras; clic en un día para cambiar la fecha de corte.</p>
+                </div>
+            </section>
         </main>
-
     </div>
-
-
-    @* =========================================================
-       TOOLTIP GLOBAL
-       ========================================================= *@
-    <div id="tooltip"
-         class="dvx-tooltip"
-         role="tooltip">
-    </div>
-
 </div>
 
+<div id="tooltip" class="dvx-tooltip" role="tooltip"></div>
 
-@* =============================================================
-   CONFIGURACIÓN DE ENDPOINTS
-   ============================================================= *@
 <script>
-
     window.dashboardVentasConfig = {
-
-        catalogosUrl:
-            '@Url.Content("~/Comercial/DashboardVentasCatalogos")',
-
-        resumenUrl:
-            '@Url.Content("~/Comercial/DashboardVentasResumen")',
-
-        masterUrl:
-            '@Url.Content("~/Comercial/DashboardVentasMaster")',
-
-        vendedorUrl:
-            '@Url.Content("~/Comercial/DashboardVentasVendedor")',
-
-        preciosUrl:
-            '@Url.Content("~/Comercial/DashboardVentasPrecios")',
-
-        tendenciaUrl:
-            '@Url.Content("~/Comercial/DashboardVentasTendencia")'
-
+        catalogosUrl: '@Url.Content("~/Comercial/DashboardVentasCatalogos")',
+        resumenUrl: '@Url.Content("~/Comercial/DashboardVentasResumen")',
+        masterUrl: '@Url.Content("~/Comercial/DashboardVentasMaster")',
+        vendedorUrl: '@Url.Content("~/Comercial/DashboardVentasVendedor")',
+        preciosUrl: '@Url.Content("~/Comercial/DashboardVentasPrecios")',
+        tendenciaUrl: '@Url.Content("~/Comercial/DashboardVentasTendencia")'
     };
-
 </script>
 
+<script>
+    (() => {
+        "use strict";
 
-<script src="~/js/dashboard-ventas.js"
-        asp-append-version="true">
+        const root = document.getElementById("dashboardVentasApp");
+        const cfg = window.dashboardVentasConfig || {};
+        if (!root) return;
+
+        const today = new Date();
+        const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        const state = {
+            year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate(), compareMode: "budget",
+            masterVendor: [], vendorMaster: [], vendorSku: [], priceMaster: [], priceSku: [], trendMaster: [], trendSku: []
+        };
+        let catalogs = { anios: [], masters: [], skus: [], vendedores: [], ultimaFechaVenta: null };
+        let refreshToken = 0, refreshTimer = null, initialized = false;
+
+        const $ = id => document.getElementById(id);
+        const nf = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 0 });
+        const nf1 = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+        const nf2 = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        const money = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const esc = v => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+        const norm = v => String(v ?? "").trim().toUpperCase();
+        const csv = v => (Array.isArray(v) ? v : []).join(",");
+        const corto = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+        const pctClass = p => p >= 100 ? "ok" : p >= 80 ? "warn" : "bad";
+        const fila = (l, v) => `<div class='row'><span>${l}</span><b>${v}</b></div>`;
+        const tipAttr = html => `data-tip="${esc(html)}"`;
+
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true }); else init();
+
+        async function init() {
+            if (initialized) return;
+            initialized = true;
+            try {
+                setLoading(true);
+                catalogs = await getJson(cfg.catalogosUrl);
+                const ultima = parseDateOnly(catalogs.ultimaFechaVenta);
+                const years = aniosDisponibles();
+                // Abre en la última fecha con surtido validado para no mostrar ceros de un mes sin movimientos.
+                if (ultima) { state.year = ultima.year; state.month = ultima.month; state.day = ultima.day; }
+                else if (!years.includes(state.year)) state.year = years[0] || today.getFullYear();
+                buildCatalogs();
+                bindEvents();
+                renderActiveFilters();
+                await refreshAll();
+            } catch (err) { showError(err); }
+            finally { setLoading(false); }
+        }
+
+        const aniosDisponibles = () => Array.from(new Set((catalogs.anios || []).map(Number).filter(Boolean))).sort((a, b) => b - a);
+
+        /* ========================= Filtros de fecha ========================= */
+        function rebuildDateSelects() {
+            const years = aniosDisponibles();
+            if (!years.includes(state.year)) years.unshift(state.year);
+            // NUEVO: selector de año (antes el mes solo podía consultarse para el año de la última venta)
+            fillSelect($("yearSelect"), years.sort((a, b) => b - a).map(y => ({ value: y, label: y })), state.year);
+            fillSelect($("monthSelect"), months.map((m, i) => ({ value: i + 1, label: m })), state.month);
+            rebuildDays();
+        }
+        function rebuildDays() {
+            const max = new Date(state.year, state.month, 0).getDate();
+            state.day = Math.min(Math.max(state.day, 1), max);
+            fillSelect($("daySelect"), Array.from({ length: max }, (_, i) => ({ value: i + 1, label: i + 1 })), state.day);
+        }
+        function fillSelect(el, options, selected) {
+            if (!el) return;
+            el.innerHTML = options.map(o => `<option value="${esc(o.value)}" ${String(o.value) === String(selected) ? "selected" : ""}>${esc(o.label)}</option>`).join("");
+        }
+
+        /* ========================= Catálogos y filtros múltiples ========================= */
+        function buildCatalogs() {
+            rebuildDateSelects();
+            const vendorOptions = (catalogs.vendedores || []).map(x => ({ value: String(x.id ?? ""), label: x.nombre || `VENDEDOR ${x.id}` })).filter(x => x.value);
+            const masterOptions = (catalogs.masters || []).map(x => ({ value: String(x), label: String(x) })).filter(x => x.value);
+
+            // Los tres filtros de máster comparten la misma selección.
+            state.vendorMaster = normalizeMultiSelection(state.vendorMaster, masterOptions);
+            state.priceMaster = [...state.vendorMaster];
+            state.trendMaster = [...state.vendorMaster];
+            // Se conservan claves de CEDIS seleccionadas desde la gráfica aunque no estén en el catálogo de vendedores
+            const cedisSel = state.masterVendor.filter(v => String(v).startsWith("CEDIS|"));
+            state.masterVendor = [...normalizeMultiSelection(state.masterVendor, vendorOptions), ...cedisSel];
+
+            renderMultiSelect("masterVendorFilter", vendorOptions, state.masterVendor, values => {
+                state.masterVendor = [...values, ...state.masterVendor.filter(v => String(v).startsWith("CEDIS|"))];
+                renderActiveFilters();
+                scheduleRefreshAll();
+            });
+
+            const onMasterChange = (sourceId, values) => {
+                state.vendorMaster = [...values]; state.priceMaster = [...values]; state.trendMaster = [...values];
+                syncMultiSelectGroup(["vendorMasterFilter", "priceMasterFilter", "trendMasterFilter"], values, sourceId);
+                rebuildAllSkuFilters();
+                renderActiveFilters();
+                scheduleRefreshAll();
+            };
+            renderMultiSelect("vendorMasterFilter", masterOptions, state.vendorMaster, v => onMasterChange("vendorMasterFilter", v));
+            renderMultiSelect("priceMasterFilter", masterOptions, state.priceMaster, v => onMasterChange("priceMasterFilter", v));
+            renderMultiSelect("trendMasterFilter", masterOptions, state.trendMaster, v => onMasterChange("trendMasterFilter", v));
+            rebuildAllSkuFilters();
+        }
+
+        function rebuildAllSkuFilters() {
+            const masters = state.vendorMaster || [];
+            const onSkuChange = (sourceId, values) => {
+                state.vendorSku = [...values]; state.priceSku = [...values]; state.trendSku = [...values];
+                syncMultiSelectGroup(["vendorSkuFilter", "priceSkuFilter", "trendSkuFilter"], values, sourceId);
+                renderActiveFilters();
+                scheduleRefreshAll();
+            };
+            state.vendorSku = rebuildSkuMultiSelect("vendorSkuFilter", masters, state.vendorSku || [], v => onSkuChange("vendorSkuFilter", v));
+            state.priceSku = [...state.vendorSku]; state.trendSku = [...state.vendorSku];
+            rebuildSkuMultiSelect("priceSkuFilter", masters, state.priceSku, v => onSkuChange("priceSkuFilter", v));
+            rebuildSkuMultiSelect("trendSkuFilter", masters, state.trendSku, v => onSkuChange("trendSkuFilter", v));
+        }
+
+        function rebuildSkuMultiSelect(id, selectedMasters, selectedSkus, onChange) {
+            const masterSet = new Set((selectedMasters || []).map(norm).filter(Boolean));
+            const skuMap = new Map();
+            (catalogs.skus || []).filter(x => masterSet.size === 0 || masterSet.has(norm(x.master))).forEach(x => {
+                const sku = String(x.sku ?? "").trim(); if (!sku) return;
+                const nombre = String(x.nombre ?? "").trim();
+                if (!skuMap.has(sku)) skuMap.set(sku, nombre ? `${sku} - ${nombre}` : sku);
+            });
+            const options = Array.from(skuMap.entries()).map(([value, label]) => ({ value, label })).sort((a, b) => a.value.localeCompare(b.value, "es", { numeric: true }));
+            const normalized = normalizeMultiSelection(selectedSkus, options);
+            renderMultiSelect(id, options, normalized, onChange);
+            return normalized;
+        }
+
+        function normalizeMultiSelection(selected, options) {
+            const allowed = new Set((options || []).map(x => String(x.value)));
+            return Array.from(new Set((Array.isArray(selected) ? selected : []).map(String).filter(x => allowed.has(x))));
+        }
+
+        function etiquetaSeleccion(labels) {
+            return !labels.length ? "Todos" : labels.length <= 2 ? labels.join(", ") : `${labels.length} seleccionados`;
+        }
+
+        function renderMultiSelect(id, options, selected, onChange, placeholder = "Todos") {
+            const host = $(id); if (!host) return;
+            const safe = (options || []).map(x => ({ value: String(x.value ?? ""), label: String(x.label ?? x.value ?? "") })).filter(x => x.value !== "");
+            let selectedValues = normalizeMultiSelection(selected, safe);
+            const selSet = new Set(selectedValues);
+            host.innerHTML = `
+                <div class="dvx-ms">
+                    <button type="button" class="dvx-ms-toggle" aria-haspopup="true" aria-expanded="false"><span class="dvx-ms-label"></span><span class="dvx-ms-arrow"><i class="bi bi-chevron-down"></i></span></button>
+                    <div class="dvx-ms-menu" hidden>
+                        <div class="dvx-ms-search-wrap"><input type="text" class="dvx-ms-search" placeholder="Buscar…" autocomplete="off" aria-label="Buscar" /></div>
+                        <label class="dvx-ms-all"><input type="checkbox" class="dvx-ms-check-all" /><span>Seleccionar todo</span></label>
+                        <div class="dvx-ms-options">
+                            ${safe.length ? safe.map(o => `<label class="dvx-ms-option" data-search="${esc(norm(`${o.value} ${o.label}`))}"><input type="checkbox" class="dvx-ms-check" value="${esc(o.value)}" data-label="${esc(o.label)}" ${selSet.has(o.value) ? "checked" : ""} /><span class="dvx-ms-option-text">${esc(o.label)}</span></label>`).join("") : `<div class="dvx-ms-empty">Sin opciones disponibles</div>`}
+                        </div>
+                    </div>
+                </div>`;
+            const toggle = host.querySelector(".dvx-ms-toggle"), menu = host.querySelector(".dvx-ms-menu"), search = host.querySelector(".dvx-ms-search"), allCheck = host.querySelector(".dvx-ms-check-all");
+            const getChecks = () => Array.from(host.querySelectorAll(".dvx-ms-check"));
+            const refreshVisual = () => {
+                selectedValues = getChecks().filter(x => x.checked).map(x => x.value);
+                const labels = safe.filter(x => selectedValues.includes(x.value)).map(x => x.label);
+                const label = host.querySelector(".dvx-ms-label");
+                label.textContent = labels.length ? etiquetaSeleccion(labels) : placeholder;
+                label.title = labels.join(", ");
+                toggle.classList.toggle("has-value", labels.length > 0);
+                const checks = getChecks();
+                if (allCheck) { allCheck.checked = checks.length > 0 && checks.every(x => x.checked); allCheck.indeterminate = checks.some(x => x.checked) && !allCheck.checked; }
+            };
+            const emitChange = () => { refreshVisual(); Promise.resolve(onChange([...selectedValues])).catch(showError); };
+            toggle.addEventListener("click", e => {
+                e.preventDefault(); e.stopPropagation();
+                const willOpen = menu.hidden;
+                closeAllMultiSelectMenus(host);
+                menu.hidden = !willOpen;
+                toggle.setAttribute("aria-expanded", String(willOpen));
+                if (willOpen) { positionMultiMenu(toggle, menu); setTimeout(() => search?.focus(), 0); }
+            });
+            search.addEventListener("input", () => { const q = norm(search.value); host.querySelectorAll(".dvx-ms-option").forEach(r => r.style.display = !q || (r.dataset.search || "").includes(q) ? "" : "none"); });
+            search.addEventListener("click", e => e.stopPropagation());
+            search.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") { menu.hidden = true; toggle.setAttribute("aria-expanded", "false"); toggle.focus(); } });
+            // CORRECCIÓN: "Seleccionar todo" marca solo las opciones visibles cuando hay búsqueda
+            allCheck.addEventListener("change", () => { getChecks().forEach(c => { if (c.closest(".dvx-ms-option").style.display !== "none") c.checked = allCheck.checked; }); emitChange(); });
+            getChecks().forEach(c => c.addEventListener("change", emitChange));
+            menu.addEventListener("click", e => e.stopPropagation());
+            menu.addEventListener("wheel", e => e.stopPropagation(), { passive: true });
+            refreshVisual();
+        }
+
+        function setMultiSelectSelection(id, values) {
+            const host = $(id); if (!host) return;
+            const sel = new Set((values || []).map(String));
+            const checks = Array.from(host.querySelectorAll(".dvx-ms-check"));
+            checks.forEach(c => c.checked = sel.has(c.value));
+            const labels = checks.filter(c => c.checked).map(c => c.dataset.label || c.value);
+            const label = host.querySelector(".dvx-ms-label"), toggle = host.querySelector(".dvx-ms-toggle"), all = host.querySelector(".dvx-ms-check-all");
+            if (label) { label.textContent = etiquetaSeleccion(labels); label.title = labels.join(", "); }
+            toggle?.classList.toggle("has-value", labels.length > 0);
+            if (all) { all.checked = checks.length > 0 && checks.every(c => c.checked); all.indeterminate = checks.some(c => c.checked) && !all.checked; }
+        }
+        const syncMultiSelectGroup = (ids, values, exceptId = "") => ids.forEach(id => { if (id !== exceptId) setMultiSelectSelection(id, values); });
+        function closeAllMultiSelectMenus(exceptHost = null) {
+            root.querySelectorAll(".dvx-multi-host").forEach(host => {
+                if (host === exceptHost) return;
+                const m = host.querySelector(".dvx-ms-menu"); if (m) m.hidden = true;
+                host.querySelector(".dvx-ms-toggle")?.setAttribute("aria-expanded", "false");
+            });
+        }
+        function positionMultiMenu(toggle, menu) {
+            const r = toggle.getBoundingClientRect(), width = Math.min(300, innerWidth - 16), h = Math.min(340, innerHeight - 16);
+            menu.style.width = `${width}px`;
+            menu.style.left = `${Math.max(8, Math.min(r.right - width, innerWidth - width - 8))}px`;
+            let top = r.bottom + 5;
+            if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 5);
+            menu.style.top = `${top}px`;
+        }
+        const repositionOpenMenus = () => root.querySelectorAll(".dvx-multi-host").forEach(h => { const m = h.querySelector(".dvx-ms-menu"), t = h.querySelector(".dvx-ms-toggle"); if (m && t && !m.hidden) positionMultiMenu(t, m); });
+
+        /* ========================= Eventos ========================= */
+        function bindEvents() {
+            $("yearSelect").addEventListener("change", e => { state.year = +e.target.value; rebuildDays(); refreshAll(); });
+            $("monthSelect").addEventListener("change", e => { state.month = +e.target.value; rebuildDays(); refreshAll(); });
+            $("daySelect").addEventListener("change", e => { state.day = +e.target.value; refreshAll(); });
+
+            root.querySelectorAll(".dvx-segment").forEach(btn => btn.addEventListener("click", () => {
+                if (state.compareMode === (btn.dataset.mode || "budget")) return;
+                state.compareMode = btn.dataset.mode || "budget";
+                marcarModo();
+                // CORRECCIÓN: antes se pedían 3 consultas sueltas sin control de orden; ahora una sola actualización controlada
+                refreshAll();
+            }));
+
+            $("resetFilters").addEventListener("click", () => { resetAllFilters(); refreshAll(); });
+            $("clearCrossFilters")?.addEventListener("click", () => { clearDimensionFilters(); refreshAll(); });
+            $("activeFilterChips")?.addEventListener("click", e => {
+                const b = e.target.closest("[data-remove-filter]"); if (!b) return;
+                const { type, value } = b.dataset;
+                if (type === "vendor") { state.masterVendor = state.masterVendor.filter(x => x !== value); setMultiSelectSelection("masterVendorFilter", state.masterVendor); }
+                if (type === "master") {
+                    state.vendorMaster = state.vendorMaster.filter(x => x !== value); state.priceMaster = [...state.vendorMaster]; state.trendMaster = [...state.vendorMaster];
+                    syncMultiSelectGroup(["vendorMasterFilter", "priceMasterFilter", "trendMasterFilter"], state.vendorMaster);
+                    rebuildAllSkuFilters();
+                }
+                if (type === "sku") {
+                    state.vendorSku = state.vendorSku.filter(x => x !== value); state.priceSku = [...state.vendorSku]; state.trendSku = [...state.vendorSku];
+                    syncMultiSelectGroup(["vendorSkuFilter", "priceSkuFilter", "trendSkuFilter"], state.vendorSku);
+                }
+                renderActiveFilters();
+                refreshAll();
+            });
+
+            document.addEventListener("click", e => { if (!(e.target instanceof Element && e.target.closest(".dvx-multi-host"))) closeAllMultiSelectMenus(); });
+            document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllMultiSelectMenus(); });
+            addEventListener("resize", repositionOpenMenus);
+            addEventListener("scroll", repositionOpenMenus, true);
+
+            // Tooltips por delegación: funcionan con todo lo que se vuelve a dibujar
+            root.addEventListener("mouseover", e => { const el = e.target.closest?.("[data-tip]"); if (el) mostrarTip(el, e); });
+            root.addEventListener("mousemove", e => { if (e.target.closest?.("[data-tip]")) moveTooltip(e); });
+            root.addEventListener("mouseout", e => { const el = e.target.closest?.("[data-tip]"); if (el && !el.contains(e.relatedTarget)) ocultarTip(); });
+            root.addEventListener("focusin", e => { const el = e.target.closest?.("[data-tip]"); if (el) { const r = el.getBoundingClientRect(); mostrarTip(el, { clientX: r.left + r.width / 2, clientY: r.top }); } });
+            root.addEventListener("focusout", ocultarTip);
+            // Clic y teclado en elementos de las gráficas
+            root.addEventListener("click", e => {
+                const hit = e.target.closest?.("[data-cross-master],[data-cross-vendor],[data-cross-date]");
+                if (!hit || !root.querySelector(".dvx-dashboard-grid").contains(hit)) return;
+                activarCruce(hit, e);
+            });
+            root.addEventListener("keydown", e => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                const hit = e.target.closest?.("[data-cross-master],[data-cross-vendor],[data-cross-date]");
+                if (hit) { e.preventDefault(); activarCruce(hit, e); }
+            });
+        }
+        function activarCruce(hit, e) {
+            ocultarTip();
+            if (hit.dataset.crossMaster) selectCrossValue("master", hit.dataset.crossMaster, e);
+            else if (hit.dataset.crossVendor) selectCrossValue("vendor", hit.dataset.crossVendor, e);
+            else if (hit.dataset.crossDate) selectCrossDate(hit.dataset.crossDate);
+        }
+        function marcarModo() {
+            root.querySelectorAll(".dvx-segment").forEach(b => { const on = b.dataset.mode === state.compareMode; b.classList.toggle("dvx-active", on); b.setAttribute("aria-pressed", String(on)); });
+        }
+
+        function resetAllFilters() {
+            const years = aniosDisponibles(), ultima = parseDateOnly(catalogs.ultimaFechaVenta);
+            if (ultima) { state.year = ultima.year; state.month = ultima.month; state.day = ultima.day; }
+            else { state.year = years.includes(today.getFullYear()) ? today.getFullYear() : (years[0] || today.getFullYear()); state.month = today.getMonth() + 1; state.day = today.getDate(); }
+            state.compareMode = "budget";
+            Object.assign(state, { masterVendor: [], vendorMaster: [], vendorSku: [], priceMaster: [], priceSku: [], trendMaster: [], trendSku: [] });
+            buildCatalogs();
+            renderActiveFilters();
+            marcarModo();
+        }
+        function clearDimensionFilters() {
+            Object.assign(state, { masterVendor: [], vendorMaster: [], vendorSku: [], priceMaster: [], priceSku: [], trendMaster: [], trendSku: [] });
+            setMultiSelectSelection("masterVendorFilter", []);
+            syncMultiSelectGroup(["vendorMasterFilter", "priceMasterFilter", "trendMasterFilter"], []);
+            rebuildAllSkuFilters();
+            renderActiveFilters();
+        }
+
+        /* ========================= Consultas ========================= */
+        function scheduleRefreshAll(delay = 140) { clearTimeout(refreshTimer); refreshTimer = setTimeout(refreshAll, delay); }
+        async function refreshAll() {
+            const token = ++refreshToken;
+            hideError();
+            setLoading(true);
+            try {
+                const p = baseParams();
+                const [summary, masters, vendors, prices, trend] = await Promise.all([
+                    getJson(url(cfg.resumenUrl, p)), getJson(url(cfg.masterUrl, p)), getJson(url(cfg.vendedorUrl, p)), getJson(url(cfg.preciosUrl, p)), getJson(url(cfg.tendenciaUrl, p))
+                ]);
+                if (token !== refreshToken) return;
+                renderKPIs(summary); renderMasterChart(masters); renderVendorChart(vendors); renderPriceChart(prices); renderTrendChart(trend); renderActiveFilters();
+            } catch (err) { if (token === refreshToken) showError(err); }
+            finally { if (token === refreshToken) setLoading(false); }
+        }
+        const baseParams = () => ({
+            anio: state.year, mes: state.month, dia: state.day,
+            compararContra: state.compareMode === "reach" ? "alcance" : "presupuesto",
+            master: csv(state.vendorMaster), sku: csv(state.vendorSku), vendedorId: csv(state.masterVendor)
+        });
+
+        /* ========================= Selección cruzada ========================= */
+        function selectCrossValue(type, value, event) {
+            value = String(value ?? "").trim(); if (!value) return;
+            const additive = !!(event?.ctrlKey || event?.metaKey);
+            const current = type === "vendor" ? state.masterVendor : type === "master" ? state.vendorMaster : state.vendorSku;
+            let next;
+            if (additive) { const s = new Set(current); s.has(value) ? s.delete(value) : s.add(value); next = Array.from(s); }
+            else next = current.length === 1 && current[0] === value ? [] : [value];
+            if (type === "vendor") { state.masterVendor = next; setMultiSelectSelection("masterVendorFilter", next); }
+            if (type === "master") {
+                state.vendorMaster = next; state.priceMaster = [...next]; state.trendMaster = [...next];
+                syncMultiSelectGroup(["vendorMasterFilter", "priceMasterFilter", "trendMasterFilter"], next);
+                rebuildAllSkuFilters();
+            }
+            if (type === "sku") {
+                state.vendorSku = next; state.priceSku = [...next]; state.trendSku = [...next];
+                syncMultiSelectGroup(["vendorSkuFilter", "priceSkuFilter", "trendSkuFilter"], next);
+            }
+            renderActiveFilters();
+            scheduleRefreshAll(0);
+        }
+        function selectCrossDate(value) {
+            const p = parseDateOnly(value); if (!p) return;
+            state.year = p.year; state.month = p.month; state.day = p.day;
+            rebuildDateSelects();
+            scheduleRefreshAll(0);
+        }
+        // CORRECCIÓN: al hacer clic en un vendedor se mandaba "VENDEDOR|5" como vendedorId, que no coincide con
+        // los valores del filtro ("5"): el filtro no se marcaba y el servidor recibía un id que no es número.
+        // Ahora se usa el mismo id del catálogo; las sucursales CEDIS conservan su clave "CEDIS|NOMBRE".
+        function vendorFilterKey(item) {
+            const id = Number(item?.vendedorId || 0);
+            if (id > 0) return String(id);
+            const label = norm(item?.vendedor);
+            return label.startsWith("CEDIS") ? `CEDIS|${label}` : "";
+        }
+        function vendorLabelFromKey(key) {
+            const found = (catalogs.vendedores || []).find(x => String(x.id) === String(key));
+            if (found) return found.nombre;
+            return String(key).toUpperCase().startsWith("CEDIS|") ? String(key).substring(6) : `Vendedor ${key}`;
+        }
+        function renderActiveFilters() {
+            const bar = $("activeFiltersBar"), host = $("activeFilterChips"); if (!bar || !host) return;
+            const chips = [
+                ...state.masterVendor.map(v => ({ type: "vendor", value: v, label: vendorLabelFromKey(v), icon: "bi-person" })),
+                ...state.vendorMaster.map(v => ({ type: "master", value: v, label: v, icon: "bi-tag" })),
+                ...state.vendorSku.map(v => ({ type: "sku", value: v, label: v, icon: "bi-upc" }))
+            ];
+            bar.hidden = !chips.length;
+            host.innerHTML = chips.map(x => `<button type="button" class="dvx-filter-chip" data-remove-filter="1" data-type="${esc(x.type)}" data-value="${esc(x.value)}" title="Quitar este filtro"><i class="bi ${x.icon}"></i><span>${esc(x.label)}</span><span class="dvx-filter-chip-x">×</span></button>`).join("");
+        }
+
+        /* ========================= Indicadores ========================= */
+        function renderKPIs(d) {
+            const dia = +d.diaLaboral || 0, total = +d.diasLaborablesMes || 0;
+            $("kpiWorkday").innerHTML = `${nf.format(dia)} <small>de ${nf.format(total)}</small>`;
+            $("kpiWorkdayBar").style.width = `${total ? Math.min(100, dia / total * 100) : 0}%`;
+            $("kpiSales").textContent = nf.format(d.ventaReal || 0);
+            $("kpiBudget").textContent = nf.format(d.presupuestoMensual || 0);
+            $("kpiReach").textContent = nf.format(d.alcance || 0);
+            const cump = +d.cumplimientoPct || 0;
+            $("kpiCompliance").textContent = `${nf1.format(cump)}%`;
+            $("kpiCompliance").className = cump >= 100 ? "dvx-positive" : cump >= 80 ? "dvx-warning" : "dvx-negative";
+            const bar = $("kpiComplianceBar");
+            bar.style.width = `${Math.min(100, Math.max(0, cump))}%`;
+            bar.style.background = `var(--es-${cump >= 100 ? "ok" : cump >= 80 ? "warn" : "bad"})`;
+            $("kpiComplianceLabel").innerHTML = `% Cumplimiento <small>vs ${state.compareMode === "reach" ? "alcance" : "presupuesto"}</small>`;
+            const gapKg = +(d.brechaAlcanceKg || 0), gapPct = +(d.brechaAlcancePct || 0);
+            $("kpiGap").textContent = `${gapPct > 0 ? "+" : ""}${nf1.format(gapPct)}%`;
+            $("kpiGapKg").textContent = `${gapKg > 0 ? "+" : ""}${nf.format(gapKg)} kg ${gapKg >= 0 ? "arriba" : "abajo"} de lo esperado`;
+            $("kpiGap").className = gapKg >= 0 ? "dvx-positive" : "dvx-negative";
+            $("kpiGapKg").className = `dvx-kpi-delta ${gapKg >= 0 ? "dvx-positive" : "dvx-negative"}`;
+            $("lastUpdate").textContent = d.ultimaFechaVenta ? formatDate(d.ultimaFechaVenta) : "Sin ventas en el periodo";
+        }
+
+        /* ========================= Utilidades de gráfica ========================= */
+        const niceMax = (v, pasos = [1, 2, 2.5, 5, 10]) => { if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); for (const p of pasos) if (p * e >= v) return p * e; return 10 * e; };
+        const etiquetaEje = (x, y, texto, completo) => `<text class="ch-label" x="${x}" y="${y}" text-anchor="end" transform="rotate(-35 ${x} ${y})"><title>${esc(completo)}</title>${esc(texto)}</text>`;
+        function empty(el, msg) { if (el) el.innerHTML = `<div class="dvx-empty"><i class="bi bi-bar-chart"></i>${esc(msg)}</div>`; }
+
+        /* ========================= 1. Ventas por máster ========================= */
+        // CORRECCIÓN: antes la línea de avance y sus puntos usaban escalas distintas (no pasaba por los puntos)
+        // y toda participación arriba de 41% se veía igual de alta. Ahora todo se dibuja en un solo SVG con ejes.
+        function renderMasterChart(items) {
+            const cont = $("masterChart");
+            if (!items || !items.length) return empty(cont, "Sin información para los filtros seleccionados.");
+            const list = items.slice(0, 14), n = list.length;
+            const W = 700, H = 290, P = { l: 42, r: 48, t: 26, b: 82 }, cw = W - P.l - P.r, ch = H - P.t - P.b, slot = cw / n, bw = Math.min(40, slot * .6);
+            const shares = list.map(x => +x.participacionPct || 0), pcts = list.map(x => +x.avancePct || 0);
+            const shareMax = niceMax(Math.max(...shares) * 1.15), pctMax = Math.max(120, Math.ceil(Math.max(...pcts) * 1.1 / 20) * 20);
+            const yL = v => P.t + ch - (v / shareMax) * ch, yR = v => P.t + ch - (v / pctMax) * ch, cx = i => P.l + slot * (i + .5);
+            const sel = new Set(state.vendorMaster.map(norm));
+            let g = "";
+            for (let k = 0; k <= 4; k++) {
+                const y = P.t + ch - ch * k / 4;
+                g += `<line class="ch-grid" x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}"/><text class="ch-tick" x="${P.l - 6}" y="${y + 3.5}" text-anchor="end">${nf.format(shareMax * k / 4)}%</text><text class="ch-tick" x="${W - P.r + 6}" y="${y + 3.5}">${nf.format(pctMax * k / 4)}%</text>`;
+            }
+            g += `<text class="ch-title" x="${P.l - 6}" y="${P.t - 12}" text-anchor="end">Particip.</text><text class="ch-title" x="${W - P.r + 6}" y="${P.t - 12}">Avance</text>`;
+            g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yR(100)}" y2="${yR(100)}" stroke="var(--es-ok)" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W - P.r - 4}" y="${yR(100) - 4}" text-anchor="end" fill="var(--es-ok)" font-size="9.5" font-weight="700">100%</text>`;
+            list.forEach((x, i) => {
+                const key = String(x.master || "SIN_MASTER"), s = shares[i], p = pcts[i], on = sel.has(norm(key));
+                const y = yL(s), h = P.t + ch - y;
+                const tip = `<strong>${esc(key)}</strong>${fila("Participación", nf2.format(s) + "%")}${fila("Venta real", nf.format(x.ventaReal) + " kg")}${fila("Referencia", nf.format(x.referencia) + " kg")}${fila("Avance", nf2.format(p) + "%")}<div class='hint'>Clic para filtrar el tablero · Ctrl+clic para sumar</div>`;
+                g += `<g class="ch-hit ${on ? "is-sel" : ""}" data-cross-master="${esc(key)}" ${tipAttr(tip)} tabindex="0" role="button" aria-label="${esc(key)}: avance ${nf.format(p)}%">
+                    <rect x="${cx(i) - slot / 2}" y="${P.t}" width="${slot}" height="${ch}" fill="transparent"/>
+                    <rect class="ch-bar" x="${cx(i) - bw / 2}" y="${y}" width="${bw}" height="${Math.max(1, h)}" rx="3" fill="${on ? "var(--es-tinto)" : "var(--es-tinto-bar)"}"/>
+                    ${h > 16 ? `<text class="ch-value ${on ? "" : "muted"}" x="${cx(i)}" y="${P.t + ch - 6}" text-anchor="middle" ${on ? 'fill="#fff"' : ""}>${nf.format(s)}%</text>` : ""}
+                    ${etiquetaEje(cx(i) + 4, P.t + ch + 14, corto(key, 16), key)}
+                </g>`;
+            });
+            const pts = pcts.map((p, i) => `${cx(i)},${yR(p)}`).join(" ");
+            g += `<polyline points="${pts}" fill="none" stroke="var(--es-line-dark)" stroke-width="2" stroke-linejoin="round" pointer-events="none"/>`;
+            pcts.forEach((p, i) => {
+                const c = pctClass(p);
+                g += `<circle cx="${cx(i)}" cy="${yR(p)}" r="4.5" fill="var(--es-${c})" stroke="var(--es-surface)" stroke-width="2" pointer-events="none"/><text class="ch-value ch-pct-${c}" x="${cx(i)}" y="${yR(p) - 9}" text-anchor="middle" pointer-events="none">${nf.format(p)}%</text>`;
+            });
+            cont.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por máster">${g}</svg>`;
+        }
+
+        /* ========================= 2. Ventas por vendedor ========================= */
+        function renderVendorChart(items) {
+            const cont = $("vendorChart");
+            if (!items || !items.length) return empty(cont, "Sin información para los filtros seleccionados.");
+            const list = items.slice(0, 12);
+            const max = Math.max(1, ...list.map(x => Math.max(+x.referencia || 0, +x.ventaReal || 0))) * 1.05;
+            const sel = new Set(state.masterVendor), haySel = sel.size > 0;
+            const skuLabel = state.vendorSku.length ? state.vendorSku.join(", ") : "Todos";
+            cont.innerHTML = `<div class="vd-table" role="list">
+                <div class="vd-head">Vendedor / sucursal</div><div class="vd-head">Referencia vs venta real</div><div class="vd-head">Referencia</div><div class="vd-head">Venta real</div>
+                ${list.map(x => {
+                const ref = +x.referencia || 0, sales = +x.ventaReal || 0, p = +x.cumplimientoPct || 0, key = vendorFilterKey(x), on = key && sel.has(key);
+                const wRef = ref / max * 100, wSales = Math.min(100, sales / max * 100), c = pctClass(p);
+                const tip = `<strong>${esc(x.vendedor)}</strong>${fila("SKU", esc(skuLabel))}${fila("Referencia", nf.format(ref) + " kg")}${fila("Venta real", nf.format(sales) + " kg")}${fila("Cumplimiento", nf2.format(p) + "%")}${key ? "<div class='hint'>Clic para filtrar el tablero · Ctrl+clic para sumar</div>" : ""}`;
+                return `<div class="vd-row ${on ? "is-sel" : haySel && key ? "" : ""}" role="listitem" ${key ? `data-cross-vendor="${esc(key)}" tabindex="0"` : ""} ${tipAttr(tip)}>
+                        <div class="vd-name" title="${esc(x.vendedor)}">${esc(x.vendedor)}</div>
+                        <div class="vd-track"><span class="vd-ref" style="width:${Math.max(1, wRef)}%"></span><span class="vd-sales" style="width:${Math.max(0.5, wSales)}%"></span><span class="vd-pct dvx-${c === "ok" ? "positive" : c === "warn" ? "warning" : "negative"}" style="left:${Math.min(84, Math.max(wRef, wSales))}%">${nf.format(p)}%</span></div>
+                        <div class="vd-num" data-copy="${Math.round(ref)}">${nf.format(ref)}</div>
+                        <div class="vd-num sales" data-copy="${Math.round(sales)}">${nf.format(sales)}</div>
+                    </div>`;
+            }).join("")}
+            </div>`;
+        }
+
+        /* ========================= 3. Precios ========================= */
+        // CORRECCIÓN: la línea de promedio se ubicaba con medidas fijas en píxeles y no coincidía con las barras.
+        function renderPriceChart(data) {
+            const cont = $("priceChart");
+            const items = Array.isArray(data?.items) ? data.items : [], avg = +(data?.precioPromedioPonderado || 0);
+            $("weightedAverage").innerHTML = avg > 0 ? `<i class="bi bi-currency-dollar"></i> Precio promedio ponderado: $${money.format(avg)} /kg` : "Precio promedio ponderado (-)";
+            const fn = $("priceFootnote");
+            if (fn) { fn.textContent = "Precio ponderado por el volumen vendido. Verde: igual o arriba del promedio; rojo: abajo."; if (data?.nota) fn.title = data.nota; }
+            if (!items.length) return empty(cont, "Sin información de precios para los filtros seleccionados.");
+            const list = items.slice(0, 12), vals = list.map(x => +x.precioPonderado || 0);
+            if (!vals.some(v => v > 0)) return empty(cont, "Sin precios válidos para los filtros seleccionados.");
+            let minY = Math.max(0, Math.floor(Math.min(...vals.filter(v => v > 0), avg || Infinity) / 10) * 10 - 10);
+            let maxY = Math.ceil(Math.max(...vals, avg) / 10) * 10 + 10;
+            if (maxY <= minY) maxY = minY + 20;
+            const W = 700, H = 290, P = { l: 56, r: 16, t: 26, b: 82 }, cw = W - P.l - P.r, ch = H - P.t - P.b, n = list.length, slot = cw / n, bw = Math.min(42, slot * .6);
+            const y = v => P.t + ch - ((v - minY) / (maxY - minY)) * ch, cx = i => P.l + slot * (i + .5);
+            const sel = new Set(state.masterVendor);
+            let g = "";
+            for (let k = 0; k <= 4; k++) { const v = minY + (maxY - minY) * k / 4, yy = y(v); g += `<line class="ch-grid" x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}"/><text class="ch-tick" x="${P.l - 6}" y="${yy + 3.5}" text-anchor="end">$${nf.format(v)}</text>`; }
+            g += `<text class="ch-title" x="${P.l - 6}" y="${P.t - 12}" text-anchor="end">$/kg</text>`;
+            list.forEach((x, i) => {
+                const v = vals[i], key = vendorFilterKey(x), on = key && sel.has(key), bueno = v >= avg, yy = y(Math.max(v, minY));
+                const dif = avg > 0 ? (v - avg) / avg * 100 : 0;
+                const tip = `<strong>${esc(x.vendedor)}</strong>${fila("Precio ponderado", "$" + money.format(v) + " /kg")}${fila("Promedio general", "$" + money.format(avg) + " /kg")}${fila("Diferencia", (dif > 0 ? "+" : "") + nf1.format(dif) + "%")}${fila("Volumen", nf.format(x.kilos || 0) + " kg")}${key ? "<div class='hint'>Clic para filtrar el tablero</div>" : ""}`;
+                g += `<g class="ch-hit ${on ? "is-sel" : ""}" ${key ? `data-cross-vendor="${esc(key)}" tabindex="0" role="button"` : ""} ${tipAttr(tip)} aria-label="${esc(x.vendedor)}: $${money.format(v)} por kg">
+                    <rect x="${cx(i) - slot / 2}" y="${P.t}" width="${slot}" height="${ch}" fill="transparent"/>
+                    <rect class="ch-bar" x="${cx(i) - bw / 2}" y="${yy}" width="${bw}" height="${Math.max(2, P.t + ch - yy)}" rx="3" fill="var(--es-${bueno ? "ok" : "bad"})" fill-opacity="${on ? 1 : .78}"/>
+                    <text class="ch-value" x="${cx(i)}" y="${yy - 5}" text-anchor="middle" font-size="${slot < 50 ? 8.5 : 10}">$${money.format(v)}</text>
+                    ${etiquetaEje(cx(i) + 4, P.t + ch + 14, corto(x.vendedor, 18), x.vendedor)}
+                </g>`;
+            });
+            if (avg > 0) { const ya = y(avg); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${ya}" y2="${ya}" stroke="var(--es-tinto)" stroke-width="1.6" stroke-dasharray="6 4" pointer-events="none"/><rect x="${W - P.r - 104}" y="${ya - 17}" width="104" height="15" rx="7" fill="var(--es-tinto)"/><text x="${W - P.r - 52}" y="${ya - 6.5}" text-anchor="middle" fill="#fff" font-size="9.5" font-weight="700">Prom. $${money.format(avg)}</text>`; }
+            cont.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Precio ponderado por vendedor">${g}</svg>`;
+        }
+
+        /* ========================= 4. Tendencia acumulada ========================= */
+        function renderTrendChart(data) {
+            const cont = $("trendChart");
+            const items = Array.isArray(data?.items) ? data.items : [];
+            if (!items.length) return empty(cont, "Sin información de tendencia para los filtros seleccionados.");
+            const W = 900, H = 320, P = { l: 58, r: 66, t: 28, b: 44 }, cw = W - P.l - P.r, ch = H - P.t - P.b, n = Math.max(1, items.length);
+            const reach = items.map(x => +x.alcanceAcumulado || 0);
+            const actual = items.map(x => x.ventaAcumulada == null ? null : +x.ventaAcumulada);
+            const gap = items.map(x => x.brecha == null ? null : +x.brecha);
+            const leftMax = niceMax(Math.max(+(data.presupuestoMensual || 0), ...reach, ...actual.filter(v => v != null), 1) * 1.06);
+            const rightLimit = niceMax(Math.max(1000, ...gap.filter(v => v != null).map(Math.abs)) * 1.15);
+            const x = i => n === 1 ? P.l + cw / 2 : P.l + i * (cw / (n - 1));
+            const yL = v => P.t + ch - (v / leftMax) * ch, yR = v => P.t + ch / 2 - (v / rightLimit) * (ch / 2);
+            const colW = n === 1 ? cw : cw / (n - 1), barW = Math.max(5, Math.min(22, colW * .55));
+            let g = "";
+            for (let k = 0; k <= 5; k++) { const v = leftMax * k / 5, yy = yL(v); g += `<line class="ch-grid" x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}"/><text class="ch-tick" x="${P.l - 8}" y="${yy + 3.5}" text-anchor="end">${nf.format(v)}</text>`; }
+            [-1, -.5, 0, .5, 1].forEach(f => { const v = rightLimit * f, yy = yR(v); g += `<text class="ch-tick" x="${W - P.r + 8}" y="${yy + 3.5}" fill="${v > 0 ? "var(--es-ok)" : v < 0 ? "var(--es-bad)" : ""}">${v > 0 ? "+" : ""}${nf.format(v)}</text>`; });
+            g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yR(0)}" y2="${yR(0)}" stroke="var(--es-muted)" stroke-width="1" stroke-dasharray="2 3" opacity=".6"/>`;
+            g += `<text class="ch-title" x="${P.l - 8}" y="${P.t - 12}" text-anchor="end">kg</text><text class="ch-title" x="${W - P.r + 8}" y="${P.t - 12}">Brecha (kg)</text>`;
+            g += `<line class="ch-axis" x1="${P.l}" x2="${W - P.r}" y1="${P.t + ch}" y2="${P.t + ch}"/>`;
+            const idxReal = actual.map((v, i) => v != null ? i : -1).filter(i => i >= 0), marca = idxReal.length ? idxReal[idxReal.length - 1] : -1;
+            if (marca >= 0) g += `<line x1="${x(marca)}" x2="${x(marca)}" y1="${P.t}" y2="${P.t + ch}" stroke="var(--es-info)" stroke-width="1.5" stroke-dasharray="4 4" opacity=".7"/><text x="${x(marca)}" y="${P.t - 6}" text-anchor="middle" fill="var(--es-info)" font-size="9.5" font-weight="700">Corte</text>`;
+            actual.forEach((v, i) => { if (v == null) return; const yy = yL(v); g += `<rect x="${x(i) - barW / 2}" y="${yy}" width="${barW}" height="${P.t + ch - yy}" rx="2" fill="var(--es-tinto)" fill-opacity="${i === marca ? 1 : .8}" pointer-events="none"/>`; });
+            g += `<polyline points="${reach.map((v, i) => `${x(i)},${yL(v)}`).join(" ")}" fill="none" stroke="var(--es-gold)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/>`;
+            reach.forEach((v, i) => g += `<circle cx="${x(i)}" cy="${yL(v)}" r="3" fill="var(--es-gold)" pointer-events="none"/>`);
+            const gp = gap.map((v, i) => v == null ? null : `${x(i)},${yR(v)}`).filter(Boolean).join(" ");
+            if (gp) g += `<polyline points="${gp}" fill="none" stroke="var(--es-muted)" stroke-width="1.8" stroke-linejoin="round" pointer-events="none"/>`;
+            gap.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${yR(v)}" r="2.8" fill="var(--es-surface)" stroke="${v < 0 ? "var(--es-bad)" : "var(--es-ok)"}" stroke-width="1.8" pointer-events="none"/>`; });
+            const paso = n > 26 ? 2 : 1;
+            items.forEach((r, i) => {
+                if (i % paso === 0 || i === marca) g += `<text class="ch-tick" x="${x(i)}" y="${P.t + ch + 15}" text-anchor="middle" ${i === marca ? 'font-weight="700" fill="var(--es-info)"' : ""}>${esc(r.diaLaboral)}</text>`;
+                // Zona invisible por día: tooltip con las tres cifras y clic para cambiar la fecha de corte
+                const tip = `<strong>Día laboral ${esc(r.diaLaboral)} · ${esc(formatDate(r.fecha))}</strong>${actual[i] != null ? fila("Venta real acumulada", nf.format(actual[i]) + " kg") : fila("Venta real", "sin dato")}${fila("Alcance esperado", nf.format(reach[i]) + " kg")}${gap[i] != null ? fila("Brecha", (gap[i] > 0 ? "+" : "") + nf.format(gap[i]) + " kg") : ""}<div class='hint'>Clic para usar este día como fecha de corte</div>`;
+                g += `<rect class="ch-hit" x="${x(i) - colW / 2}" y="${P.t}" width="${colW}" height="${ch + 20}" fill="var(--es-ink)" fill-opacity="0" data-cross-date="${esc(r.fecha)}" ${tipAttr(tip)} tabindex="-1" onmouseenter="this.setAttribute('fill-opacity','.05')" onmouseleave="this.setAttribute('fill-opacity','0')"/>`;
+            });
+            g += `<text class="ch-title" x="${P.l + cw / 2}" y="${H - 4}" text-anchor="middle">Días laborales del mes</text>`;
+            cont.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia acumulada de venta real contra alcance">${g}</svg>`;
+        }
+
+        /* ========================= Tooltip ========================= */
+        function mostrarTip(el, e) { const tip = $("tooltip"); if (!tip) return; tip.innerHTML = el.dataset.tip || el.getAttribute("data-tip") || ""; tip.classList.add("dvx-show"); moveTooltip(e); }
+        function ocultarTip() { $("tooltip")?.classList.remove("dvx-show"); }
+        function moveTooltip(e) {
+            const tip = $("tooltip"); if (!tip) return;
+            const pad = 14, r = tip.getBoundingClientRect();
+            let left = e.clientX + pad, top = e.clientY + pad;
+            if (left + r.width > innerWidth - 8) left = e.clientX - r.width - pad;
+            if (top + r.height > innerHeight - 8) top = e.clientY - r.height - pad;
+            tip.style.left = `${Math.max(8, left)}px`; tip.style.top = `${Math.max(8, top)}px`;
+        }
+
+        /* ========================= Red y formato ========================= */
+        async function getJson(endpoint) {
+            if (!endpoint) throw new Error("No se configuró uno de los endpoints del dashboard.");
+            const resp = await fetch(endpoint, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" });
+            const text = await resp.text();
+            let body = null;
+            try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+            if (!resp.ok) throw new Error(body?.error || body?.detalle || body?.message || (text && text.length < 300 ? text : "") || `HTTP ${resp.status}`);
+            return body;
+        }
+        function url(base, params) {
+            const u = new URL(base, location.origin);
+            Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && String(v) !== "") u.searchParams.set(k, v); });
+            return u.toString();
+        }
+        function parseDateOnly(value) {
+            const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return null;
+            const year = +m[1], month = +m[2], day = +m[3];
+            return year && month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { year, month, day } : null;
+        }
+        function formatDate(value) {
+            const p = parseDateOnly(value);
+            if (p) return `${String(p.day).padStart(2, "0")}/${String(p.month).padStart(2, "0")}/${p.year}`;
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? String(value || "") : new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+        }
+        function setLoading(v) { root.classList.toggle("dvx-loading", !!v); root.setAttribute("aria-busy", String(!!v)); }
+        function showError(err) { const el = $("dashboardError"); if (!el) return; el.hidden = false; el.textContent = `No se pudo cargar el dashboard: ${err?.message || err || "error desconocido"}`; }
+        function hideError() { const el = $("dashboardError"); if (el) { el.hidden = true; el.textContent = ""; } }
+    })();
 </script>

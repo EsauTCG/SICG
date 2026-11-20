@@ -1,13 +1,14 @@
-﻿@using System.Linq
+@using System.Linq
 @using Plataforma_CG.Models
 @model Plataforma_CG.ViewModels.RomaneoTransferenciasVM
 @{
     Layout = "~/Views/Shared/_Layout2.cshtml";
+    ViewData["Title"] = "Embarque concentrado por tarima";
 
     var desdeDef = (Model?.Desde ?? DateTime.Today).ToString("yyyy-MM-dd");
     var hastaDef = (Model?.Hasta ?? DateTime.Today).ToString("yyyy-MM-dd");
-
     var rows = Model?.Rows ?? new List<Plataforma_CG.ViewModels.RomaneoTransferenciasRowVM>();
+    var detalle = Model?.DetalleEtiquetas ?? new List<Plataforma_CG.ViewModels.TransferenciaScanEtiquetaDetalleVM>();
 
     var totalCajasGlobal = rows.Sum(x => x.Cajas);
     var totalPesoGlobal = rows.Sum(x => x.Peso);
@@ -20,1695 +21,1403 @@
     string LabelMulti(List<string> sel, string emptyText, string pluralText)
     {
         if (sel == null || sel.Count == 0) return emptyText;
-        if (sel.Count <= 3) return string.Join(", ", sel);
+        if (sel.Count <= 2) return string.Join(", ", sel);
         return $"{sel.Count} {pluralText}";
     }
+    string TarimaKey(string t) => string.IsNullOrWhiteSpace(t) ? "SIN TARIMA" : t.Trim().ToUpperInvariant();
+
+    var grupos = rows
+        .GroupBy(r => new { r.Pedido, r.Fecha, r.Destino })
+        .OrderBy(g => g.Key.Fecha).ThenBy(g => g.Key.Pedido)
+        .ToList();
+
+    var totalTransferencias = grupos.Count;
+    var totalTarimas = rows.Select(r => new { r.Pedido, T = TarimaKey(r.Tarima) }).Distinct().Count();
+    var totalSkus = rows.Select(r => r.ProductoCodigo).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count();
+    var kgPorCaja = totalCajasGlobal > 0 ? totalPesoGlobal / totalCajasGlobal : 0m;
+    var porDestino = rows.GroupBy(r => string.IsNullOrWhiteSpace(r.Destino) ? "SIN DESTINO" : r.Destino)
+        .Select(g => new { Destino = g.Key, Kg = g.Sum(x => x.Peso), Cajas = g.Sum(x => x.Cajas), Transf = g.Select(x => x.Pedido).Distinct().Count() })
+        .OrderByDescending(x => x.Kg).ToList();
+    var maxKgDestino = porDestino.Any() ? porDestino.Max(x => x.Kg) : 1m;
+    if (maxKgDestino <= 0) maxKgDestino = 1m;
+    var topSkus = rows.GroupBy(r => new { r.ProductoCodigo, r.ProductoNombre })
+        .Select(g => new { g.Key.ProductoCodigo, g.Key.ProductoNombre, Kg = g.Sum(x => x.Peso), Cajas = g.Sum(x => x.Cajas) })
+        .OrderByDescending(x => x.Kg).Take(6).ToList();
+    var maxKgSku = topSkus.Any() ? topSkus.Max(x => x.Kg) : 1m;
+    if (maxKgSku <= 0) maxKgSku = 1m;
 
     var logoUrl = Url.Content("~/images/sigoNegro.png");
-
-    var excelUrl = Url.Action("ExportCaducidadTransferencias", "Transferencias",
-        new
-        {
-            desde = Model?.Desde?.ToString("yyyy-MM-dd"),
-            hasta = Model?.Hasta?.ToString("yyyy-MM-dd"),
-            destinosSel = destSel,
-            pedidosSel = pedSel,
-            tarimasSel = tarSel
-        });
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
 }
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
-    :root{
-        --bg:#f0dede;
-        --panel:#f8eeee;
-        --panel-2:#f1dede;
-        --line:#c79d9d;
-        --line-dark:#8f4c4c;
-        --text:#3b1717;
-        --muted:#6a3a3a;
-        --title:#ffffff;
-        --white:#ffffff;
-        --danger:#c00000;
-        --warning:#f3b6b6;
-        --ok:#f7e3e3;
-        --shadow:0 1px 0 rgba(255,255,255,.55) inset;
-        --brand:#8B0000;
-
-        --vino-1:#5c0000;
-        --vino-2:#7a0000;
-        --vino-3:#980000;
-        --vino-4:#b30000;
-        --vino-5:#d10000;
-
-        --vino-soft:#f8e7e7;
-        --vino-soft-2:#f2d9d9;
-        --vino-border:#9a5a5a;
-        --vino-text:#ffffff;
-        --vino-text-dark:#4a1111;
-
-        --shadow-sm:0 1px 3px rgba(60,10,10,.08);
-        --shadow-md:0 4px 6px rgba(60,10,10,.10);
-        --shadow-lg:0 10px 20px rgba(60,10,10,.14);
-
-        --sap-grid-bg:#dfeaf6;
-        --sap-grid-border:#b7c6d6;
-        --sap-grid-border2:#9fb2c8;
-        --sap-grid-hover:#cfe0f2;
-        --sap-grid-head1: #8b0000;
-        --sap-grid-head2: #6f0000;
-        --sap-yellow:#fff2a8;
-        --sap-grid-text:#10212b;
-       --sap-grid-headtext: #ffffff;
-
-        --print-red:#8B0000;
-        --print-gray:#6b6b6b;
+    /* =====================================================================
+           EMBARQUE CONCENTRADO POR TARIMA · SIGO — hoja de estilos única
+           Sustituye las capas anteriores y romaneo-transferencias-erp-compacto.css.
+           Conserva el formato de impresión carta y la regla de impresión.
+           ===================================================================== */
+    :root {
+        --es-tinto: #8d3e46;
+        --es-tinto-deep: #5c2229;
+        --es-tinto-soft: #f7eced;
+        --es-tinto-line: #e8d3d6;
+        --es-paper: #f6f4f4;
+        --es-surface: #ffffff;
+        --es-field: #ffffff;
+        --es-head: #faf7f7;
+        --es-hover: #fcf9f9;
+        --es-row-line: #f0eaeb;
+        --es-ink: #231a1c;
+        --es-muted: #76686b;
+        --es-line: #e6dfe0;
+        --es-line-strong: #cfc4c6;
+        --es-ok: #2f7a55;
+        --es-ok-bg: #e7f3ec;
+        --es-warn: #9a6410;
+        --es-warn-bg: #fbf1de;
+        --es-bad: #b42d2d;
+        --es-bad-bg: #fbe9e8;
+        --es-info: #2f5d86;
+        --es-info-bg: #e9f0f7;
+        --es-neutral-bg: #efecec;
+        --es-gold: #c08a2e;
+        --es-font: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
     }
 
-    *{ box-sizing:border-box; }
-
-    body{
-        margin:0 !important;
-        padding:0 !important;
-        background:transparent !important;
-        color:var(--text);
-        font-family:Tahoma, Verdana, Arial, sans-serif;
+    body[data-theme="dark"] {
+        --es-tinto: #c56b74;
+        --es-tinto-deep: #7a2d36;
+        --es-tinto-soft: #3a2427;
+        --es-tinto-line: #5a3439;
+        --es-paper: #16181c;
+        --es-surface: #202328;
+        --es-field: #181a1e;
+        --es-head: #262a30;
+        --es-hover: #2a2e34;
+        --es-row-line: #30343b;
+        --es-ink: #edf0f3;
+        --es-muted: #a9b0b9;
+        --es-line: #363b43;
+        --es-line-strong: #4a5059;
+        --es-ok: #6cc596;
+        --es-ok-bg: #1d3328;
+        --es-warn: #e0b061;
+        --es-warn-bg: #3a2f1b;
+        --es-bad: #f08a83;
+        --es-bad-bg: #3d2223;
+        --es-info: #8bb8e0;
+        --es-info-bg: #1e2b38;
+        --es-neutral-bg: #2c3036;
+        --es-gold: #e0b061;
     }
 
-    .container, .container-fluid{
-        max-width:100% !important;
-        width:100% !important;
-        padding:0 !important;
-        margin:0 !important;
-    }
-
-    .window{
-        width:100%;
-        max-width:100%;
-        margin:0 !important;
-        border:1px solid #7e4a4a;
-        background:var(--panel);
-        box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.14);
-        overflow:visible;
-        padding:0 !important;
-    }
-
-    .window > *:first-child,
-    .titlebar{
-        margin-top:0 !important;
-    }
-
-    .titlebar{
-        height:34px;
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        padding:0 10px;
-        background:linear-gradient(180deg, #c00000 0%, #8b0000 60%, #5c0000 100%);
-        border-bottom:1px solid #5c0000;
-        color:#fff;
-        font-size:13px;
-        font-weight:bold;
-    }
-
-    .titlebar .actions{ display:flex; gap:6px; }
-
-    .win-btn{
-        width:16px;
-        height:16px;
-        border:1px solid #7c4848;
-        background:linear-gradient(#fff6f6, #ead0d0);
-    }
-
-   .toolbar{
-    display:flex;
-    justify-content:flex-end;
-    align-items:center;
-    gap:4px;
-    padding:4px 6px;
-    background:linear-gradient(#fff6f6, #ecd8d8);
-    border-bottom:1px solid var(--line);
-    font-size:12px;
-    flex-wrap:wrap;
-    width:100%;
-}
-
-    .tool-btn, .tab{ border:1px solid transparent; padding:4px 8px; user-select:none; }
-
-    .tool-btn{
-        min-width:72px;
-        text-align:center;
-        background:linear-gradient(#fffefe, #ecd7d7);
-        border:1px solid var(--vino-border);
-        box-shadow:var(--shadow);
-        cursor:pointer;
-        color:var(--vino-text-dark);
-        text-decoration:none;
-        height:28px;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-    }
-
-    .tool-btn:hover, .small-btn:hover, .tab:hover, .btnx:hover{ filter:brightness(.98); }
-
-    .content{ padding:8px; background:var(--bg); }
-
-    .tabs{ display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
-
-    .tab{
-        font-size:12px;
-        background:linear-gradient(#f7e7e7, #ead1d1);
-        border:1px solid #caa0a0;
-        border-bottom:none;
-        padding:7px 12px;
-        color:#5c1a1a;
-    }
-
-    .tab.active{
-        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        font-weight:bold;
-        color:#fff;
-        border-color:#7a2d2d;
-    }
-
-    .workspace{ border:1px solid var(--line); background:var(--panel); padding:8px; }
-
-    .section{ border:1px solid var(--line); background:#fff; margin-bottom:10px; }
-
-    .section-title{
-        padding:6px 8px;
-        font-size:12px;
-        font-weight:bold;
-        color:#fff;
-        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        border-bottom:1px solid #6b1f1f;
-    }
-
-    .label{ display:block; color:#5c1a1a; font-size:12px; margin-bottom:4px; font-weight:bold; }
-
-    .muted{ color:var(--muted); }
-    .small{ font-size:12px; }
-    .text-end{ text-align:right !important; font-variant-numeric:tabular-nums; }
-
-    input, select, .form-control, .form-select, .form-control-sm, .in{
-        border:1px solid #b48787 !important;
-        background:#fffdfd !important;
-        color:#421414 !important;
-        border-radius:0 !important;
-        box-shadow:none !important;
-        font-size:12px !important;
-    }
-
-    .in{
-        display:block;
-        width:100% !important;
-        max-width:none !important;
-        min-width:0 !important;
-        height:36px !important;
-        min-height:36px !important;
-        padding:6px 10px !important;
-        line-height:1.2 !important;
-    }
-
-    .form-control:focus, .form-select:focus, .form-control-sm:focus, .in:focus{
-        border-color:#8b0000 !important;
-        box-shadow:0 0 0 .18rem rgba(139,0,0,.14) !important;
-        outline:none;
-    }
-
-    .btnx, .small-btn{
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        gap:.45rem;
-        height:28px;
-        padding:0 10px;
-        font-weight:700;
-        border-radius:0;
-        font-size:12px;
-        box-shadow:var(--shadow);
-        white-space:nowrap;
-        cursor:pointer;
-        text-decoration:none;
-        border:1px solid #b48787;
-        background:linear-gradient(#fffefe, #ecd7d7);
-        color:#4b1f1f;
-    }
-
-    .btn-primary{
-        color:#fff;
-        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        border:1px solid #7a2d2d;
-    }
-
-    .btn-ghost{ background:linear-gradient(#fffefe, #ecd7d7); color:#4b1f1f; border:1px solid #b48787; }
-
-    .grid{ display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:12px; }
-
-    .gcol-2{ grid-column:span 2; }
-    .gcol-3{ grid-column:span 3; }
-    .gcol-12{ grid-column:span 12; }
-
-    @@media(max-width:992px){
-        .gcol-2, .gcol-3{ grid-column:span 12; }
-    }
-
-    .bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:8px; }
-    .bar-left{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .bar-right{ line-height:1.3; }
-
-    .pill{
-        border:1px solid #d8bcbc;
-        border-radius:0;
-        padding:8px 10px;
-        background:#fffafa;
-        display:flex;
-        align-items:baseline;
-        gap:10px;
-        min-width:150px;
-        justify-content:space-between;
-        box-sizing:border-box;
-    }
-
-    .kpi{ font-weight:900; font-size:18px; }
-
-    .dropdown-menu{
-        font-size:12px !important;
-        border-radius:0 !important;
-        border:1px solid #b48787 !important;
-        background:#fffafa !important;
-    }
-
-    .dd-actions{ position:sticky; bottom:0; background:#fff; padding-top:8px; }
-
-    .order-card{
-        border:1px solid var(--line);
-        border-radius:0;
-        overflow:visible;
-        background:#fff;
-        box-shadow:0 0 0 1px rgba(255,255,255,.45) inset, 0 8px 18px rgba(70,12,12,.08);
-        margin-bottom:18px;
-    }
-
-    .order-band{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:12px;
-        padding:10px 12px;
-        font-weight:900;
-        background:linear-gradient(180deg, #b30000 0%, #8b0000 55%, #5c0000 100%);
-        color:#fff;
-        border-bottom:1px solid #6b1f1f;
-    }
-
-    .order-band .meta{ font-weight:700; opacity:.95; font-size:12px; }
-
-    .order-body{ padding:12px; }
-
-    .group-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
-
-    .tarima-block{
-        border:1px solid #d8bcbc;
-        border-radius:0;
-        padding:10px;
-        margin-top:10px;
-        background:#fffafa;
-    }
-
-    .tarima-title{
-        margin:10px 0 6px;
-        font-weight:900;
-        color:var(--text);
-        display:flex;
-        align-items:center;
-        gap:8px;
-    }
-
-    .tag{
-        font-size:12px;
-        color:#5c1a1a;
-        border:1px solid #d8bcbc;
-        border-radius:999px;
-        padding:2px 8px;
-        background:#fff;
-        font-weight:700;
-    }
-
-    .hr{ height:1px; background:#e4caca; margin:12px 0; }
-
-    .empty{
-        padding:22px;
-        text-align:center;
-        color:var(--muted);
-        border:1px dashed #d3b0b0;
-        border-radius:0;
-        background:#fff;
-        font-weight:700;
-    }
-
-    .tablewrap, .table-responsive{
-        border:1px solid var(--sap-grid-border) !important;
-        border-radius:0 !important;
-        overflow:visible;
-        width: fit-content !important;      /* ← se ajusta al contenido */
-        background:var(--sap-grid-bg) !important;
-    }
-
-    table.t{
-        width:100%;
-        border-collapse:separate !important;
-        border-spacing:0 !important;
-        background:var(--sap-grid-bg) !important;
-        font-size:12px !important;
-    }
-
-    table.t thead th{
-        position:sticky;
-        top:0;
-        z-index:2;
-        background:linear-gradient(180deg,var(--sap-grid-head1) 0%, var(--sap-grid-head2) 100%) !important;
-        color:var(--sap-grid-headtext) !important;
-        border-bottom:1px solid var(--sap-grid-border2) !important;
-        border-right:1px solid var(--sap-grid-border) !important;
-        padding:.22rem .35rem !important;
-        font-weight:800 !important;
-        text-transform:none !important;
-        letter-spacing:0 !important;
-        font-size:12px !important;
-        white-space:nowrap !important;
-    }
-
-    table.t tbody td{
-        background:var(--sap-grid-bg) !important;
-        color:var(--sap-grid-text) !important;
-        border-bottom:1px solid var(--sap-grid-border) !important;
-        border-right:1px solid var(--sap-grid-border) !important;
-        padding:.18rem .35rem !important;
-        line-height:1.05 !important;
-        white-space:normal !important;
-        overflow:visible !important;
-        text-overflow:clip !important;
-        word-break:break-word !important;
-    }
-
-    table.t thead th:first-child,
-    table.t tbody td:first-child{ border-left:1px solid var(--sap-grid-border) !important; }
-
-    table.t tbody tr:hover td{ background:var(--sap-grid-hover) !important; }
-    table.t tbody tr:nth-child(even) td{ background:var(--sap-grid-bg) !important; }
-
-    /* ========================= PANTALLA: anchos t-romaneo ========================= */
-    @@media screen {
-        table.t.t-romaneo {
-            table-layout: fixed !important;
-            width: 100% !important;
-        }
-        table.t.t-romaneo th.col-sku,
-        table.t.t-romaneo td:nth-child(1) { width: 10% !important; }
-        table.t.t-romaneo th.col-producto,
-        table.t.t-romaneo td:nth-child(2) { width: 48% !important; }
-        table.t.t-romaneo th.col-cajas,
-        table.t.t-romaneo td:nth-child(3) { width: 21% !important; }
-        table.t.t-romaneo th.col-peso,
-        table.t.t-romaneo td:nth-child(4) { width: 21% !important; }
-    }
-
-    table.t:not(.t-romaneo) thead th:nth-child(3),
-    table.t:not(.t-romaneo) tbody td:nth-child(3),
-    table.t:not(.t-romaneo) thead th:nth-child(4),
-    table.t:not(.t-romaneo) tbody td:nth-child(4),
-    table.t:not(.t-romaneo) thead th:nth-child(5),
-    table.t:not(.t-romaneo) tbody td:nth-child(5){
-        background:var(--sap-yellow) !important;
-    }
-
-    .detail-toggle{
-        margin-top:10px;
-        border:1px solid #d8bcbc;
-        border-radius:0;
-        background:#fff;
-        overflow:hidden;
-    }
-
-    .detail-toggle summary{
-        list-style:none;
-        cursor:pointer;
-        padding:10px 12px;
-        font-weight:800;
-        color:var(--text);
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        user-select:none;
-        background:#f8fafc;
-        border-bottom:1px solid transparent;
-    }
-
-    .detail-toggle summary::-webkit-details-marker{ display:none; }
-    .detail-toggle[open] summary{ border-bottom-color:#d8bcbc; }
-    .detail-toggle .summary-left{ display:flex; align-items:center; gap:8px; }
-    .detail-toggle .summary-icon{ font-size:12px; transition:transform .15s ease; }
-    .detail-toggle[open] .summary-icon{ transform:rotate(90deg); }
-    .detail-toggle .detail-body{ padding:10px; background:#fff; }
-
-    .statusbar{
-        display:flex;
-        justify-content:space-between;
-        gap:12px;
-        padding:6px 10px;
-        font-size:11px;
-        color:#4a1a1a;
-        border-top:1px solid #b88c8c;
-        background:linear-gradient(#f6e9e9, #ead5d5);
-        flex-wrap:wrap;
-    }
-
-    .print-only{ display:none; }
-
-    @@page{
-        size:Letter portrait;
-        margin:10mm 8mm;
-    }
-
-    /* ========================= PRINT ========================= */
-    @@media print {
-
-        html, body {
-            height: auto !important;
-            overflow: hidden !important;
-            background: #fff !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .layout-navbar,
-        .layout-sidebar,
-        .layout-sidebar-hover-zone,
-        #layout-toggle-sidebar-btn,
-        #layout-chat-fab,
-        #layout-manual-fab,
-        #layout-chat-panel,
-        footer.layout-footer { display: none !important; }
-
-        .layout-main-content,
-        .layout-container-fluid {
-            height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            max-width: none !important;
-        }
-
-        .no-print { display: none !important; }
-        .print-only { display: block !important; }
-
-        body { padding: 0 !important; margin: 0 !important; }
-
-        .wrap, .container, .container-fluid {
-            max-width: none !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-sizing: border-box !important;
-        }
-
-        .window, .workspace, .section {
-            border: 0 !important;
-            box-shadow: none !important;
-            background: #fff !important;
-        }
-
-        .order-card, .order-body, .tarima-block, .workspace, .content, .window {
-    overflow: visible !important;
-    max-width: 100% !important;
-    width: 100% !important;
-}
-
-html, body, .window, .content, .workspace, .section,
-.order-card, .order-body, .tarima-block, .tablewrap {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
-}
-
-.section > div {
-    padding: 0 !important;
-}
-
-
-        /* HEADER */
-        .print-top {
-            display: grid !important;
-            grid-template-columns: 150px 1fr 200px !important;
-            gap: 8px !important;
-            align-items: start !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-            padding-bottom: 8px !important;
-            margin-bottom: 10px !important;
-            border-bottom: 2px solid #8B0000 !important;
-        }
-
-        .print-logo img { max-width: 140px; height: auto; display: block; }
-
-        .print-title div:first-child {
-            font-size: 22px !important;
-            font-weight: 900 !important;
-            text-align: center !important;
-            color: #111 !important;
-            line-height: 1.15 !important;
-        }
-
-        .print-title div:last-child {
-            font-size: 9.5px !important;
-            text-align: center !important;
-            color: #444 !important;
-        }
-
-        .print-meta { font-size: 9.5px !important; line-height: 1.5 !important; color: #222 !important; }
-
-        /* KPIs */
-        .print-kpis {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 10px !important;
-            margin: 10px 0 !important;
-        }
-
-        .kpi-box {
-            display: flex !important;
-            gap: 10px !important;
-            align-items: center !important;
-            padding: 8px 10px !important;
-            border: 1px solid #ccc !important;
-            border-radius: 6px !important;
-            background: #fff !important;
-        }
-
-        /* BARRAS */
-        .print-bar {
-            display: flex !important;
-            justify-content: space-between !important;
-            padding: 5px 8px !important;
-            margin: 8px 0 0 !important;
-            background: #6b6b6b !important;
-            color: #fff !important;
-            font-size: 10.5px !important;
-            font-weight: 900 !important;
-        }
-
-        .print-bar.small {
-            margin-top: 2px !important;
-            background: #9a9a9a !important;
-            font-size: 10px !important;
-            font-weight: 800 !important;
-        }
-
-        /* BLOQUES */
-        .order-card, .order-body, .tarima-block {
-            margin: 0 !important;
-            padding: 0 !important;
-            border: 0 !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            background: transparent !important;
-        }
-
-        /* WRAPPER TABLAS */
-        .tablewrap {
-            width: 100% !important;
-            margin-top: 2px !important;
-            border: 1px solid #ccc !important;
-            border-radius: 0 !important;
-            overflow: visible !important;
-            background: #fff !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-        }
-
-        /* BASE TABLAS */
-        table.t {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            font-size: 9.5px !important;
-            background: #fff !important;
-            table-layout: fixed !important;
-        }
-
-        table.t thead { display: table-header-group !important; }
-        table.t tfoot { display: table-footer-group !important; }
-
-        table.t thead th {
-            box-sizing: border-box !important;
-            padding: 5px 6px !important;
-            border: 1px solid #8B0000 !important;
-            background: #8B0000 !important;
-            color: #fff !important;
-            font-size: 9.5px !important;
-            font-weight: 800 !important;
-            white-space: nowrap !important;
-        }
-
-        table.t tbody td {
-            box-sizing: border-box !important;
-            padding: 4px 6px !important;
-            border: 1px solid #ddd !important;
-            background: #fff !important;
-            vertical-align: top !important;
-        }
-
-        table.t tbody tr:nth-child(even) td { background: #f6f6f6 !important; }
-
-        /* ========================= TABLA ROMANEO (PRINT) ========================= */
-        /* Los anchos los controlan los style="" del <th> en el HTML                */
-        /* Solo forzamos el comportamiento base                                      */
-        table.t.t-romaneo {
-            width: 100% !important;
-            table-layout: fixed !important;
-        }
-
-        table.t.t-romaneo thead th,
-        table.t.t-romaneo tbody td {
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-
-        table.t.t-romaneo tbody td:nth-child(2) {
-            white-space: normal !important;
-            word-break: break-word !important;
-        }
-
-        table.t.t-romaneo tbody tr:last-child td {
-            font-weight: 900 !important;
-            border-top: 2px solid #bbb !important;
-            background: #fff !important;
-        }
-
-        /* ========================= TABLA DETALLE ETIQUETAS ========================= */
-        table.t.t-detalle {
-            width: 100% !important;
-            table-layout: fixed !important;
-        }
-
-        table.t.t-detalle thead th:nth-child(1),
-        table.t.t-detalle tbody td:nth-child(1) { width: 12% !important; }
-
-        table.t.t-detalle thead th:nth-child(2),
-        table.t.t-detalle tbody td:nth-child(2) { width: 34% !important; }
-
-        table.t.t-detalle thead th:nth-child(3),
-        table.t.t-detalle tbody td:nth-child(3) { width: 12% !important; text-align: right !important; }
-
-        table.t.t-detalle thead th:nth-child(4),
-        table.t.t-detalle tbody td:nth-child(4) { width: 22% !important; }
-
-        table.t.t-detalle thead th:nth-child(5),
-        table.t.t-detalle tbody td:nth-child(5) { width: 20% !important; }
-
-        table.t.t-detalle thead th,
-        table.t.t-detalle tbody td {
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-        }
-
-        table.t.t-detalle tbody tr:last-child td {
-            font-weight: 900 !important;
-            border-top: 2px solid #bbb !important;
-        }
-
-        /* SALTOS DE PÁGINA */
-    .print-top, .print-kpis, .kpi-box, .print-bar {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-}
-
-        #excelOverlay { display: none !important; }
-    }
-
-    /* Excel overlay */
-    #excelOverlay{
-        position:fixed;
-        inset:0;
-        background:rgba(15, 23, 42, .45);
-        z-index:99999;
-        display:none;
-        align-items:center;
-        justify-content:center;
-        padding:18px;
-    }
-
-    #excelOverlay.show{ display:flex; }
-
-    .excel-modal{
-        width:min(420px, 92vw);
-        background:#fff;
-        border:1px solid #d9d9d9;
-        border-radius:14px;
-        box-shadow:0 10px 30px rgba(0,0,0,.18);
-        padding:18px 16px;
-        text-align:center;
-    }
-
-    .excel-title{ margin-top:10px; font-weight:900; font-size:16px; color:#1d2d3e; }
-    .excel-sub{ margin-top:4px; font-weight:700; font-size:12.5px; color:#556b82; }
-
-    .spinner{
-        width:44px;
-        height:44px;
-        border-radius:50%;
-        border:5px solid #e6e6e6;
-        border-top-color:#0a6ed1;
-        margin:0 auto;
-        animation:spin .9s linear infinite;
-    }
-
-    @@keyframes spin{
-        from{ transform:rotate(0deg); }
-        to{ transform:rotate(360deg); }
-    }
-
-    @@media(max-width:768px){
-        .tablewrap table.t{ min-width:900px; }
-        .statusbar{ font-size:10px; }
-    }
-
-    .excel-btn{
-    background: #18a85b;
-    color: #fff;
-    border: 1px solid #0f7e44;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    font-weight: 700;
-    text-decoration: none;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
-}
-
-.excel-btn i{
-    color: #fff;
-}
-.pm-btn{
-    display: inline-flex;
-    align-items: center;
-    gap: .5rem;
-    padding: 8px 14px;
-    border: 1px solid transparent;
-    text-decoration: none;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.pm-btn-excel{
-    color: #fff;
-    border-color: #157347;
-    background: linear-gradient(180deg, #27ae60 0%, #1f9a54 55%, #198754 100%);
-}
-
-.pm-btn-excel i,
-.pm-btn-excel span{
-    color: #fff;
-}
-
-.pm-btn-excel:hover{
-    color: #fff;
-    border-color: #146c43;
-    background: linear-gradient(180deg, #2dc26b 0%, #239b59 55%, #1b7f4f 100%);
-}
-
-.pm-btn-excel:visited,
-.pm-btn-excel:focus{
-    color: #fff;
-    text-decoration: none;
-}
-
-/* =========================================
-   RESPONSIVE CELULAR / TABLET
-   ========================================= */
-
-@@media (max-width: 992px) {
-    .toolbar {
-        align-items: stretch;
-        gap: 8px;
-        padding: 8px;
-    }
-
-    .toolbar .tool-btn,
-    .toolbar .pm-btn,
-    .toolbar button,
-    .toolbar a {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .tabs {
-        gap: 6px;
-    }
-
-    .tab {
-        flex: 1 1 calc(50% - 6px);
-        text-align: center;
-    }
-
-    .grid {
-        grid-template-columns: 1fr !important;
-        gap: 10px;
-    }
-
-    .gcol-2,
-    .gcol-3,
-    .gcol-12 {
-        grid-column: span 1 !important;
-    }
-
-    .bar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .bar-left,
-    .bar-right {
-        width: 100%;
-    }
-
-    .bar-left {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .bar-left .btnx,
-    .bar-left .btn-ghost,
-    .bar-left .btn-primary {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .group-head {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .group-head > div {
-        width: 100%;
-    }
-
-    .pill {
-        width: 100%;
-        min-width: 0;
-    }
-
-    .order-band {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
-
-    .order-band .meta {
-        width: 100%;
+    .rmx, .rm-toast, #excelOverlay {
+        font-family: var(--es-font) !important;
+        color: var(--es-ink);
+        font-size: 13px;
         line-height: 1.4;
     }
 
-    .tarima-title {
-        flex-wrap: wrap;
+        .rmx *, #excelOverlay * {
+            box-sizing: border-box;
+        }
+
+        .rmx .bi, .rm-toast .bi {
+            font-family: "bootstrap-icons" !important;
+        }
+
+    .text-end {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
     }
 
-    .detail-toggle summary {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .detail-toggle .summary-left {
-        width: 100%;
-    }
-
-    .statusbar {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
-}
-
-@@media (max-width: 768px) {
-    body {
-        font-size: 12px;
-    }
-
-    .content,
-    .workspace,
-    .order-body,
-    .tarima-block {
-        padding: 8px !important;
-    }
-
-    .titlebar {
-        height: auto;
-        min-height: 34px;
-        padding: 8px 10px;
-        flex-wrap: wrap;
-        gap: 8px;
-       
-    }
-
-    .titlebar .actions {
-        margin-left: auto;
-    }
-
-    .toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .toolbar .tool-btn,
-    .toolbar .pm-btn,
-    .toolbar button,
-    .toolbar a {
-        width: 100%;
+    .rmx {
+        background: var(--es-paper);
+        padding: 14px 16px 12px;
         min-width: 0;
     }
 
-    .tab {
-        flex: 1 1 100%;
+    .print-only {
+        display: none;
     }
 
-    .label {
-        margin-bottom: 6px;
-    }
-
-    .in,
-    .form-control,
-    .form-select,
-    .form-control-sm {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-    }
-
-    .dropdown-menu {
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-
-    .bar-right {
-        font-size: 11px;
-    }
-
-    .pill {
-        padding: 10px;
-    }
-
-    .kpi {
-        font-size: 16px;
-    }
-
-    .tablewrap,
-    .table-responsive {
-        width: 100%;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    table.t {
-        min-width: 700px;
-        table-layout: fixed;
-    }
-
-    table.t.t-romaneo {
-        min-width: 620px;
-    }
-
-    table.t.t-detalle {
-        min-width: 760px;
-    }
-
-    .order-card {
+    /* ---------- Encabezado ---------- */
+    .rm-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
         margin-bottom: 12px;
     }
 
-    .tag {
-        max-width: 100%;
-        word-break: break-word;
-        white-space: normal;
-    }
-}
-
-@@media (max-width: 480px) {
-    .content {
-        padding: 6px;
-    }
-
-    .workspace {
-        padding: 6px;
-    }
-
-    .section-title {
-        font-size: 11px;
-        padding: 7px 8px;
-    }
-
-    .order-band {
-        padding: 8px 10px;
-        font-size: 12px;
-    }
-
-    .order-band .meta {
-        font-size: 11px;
-    }
-
-    .pill {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 10px;
-    }
-
-    .kpi {
-        font-size: 15px;
-    }
-
-    .btnx,
-    .small-btn,
-    .tool-btn,
-    .pm-btn {
-        height: 36px;
-        font-size: 12px;
-    }
-
-    .in {
-        height: 38px !important;
-    }
-
-    table.t {
-        min-width: 640px;
-        font-size: 11px !important;
-    }
-
-    table.t thead th,
-    table.t tbody td {
-        padding: 6px 5px !important;
-    }
-
-    .statusbar {
-        font-size: 10px;
-    }
-}
-
-    .toolbar {
+    .rm-header__title {
         display: flex;
-        justify-content: flex-end;
         align-items: center;
-        gap: 6px;
-        padding: 8px 10px;
-        background: linear-gradient(#fff6f6, #ecd8d8);
-        border-top: 1px solid var(--line);
-        border-bottom: none;
-        font-size: 12px;
-        flex-wrap: wrap;
-        width: 100%;
+        gap: 12px;
+        min-width: 0;
     }
 
+    .rm-header__icon {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: var(--es-tinto);
+        color: #fff;
+        font-size: 19px;
+    }
 
+    .rm-header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.15;
+        color: var(--es-ink);
+    }
 
-        .filter-bottom-row .toolbar {
-            width: auto !important;
-            background: transparent !important;
-            border: none !important;
-            padding: 0 !important;
+    .rm-header p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+    .rm-header__acciones {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    /* ---------- Botones ---------- */
+    .rm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background: var(--es-field);
+        color: var(--es-ink);
+        font: 600 12.5px/1 var(--es-font);
+        white-space: nowrap;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background .12s, border-color .12s;
+    }
+
+        .rm-btn:hover {
+            background: var(--es-tinto-soft);
+            border-color: var(--es-tinto-line);
+            color: var(--es-ink);
         }
 
-    table.t:not(.t-romaneo) thead th:nth-child(3),
-    table.t:not(.t-romaneo) thead th:nth-child(4),
-    table.t:not(.t-romaneo) thead th:nth-child(5) {
-        background: #fff2a8 !important;
-        color: #3b1717 !important;
-    }
-    .filtro-botones {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #d2a7a7;
-}
+        .rm-btn.primary {
+            background: var(--es-tinto);
+            border-color: var(--es-tinto);
+            color: #fff;
+        }
 
-.filtro-botones .btnx,
-.filtro-botones .pm-btn,
-.filtro-botones .tool-btn {
-    height: 36px !important;
-    min-height: 36px !important;
-    padding: 0 16px !important;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    font-size: 13px !important;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-}
+            .rm-btn.primary:hover {
+                background: var(--es-tinto-deep);
+                border-color: var(--es-tinto-deep);
+                color: #fff;
+            }
 
-.filtro-botones .pm-btn-excel {
-    min-width: 220px;
-}
+        .rm-btn.excel i {
+            color: var(--es-ok);
+        }
 
-.filtro-botones .tool-btn {
-    min-width: 110px;
-}
-    
+        .rm-btn.sm {
+            height: 30px;
+            padding: 0 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
 
+        .rm-btn:disabled, .rm-btn.is-validating {
+            opacity: .6;
+            cursor: progress;
+            pointer-events: none;
+        }
 
-    /* =====================================================================
-       TEMA TINTO FINAL — ROMANEO / EMBARQUE POR TARIMA
-       Misma identidad visual del Dashboard de Ventas
-       Color principal: #8D3E46
+        .rm-btn:focus-visible {
+            outline: 2px solid var(--es-tinto);
+            outline-offset: 2px;
+        }
 
-       Se agrega al FINAL del <style> para conservar:
-       - Razor
-       - filtros
-       - multiselect
-       - responsive
-       - agrupación por pedido/tarima
-       - detalle de etiquetas
-       - Excel / Aviso de Movilización
-       - impresión
-       - JavaScript
-       ===================================================================== */
-
-    :root {
-        --bg: #f2e8ea;
-        --panel: #fffafa;
-        --panel-2: #f6edef;
-        --line: #d8c0c4;
-        --line-dark: #a36d75;
-        --text: #382329;
-        --muted: #76565d;
-
-        --brand: #8d3e46;
-
-        --vino-1: #5f2930;
-        --vino-2: #78343c;
-        --vino-3: #8d3e46;
-        --vino-4: #984a53;
-        --vino-5: #a9545e;
-
-        --vino-soft: #f7edef;
-        --vino-soft-2: #f1e4e7;
-        --vino-border: #a36d75;
-        --vino-text: #ffffff;
-        --vino-text-dark: #5f343b;
-
-        --sap-grid-bg: #faf4f5;
-        --sap-grid-border: #ddc7cb;
-        --sap-grid-border2: #b8878f;
-        --sap-grid-hover: #f1e1e4;
-        --sap-grid-head1: #8d3e46;
-        --sap-grid-head2: #78343c;
-        --sap-grid-headtext: #ffffff;
-
-        --print-red: #8d3e46;
+    /* ---------- Filtros ---------- */
+    .rm-card {
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-radius: 10px;
+        min-width: 0;
     }
 
-
-    /* -----------------------------------------------------------------
-       CONTENEDOR / SUPERFICIES
-       ----------------------------------------------------------------- */
-    .window {
-        border-color: #a36d75 !important;
-        background: #fffafa !important;
-
-        box-shadow:
-            0 0 0 1px rgba(255,255,255,.45) inset,
-            0 8px 18px rgba(91,44,51,.14) !important;
+    .rm-filtros {
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        position: relative;
+        z-index: 5;
     }
 
-    .content {
-        background: #f2e8ea !important;
+    .rm-filtros__grid {
+        display: grid;
+        grid-template-columns: 150px 150px repeat(3, minmax(150px, 1fr)) minmax(200px, 1.3fr);
+        gap: 10px;
+        align-items: end;
     }
 
-    .workspace,
-    .section,
-    .order-card,
-    .tarima-block {
-        border-color: #d8c0c4 !important;
-        background: #fffafa !important;
+    .rm-filtros__acciones {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--es-line);
     }
 
-
-    /* -----------------------------------------------------------------
-       ENCABEZADOS
-       ----------------------------------------------------------------- */
-    .titlebar,
-    .section-title,
-    .order-band {
-        background:
-            linear-gradient(
-                180deg,
-                #984a53 0%,
-                #8d3e46 55%,
-                #78343c 100%
-            ) !important;
-
-        color: #fff !important;
-        border-color: #6d3037 !important;
+    .rmx .label {
+        display: block;
+        margin: 0 0 5px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--es-muted);
     }
 
-
-    /* -----------------------------------------------------------------
-       TOOLBAR / TABS
-       ----------------------------------------------------------------- */
-    .toolbar {
-        background:
-            linear-gradient(
-                180deg,
-                #fffafa 0%,
-                #f1e4e7 100%
-            ) !important;
-
-        border-color: #d8c0c4 !important;
+    .rmx .in {
+        width: 100%;
+        height: 36px;
+        padding: 0 10px;
+        border: 1px solid var(--es-line-strong);
+        border-radius: 7px;
+        background-color: var(--es-field);
+        color: var(--es-ink);
+        font: 500 13px/1.2 var(--es-font);
+        outline: none;
+        box-shadow: none;
     }
 
-    .tab {
-        background:
-            linear-gradient(
-                180deg,
-                #fffafa 0%,
-                #f1e4e7 100%
-            ) !important;
+        .rmx .in:focus, .rmx .in:focus-visible {
+            border-color: var(--es-tinto);
+            box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+        }
 
-        border-color: #c9a8ae !important;
-        color: #663d45 !important;
+    body[data-theme="dark"] .rmx .in {
+        color-scheme: dark;
     }
 
-    .tab.active {
-        background:
-            linear-gradient(
-                180deg,
-                #984a53 0%,
-                #8d3e46 55%,
-                #78343c 100%
-            ) !important;
-
-        color: #fff !important;
-        border-color: #78343c !important;
+    .multi-dd > button.in {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        text-align: left;
+        cursor: pointer;
     }
 
+        .multi-dd > button.in.has-value {
+            border-color: var(--es-tinto);
+            background: var(--es-tinto-soft);
+            font-weight: 600;
+        }
 
-    /* -----------------------------------------------------------------
-       LABELS / FILTROS
-       ----------------------------------------------------------------- */
-    .label {
-        color: #704a51 !important;
+    .multi-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    input,
-    select,
-    textarea,
-    .form-control,
-    .form-select,
-    .form-control-sm,
-    .in {
-        border-color: #c9a8ae !important;
-        background: #fff !important;
-        color: #382329 !important;
+    .multi-dd .dropdown-menu {
+        padding: 8px !important;
+        max-height: 320px;
+        overflow-y: auto;
+        border: 1px solid var(--es-line-strong) !important;
+        border-radius: 10px !important;
+        background: var(--es-surface) !important;
+        box-shadow: 0 12px 30px rgba(0,0,0,.16) !important;
+        font-family: var(--es-font);
     }
 
-    .form-control:focus,
-    .form-select:focus,
-    .form-control-sm:focus,
-    .in:focus {
-        outline: none !important;
-        border-color: #8d3e46 !important;
-        box-shadow: 0 0 0 .18rem rgba(141,62,70,.14) !important;
+    .multi-dd .dd-search {
+        height: 32px;
+        border: 1px solid var(--es-line-strong) !important;
+        border-radius: 7px !important;
+        background: var(--es-field) !important;
+        color: var(--es-ink) !important;
+        font: 500 12.5px var(--es-font) !important;
+        box-shadow: none !important;
     }
 
-
-    /* -----------------------------------------------------------------
-       DROPDOWNS / CHECKBOX
-       ----------------------------------------------------------------- */
-    .dropdown-menu {
-        border-color: #c9a8ae !important;
-        background: #fffafa !important;
-        box-shadow: 0 8px 22px rgba(91,44,51,.18) !important;
+    .multi-dd .dd-item label {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        padding: 6px 8px;
+        margin: 0;
+        border-radius: 6px;
+        font-size: 12.5px;
+        color: var(--es-ink);
+        cursor: pointer;
     }
 
-    .dropdown-menu .form-check-input,
-    .dd-check {
-        accent-color: #8d3e46 !important;
+        .multi-dd .dd-item label:hover {
+            background: var(--es-tinto-soft);
+        }
+
+    .multi-dd .dd-check {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        accent-color: var(--es-tinto);
     }
 
-    .dropdown-menu .form-check-input:checked,
-    .dd-check:checked {
-        background-color: #8d3e46 !important;
-        border-color: #8d3e46 !important;
+    .multi-dd .dd-actions {
+        position: sticky;
+        bottom: -8px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 6px -8px -8px;
+        padding: 8px;
+        border-top: 1px solid var(--es-line);
+        background: var(--es-head);
     }
 
-    .dd-actions {
-        background: #fffafa !important;
+    /* ---------- Resumen general (tablero) ---------- */
+    .rm-tablero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        margin-bottom: 12px;
     }
 
-
-    /* -----------------------------------------------------------------
-       BOTONES
-       ----------------------------------------------------------------- */
-    .btnx,
-    .small-btn,
-    .tool-btn,
-    .btn-ghost {
-        border-color: #c9a8ae !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #ffffff 0%,
-                #f2e5e7 100%
-            ) !important;
-
-        color: #663d45 !important;
+    .rm-hero {
+        position: relative;
+        overflow: hidden;
+        padding: 16px 18px;
+        border-radius: 12px;
+        color: #fff;
+        background: radial-gradient(120% 140% at 100% 0%, #a65059 0%, #8d3e46 40%, #5c2229 100%);
     }
 
-    .btn-primary,
-    .dd-apply {
-        color: #fff !important;
-        border-color: #78343c !important;
+        .rm-hero::after {
+            content: "";
+            position: absolute;
+            right: -40px;
+            bottom: -60px;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.08);
+        }
 
-        background:
-            linear-gradient(
-                180deg,
-                #984a53 0%,
-                #8d3e46 55%,
-                #78343c 100%
-            ) !important;
+        .rm-hero small {
+            display: block;
+            font-size: 12px;
+            opacity: .85;
+        }
+
+        .rm-hero .big {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin: 2px 0 10px;
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -.02em;
+            font-variant-numeric: tabular-nums;
+        }
+
+            .rm-hero .big span {
+                font-size: 14px;
+                font-weight: 600;
+                opacity: .85;
+            }
+
+    .rm-hero__grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
     }
 
-    .btn-primary:hover,
-    .dd-apply:hover {
-        color: #fff !important;
-        filter: brightness(1.05) !important;
+        .rm-hero__grid div {
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.12);
+        }
+
+        .rm-hero__grid b {
+            display: block;
+            font-size: 17px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rm-hero__grid em {
+            font-style: normal;
+            font-size: 11px;
+            opacity: .85;
+        }
+
+    .rm-panel {
+        padding: 12px 14px;
     }
 
+        .rm-panel h2 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 0 0 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+        }
 
-    /* Excel / Aviso de Movilización conserva verde */
-    .pm-btn-excel,
-    .excel-btn {
-        color: #fff !important;
-        border-color: #146c43 !important;
+            .rm-panel h2 small {
+                font-size: 11px;
+                font-weight: 500;
+                color: var(--es-muted);
+            }
 
-        background:
-            linear-gradient(
-                180deg,
-                #198754 0%,
-                #146c43 100%
-            ) !important;
+    .rm-barras {
+        display: grid;
+        gap: 8px;
+        max-height: 190px;
+        overflow-y: auto;
     }
 
-    .pm-btn-excel i,
-    .pm-btn-excel span,
-    .excel-btn i {
-        color: #fff !important;
+    .rm-barra {
+        display: grid;
+        grid-template-columns: minmax(90px, .9fr) minmax(0, 1.4fr) auto;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 6px;
     }
 
+        .rm-barra:hover {
+            background: var(--es-hover);
+        }
 
-    /* -----------------------------------------------------------------
-       KPIs / PILLS
-       ----------------------------------------------------------------- */
-    .pill {
-        border-color: #d8c0c4 !important;
+        .rm-barra.is-on {
+            background: var(--es-tinto-soft);
+        }
 
-        background:
-            linear-gradient(
-                180deg,
-                #fff 0%,
-                #f5e9eb 100%
-            ) !important;
+        .rm-barra .nom {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .rm-barra .val {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+            .rm-barra .val small {
+                font-weight: 500;
+                color: var(--es-muted);
+            }
+
+    .rm-track {
+        height: 8px;
+        border-radius: 999px;
+        background: var(--es-neutral-bg);
+        overflow: hidden;
     }
 
-    .pill .kpi {
-        color: #78343c !important;
+    .rm-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--es-tinto), #b5636b);
+        transform-origin: left;
+        animation: rm-grow .7s ease-out both;
     }
 
+        .rm-fill.gold {
+            background: linear-gradient(90deg, var(--es-gold), #e2b46a);
+        }
 
-    /* -----------------------------------------------------------------
-       PEDIDOS / TARIMAS
-       ----------------------------------------------------------------- */
+    @@keyframes rm-grow {
+        from {
+            transform: scaleX(0);
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .rm-fill {
+            animation: none;
+        }
+    }
+
+    /* ---------- Barra de herramientas de resultados ---------- */
+    .rm-tools {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        box-shadow: 0 6px 16px rgba(35,26,28,.06);
+    }
+
+    .rm-busqueda {
+        position: relative;
+        flex: 1 1 280px;
+        max-width: 460px;
+    }
+
+        .rm-busqueda i {
+            position: absolute;
+            left: 11px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--es-muted);
+        }
+
+        .rm-busqueda input {
+            width: 100%;
+            height: 36px;
+            padding: 0 34px 0 34px;
+            border: 1px solid var(--es-line-strong);
+            border-radius: 999px;
+            background: var(--es-field);
+            color: var(--es-ink);
+            font: 500 13px var(--es-font);
+            outline: none;
+        }
+
+            .rm-busqueda input:focus {
+                border-color: var(--es-tinto);
+                box-shadow: 0 0 0 3px rgba(141,62,70,.16);
+            }
+
+        .rm-busqueda button {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 26px;
+            height: 26px;
+            border: 0;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--es-muted);
+            cursor: pointer;
+            display: none;
+        }
+
+        .rm-busqueda.has-text button {
+            display: grid;
+            place-items: center;
+        }
+
+    #rmConteo {
+        font-size: 12px;
+        color: var(--es-muted);
+    }
+
+    .rm-tools .sp {
+        flex: 1;
+    }
+
+    .rm-estado-resumen {
+        display: inline-flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        font-size: 11.5px;
+    }
+
+    /* ---------- Tarjeta de transferencia ---------- */
     .order-card {
-        box-shadow:
-            0 0 0 1px rgba(255,255,255,.45) inset,
-            0 8px 18px rgba(91,44,51,.10) !important;
+        margin-bottom: 12px;
+        border-radius: 12px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        overflow: hidden;
+        transition: box-shadow .15s;
+        animation: rm-in .35s ease-out both;
     }
+
+        .order-card:hover {
+            box-shadow: 0 8px 22px rgba(35,26,28,.08);
+        }
+
+    @@keyframes rm-in {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .order-card {
+            animation: none;
+        }
+    }
+
+    .order-card.is-hidden {
+        display: none;
+    }
+
+    .order-band {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        padding: 12px 14px;
+        cursor: pointer;
+        user-select: none;
+        border-bottom: 1px solid transparent;
+    }
+
+    .order-card:not(.is-collapsed) .order-band {
+        border-bottom-color: var(--es-line);
+        background: linear-gradient(180deg, var(--es-head), var(--es-surface));
+    }
+
+    .order-band:focus-visible {
+        outline: 2px solid var(--es-tinto);
+        outline-offset: -2px;
+    }
+
+    .rm-chevron {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: var(--es-tinto-soft);
+        color: var(--es-tinto);
+        transition: transform .18s;
+    }
+
+    .order-card:not(.is-collapsed) .rm-chevron {
+        transform: rotate(90deg);
+        background: var(--es-tinto);
+        color: #fff;
+    }
+
+    .rm-folio {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+        .rm-folio strong {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .rm-folio .meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--es-muted);
+        }
+
+            .rm-folio .meta i {
+                color: var(--es-tinto);
+                margin-right: 3px;
+            }
+
+    .rm-estatus {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        background: var(--es-neutral-bg);
+        color: var(--es-muted);
+    }
+
+        .rm-estatus.ok {
+            background: var(--es-ok-bg);
+            color: var(--es-ok);
+        }
+
+        .rm-estatus.warn {
+            background: var(--es-warn-bg);
+            color: var(--es-warn);
+        }
+
+        .rm-estatus.bad {
+            background: var(--es-bad-bg);
+            color: var(--es-bad);
+        }
+
+    .rm-totales {
+        display: flex;
+        gap: 8px;
+    }
+
+    .pill {
+        min-width: 92px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: var(--es-head);
+        border: 1px solid var(--es-line);
+        text-align: right;
+    }
+
+        .pill span {
+            display: block;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
+
+        .pill b {
+            font-size: 16px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+    .rm-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 0 14px 12px 58px;
+    }
+
+    .order-card:not(.is-collapsed) .rm-chips {
+        padding-top: 10px;
+    }
+
+    .rm-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        font-size: 11.5px;
+        cursor: pointer;
+    }
+
+        .rm-chip:hover {
+            border-color: var(--es-tinto);
+            color: var(--es-tinto);
+        }
+
+        .rm-chip i {
+            color: var(--es-gold);
+        }
+
+        .rm-chip b {
+            font-weight: 700;
+        }
 
     .order-body {
-        background: #fffafa !important;
+        padding: 4px 14px 14px;
+    }
+
+    .order-card.is-collapsed .order-body {
+        display: none;
     }
 
     .tarima-block {
-        border-color: #d8c0c4 !important;
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 10px;
+        background: var(--es-head);
+        border: 1px solid var(--es-line);
+        scroll-margin-top: 80px;
+    }
+
+        .tarima-block.is-flash {
+            animation: rm-flash 1.4s ease-out;
+        }
+
+    @@keyframes rm-flash {
+        from {
+            box-shadow: 0 0 0 3px var(--es-gold);
+        }
     }
 
     .tarima-title {
-        color: #5f343b !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
     }
+
+        .tarima-title .nom {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+        }
+
+            .tarima-title .nom i {
+                color: var(--es-gold);
+                font-size: 16px;
+            }
 
     .tag {
-        color: #78343c !important;
-        border-color: #d8c0c4 !important;
-        background: #fff !important;
+        display: inline-flex;
+        padding: 2px 9px;
+        border-radius: 999px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--es-tinto);
     }
 
-    .hr {
-        background: #e5d6d9 !important;
+    .rm-share {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 220px;
+        font-size: 11.5px;
+        color: var(--es-muted);
     }
 
+        .rm-share .rm-track {
+            flex: 1;
+            height: 6px;
+        }
 
-    /* -----------------------------------------------------------------
-       TABLAS
-       ----------------------------------------------------------------- */
-    .tablewrap,
-    .table-responsive {
-        border-color: #d8c0c4 !important;
-        background: #faf4f5 !important;
+    .tablewrap {
+        border: 1px solid var(--es-line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--es-surface);
     }
 
     table.t {
-        background: #faf4f5 !important;
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+        color: var(--es-ink);
     }
 
-    table.t thead th {
-        background:
-            linear-gradient(
-                180deg,
-                #984a53 0%,
-                #8d3e46 55%,
-                #78343c 100%
-            ) !important;
+        table.t thead th {
+            padding: 8px 10px;
+            background: var(--es-surface);
+            border-bottom: 1px solid var(--es-line);
+            color: var(--es-muted);
+            font-size: 11.5px;
+            font-weight: 600;
+            text-align: left;
+            white-space: nowrap;
+        }
 
-        color: #fff !important;
-        border-color: #6d3037 !important;
+            table.t thead th.text-end {
+                text-align: right;
+            }
+
+        table.t tbody td {
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--es-row-line);
+            background: var(--es-surface);
+            vertical-align: middle;
+            overflow-wrap: anywhere;
+        }
+
+            table.t tbody td.text-end {
+                white-space: nowrap;
+                overflow-wrap: normal;
+            }
+
+        table.t tbody tr:hover td {
+            background: var(--es-hover);
+        }
+
+        table.t tbody tr.rm-total td {
+            background: var(--es-head);
+            font-weight: 700;
+            border-bottom: 0;
+        }
+
+        table.t tbody tr.rm-match td {
+            background: #fff4c2 !important;
+        }
+
+    body[data-theme="dark"] table.t tbody tr.rm-match td {
+        background: #4a3f18 !important;
     }
 
-    table.t tbody td {
-        background: #fffafa !important;
-        color: #342226 !important;
-        border-color: #e5d6d9 !important;
+    table.t td:first-child {
+        font-weight: 600;
     }
 
-    table.t tbody tr:nth-child(even) td {
-        background: #faf4f5 !important;
-    }
-
-    table.t tbody tr:hover td {
-        background: #f1e1e4 !important;
-    }
-
-
-    /* Columnas amarillas especiales se conservan */
-    table.t:not(.t-romaneo) thead th:nth-child(3),
-    table.t:not(.t-romaneo) thead th:nth-child(4),
-    table.t:not(.t-romaneo) thead th:nth-child(5),
-    table.t:not(.t-romaneo) tbody td:nth-child(3),
-    table.t:not(.t-romaneo) tbody td:nth-child(4),
-    table.t:not(.t-romaneo) tbody td:nth-child(5) {
-        background: #fff2a8 !important;
-        color: #382329 !important;
-    }
-
-
-    /* -----------------------------------------------------------------
-       DETALLE DE ETIQUETAS
-       ----------------------------------------------------------------- */
     .detail-toggle {
-        border-color: #d8c0c4 !important;
-        background: #fffafa !important;
+        margin-top: 8px;
+        border-radius: 8px;
+        border: 1px solid var(--es-line);
+        background: var(--es-surface);
+        overflow: hidden;
     }
 
-    .detail-toggle summary {
-        background:
-            linear-gradient(
-                180deg,
-                #fffafa 0%,
-                #f1e4e7 100%
-            ) !important;
+        .detail-toggle summary {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--es-muted);
+        }
 
-        color: #5f343b !important;
+            .detail-toggle summary::-webkit-details-marker {
+                display: none;
+            }
+
+            .detail-toggle summary:hover {
+                color: var(--es-ink);
+            }
+
+        .detail-toggle .summary-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .detail-toggle .summary-icon {
+            transition: transform .15s;
+            color: var(--es-tinto);
+        }
+
+        .detail-toggle[open] .summary-icon {
+            transform: rotate(90deg);
+        }
+
+        .detail-toggle[open] summary {
+            border-bottom: 1px solid var(--es-line);
+        }
+
+        .detail-toggle .detail-body {
+            padding: 8px;
+        }
+
+        .detail-toggle .tablewrap {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .detail-toggle table.t thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--es-head);
+        }
+
+    .rm-pie-pedido {
+        display: flex;
+        justify-content: flex-end;
+        gap: 16px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--es-muted);
     }
 
-    .detail-toggle[open] summary {
-        border-bottom-color: #d8c0c4 !important;
-    }
+        .rm-pie-pedido b {
+            color: var(--es-ink);
+        }
 
-    .detail-toggle .summary-icon {
-        color: #8d3e46 !important;
-    }
-
-    .detail-toggle .detail-body {
-        background: #fffafa !important;
-    }
-
-
-    /* -----------------------------------------------------------------
-       VACÍOS / ESTADO
-       ----------------------------------------------------------------- */
     .empty {
-        color: #76565d !important;
-        border-color: #d8c0c4 !important;
-        background: #fffafa !important;
+        padding: 48px 20px;
+        border-radius: 12px;
+        border: 1px dashed var(--es-line-strong);
+        background: var(--es-surface);
+        text-align: center;
+        color: var(--es-muted);
+    }
+
+        .empty i {
+            display: block;
+            font-size: 34px;
+            margin-bottom: 8px;
+            color: var(--es-line-strong);
+        }
+
+        .empty b {
+            display: block;
+            font-size: 15px;
+            color: var(--es-ink);
+            margin-bottom: 4px;
+        }
+
+    #rmSinCoincidencias {
+        display: none;
     }
 
     .statusbar {
-        color: #67454b !important;
-        border-top-color: #d1b4b9 !important;
-
-        background:
-            linear-gradient(
-                180deg,
-                #f7edef 0%,
-                #ecdcdf 100%
-            ) !important;
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        padding-top: 4px;
+        font-size: 11.5px;
+        color: var(--es-muted);
     }
 
-
-    /* -----------------------------------------------------------------
-       MODAL / OVERLAY DE EXCEL
-       El botón y operación siguen en verde.
-       ----------------------------------------------------------------- */
-    .excel-modal {
-        border-color: #d8c0c4 !important;
-        background: #fffafa !important;
-    }
-
-
-    /* =====================================================================
-       IMPRESIÓN — MISMO TINTO
-       ===================================================================== */
-    @@media print {
-
-        .print-top {
-            border-bottom-color: #8d3e46 !important;
-        }
-
-        table.t thead th {
-            border-color: #8d3e46 !important;
-            background: #8d3e46 !important;
-            color: #fff !important;
-        }
-
-        .print-title,
-        .print-title * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .kpi-box div[style*="var(--print-red)"] {
-            color: #8d3e46 !important;
-        }
-    }
-
-
-    /* =====================================================================
-       FIN TEMA TINTO
-       ===================================================================== */
-
-
-    /* =====================================================================
-       VALIDACIÓN DE IMPRESIÓN
-       Solo permite mostrar/imprimir cuando TODAS las transferencias visibles
-       están actualmente en Estatus = 5.
-       ===================================================================== */
-
-    .print-status-toast {
+    /* ---------- Overlays ---------- */
+    #excelOverlay {
         position: fixed;
-        top: 18px;
-        right: 18px;
-        z-index: 100000;
-        width: min(430px, calc(100vw - 36px));
+        inset: 0;
+        z-index: 2100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(22,24,28,.45);
+    }
+
+        #excelOverlay.show {
+            display: flex;
+        }
+
+    .excel-modal {
+        width: min(400px, 92vw);
+        padding: 22px 18px;
+        border-radius: 12px;
+        background: var(--es-surface);
+        color: var(--es-ink);
+        box-shadow: 0 18px 50px rgba(0,0,0,.28);
+        text-align: center;
+    }
+
+    .excel-title {
+        margin-top: 12px;
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .excel-sub {
+        margin-top: 2px;
+        font-size: 12.5px;
+        color: var(--es-muted);
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        margin: 0 auto;
+        border: 4px solid var(--es-tinto-line);
+        border-top-color: var(--es-ok);
+        border-radius: 50%;
+        animation: rm-spin .8s linear infinite;
+    }
+
+    @@keyframes rm-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .rm-toast {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 2100;
+        width: min(440px, calc(100vw - 32px));
         display: flex;
         align-items: flex-start;
         gap: 10px;
         padding: 12px 14px;
-        border: 1px solid #d7a0a6;
-        border-left: 5px solid #8d3e46;
-        border-radius: 8px;
-        background: #fffafa;
-        color: #4b2b31;
-        box-shadow: 0 10px 30px rgba(40, 30, 32, .20);
+        border-radius: 10px;
+        background: var(--es-surface);
+        border: 1px solid var(--es-line);
+        border-left: 4px solid var(--es-warn);
+        box-shadow: 0 12px 30px rgba(0,0,0,.18);
         font-size: 13px;
-        line-height: 1.35;
-        font-weight: 700;
         opacity: 0;
-        transform: translateY(-12px);
+        transform: translateY(-10px);
         pointer-events: none;
-        transition: opacity .18s ease, transform .18s ease;
+        transition: opacity .18s, transform .18s;
     }
 
-    .print-status-toast.show {
-        opacity: 1;
-        transform: translateY(0);
+        .rm-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .rm-toast .print-status-icon {
+            color: var(--es-warn);
+            font-size: 17px;
+        }
+
+    @@media (max-width: 1300px) {
+        .rm-filtros__grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .rm-tablero {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .rm-hero {
+            grid-column: 1 / -1;
+        }
     }
 
-    .print-status-toast .print-status-icon {
-        flex: 0 0 auto;
-        font-size: 18px;
-        line-height: 1;
-        color: #8d3e46;
-        margin-top: 1px;
+    @@media (max-width: 760px) {
+        .rm-filtros__grid, .rm-tablero, .rm-hero__grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .order-band {
+            grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .rm-totales {
+            grid-column: 1 / -1;
+        }
+
+        .rm-chips {
+            padding-left: 14px;
+        }
     }
 
-    .print-status-toast .print-status-text {
-        flex: 1 1 auto;
-        min-width: 0;
+    /* =========================== IMPRESIÓN =========================== */
+    @@page {
+        size: Letter portrait;
+        margin: 10mm 8mm;
     }
 
-    #btnImprimirRomaneo.is-validating {
-        opacity: .65;
-        cursor: wait !important;
-        pointer-events: none;
-    }
-
-    /*
-       Protección adicional:
-       si alguien intenta Ctrl+P / menú del navegador sin pasar primero
-       la validación, el documento real no se muestra en impresión.
-    */
     @@media print {
+        html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .layout-navbar, .layout-sidebar, .layout-sidebar-hover-zone, #layout-toggle-sidebar-btn, #layout-chat-fab, #layout-manual-fab, #layout-chat-panel, footer.layout-footer, .sigo-ctx {
+            display: none !important;
+        }
+
+        .layout-main-content, .layout-container-fluid {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            max-width: none !important;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        .print-only {
+            display: block !important;
+        }
+
+        .rmx {
+            padding: 0 !important;
+            background: #fff !important;
+            color: #111 !important;
+            font-size: 10px !important;
+        }
+        /* La impresión siempre incluye todo, aunque haya filtros rápidos o tarjetas cerradas */
+        .order-card, .order-card.is-hidden {
+            display: block !important;
+            margin: 0 0 6px !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            animation: none !important;
+        }
+
+            .order-card.is-collapsed .order-body {
+                display: block !important;
+            }
+
+        .order-band, .rm-chips, .rm-pie-pedido, .tarima-title, .detail-toggle {
+            display: none !important;
+        }
+
+        .order-body {
+            padding: 0 !important;
+        }
+
+        .tarima-block {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+        }
+
+        .print-top {
+            display: grid !important;
+            grid-template-columns: 150px 1fr 210px;
+            gap: 8px;
+            align-items: start;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #8d3e46;
+        }
+
+        .print-logo img {
+            max-width: 140px;
+            height: auto;
+        }
+
+        .print-title .t1 {
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            color: #111;
+            line-height: 1.15;
+        }
+
+        .print-title .t2 {
+            font-size: 9.5px;
+            text-align: center;
+            color: #444;
+        }
+
+        .print-meta {
+            font-size: 9.5px;
+            line-height: 1.5;
+            color: #222;
+        }
+
+        .print-kpis {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 8px 0 10px;
+        }
+
+        .kpi-box {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+            .kpi-box b {
+                display: block;
+                font-size: 16px;
+                font-weight: 800;
+                color: #8d3e46;
+            }
+
+            .kpi-box span {
+                font-size: 9.5px;
+                color: #111;
+            }
+
+        .print-bar {
+            display: flex !important;
+            justify-content: space-between;
+            padding: 5px 8px;
+            margin: 8px 0 0;
+            background: #6b6b6b !important;
+            color: #fff !important;
+            font-size: 10.5px;
+            font-weight: 800;
+        }
+
+            .print-bar.small {
+                margin-top: 2px;
+                background: #9a9a9a !important;
+                font-size: 10px;
+                font-weight: 700;
+            }
+
+        .tablewrap {
+            margin-top: 2px !important;
+            border: 1px solid #ccc !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        table.t {
+            border-collapse: collapse !important;
+            font-size: 9.5px !important;
+            color: #111 !important;
+        }
+
+            table.t thead {
+                display: table-header-group;
+            }
+
+                table.t thead th {
+                    padding: 4px 6px !important;
+                    border: 1px solid #8d3e46 !important;
+                    background: #8d3e46 !important;
+                    color: #fff !important;
+                    font-size: 9.5px !important;
+                }
+
+            table.t tbody td {
+                padding: 3px 6px !important;
+                border: 1px solid #ddd !important;
+                background: #fff !important;
+                color: #111 !important;
+            }
+
+            table.t tbody tr:nth-child(even) td {
+                background: #f6f6f6 !important;
+            }
+
+            table.t tbody tr.rm-total td {
+                font-weight: 800 !important;
+                border-top: 2px solid #bbb !important;
+                background: #fff !important;
+            }
+
+            table.t tbody tr.rm-match td {
+                background: #fff !important;
+            }
+
+        .print-top, .print-kpis, .print-bar {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        #excelOverlay, .rm-toast {
+            display: none !important;
+        }
+        /* Regla sin cambios: solo se imprime si todas las transferencias están en estatus 5 (Surtido) */
         body:not(.romaneo-print-autorizado) .romaneo-transferencias-app {
             display: none !important;
         }
 
         body:not(.romaneo-print-autorizado)::before {
-            content: "No puedes mostrar este documento porque el pedido aún no ha sido validado.";
+            content: "Este documento solo se puede imprimir cuando todas las transferencias están surtidas.";
             display: block !important;
             margin: 30mm auto !important;
             width: 80% !important;
@@ -1727,810 +1436,573 @@ html, body, .window, .content, .workspace, .section,
             content: none !important;
         }
     }
-
 </style>
 
-<link rel="stylesheet" href="~/css/romaneo-transferencias-erp-compacto.css" asp-append-version="true" />
-<link rel="stylesheet" href="~/css/carga-vaquita.css" asp-append-version="true" />
+<div class="rmx window romaneo-transferencias-app">
 
-<div class="window romaneo-transferencias-app">
-
-@*     <div class="titlebar no-print">
-        <div></div>
-        <div class="actions">
-            <div class="win-btn"></div>
-            <div class="win-btn"></div>
-            <div class="win-btn"></div>
+    <!-- ===================== Encabezado de impresión ===================== -->
+    <div class="print-only">
+        <div class="print-top">
+            <div class="print-logo"><img src="@logoUrl" alt="SIGO" /></div>
+            <div class="print-title">
+                <div class="t1">Embarque concentrado por tarima</div>
+                <div class="t2">Información concentrada de cada transferencia surtida, agrupada por tarima.</div>
+            </div>
+            <div class="print-meta">
+                <div><b>Fecha inicial:</b> @(Model?.Desde?.ToString("dd/MM/yyyy") ?? "")</div>
+                <div><b>Fecha final:</b> @(Model?.Hasta?.ToString("dd/MM/yyyy") ?? "")</div>
+                <div><b>Destino:</b> @(destSel.Any() ? string.Join(", ", destSel) : "TODOS")</div>
+                <div><b>Transferencia:</b> @(pedSel.Any() ? string.Join(", ", pedSel) : "TODAS")</div>
+                <div><b>Tarima:</b> @(tarSel.Any() ? string.Join(", ", tarSel) : "TODAS")</div>
+                @if (!string.IsNullOrWhiteSpace(codigoEtiquetaDef))
+                {
+                    <div><b>Etiqueta:</b> @codigoEtiquetaDef</div>
+                }
+                <div><b>Impreso:</b> @DateTime.Now.ToString("dd/MM/yyyy HH:mm") · @(User?.Identity?.Name ?? "")</div>
+            </div>
         </div>
-    </div> *@
+        <div class="print-kpis">
+            <div class="kpi-box"><b>@totalTransferencias</b><span>Transferencias</span></div>
+            <div class="kpi-box"><b>@totalTarimas</b><span>Tarimas</span></div>
+            <div class="kpi-box"><b>@totalCajasGlobal.ToString("N0")</b><span>Cajas surtidas</span></div>
+            <div class="kpi-box"><b>@totalPesoGlobal.ToString("N0") kg</b><span>Kilogramos surtidos</span></div>
+        </div>
+    </div>
 
+    <!-- ===================== Encabezado de pantalla ===================== -->
+    <header class="rm-header no-print">
+        <div class="rm-header__title">
+            <span class="rm-header__icon"><i class="bi bi-boxes"></i></span>
+            <div>
+                <h1>Embarque concentrado por tarima</h1>
+                <p>Reporte de transferencias surtidas: qué se cargó en cada tarima, con su detalle de etiquetas, aviso de movilización e impresión.</p>
+            </div>
+        </div>
+        <div class="rm-header__acciones">
+            <a id="btnExcelAviso" class="rm-btn excel pm-btn-excel" href="javascript:void(0);"><i class="bi bi-file-earmark-spreadsheet"></i> <span>Aviso de movilización</span></a>
+            <button type="button" class="rm-btn primary" id="btnImprimirRomaneo" title="Solo si todas las transferencias están surtidas"><i class="bi bi-printer"></i> Imprimir</button>
+        </div>
+    </header>
 
-
-    <div class="content">
-
-
-        <div class="workspace">
-
-            <!-- PRINT HEADER -->
-            <div class="print-only">
-                <div class="print-top">
-                    <div class="print-logo">
-                        <img src="@logoUrl" alt="Logo" />
-                    </div>
-                    <div class="print-title">
-                        <div style="font-size:28px;font-weight:900;margin:0 0 3px;color:#111;text-align:center;">Embarque concentrado por tarima</div>
-                        <div style="font-size:10.5px;color:#333;line-height:1.3;">
-                            Muestra la información concentrada de cada pedido surtido, agrupada por tarima.
-                        </div>
-                    </div>
-                    <div class="print-meta" style="font-size:11px;line-height:1.4;">
-                        <div><b>Fecha Inicial:</b> @(Model?.Desde?.ToString("dd/MM/yyyy") ?? "")</div>
-                        <div><b>Fecha Final:</b> @(Model?.Hasta?.ToString("dd/MM/yyyy") ?? "")</div>
-                        <div><b>Destino:</b> @(destSel.Any() ? string.Join(", ", destSel) : "TODOS")</div>
-                        <div><b>Transferencia:</b> @(pedSel.Any() ? string.Join(", ", pedSel) : "TODOS")</div>
-                        <div><b>Tarima:</b> @(tarSel.Any() ? string.Join(", ", tarSel) : "TODAS")</div>
-                        <div><b>Impreso:</b> @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</div>
-                    </div>
+    <!-- ===================== Filtros ===================== -->
+    <section class="rm-card rm-filtros no-print">
+        <form id="frmRomaneo" method="get">
+            <div class="rm-filtros__grid">
+                <div>
+                    <label class="label" for="f-desde">Fecha inicial</label>
+                    <input type="date" id="f-desde" class="in" name="desde" value="@desdeDef" />
                 </div>
-
-                <div class="print-kpis">
-                    <div class="kpi-box">
-                        <div style="font-size:28px;line-height:1;">📦</div>
-                        <div>
-                            <div style="font-size:18px;font-weight:900;color:var(--print-red);line-height:1.1;">@totalCajasGlobal</div>
-                            <div style="font-size:11px;color:#111;">Unidades Surtidas</div>
+                <div>
+                    <label class="label" for="f-hasta">Fecha final</label>
+                    <input type="date" id="f-hasta" class="in" name="hasta" value="@hastaDef" />
+                </div>
+                @{
+                    var multis = new[] {
+                        new { Id = "dd-destino", Titulo = "Destino", Lista = Model?.Destinos ?? new List<string>(), Sel = destSel, Vacio = "Todos", Plural = "seleccionados", Name = "destinosSel", Buscar = "Buscar destino…" },
+                        new { Id = "dd-pedido", Titulo = "Transferencia", Lista = Model?.Pedidos ?? new List<string>(), Sel = pedSel, Vacio = "Todas", Plural = "seleccionadas", Name = "pedidosSel", Buscar = "Buscar transferencia…" },
+                        new { Id = "dd-tarima", Titulo = "Tarima", Lista = Model?.Tarimas ?? new List<string>(), Sel = tarSel, Vacio = "Todas", Plural = "seleccionadas", Name = "tarimasSel", Buscar = "Buscar tarima…" }
+                    };
+                }
+                @foreach (var m in multis)
+                {
+                    <div>
+                        <label class="label" for="@(m.Id)-btn">@m.Titulo</label>
+                        <div class="dropdown w-100 multi-dd" id="@m.Id" data-name="@m.Name" data-vacio="@m.Vacio" data-plural="@m.Plural">
+                            <button class="in @(m.Sel.Any() ? "has-value" : "")" id="@(m.Id)-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                <span class="multi-label">@LabelMulti(m.Sel, m.Vacio, m.Plural)</span><i class="bi bi-chevron-down" style="font-size:11px;color:var(--es-muted)"></i>
+                            </button>
+                            <ul class="dropdown-menu w-100">
+                                <li class="mb-2"><input type="text" class="form-control dd-search" placeholder="@m.Buscar" aria-label="@m.Buscar" /></li>
+                                @{
+                                    var i = 0;
+                                }
+                                @foreach (var v in m.Lista)
+                                {
+                                    var id = $"{m.Id}_{i++}";
+                                    <li class="dd-item" data-text="@v">
+                                        <label for="@id"><input class="dd-check" type="checkbox" value="@v" id="@id" @(m.Sel.Contains(v) ? "checked" : null) /> <span>@v</span></label>
+                                    </li>
+                                }
+                                <li class="dd-actions">
+                                    <button type="button" class="rm-btn sm dd-clear">Limpiar</button>
+                                    <button type="button" class="rm-btn sm primary dd-apply">Aplicar</button>
+                                </li>
+                            </ul>
+                            <div class="dd-hidden">
+                                @foreach (var v in m.Sel)
+                                {
+                                    <input type="hidden" name="@m.Name" value="@v" />
+                                }
+                            </div>
                         </div>
                     </div>
-                    <div class="kpi-box">
-                        <div style="font-size:28px;line-height:1;">⚖️</div>
-                        <div>
-                            <div style="font-size:18px;font-weight:900;color:var(--print-red);line-height:1.1;">@totalPesoGlobal.ToString("N0") Kg</div>
-                            <div style="font-size:11px;color:#111;">Kilogramos Surtidos</div>
-                        </div>
-                    </div>
+                }
+                <div>
+                    <label class="label" for="f-etiqueta">Código de etiqueta</label>
+                    <input type="text" id="f-etiqueta" class="in" name="codigoEtiqueta" value="@codigoEtiquetaDef" placeholder="Ej. DEST0002343115101" autocomplete="off" />
                 </div>
             </div>
-
-            <!-- FILTROS -->
-            <div class="section no-print">
-                <div class="section-title"><i class="bi bi-funnel"></i> Filtros de búsqueda</div>
-                <form id="frmRomaneo" method="get" style="padding:10px; background:var(--panel-2);">
-                    <div class="grid">
-
-                        <div class="gcol-3">
-                            <div class="label">Fecha inicial</div>
-                            <input type="date" class="in" name="desde" value="@desdeDef" />
-                        </div>
-
-                        <div class="gcol-3">
-                            <div class="label">Fecha final</div>
-                            <input type="date" class="in" name="hasta" value="@hastaDef" />
-                        </div>
-
-                        <div class="gcol-2">
-                            <div class="label">Destino</div>
-                            <div class="dropdown w-100 multi-dd" id="dd-destino">
-                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
-                                    <span class="multi-label">@LabelMulti(destSel, "(Todos)", "seleccionados")</span>
-                                    <span style="margin-left:10px;">▾</span>
-                                </button>
-                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
-                                    <li class="mb-2">
-                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar destino..." />
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    @foreach (var d in (Model?.Destinos ?? new List<string>()))
-                                    {
-                                        var isChecked = destSel.Contains(d);
-                                        var id = "dest_" + d.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
-                                        <li class="px-1 dd-item" data-text="@d">
-                                            <div class="form-check">
-                                                <input class="form-check-input dd-check" type="checkbox" value="@d" id="@id" data-text="@d" @(isChecked ? "checked" : null) />
-                                                <label class="form-check-label" for="@id">@d</label>
-                                            </div>
-                                        </li>
-                                    }
-                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
-                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
-                                    </li>
-                                </ul>
-                                <div class="dd-hidden">
-                                    @foreach (var d in destSel) { <input type="hidden" name="destinosSel" value="@d" /> }
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="gcol-2">
-                            <div class="label">Transferencia</div>
-                            <div class="dropdown w-100 multi-dd" id="dd-pedido">
-                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
-                                    <span class="multi-label">@LabelMulti(pedSel, "(Todos)", "seleccionados")</span>
-                                    <span style="margin-left:10px;">▾</span>
-                                </button>
-                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
-                                    <li class="mb-2">
-                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar transferencia..." />
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    @foreach (var p in (Model?.Pedidos ?? new List<string>()))
-                                    {
-                                        var isChecked = pedSel.Contains(p);
-                                        var id = "ped_" + p.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
-                                        <li class="px-1 dd-item" data-text="@p">
-                                            <div class="form-check">
-                                                <input class="form-check-input dd-check" type="checkbox" value="@p" id="@id" data-text="@p" @(isChecked ? "checked" : null) />
-                                                <label class="form-check-label" for="@id">@p</label>
-                                            </div>
-                                        </li>
-                                    }
-                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
-                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
-                                    </li>
-                                </ul>
-                                <div class="dd-hidden">
-                                    @foreach (var p in pedSel) { <input type="hidden" name="pedidosSel" value="@p" /> }
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="gcol-2">
-                            <div class="label">Tarima</div>
-                            <div class="dropdown w-100 multi-dd" id="dd-tarima">
-                                <button class="in" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                        style="text-align:left; display:flex; align-items:center; justify-content:space-between;">
-                                    <span class="multi-label">@LabelMulti(tarSel, "(Todas)", "seleccionadas")</span>
-                                    <span style="margin-left:10px;">▾</span>
-                                </button>
-                                <ul class="dropdown-menu w-100 p-2" style="max-height:260px; overflow-y:auto;">
-                                    <li class="mb-2">
-                                        <input type="text" class="form-control form-control-sm dd-search" placeholder="Buscar tarima..." />
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    @foreach (var t in (Model?.Tarimas ?? new List<string>()))
-                                    {
-                                        var isChecked = tarSel.Contains(t);
-                                        var id = "tar_" + t.Replace(" ", "_").Replace("/", "_").Replace("\\", "_");
-                                        <li class="px-1 dd-item" data-text="@t">
-                                            <div class="form-check">
-                                                <input class="form-check-input dd-check" type="checkbox" value="@t" id="@id" data-text="@t" @(isChecked ? "checked" : null) />
-                                                <label class="form-check-label" for="@id">@t</label>
-                                            </div>
-                                        </li>
-                                    }
-                                    <li class="dd-actions mt-2 d-flex justify-content-between gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary dd-clear">Limpiar</button>
-                                        <button type="button" class="btn btn-sm btn-primary dd-apply">Aplicar</button>
-                                    </li>
-                                </ul>
-                                <div class="dd-hidden">
-                                    @foreach (var t in tarSel) { <input type="hidden" name="tarimasSel" value="@t" /> }
-                                </div>
-                            </div>
-                        </div>
-
-                       <div class="gcol-3">
-    <div class="label">Código etiqueta</div>
-    <input type="text" class="in" name="codigoEtiqueta" value="@codigoEtiquetaDef" placeholder="Ej. DEST0002343115101" />
-</div>
-
-
-
-                        <div class="gcol-12 filtro-botones no-print">
-                            <button class="btnx btn-primary" type="submit">
-                                <i class="bi bi-search"></i><span>Buscar</span>
-                            </button>
-
-                            <a class="btnx btn-ghost" href="@Url.Action("RomaneoTransferencia", "Transferencias")">
-                                Limpiar
-                            </a>
-
-                            <a id="btnExcelAviso"
-                               class="pm-btn pm-btn-excel"
-                               href="javascript:void(0);"
-                               data-url="@excelUrl">
-                                <i class="bi bi-filetype-xls"></i> <span>Aviso de Movilización</span>
-                            </a>
-
-                            <button type="button" class="tool-btn" id="btnImprimirRomaneo">
-                                <i class="fa-solid fa-print"></i> Imprimir
-                            </button>
-                        </div>
-
-                    </div>
-                </form>
+            <div class="rm-filtros__acciones">
+                <a class="rm-btn" href="@Url.Action("RomaneoTransferencia", "Transferencias")"><i class="bi bi-eraser"></i> Limpiar</a>
+                <button class="rm-btn primary" type="submit"><i class="bi bi-search"></i> Buscar</button>
             </div>
+        </form>
+    </section>
 
-            <!-- RESULTADOS -->
-            <div class="section">
-                @* <div class="section-title">Listado de embarques por tarima</div> *@
-                <div style="padding:10px;">
-
-                    @if (!rows.Any())
+    @if (!rows.Any())
+    {
+        <div class="empty no-print">
+            <i class="bi bi-inbox"></i>
+            <b>Sin resultados</b>
+            No hay transferencias surtidas con los filtros seleccionados. Prueba con otro rango de fechas.
+        </div>
+    }
+    else
+    {
+        <!-- ===================== Tablero ===================== -->
+        <section class="rm-tablero no-print">
+            <div class="rm-hero">
+                <small>Total surtido en el periodo</small>
+                <div class="big">@totalPesoGlobal.ToString("N0") <span>kg</span></div>
+                <div class="rm-hero__grid">
+                    <div><b>@totalTransferencias</b><em>Transferencias</em></div>
+                    <div><b>@totalTarimas</b><em>Tarimas</em></div>
+                    <div><b>@totalCajasGlobal.ToString("N0")</b><em>Cajas</em></div>
+                    <div><b>@kgPorCaja.ToString("N1")</b><em>Kg por caja</em></div>
+                </div>
+            </div>
+            <div class="rm-card rm-panel">
+                <h2>Por destino <small>clic para filtrar</small></h2>
+                <div class="rm-barras" id="rmDestinos">
+                    @foreach (var d in porDestino)
                     {
-                        <div class="empty">Sin resultados para los filtros seleccionados.</div>
+                        var w = Math.Round((d.Kg / maxKgDestino) * 100m, 1);
+                        <div class="rm-barra" data-destino="@d.Destino" role="button" tabindex="0" title="@d.Destino · @d.Transf transferencia(s) · @d.Cajas cajas">
+                            <span class="nom">@d.Destino</span>
+                            <span class="rm-track"><span class="rm-fill" style="display:block;width:@(w.ToString(inv))%"></span></span>
+                            <span class="val">@d.Kg.ToString("N0") <small>kg</small></span>
+                        </div>
                     }
-                    else
+                </div>
+            </div>
+            <div class="rm-card rm-panel">
+                <h2>Productos con más kilos <small>clic para buscar</small></h2>
+                <div class="rm-barras" id="rmTopSkus">
+                    @foreach (var s in topSkus)
                     {
-                        var grupos = rows
-                            .GroupBy(r => new { r.Pedido, r.Fecha, r.Destino })
-                            .OrderBy(g => g.Key.Fecha)
-                            .ThenBy(g => g.Key.Pedido);
+                        var w = Math.Round((s.Kg / maxKgSku) * 100m, 1);
+                        <div class="rm-barra" data-sku="@s.ProductoCodigo" role="button" tabindex="0" title="@s.ProductoCodigo · @s.ProductoNombre · @s.Cajas cajas">
+                            <span class="nom">@s.ProductoCodigo</span>
+                            <span class="rm-track"><span class="rm-fill gold" style="display:block;width:@(w.ToString(inv))%"></span></span>
+                            <span class="val">@s.Kg.ToString("N0") <small>kg</small></span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
 
-                        foreach (var g in grupos)
+        <!-- ===================== Herramientas ===================== -->
+        <div class="rm-tools no-print">
+            <div class="rm-busqueda" id="rmBusquedaWrap">
+                <i class="bi bi-search"></i>
+                <input type="search" id="rmBuscar" placeholder="Buscar folio, destino, tarima, SKU, producto o etiqueta…" aria-label="Buscar dentro de los resultados" autocomplete="off" />
+                <button type="button" id="rmBuscarLimpiar" aria-label="Limpiar búsqueda"><i class="bi bi-x"></i></button>
+            </div>
+            <span id="rmConteo">@totalTransferencias transferencias</span>
+            <span class="rm-estado-resumen" id="rmEstadoResumen"></span>
+            <span class="sp"></span>
+            <button type="button" class="rm-btn sm" id="rmExpandir"><i class="bi bi-arrows-expand"></i> Abrir todas</button>
+            <button type="button" class="rm-btn sm" id="rmContraer"><i class="bi bi-arrows-collapse"></i> Cerrar todas</button>
+        </div>
+
+        <div class="empty no-print" id="rmSinCoincidencias"><i class="bi bi-search"></i><b>Sin coincidencias</b>Ninguna transferencia contiene lo que buscas.</div>
+
+        <!-- ===================== Transferencias ===================== -->
+        <div id="rmLista">
+            @{
+                var nCard = 0;
+            }
+            @foreach (var g in grupos)
+            {
+                var totalCajas = g.Sum(x => x.Cajas);
+                var totalPeso = g.Sum(x => x.Peso);
+                var transfId = g.First().TransferenciaId;
+                var tarimasGrp = g.GroupBy(x => TarimaKey(x.Tarima)).OrderBy(t => t.Key).ToList();
+                var cardId = $"tr-{nCard++}";
+                var busqueda = string.Join(" ", new[] { g.Key.Pedido, g.Key.Destino }
+                    .Concat(g.Select(x => x.Tarima)).Concat(g.Select(x => x.ProductoCodigo)).Concat(g.Select(x => x.ProductoNombre))
+                    .Concat(detalle.Where(x => x.TransferenciaId == transfId).Select(x => x.CodigoEtiqueta))
+                    .Where(x => !string.IsNullOrWhiteSpace(x))).ToLowerInvariant();
+
+                <article class="order-card avoid-break @(grupos.Count > 3 ? "is-collapsed" : "")" id="@cardId" data-transferencia-id="@transfId" data-destino="@g.Key.Destino" data-buscar="@busqueda" style="animation-delay:@(Math.Min(nCard, 12) * 30)ms">
+                    <div class="order-band no-print" role="button" tabindex="0" aria-expanded="@(grupos.Count > 3 ? "false" : "true")" aria-controls="@(cardId)-body">
+                        <span class="rm-chevron"><i class="bi bi-chevron-right"></i></span>
+                        <div class="rm-folio">
+                            <strong>@g.Key.Pedido</strong>
+                            <span class="rm-estatus" data-estatus-badge><i class="bi bi-hourglass-split"></i> Consultando…</span>
+                            <span class="meta">
+                                <span><i class="bi bi-geo-alt"></i>@g.Key.Destino</span>
+                                <span><i class="bi bi-calendar3"></i>@g.Key.Fecha.ToString("dd/MM/yyyy")</span>
+                                <span><i class="bi bi-stack"></i>@tarimasGrp.Count tarima(s)</span>
+                            </span>
+                        </div>
+                        <div class="rm-totales">
+                            <div class="pill"><span>Cajas</span><b>@totalCajas.ToString("N0")</b></div>
+                            <div class="pill"><span>Kg</span><b>@totalPeso.ToString("N0")</b></div>
+                        </div>
+                    </div>
+                    <div class="rm-chips no-print">
+                        @foreach (var t in tarimasGrp)
                         {
-                            var totalCajas = g.Sum(x => x.Cajas);
-                            var totalPeso = g.Sum(x => x.Peso);
-                            var totalUnid = totalCajas;
+                            <button type="button" class="rm-chip" data-ir-tarima="@(cardId)-@t.Key.GetHashCode()" title="Ir a la tarima @t.Key"><i class="bi bi-stack"></i> @t.Key · <b>@t.Sum(x => x.Cajas)</b> cj · <b>@t.Sum(x => x.Peso).ToString("N0")</b> kg</button>
+                        }
+                    </div>
 
-                            <div class="order-card avoid-break">
+                    <div class="order-body" id="@(cardId)-body">
+                        <div class="print-only print-bar">
+                            <span>Transferencia: @g.Key.Pedido · Destino: @g.Key.Destino</span>
+                            <span>Fecha: @g.Key.Fecha.ToString("dd/MM/yyyy") · @totalCajas cajas · @totalPeso.ToString("N2") kg</span>
+                        </div>
 
-                                <div class="order-band no-print">
-                                    <div>FOLIO: @g.Key.Pedido</div>
-                                    <div class="meta">
-                                        Destino: @g.Key.Destino &nbsp;•&nbsp; Fecha: @g.Key.Fecha.ToString("dd/MM/yyyy")
-                                    </div>
+                        @foreach (var t in tarimasGrp)
+                        {
+                            var detalleTarima = detalle
+                                .Where(x => x.TransferenciaId == transfId && TarimaKey(x.TarimaCodigo) == t.Key)
+                                .OrderBy(x => x.Fecha).ToList();
+                            var tCajas = t.Sum(x => x.Cajas);
+                            var tPeso = t.Sum(x => x.Peso);
+                            var share = totalPeso > 0 ? Math.Round(tPeso / totalPeso * 100m, 1) : 0m;
+
+                            <div class="print-only print-bar small">
+                                <span>Tarima: @t.Key</span>
+                                <span>Cajas: @tCajas &nbsp;|&nbsp; Peso: @tPeso.ToString("N2")</span>
+                            </div>
+
+                            <div class="tarima-block" id="@(cardId)-@t.Key.GetHashCode()">
+                                <div class="tarima-title no-print">
+                                    <span class="nom"><i class="bi bi-stack"></i> Tarima <span class="tag">@t.Key</span></span>
+                                    <span class="rm-share" title="Participación de la tarima en los kilos de la transferencia">
+                                        <span class="rm-track"><span class="rm-fill" style="display:block;width:@(share.ToString(inv))%"></span></span>
+                                        @share.ToString("N1")% del peso
+                                    </span>
+                                </div>
+                                <div class="tablewrap">
+                                    <table class="t t-romaneo">
+                                        <colgroup><col style="width:14%"><col style="width:50%"><col style="width:14%"><col style="width:22%"></colgroup>
+                                        <thead><tr><th>SKU</th><th>Producto</th><th class="text-end">Cajas</th><th class="text-end">Peso (kg)</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var r in t.OrderBy(x => x.ProductoCodigo))
+                                            {
+                                                <tr data-sku="@(r.ProductoCodigo?.ToLowerInvariant())">
+                                                    <td>@r.ProductoCodigo</td>
+                                                    <td>@r.ProductoNombre</td>
+                                                    <td class="text-end">@r.Cajas</td>
+                                                    <td class="text-end" data-copy="@r.Peso.ToString("0.##", inv)">@r.Peso.ToString("N2")</td>
+                                                </tr>
+                                            }
+                                            <tr class="rm-total">
+                                                <td colspan="2" class="text-end">Total tarima</td>
+                                                <td class="text-end">@tCajas</td>
+                                                <td class="text-end" data-copy="@tPeso.ToString("0.##", inv)">@tPeso.ToString("N2")</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
 
-                                <div class="order-body">
-
-                                    <div class="print-only print-bar">
-                                        <span>Pedido: @g.Key.Pedido</span>
-                                        <span>Fecha: @g.Key.Fecha.ToString("dd/MM/yyyy")</span>
-                                    </div>
-
-                                    <div class="group-head no-print">
-                                        <div>
-                                            <div class="muted">Destino: <b>@g.Key.Destino</b> · Fecha: <b>@g.Key.Fecha.ToString("dd/MM/yyyy")</b></div>
-                                        </div>
-                                        <div class="bar" style="margin:0; justify-content:flex-end;">
-                                            <div class="pill"><span class="muted small">Cajas</span><span class="kpi">@totalCajas</span></div>
-                                            <div class="pill"><span class="muted small">Peso</span><span class="kpi">@totalPeso.ToString("N2")</span></div>
-                                          @*   <div class="pill"><span class="muted small">Unidades</span><span class="kpi">@totalUnid</span></div> *@
-                                        </div>
-                                    </div>
-
-                                    <div class="hr no-print"></div>
-
-                                    @{
-                                        var tarimasGrp = g.GroupBy(x => x.Tarima).OrderBy(t => t.Key);
-                                    }
-
-                                    @foreach (var t in tarimasGrp)
-                                    {
-                                        var transferenciaId = t.First().TransferenciaId;
-
-                                        var tarimaKey = string.IsNullOrWhiteSpace(t.Key)
-                                            ? "SIN TARIMA"
-                                            : t.Key.Trim().ToUpperInvariant();
-
-                                        var detalleTarima = (Model?.DetalleEtiquetas ?? new List<Plataforma_CG.ViewModels.TransferenciaScanEtiquetaDetalleVM>())
-                                            .Where(x =>
-                                                x.TransferenciaId == transferenciaId &&
-                                                (string.IsNullOrWhiteSpace(x.TarimaCodigo) ? "SIN TARIMA" : x.TarimaCodigo.Trim().ToUpperInvariant()) == tarimaKey
-                                            )
-                                            .OrderBy(x => x.Fecha)
-                                            .ToList();
-
-                                        var tCajas = t.Sum(x => x.Cajas);
-                                        var tPeso = t.Sum(x => x.Peso);
-                                        var tUnid = tCajas;
-
-                                        <div class="print-only print-bar small avoid-break">
-                                            <span>Tarima: @t.Key</span>
-                                            <span>Cajas: @tCajas &nbsp;|&nbsp; Peso: @tPeso.ToString("N2")</span>
-                                        </div>
-
-                                        <div class="tarima-block">
-                                            <div class="tarima-title no-print">Tarima <span class="tag">@t.Key</span></div>
-
-                                            <div class="tablewrap" style="margin-top:6px">
-                                                <table class="t t-romaneo">
-                                                    <thead>
-                                                        <tr>
-                                                         <th class="col-sku" style="width:12%">Sku</th>
-                                                         <th class="col-producto" style="width:46%">Producto</th>
-                                                         <th class="text-end col-cajas" style="width:14%">Cajas</th>
-                                                         <th class="text-end col-peso" style="width:28%">Peso</th>
-                                                        </tr>
-                                                    </thead>
+                                @if (detalleTarima.Any())
+                                {
+                                    <details class="detail-toggle no-print">
+                                        <summary>
+                                            <span class="summary-left"><i class="bi bi-chevron-right summary-icon"></i> Etiquetas escaneadas</span>
+                                            <span class="tag">@detalleTarima.Count etiqueta(s) · @detalleTarima.Sum(x => x.Kg).ToString("N1") kg</span>
+                                        </summary>
+                                        <div class="detail-body">
+                                            <div class="tablewrap">
+                                                <table class="t t-detalle">
+                                                    <colgroup><col style="width:12%"><col style="width:32%"><col style="width:12%"><col style="width:22%"><col style="width:22%"></colgroup>
+                                                    <thead><tr><th>SKU</th><th>Código de etiqueta</th><th class="text-end">Kg</th><th>Escaneo</th><th>Usuario</th></tr></thead>
                                                     <tbody>
-                                                        @foreach (var r in t.OrderBy(x => x.ProductoCodigo))
+                                                        @foreach (var d in detalleTarima)
                                                         {
-                                                            <tr>
-                                                                <td>@r.ProductoCodigo</td>
-                                                                <td>@r.ProductoNombre</td>
-                                                                <td class="text-end">@r.Cajas</td>
-                                                                <td class="text-end">@r.Peso.ToString("N2")</td>
+                                                            <tr data-etiqueta="@(d.CodigoEtiqueta?.ToLowerInvariant())">
+                                                                <td>@d.Sku</td>
+                                                                <td>@d.CodigoEtiqueta</td>
+                                                                <td class="text-end" data-copy="@d.Kg.ToString("0.###", inv)">@d.Kg.ToString("N3")</td>
+                                                                <td>@d.Fecha.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                                                <td>@d.Usuario</td>
                                                             </tr>
                                                         }
-                                                        <tr>
-                                                            <td colspan="2" class="text-end" style="font-weight:900;color:var(--muted)">TOTAL TARIMA:</td>
-                                                            <td class="text-end" style="font-weight:900">@tCajas</td>
-                                                            <td class="text-end" style="font-weight:900">@tPeso.ToString("N2")</td>
+                                                        <tr class="rm-total">
+                                                            <td colspan="2" class="text-end">Total</td>
+                                                            <td class="text-end" data-copy="@detalleTarima.Sum(x => x.Kg).ToString("0.###", inv)">@detalleTarima.Sum(x => x.Kg).ToString("N3")</td>
+                                                            <td colspan="2"></td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
                                             </div>
-
-                                            @if (detalleTarima.Any())
-                                            {
-                                                <details class="detail-toggle no-print">
-                                                    <summary>
-                                                        <span class="summary-left">
-                                                            <span class="summary-icon">▶</span>
-                                                            <span>Detalle de etiquetas escaneadas</span>
-                                                        </span>
-                                                        <span class="tag">@detalleTarima.Count etiqueta(s)</span>
-                                                    </summary>
-                                                    <div class="detail-body">
-                                                        <div class="tablewrap">
-                                                            <table class="t t-detalle">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th style="width:120px">Sku</th>
-                                                                        <th>Código Etiqueta</th>
-                                                                        <th class="text-end" style="width:120px">Kg</th>
-                                                                        <th style="width:170px">Fecha Escaneo</th>
-                                                                        <th style="width:160px">Usuario</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    @foreach (var d in detalleTarima)
-                                                                    {
-                                                                        <tr>
-                                                                            <td>@d.Sku</td>
-                                                                            <td>@d.CodigoEtiqueta</td>
-                                                                            <td class="text-end">@d.Kg.ToString("N3")</td>
-                                                                            <td>@d.Fecha.ToString("dd/MM/yyyy HH:mm:ss")</td>
-                                                                            <td>@d.Usuario</td>
-                                                                        </tr>
-                                                                    }
-                                                                    <tr>
-                                                                        <td colspan="2" class="text-end" style="font-weight:900;color:var(--sap-muted)">TOTAL:</td>
-                                                                        <td class="text-end" style="font-weight:900">@detalleTarima.Sum(x => x.Kg).ToString("N3")</td>
-                                                                        <td colspan="2"></td>
-                                                                    </tr>
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    </div>
-                                                </details>
-                                            }
                                         </div>
-
-                                        <div class="hr no-print"></div>
-                                    }
-
-                                    <div class="muted small text-end no-print">
-                                        Total pedido: <b>@totalCajas</b> cajas · <b>@totalPeso.ToString("N2")</b> kg
-                                    </div>
-
-                                </div>
+                                    </details>
+                                }
                             </div>
                         }
-                    }
 
-                </div>
-            </div>
-
+                        <div class="rm-pie-pedido no-print">
+                            <span>Total de la transferencia: <b>@totalCajas.ToString("N0")</b> cajas · <b>@totalPeso.ToString("N2")</b> kg</span>
+                        </div>
+                    </div>
+                </article>
+            }
         </div>
-    </div>
+    }
 
-
-    <div class="statusbar no-print">
-        <div>Registro listo</div>
-        <div>Usuario: @User.Identity.Name</div>
-        <div>Empresa: Carnes G SA de CV</div>
-        <div>Módulo: Romaneo</div>
-    </div>
+    <footer class="statusbar no-print">
+        <span>Usuario: @(User?.Identity?.Name ?? "")</span>
+        <span>Carnes G SA de CV</span>
+        <span>Módulo: Romaneo de transferencias</span>
+        <span>Clic derecho sobre una tabla para copiarla a Excel · la impresión incluye todos los resultados</span>
+    </footer>
 </div>
 
 <div id="excelOverlay" aria-hidden="true">
-    <div class="sigo-loading-card">
-        <img src="~/images/vaquita-comiendo.gif" asp-append-version="true" class="sigo-loading-cow"
-             width="184" height="180" alt="" draggable="false" />
-        <span class="sigo-loading-label">Romaneo de Transferencias</span>
-        <div class="sigo-loading-title">Cargando Aviso de Movilización</div>
-        <p class="sigo-loading-detail">Por favor espere…</p>
+    <div class="excel-modal" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="excel-title">Generando aviso de movilización</div>
+        <div class="excel-sub">Por favor espera…</div>
     </div>
 </div>
 
-<div id="printStatusToast"
-     class="print-status-toast no-print"
-     role="status"
-     aria-live="polite"
-     aria-hidden="true">
-    <div class="print-status-icon">
-        <i class="bi bi-exclamation-triangle-fill"></i>
-    </div>
-    <div class="print-status-text">
-        Si no has validado el pedido no puedes mostrar el documento.
-    </div>
+<div id="printStatusToast" class="rm-toast print-status-toast no-print" role="status" aria-live="polite" aria-hidden="true">
+    <div class="print-status-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+    <div class="print-status-text">Solo se puede imprimir cuando todas las transferencias están surtidas.</div>
 </div>
 
-
-@section Scripts{
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<script>
-(function () {
-  function initMultiDD(root) {
-    const label  = root.querySelector('.multi-label');
-    const hidden = root.querySelector('.dd-hidden');
-    const search = root.querySelector('.dd-search');
-    const clear  = root.querySelector('.dd-clear');
-    const apply  = root.querySelector('.dd-apply');
-    const checks = root.querySelectorAll('.dd-check');
-    const form   = root.closest('form');
-
-    const map = {
-      'dd-destino': 'destinosSel',
-      'dd-pedido':  'pedidosSel',
-      'dd-tarima':  'tarimasSel'
-    };
-    const rootId = root.id;
-    const name = map[rootId];
-
-    function rebuildHiddenAndLabel() {
-      const selected = Array.from(checks).filter(c => c.checked).map(c => c.value);
-
-      // label
-      if (rootId === 'dd-tarima') {
-        if (!selected.length) label.textContent = '(Todas)';
-        else if (selected.length <= 3) label.textContent = selected.join(', ');
-        else label.textContent = selected.length + ' seleccionadas';
-      } else {
-        if (!selected.length) label.textContent = '(Todos)';
-        else if (selected.length <= 3) label.textContent = selected.join(', ');
-        else label.textContent = selected.length + ' seleccionados';
-      }
-
-      // hidden
-      hidden.innerHTML = '';
-      selected.forEach(v => {
-        const inp = document.createElement('input');
-        inp.type = 'hidden';
-        inp.name = name;
-        inp.value = v;
-        hidden.appendChild(inp);
-      });
-    }
-
-    search?.addEventListener('input', () => {
-      const q = (search.value || '').toLowerCase().trim();
-      root.querySelectorAll('.dd-item').forEach(li => {
-        const txt = (li.getAttribute('data-text') || '').toLowerCase();
-        li.style.display = (!q || txt.includes(q)) ? '' : 'none';
-      });
-    });
-
-    clear?.addEventListener('click', () => {
-      checks.forEach(c => c.checked = false);
-      if (search) search.value = '';
-      root.querySelectorAll('.dd-item').forEach(li => li.style.display = '');
-      rebuildHiddenAndLabel();
-    });
-
-    apply?.addEventListener('click', () => {
-      rebuildHiddenAndLabel();
-      form?.requestSubmit();
-    });
-
-    checks.forEach(c => c.addEventListener('change', rebuildHiddenAndLabel));
-
-    rebuildHiddenAndLabel();
-  }
-
-  document.querySelectorAll('.multi-dd').forEach(initMultiDD);
-
-
-  // ===================== VALIDAR ESTATUS 5 ANTES DE IMPRIMIR =====================
-  const btnImprimirRomaneo = document.getElementById('btnImprimirRomaneo');
-  const printStatusToast = document.getElementById('printStatusToast');
-
-  /*
-     Estos IDs corresponden exactamente a las transferencias que están
-     visibles en el resultado actual del Romaneo.
-  */
-  const transferenciaIdsImpresion =
-      @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-          rows.Select(x => x.TransferenciaId).Distinct().ToList()
-      ));
-
-  let printToastTimer = null;
-  let validandoImpresion = false;
-
-  function mostrarAvisoImpresion(mensaje) {
-      if (!printStatusToast) return;
-
-      const text = printStatusToast.querySelector('.print-status-text');
-      if (text) {
-          text.textContent =
-              mensaje ||
-              'Si no has validado el pedido no puedes mostrar el documento.';
-      }
-
-      printStatusToast.classList.add('show');
-      printStatusToast.setAttribute('aria-hidden', 'false');
-
-      if (printToastTimer) {
-          clearTimeout(printToastTimer);
-      }
-
-      printToastTimer = setTimeout(() => {
-          printStatusToast.classList.remove('show');
-          printStatusToast.setAttribute('aria-hidden', 'true');
-      }, 4800);
-  }
-
-  async function obtenerEstatusTransferenciaImpresion(id) {
-      const resp = await fetch(
-          `/Transferencias/DetalleApi?id=${encodeURIComponent(id)}`,
-          {
-              method: 'GET',
-              credentials: 'same-origin',
-              cache: 'no-store',
-              headers: {
-                  'X-Requested-With': 'XMLHttpRequest'
-              }
-          }
-      );
-
-      if (!resp.ok) {
-          throw new Error(`No se pudo validar la transferencia ${id}.`);
-      }
-
-      const data = await resp.json();
-
-      const header =
-          data?.header ??
-          data?.Header ??
-          {};
-
-      const estatusRaw =
-          header?.estatus ??
-          header?.Estatus;
-
-      const consecutivo =
-          header?.consecutivo ??
-          header?.Consecutivo ??
-          `ID ${id}`;
-
-      return {
-          id: Number(id),
-          consecutivo: String(consecutivo || `ID ${id}`),
-          estatus: Number(estatusRaw)
-      };
-  }
-
-  async function validarEImprimirRomaneo() {
-      if (validandoImpresion) return;
-
-      if (!Array.isArray(transferenciaIdsImpresion) ||
-          transferenciaIdsImpresion.length === 0) {
-          mostrarAvisoImpresion(
-              'No hay pedidos para mostrar o imprimir.'
-          );
-          return;
-      }
-
-      validandoImpresion = true;
-
-      if (btnImprimirRomaneo) {
-          btnImprimirRomaneo.classList.add('is-validating');
-          btnImprimirRomaneo.disabled = true;
-      }
-
-      try {
-          /*
-             Se consulta el estatus actual en servidor al momento del clic.
-             No se confía en un valor viejo cargado con la página.
-          */
-          const estados = await Promise.all(
-              transferenciaIdsImpresion.map(id =>
-                  obtenerEstatusTransferenciaImpresion(id)
-              )
-          );
-
-          const noValidados =
-              estados.filter(x => x.estatus !== 5);
-
-          if (noValidados.length > 0) {
-              document.body.classList.remove(
-                  'romaneo-print-autorizado'
-              );
-
-              const folios =
-                  noValidados
-                      .map(x => x.consecutivo)
-                      .filter(Boolean)
-                      .slice(0, 4);
-
-              const extra =
-                  folios.length > 0
-                      ? ` Pedido(s): ${folios.join(', ')}.`
-                      : '';
-
-              mostrarAvisoImpresion(
-                  'Si no has validado el pedido no puedes mostrar el documento.' +
-                  extra
-              );
-
-              return;
-          }
-
-          /*
-             TODOS están exactamente en Estatus = 5.
-             Se habilita temporalmente la vista de impresión.
-          */
-          document.body.classList.add(
-              'romaneo-print-autorizado'
-          );
-
-          window.print();
-      }
-      catch (err) {
-          console.error(
-              'Error validando estatus para impresión:',
-              err
-          );
-
-          document.body.classList.remove(
-              'romaneo-print-autorizado'
-          );
-
-          mostrarAvisoImpresion(
-              'No se pudo validar el pedido. No se puede mostrar el documento en este momento.'
-          );
-      }
-      finally {
-          validandoImpresion = false;
-
-          if (btnImprimirRomaneo) {
-              btnImprimirRomaneo.classList.remove(
-                  'is-validating'
-              );
-              btnImprimirRomaneo.disabled = false;
-          }
-      }
-  }
-
-  btnImprimirRomaneo?.addEventListener(
-      'click',
-      function (e) {
-          e.preventDefault();
-          validarEImprimirRomaneo();
-      }
-  );
-
-  /*
-     También intercepta Ctrl+P / Cmd+P para que siga la misma regla.
-  */
-  document.addEventListener(
-      'keydown',
-      function (e) {
-          const esImprimir =
-              (e.ctrlKey || e.metaKey) &&
-              String(e.key || '').toLowerCase() === 'p';
-
-          if (!esImprimir) return;
-
-          e.preventDefault();
-          validarEImprimirRomaneo();
-      }
-  );
-
-  /*
-     Al cerrar el diálogo de impresión se vuelve a bloquear.
-     Cada nueva impresión debe consultar nuevamente el estatus real.
-  */
-  window.addEventListener(
-      'afterprint',
-      function () {
-          document.body.classList.remove(
-              'romaneo-print-autorizado'
-          );
-      }
-  );
-
-  // ===================== EXCEL OVERLAY HANDLER =====================
-  const overlay  = document.getElementById('excelOverlay');
-  const btnExcel = document.getElementById('btnExcelAviso');
-
-  function showOverlay(){
-    if (!overlay) return;
-    overlay.classList.add('show');
-    overlay.setAttribute('aria-hidden', 'false');
-  }
-
-  function hideOverlay(){
-    if (!overlay) return;
-    overlay.classList.remove('show');
-    overlay.setAttribute('aria-hidden', 'true');
-  }
-
-  function getFileNameFromDisposition(disposition) {
-    if (!disposition) return null;
-
-    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)"?/i.exec(disposition);
-    if (!match || !match[1]) return null;
-
-    try { return decodeURIComponent(match[1]); }
-    catch { return match[1]; }
-  }
-
-  async function downloadExcel(url) {
-  showOverlay();
-  console.log('Iniciando descarga Excel:', url);
-
-  try {
-    const resp = await fetch(url, {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-
-    console.log('Status:', resp.status, resp.statusText);
-    console.log('Content-Type:', resp.headers.get('content-type'));
-    console.log('Content-Disposition:', resp.headers.get('content-disposition'));
-
-    if (!resp.ok) {
-      const txt = await resp.text().catch(() => '');
-      console.error('Respuesta error del servidor:', txt);
-      throw new Error(`Error ${resp.status}: ${txt || resp.statusText}`);
-    }
-
-    const blob = await resp.blob();
-    console.log('Blob size:', blob.size);
-    console.log('Blob type:', blob.type);
-
-    const disposition = resp.headers.get('content-disposition');
-    const serverName  = getFileNameFromDisposition(disposition);
-    const filename    = serverName || 'AvisoMovilizacion.xlsx';
-
-    console.log('Filename final:', filename);
-
-    const blobUrl = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(blobUrl);
-
-    console.log('Descarga disparada correctamente');
-  } catch (err) {
-    console.error('Error en downloadExcel:', err);
-    alert('No se pudo generar el Excel. Intenta de nuevo o revisa el filtro.');
-  } finally {
-    hideOverlay();
-  }
-}
-
-btnExcel?.addEventListener('click', function (e) {
-  e.preventDefault();
-
-  const form = document.getElementById('frmRomaneo');
-  console.log('frmRomaneo:', form);
-
-  if (!form) {
-    console.error('No se encontró el formulario frmRomaneo');
-    return;
-  }
-
-  const params = new URLSearchParams(new FormData(form)).toString();
-  const url = '/Transferencias/ExportCaducidadTransferencias?' + params;
-
-  console.log('Params Excel:', params);
-  console.log('URL Excel:', url);
-
-  downloadExcel(url);
-});
-
-})();
-</script>
+@section Scripts {
+    <script>
+        (function() {
+            const $ = id => document.getElementById(id);
+
+            // ================= Filtros de selección múltiple =================
+            document.querySelectorAll('.multi-dd').forEach(root => {
+                const label = root.querySelector('.multi-label'), btn = root.querySelector('button.in');
+                const hidden = root.querySelector('.dd-hidden'), search = root.querySelector('.dd-search');
+                const checks = [...root.querySelectorAll('.dd-check')], form = root.closest('form');
+                const name = root.dataset.name, vacio = root.dataset.vacio, plural = root.dataset.plural;
+                function rebuild() {
+                    const sel = checks.filter(c => c.checked).map(c => c.value);
+                    label.textContent = !sel.length ? vacio : sel.length <= 2 ? sel.join(', ') : `${sel.length} ${plural}`;
+                    btn.classList.toggle('has-value', sel.length > 0);
+                    hidden.innerHTML = '';
+                    sel.forEach(v => { const i = document.createElement('input'); i.type = 'hidden'; i.name = name; i.value = v; hidden.appendChild(i); });
+                }
+                search?.addEventListener('input', () => {
+                    const q = (search.value || '').toLowerCase().trim();
+                    root.querySelectorAll('.dd-item').forEach(li => li.style.display = (!q || (li.dataset.text || '').toLowerCase().includes(q)) ? '' : 'none');
+                });
+                search?.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+                root.addEventListener('shown.bs.dropdown', () => setTimeout(() => search?.focus(), 0));
+                root.querySelector('.dd-clear')?.addEventListener('click', () => {
+                    checks.forEach(c => c.checked = false);
+                    if (search) search.value = '';
+                    root.querySelectorAll('.dd-item').forEach(li => li.style.display = '');
+                    rebuild();
+                });
+                root.querySelector('.dd-apply')?.addEventListener('click', () => { rebuild(); form?.requestSubmit(); });
+                checks.forEach(c => c.addEventListener('change', rebuild));
+                rebuild();
+            });
+
+            // ================= Tarjetas: abrir / cerrar =================
+            const cards = [...document.querySelectorAll('.order-card')];
+            function setAbierta(card, abierta) {
+                card.classList.toggle('is-collapsed', !abierta);
+                card.querySelector('.order-band')?.setAttribute('aria-expanded', String(abierta));
+            }
+            document.addEventListener('click', e => {
+                const band = e.target.closest('.order-band');
+                if (band) { const c = band.closest('.order-card'); setAbierta(c, c.classList.contains('is-collapsed')); return; }
+                const chip = e.target.closest('[data-ir-tarima]');
+                if (chip) {
+                    const card = chip.closest('.order-card');
+                    setAbierta(card, true);
+                    const destino = document.getElementById(chip.dataset.irTarima);
+                    if (destino) {
+                        destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        destino.classList.remove('is-flash'); void destino.offsetWidth; destino.classList.add('is-flash');
+                    }
+                }
+            });
+            document.addEventListener('keydown', e => {
+                const band = e.target.closest?.('.order-band');
+                if (band && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); band.click(); }
+            });
+            $('rmExpandir')?.addEventListener('click', () => cards.filter(c => !c.classList.contains('is-hidden')).forEach(c => setAbierta(c, true)));
+            $('rmContraer')?.addEventListener('click', () => cards.forEach(c => setAbierta(c, false)));
+
+            // ================= Búsqueda dentro de los resultados =================
+            const inpBuscar = $('rmBuscar'), wrapBuscar = $('rmBusquedaWrap');
+            let filtroDestino = '';
+            function aplicarBusqueda() {
+                const q = (inpBuscar?.value || '').trim().toLowerCase();
+                wrapBuscar?.classList.toggle('has-text', !!q);
+                let visibles = 0;
+                cards.forEach(card => {
+                    const okTexto = !q || (card.dataset.buscar || '').includes(q);
+                    const okDestino = !filtroDestino || card.dataset.destino === filtroDestino;
+                    const ver = okTexto && okDestino;
+                    card.classList.toggle('is-hidden', !ver);
+                    // Resalta los renglones (SKU o etiqueta) que coinciden y abre la tarjeta
+                    card.querySelectorAll('tr[data-sku], tr[data-etiqueta]').forEach(tr => {
+                        const txt = (tr.dataset.sku || tr.dataset.etiqueta || '') + ' ' + tr.innerText.toLowerCase();
+                        tr.classList.toggle('rm-match', !!q && q.length >= 2 && txt.includes(q));
+                    });
+                    if (ver && q && q.length >= 2) {
+                        setAbierta(card, true);
+                        card.querySelectorAll('tr[data-etiqueta].rm-match').forEach(tr => tr.closest('details')?.setAttribute('open', ''));
+                    }
+                    if (ver) visibles++;
+                });
+                const total = cards.length;
+                $('rmConteo').textContent = (q || filtroDestino) ? `${visibles} de ${total} transferencias${filtroDestino ? ' · destino ' + filtroDestino : ''}` : `${total} transferencias`;
+                const sin = $('rmSinCoincidencias');
+                if (sin) sin.style.display = visibles ? 'none' : 'block';
+                document.querySelectorAll('#rmDestinos .rm-barra').forEach(b => b.classList.toggle('is-on', b.dataset.destino === filtroDestino));
+            }
+            let tBuscar = null;
+            inpBuscar?.addEventListener('input', () => { clearTimeout(tBuscar); tBuscar = setTimeout(aplicarBusqueda, 150); });
+            $('rmBuscarLimpiar')?.addEventListener('click', () => { inpBuscar.value = ''; aplicarBusqueda(); inpBuscar.focus(); });
+            const clickBarra = (sel, fn) => {
+                const cont = $(sel);
+                if (!cont) return;
+                const h = e => { const b = e.target.closest('.rm-barra'); if (b) fn(b); };
+                cont.addEventListener('click', h);
+                cont.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h(e); } });
+            };
+            clickBarra('rmDestinos', b => { filtroDestino = filtroDestino === b.dataset.destino ? '' : b.dataset.destino; aplicarBusqueda(); });
+            clickBarra('rmTopSkus', b => { inpBuscar.value = inpBuscar.value.trim().toLowerCase() === b.dataset.sku.toLowerCase() ? '' : b.dataset.sku; aplicarBusqueda(); });
+
+            // ================= Estatus de cada transferencia =================
+            // Misma consulta que usa la validación de impresión; aquí solo informa en pantalla.
+            const TEXTO_EST = { 0: 'Cancelada', 1: 'Pendiente', 2: 'Autorización', 3: 'Pendiente', 4: 'Validada', 5: 'Surtida' };
+            async function obtenerEstatusTransferenciaImpresion(id) {
+                const resp = await fetch(`/Transferencias/DetalleApi?id=${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (!resp.ok) throw new Error(`No se pudo validar la transferencia ${id}.`);
+                const data = await resp.json();
+                const header = data?.header ?? data?.Header ?? {};
+                return { id: Number(id), consecutivo: String(header?.consecutivo ?? header?.Consecutivo ?? `ID ${id}`), estatus: Number(header?.estatus ?? header?.Estatus) };
+            }
+            async function consultarEnLotes(ids, fn, conc = 5) {
+                const out = []; let i = 0;
+                await Promise.all(Array.from({ length: Math.min(conc, ids.length) }, async () => { while (i < ids.length) { const id = ids[i++]; out.push(await fn(id)); } }));
+                return out;
+            }
+            async function pintarEstatus() {
+                const ids = [...new Set(cards.map(c => c.dataset.transferenciaId).filter(Boolean))];
+                if (!ids.length) return;
+                const conteo = { ok: 0, pend: 0, err: 0 };
+                await consultarEnLotes(ids, async id => {
+                    const badges = cards.filter(c => c.dataset.transferenciaId === id).map(c => c.querySelector('[data-estatus-badge]'));
+                    try {
+                        const r = await obtenerEstatusTransferenciaImpresion(id);
+                        const ok = r.estatus === 5, cancel = r.estatus === 0;
+                        badges.forEach(b => { b.className = 'rm-estatus ' + (ok ? 'ok' : cancel ? 'bad' : 'warn'); b.innerHTML = `<i class="bi ${ok ? 'bi-check-circle-fill' : cancel ? 'bi-x-circle-fill' : 'bi-clock'}"></i> ${TEXTO_EST[r.estatus] || 'Estatus ' + r.estatus}`; b.title = ok ? 'Lista para imprimir' : 'No se puede imprimir hasta que esté surtida'; });
+                        ok ? conteo.ok++ : conteo.pend++;
+                    } catch { badges.forEach(b => { b.className = 'rm-estatus'; b.innerHTML = '<i class="bi bi-question-circle"></i> Sin estatus'; }); conteo.err++; }
+                    return null;
+                }, 4);
+                const res = $('rmEstadoResumen');
+                if (res) res.innerHTML = `<span class="rm-estatus ok"><i class="bi bi-check-circle-fill"></i> ${conteo.ok} surtida(s)</span>` + (conteo.pend ? `<span class="rm-estatus warn"><i class="bi bi-clock"></i> ${conteo.pend} sin surtir</span>` : '') + (conteo.err ? `<span class="rm-estatus"><i class="bi bi-question-circle"></i> ${conteo.err} sin consultar</span>` : '');
+                const btn = $('btnImprimirRomaneo');
+                if (btn && conteo.pend) btn.title = `Hay ${conteo.pend} transferencia(s) sin surtir; la impresión se bloqueará.`;
+            }
+
+            // ================= Validar estatus 5 antes de imprimir (regla sin cambios) =================
+            const btnImprimirRomaneo = $('btnImprimirRomaneo'), printStatusToast = $('printStatusToast');
+            const transferenciaIdsImpresion = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(rows.Select(x => x.TransferenciaId).Distinct().ToList()));
+            let printToastTimer = null, validandoImpresion = false;
+
+            function mostrarAvisoImpresion(mensaje) {
+                if (!printStatusToast) return;
+                // CORRECCIÓN: el aviso decía "validado", pero la regla exige estatus 5 (Surtido)
+                printStatusToast.querySelector('.print-status-text').textContent = mensaje || 'Solo se puede imprimir cuando todas las transferencias están surtidas.';
+                printStatusToast.classList.add('show');
+                printStatusToast.setAttribute('aria-hidden', 'false');
+                clearTimeout(printToastTimer);
+                printToastTimer = setTimeout(() => { printStatusToast.classList.remove('show'); printStatusToast.setAttribute('aria-hidden', 'true'); }, 5500);
+            }
+
+            async function validarEImprimirRomaneo() {
+                if (validandoImpresion) return;
+                if (!Array.isArray(transferenciaIdsImpresion) || !transferenciaIdsImpresion.length) { mostrarAvisoImpresion('No hay transferencias para imprimir.'); return; }
+                validandoImpresion = true;
+                btnImprimirRomaneo?.classList.add('is-validating');
+                if (btnImprimirRomaneo) btnImprimirRomaneo.disabled = true;
+                try {
+                    // Se consulta el estatus real al momento del clic (no se confía en el que ya está en pantalla)
+                    const estados = await consultarEnLotes(transferenciaIdsImpresion, obtenerEstatusTransferenciaImpresion, 6);
+                    const noSurtidas = estados.filter(x => x.estatus !== 5);
+                    if (noSurtidas.length) {
+                        document.body.classList.remove('romaneo-print-autorizado');
+                        const folios = noSurtidas.map(x => x.consecutivo).filter(Boolean);
+                        mostrarAvisoImpresion(`Solo se puede imprimir cuando todas las transferencias están surtidas. Pendiente(s): ${folios.slice(0, 4).join(', ')}${folios.length > 4 ? ` y ${folios.length - 4} más` : ''}.`);
+                        return;
+                    }
+                    document.body.classList.add('romaneo-print-autorizado');
+                    window.print();
+                } catch (err) {
+                    console.error('Error validando estatus para impresión:', err);
+                    document.body.classList.remove('romaneo-print-autorizado');
+                    mostrarAvisoImpresion('No se pudo consultar el estatus de las transferencias. Intenta de nuevo.');
+                } finally {
+                    validandoImpresion = false;
+                    btnImprimirRomaneo?.classList.remove('is-validating');
+                    if (btnImprimirRomaneo) btnImprimirRomaneo.disabled = false;
+                }
+            }
+            btnImprimirRomaneo?.addEventListener('click', e => { e.preventDefault(); validarEImprimirRomaneo(); });
+            document.addEventListener('keydown', e => {
+                if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'p') { e.preventDefault(); validarEImprimirRomaneo(); }
+            });
+            window.addEventListener('afterprint', () => document.body.classList.remove('romaneo-print-autorizado'));
+
+            // ================= Aviso de movilización (Excel) =================
+            const overlay = $('excelOverlay'), btnExcel = $('btnExcelAviso');
+            const showOverlay = () => { overlay?.classList.add('show'); overlay?.setAttribute('aria-hidden', 'false'); };
+            const hideOverlay = () => { overlay?.classList.remove('show'); overlay?.setAttribute('aria-hidden', 'true'); };
+            function nombreArchivo(disposition) {
+                if (!disposition) return null;
+                const m = /filename\*?=(?:UTF-8''|")?([^";]+)"?/i.exec(disposition);
+                if (!m || !m[1]) return null;
+                try { return decodeURIComponent(m[1]); } catch { return m[1]; }
+            }
+            let descargando = false;
+            async function downloadExcel(url) {
+                if (descargando) return; // CORRECCIÓN: evita generar el archivo dos veces por doble clic
+                descargando = true;
+                showOverlay();
+                try {
+                    const resp = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    if (!resp.ok) { const txt = await resp.text().catch(() => ''); throw new Error(`Error ${resp.status}: ${txt || resp.statusText}`); }
+                    const blob = await resp.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = nombreArchivo(resp.headers.get('content-disposition')) || 'AvisoMovilizacion.xlsx';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                } catch (err) {
+                    console.error('Error en downloadExcel:', err);
+                    alert('No se pudo generar el aviso de movilización. Intenta de nuevo o revisa los filtros.');
+                } finally { hideOverlay(); descargando = false; }
+            }
+            btnExcel?.addEventListener('click', e => {
+                e.preventDefault();
+                const form = $('frmRomaneo');
+                if (!form) return;
+                // Se usan los filtros tal como están en pantalla (incluido el código de etiqueta)
+                downloadExcel('/Transferencias/ExportCaducidadTransferencias?' + new URLSearchParams(new FormData(form)).toString());
+            });
+
+            if (cards.length) pintarEstatus();
+        })();
+    </script>
 }
