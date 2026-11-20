@@ -2966,14 +2966,14 @@
     /* =========================================================
        EXPLORADOR EN MODAL + CENTRO DE ALERTAS DE ABASTECIMIENTO
        ========================================================= */
-    #modalExploradorInventario .modal-dialog {
+    #explorador-inventario .explorer-page-shell {
         width: calc(100vw - 32px) !important;
         max-width: 1780px !important;
         height: calc(100dvh - 32px) !important;
         margin: 16px auto !important;
     }
 
-    #modalExploradorInventario .modal-content {
+    #explorador-inventario .explorer-page-content {
         height: 100% !important;
         min-height: 0 !important;
         display: flex !important;
@@ -2983,12 +2983,12 @@
         background: #f5e8e8 !important;
     }
 
-    #modalExploradorInventario .modal-header {
+    #explorador-inventario .modal-header {
         flex: 0 0 auto;
         padding: 10px 14px !important;
     }
 
-    #modalExploradorInventario .explorer-modal-body {
+    #explorador-inventario .explorer-modal-body {
         flex: 1 1 auto;
         min-height: 0;
         padding: 10px !important;
@@ -3014,12 +3014,12 @@
         background: #fffafa;
     }
 
-    #modalExploradorInventario #tablaInventario {
+    #explorador-inventario #tablaInventario {
         min-width: 1180px;
         margin: 0 !important;
     }
 
-        #modalExploradorInventario #tablaInventario thead th {
+        #explorador-inventario #tablaInventario thead th {
             position: sticky;
             top: 0;
             z-index: 12;
@@ -3184,14 +3184,14 @@
         }
 
     @@media (max-width: 768px) {
-        #modalExploradorInventario .modal-dialog {
+        #explorador-inventario .explorer-page-shell {
             width: 100vw !important;
             max-width: 100vw !important;
             height: 100dvh !important;
             margin: 0 !important;
         }
 
-        #modalExploradorInventario .modal-content {
+        #explorador-inventario .explorer-page-content {
             min-height: 100dvh !important;
         }
 
@@ -4330,7 +4330,7 @@
             border: 1px solid #4a1515 !important;
             color: #f1e4e4 !important;
         }
-        k
+
         :is([data-theme="dark"], [data-bs-theme="dark"], .dark-mode) #inventarioSistemasApp .table-custom tbody td,
         :is([data-theme="dark"], [data-bs-theme="dark"], .dark-mode) #inventarioSistemasApp .control-fugas-table td {
             background: #1c0a0a !important;
@@ -4464,34 +4464,17 @@
     <!-- El control preventivo se muestra ahora dentro del modal superior. -->
 
     <section class="inventory-module-nav" aria-label="Centro de operaciones de inventario">
-        <div class="inventory-module-nav__header">
-            <div class="inventory-module-nav__intro">
-                <span class="inventory-module-nav__eyebrow">
-                    <i class="bi bi-grid-1x2-fill"></i>
-                    Centro de operaciones
-                </span>
-                <h3>Selecciona el proceso que deseas gestionar</h3>
-                <p>
-                    Cada módulo conserva sus formularios, historial y controles actuales.
-                </p>
-            </div>
-
-            <div class="inventory-module-current" aria-live="polite">
-                <span>Módulo activo</span>
-                <strong id="inventoryActiveModule">Centro QR y Escaneo</strong>
-            </div>
-        </div>
-
         <ul class="nav inventory-module-grid" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link inventory-module-card module-explorer"
                         id="explorador-tab"
-                        data-bs-toggle="modal"
-                        data-bs-target="#modalExploradorInventario"
+                        data-bs-toggle="tab"
+                        data-bs-target="#explorador-inventario"
                         data-module-title="Explorador de inventario"
                         type="button"
-                        aria-haspopup="dialog"
-                        aria-controls="modalExploradorInventario">
+                        role="tab"
+                        aria-controls="explorador-inventario"
+                        aria-selected="false">
                     <span class="inventory-module-icon">
                         <i class="bi bi-boxes"></i>
                     </span>
@@ -4644,6 +4627,108 @@
          Las alertas quedan centralizadas en la campana superior. -->
 
     <div class="tab-content" id="myTabContent">
+<div class="tab-pane fade" id="explorador-inventario" role="tabpanel" aria-labelledby="explorador-tab">
+    <div class="explorer-page-shell">
+        <div class="explorer-page-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="modalExploradorTitulo">
+                        <i class="bi bi-boxes me-2"></i>Explorador y reportería de inventario
+                    </h5>
+                    <div style="font-size:10px; opacity:.82;">Consulta, filtros, exportación y generación de etiquetas.</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-success fw-bold" onclick="exportarExcel()">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
+                    </button>
+
+                </div>
+            </div>
+
+            <div class="explorer-modal-body">
+                <div class="explorer-filter-panel">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">BUSCAR (SAP, NOMBRE, SERIE)</label>
+                            <input type="text" class="form-control" id="filtroGeneral" placeholder="Escribe aquí..." onkeyup="aplicarFiltros()">
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-2">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">TIPO ARTÍCULO</label>
+                            <select class="form-select" id="filtroTipo" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                                <option value="Activo Fijo">Activo Fijo</option>
+                                <option value="Consumible">Consumible</option>
+                                <option value="Herramienta">Herramienta</option>
+                                <option value="Chatarra/Piezas">Chatarra/Piezas</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-2">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">PLANTA</label>
+                            <select class="form-select" id="filtroPlanta" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                                <option value="TIF">TIF</option>
+                                <option value="P1">P1</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-2">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">ESTADO</label>
+                            <select class="form-select" id="filtroEstado" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                                <option value="disponible">Disponibles</option>
+                                <option value="asignado">Asignados</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-2">
+                            <button type="button" class="btn btn-brand w-100" onclick="limpiarFiltros()">
+                                <i class="bi bi-eraser me-1"></i> Limpiar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row g-2 align-items-end mt-1">
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">PROVEEDOR</label>
+                            <select class="form-select" id="filtroProveedor" onchange="aplicarFiltros()">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">MARCA</label>
+                            <select class="form-select" id="filtroMarca" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">UBICACIÓN</label>
+                            <select class="form-select" id="filtroUbicacion" onchange="aplicarFiltros()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="explorer-table-wrap">
+                    <table class="table table-custom align-middle" id="tablaInventario">
+                        <thead>
+                            <tr>
+                                <th>Artículo</th>
+                                <th>Usuario / Serie</th>
+                                <th>Planta / Ubicación</th>
+                                <th>Fechas / Vida Útil</th>
+                                <th>Stock / Garantía</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyInventario">
+                            <tr><td colspan="6" class="text-center py-4">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 
         <div class="tab-pane fade show active" id="scanner-qr" role="tabpanel" aria-labelledby="qr-tab">
             <div class="qr-operation-shell">
@@ -4694,11 +4779,8 @@
                         </div>
 
                         <div class="qr-reader-box">
+                            <div class="qr-equipment-catalog" id="qrEquipmentCatalog" aria-label="Equipos disponibles para consultar"></div>
                             <div id="qrCameraReader">
-                                <div class="qr-camera-placeholder" id="qrCameraPlaceholder">
-                                    <i class="bi bi-camera"></i>
-                                    Usa un lector físico o inicia la cámara del equipo.
-                                </div>
                             </div>
                         </div>
 
@@ -5447,110 +5529,6 @@
                         </div>
                     </div>
                 </section>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ========================================================= -->
-<!-- MODAL EXPLORADOR / REPORTERÍA DE INVENTARIO              -->
-<!-- ========================================================= -->
-<div class="modal fade" id="modalExploradorInventario" tabindex="-1" aria-labelledby="modalExploradorTitulo" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title" id="modalExploradorTitulo">
-                        <i class="bi bi-boxes me-2"></i>Explorador y reportería de inventario
-                    </h5>
-                    <div style="font-size:10px; opacity:.82;">Consulta, filtros, exportación y generación de etiquetas.</div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-success fw-bold" onclick="exportarExcel()">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Excel
-                    </button>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                </div>
-            </div>
-
-            <div class="modal-body explorer-modal-body">
-                <div class="explorer-filter-panel">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-12 col-lg-4">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">BUSCAR (SAP, NOMBRE, SERIE)</label>
-                            <input type="text" class="form-control" id="filtroGeneral" placeholder="Escribe aquí..." onkeyup="aplicarFiltros()">
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-2">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">TIPO ARTÍCULO</label>
-                            <select class="form-select" id="filtroTipo" onchange="aplicarFiltros()">
-                                <option value="">Todos</option>
-                                <option value="Activo Fijo">Activo Fijo</option>
-                                <option value="Consumible">Consumible</option>
-                                <option value="Herramienta">Herramienta</option>
-                                <option value="Chatarra/Piezas">Chatarra/Piezas</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-2">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">PLANTA</label>
-                            <select class="form-select" id="filtroPlanta" onchange="aplicarFiltros()">
-                                <option value="">Todas</option>
-                                <option value="TIF">TIF</option>
-                                <option value="P1">P1</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-2">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">ESTADO</label>
-                            <select class="form-select" id="filtroEstado" onchange="aplicarFiltros()">
-                                <option value="">Todos</option>
-                                <option value="disponible">Disponibles</option>
-                                <option value="asignado">Asignados</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-2">
-                            <button type="button" class="btn btn-brand w-100" onclick="limpiarFiltros()">
-                                <i class="bi bi-eraser me-1"></i> Limpiar
-                            </button>
-                        </div>
-                    </div>
-                    <div class="row g-2 align-items-end mt-1">
-                        <div class="col-12 col-sm-6 col-lg-4">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">PROVEEDOR</label>
-                            <select class="form-select" id="filtroProveedor" onchange="aplicarFiltros()">
-                                <option value="">Todos</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-4">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">MARCA</label>
-                            <select class="form-select" id="filtroMarca" onchange="aplicarFiltros()">
-                                <option value="">Todas</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-4">
-                            <label class="form-label text-muted fw-bold mb-1" style="font-size:0.68rem;">UBICACIÓN</label>
-                            <select class="form-select" id="filtroUbicacion" onchange="aplicarFiltros()">
-                                <option value="">Todas</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="explorer-table-wrap">
-                    <table class="table table-custom align-middle" id="tablaInventario">
-                        <thead>
-                            <tr>
-                                <th>Artículo</th>
-                                <th>Usuario / Serie</th>
-                                <th>Planta / Ubicación</th>
-                                <th>Fechas / Vida Útil</th>
-                                <th>Stock / Garantía</th>
-                                <th class="text-center">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbodyInventario">
-                            <tr><td colspan="6" class="text-center py-4">Cargando datos...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </div>
     </div>
@@ -7026,7 +7004,7 @@
         let datosInventario = [];
         let plantaGlobal = (localStorage.getItem('invPlantaGlobal') || '');
         let movimientosInventario = [];
-        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, exploradorModal, alertasStockModal, modalTransferencias, agregarCatalogoModal, seguimientoSalidasModal;
+        let consultarModal, historialModal, infoResponsableModal, camaraModal, visorHistorialModal, reportesModal, bajaModal, alertasStockModal, modalTransferencias, agregarCatalogoModal, seguimientoSalidasModal;
         let catalogoMarcas = [];
         let catalogoAreas = [];
         let catalogoProveedores = [];
@@ -7083,7 +7061,6 @@
             visorHistorialModal = new bootstrap.Modal(document.getElementById('modalVisorHistorial'));
             reportesModal = new bootstrap.Modal(document.getElementById('modalReportesQR'));
             bajaModal = new bootstrap.Modal(document.getElementById('modalBaja'));
-            exploradorModal = new bootstrap.Modal(document.getElementById('modalExploradorInventario'));
             alertasStockModal = new bootstrap.Modal(document.getElementById('modalAlertasStock'));
             inicializarCentroQr();
             // Evento para autocompletar destino de chatarra
@@ -7108,7 +7085,7 @@
             $('#filtroProveedor, #filtroMarca, #filtroUbicacion').select2({
                 theme: 'bootstrap-5',
                 width: '100%',
-                dropdownParent: $('#modalExploradorInventario'),
+                dropdownParent: $('#explorador-inventario'),
                 placeholder: 'Todos',
                 allowClear: true,
                 language: {
@@ -7859,7 +7836,6 @@
 
         function abrirModuloStock() {
             alertasStockModal?.hide();
-            exploradorModal?.hide();
 
             const tabButton = document.getElementById('movimientos-tab');
             if (tabButton) {
@@ -8696,6 +8672,7 @@
                 if (data.ok) {
                     datosInventario = data.inventario || [];
                     movimientosInventario = data.movimientos || [];
+                    renderCatalogoQr();
                     cargarFiltrosExplorador();
 
                     forzarFiltroInicial();
@@ -9935,7 +9912,6 @@
             if (consultarModal) consultarModal.hide();
 
             // Cerramos el modal del explorador que estaba de fondo
-            if (exploradorModal) exploradorModal.hide();
 
             const item = datosInventario.find(i => i.id === id);
             idArticuloEditando = item.id;
@@ -10018,6 +9994,7 @@
             $('#qrProcesarManual').off('click.qr').on('click.qr', function () {
                 procesarLecturaQr($('#qrManualInput').val(), 'MANUAL');
             });
+            $('#qrManualInput').off('input.qr-catalogo').on('input.qr-catalogo', renderCatalogoQr);
 
             $('#qrStartCamera').off('click.qr').on('click.qr', iniciarCamaraQr);
             $('#qrStopCamera').off('click.qr').on('click.qr', detenerCamaraQr);
@@ -10239,6 +10216,21 @@
             registrarLecturaQr(item, 'CONSULTAR', 'TABLA');
             if (abrirCentro) abrirCentroQr('CONSULTAR');
             setQrStatus(`Equipo seleccionado: ${item.idArticuloSap || item.id} - ${item.nombre || ''}`, 'ok');
+        }
+
+        function renderCatalogoQr() {
+            const catalogo = document.getElementById('qrEquipmentCatalog');
+            if (!catalogo || qrScannerActivo) return;
+            const q = String($('#qrManualInput').val() || '').trim().toLowerCase();
+            const resultados = datosInventario
+                .filter(x => !q || [x.idArticuloSap, x.nombre, x.modelo, x.numeroSerie, x.ip, x.ubicacion, x.planta]
+                    .some(v => String(v || '').toLowerCase().includes(q)))
+                .slice(0, 60);
+            catalogo.innerHTML = resultados.length ? resultados.map(x => `
+                <button type="button" class="qr-equipment-tile" onclick="seleccionarEquipoQr(${Number(x.id)})" title="Seleccionar ${escapeQrHtml(x.nombre || x.idArticuloSap || 'equipo')}">
+                    <span class="qr-tile-icon"><i class="bi bi-${String(x.tipoArticulo || '').toLowerCase().includes('herramienta') ? 'tools' : 'pc-display-horizontal'}"></i></span>
+                    <span class="qr-tile-copy"><strong>${escapeQrHtml(x.idArticuloSap || 'SIN SAP')}</strong><small>${escapeQrHtml(x.nombre || x.modelo || 'Equipo')}</small><em>${escapeQrHtml(estadoTextoQr(x))} · ${escapeQrHtml(x.planta || 'Sin planta')}</em></span>
+                </button>`).join('') : '<div class="qr-catalog-empty">No se encontraron equipos con ese criterio.</div>';
         }
 
         function limpiarResultadoQr() {
@@ -10539,7 +10531,7 @@
             }
 
             try {
-                $('#qrCameraPlaceholder').hide();
+                $('#qrEquipmentCatalog').hide();
                 qrHtml5Scanner = qrHtml5Scanner || new Html5Qrcode('qrCameraReader');
                 const config = {
                     fps: 12,
@@ -10564,7 +10556,7 @@
                 setQrStatus('Apunta la cámara a la etiqueta QR.', 'ok');
             } catch (error) {
                 qrScannerActivo = false;
-                $('#qrCameraPlaceholder').show();
+                $('#qrEquipmentCatalog').show();
                 setQrReaderState('SIN CÁMARA', 'bg-danger text-white');
                 setQrStatus('No se pudo abrir la cámara. Revisa permisos HTTPS o usa el lector USB.', 'error');
                 console.error('QR cámara:', error);
@@ -10584,11 +10576,8 @@
                 qrHtml5Scanner = null;
                 $('#qrStartCamera').prop('disabled', false);
                 $('#qrStopCamera').prop('disabled', true);
-                $('#qrCameraReader').html(`
-                    <div class="qr-camera-placeholder" id="qrCameraPlaceholder">
-                        <i class="bi bi-camera"></i>
-                        Usa un lector físico o inicia la cámara del equipo.
-                    </div>`);
+                $('#qrCameraReader').empty();
+                $('#qrEquipmentCatalog').show();
                 setQrReaderState('LISTO', 'bg-light text-dark');
             }
         }
@@ -12841,7 +12830,6 @@
             '#myTab [data-bs-toggle="tab"]'
         );
         const explorerButton = document.getElementById('explorador-tab');
-        const explorerModalElement = document.getElementById('modalExploradorInventario');
 
         moduleButtons.forEach(function (button) {
             button.addEventListener('shown.bs.tab', function (event) {
@@ -12867,20 +12855,9 @@
             });
         });
 
-        explorerButton?.addEventListener('click', function () {
-            if (moduleLabel) moduleLabel.textContent = 'Explorador y reportería (modal)';
-        });
-
-        explorerModalElement?.addEventListener('shown.bs.modal', function () {
+        explorerButton?.addEventListener('shown.bs.tab', function () {
             aplicarFiltros();
             setTimeout(() => document.getElementById('filtroGeneral')?.focus(), 120);
-        });
-
-        explorerModalElement?.addEventListener('hidden.bs.modal', function () {
-            const activeTab = document.querySelector('#myTab [data-bs-toggle="tab"].active');
-            if (moduleLabel && activeTab) {
-                moduleLabel.textContent = activeTab.getAttribute('data-module-title') || activeTab.textContent.trim();
-            }
         });
 
 
