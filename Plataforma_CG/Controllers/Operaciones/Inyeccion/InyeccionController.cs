@@ -495,8 +495,6 @@ namespace Plataforma_CG.Controllers.Operaciones.Inyeccion
                     $"Se bloqueó una captura rezagada de {Math.Floor(antiguedad.TotalSeconds)} segundos. Confirme nuevamente el producto y el peso.");
             }
 
-            if (antiguedad.TotalSeconds < -_capturaFutureToleranceSeconds)
-                throw new ArgumentException("La hora de la terminal no coincide con la del servidor. No se guardó la captura.");
         }
 
         private static void ValidarSolicitudImpresion(ImpresionEntradaRequest solicitud)
