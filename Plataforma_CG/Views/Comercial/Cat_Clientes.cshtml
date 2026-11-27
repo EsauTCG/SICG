@@ -746,6 +746,61 @@
         color: var(--es-muted);
     }
 
+    .ficha-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+        .ficha-toolbar input,
+        .ficha-toolbar select {
+            background: var(--es-field);
+            color: var(--es-ink);
+            border: 1px solid var(--es-line);
+            border-radius: 7px;
+            padding: 6px 9px;
+            font: 12px/1.2 var(--es-font);
+            max-width: 100%;
+        }
+
+        .ficha-toolbar input {
+            min-width: 230px;
+            flex: 1 1 230px;
+        }
+
+        .ficha-toolbar select {
+            flex: 0 1 auto;
+        }
+
+        .ficha-toolbar input:focus,
+        .ficha-toolbar select:focus {
+            outline: none;
+            border-color: var(--es-tinto);
+            box-shadow: 0 0 0 2px var(--es-tinto-soft);
+        }
+
+        .ficha-toolbar__count {
+            margin-left: auto;
+            font-size: 11.5px;
+            color: var(--es-muted);
+            white-space: nowrap;
+        }
+
+        .ficha-toolbar__reset {
+            border: 0;
+            background: none;
+            color: var(--es-tinto-deep);
+            font: 600 12px/1 var(--es-font);
+            cursor: pointer;
+            padding: 5px 6px;
+        }
+
+            .ficha-toolbar__reset:hover {
+                text-decoration: underline;
+            }
+
     .btn-detalle-pedido {
         border: 0;
         background: none;
@@ -824,6 +879,15 @@
 
         .ficha-table {
             font-size: 11.5px;
+        }
+
+        .ficha-toolbar input {
+            min-width: 0;
+            flex-basis: 100%;
+        }
+
+        .ficha-toolbar__count {
+            margin-left: 0;
         }
     }
 </style>
@@ -1270,13 +1334,7 @@
             });
         }
 
-        /* =====================================================================
-           FICHA DEL CLIENTE · solo lectura (Fase 1 + 1.5)
-           Resumen + direcciones : /ClienteDetalle/Resumen
-           Productos             : /ClienteDetalle/Productos
-           Pedidos               : /ClienteDetalle/Pedidos
-           Crédito y cobranza    : endpoints existentes de ComercialController
-           ===================================================================== */
+
         const FICHA_MESES = 12;
         const FICHA_ESTADO = {
             0: 'Cancelado', 1: 'Pendiente', 2: 'Autorización', 3: 'Pendiente',
@@ -1416,7 +1474,6 @@
                     ${fichaKpi(`Kilos (${FICHA_MESES} meses)`, `${fmtKilos(data.kilosTotales)} kg`)}
                     ${fichaKpi('Promedio mensual', `${fmtKilos(data.promedioMensual)} kg`)}
                 </div>`;
-                c
                 if (!productos.length) {
                     setFichaHtml('ficha-productos', kpis + fichaVacio('No hay facturas registradas en los últimos meses para este cliente.'));
                     return;
@@ -1454,8 +1511,138 @@
             return `<span class="ficha-badge ${cls}">${esc(texto)}</span>`;
         }
 
+        let fichaPedidosData = null;
+
+        const tsPedido = v => {
+            if (!v) return 0;
+            const n = new Date(v).getTime();
+            return isNaN(n) ? 0 : n;
+        };
+        const txtPedido = v => (v ?? '').toString()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+        function pedidosOrdenados(lista, orden) {
+            const copia = lista.slice();
+            switch (orden) {
+                case 'fecha-asc':
+                    return copia.sort((a, b) => tsPedido(a.fechaRegistro) - tsPedido(b.fechaRegistro));
+                case 'entrega-desc':
+                    return copia.sort((a, b) => tsPedido(b.fechaEntrega) - tsPedido(a.fechaEntrega));
+                case 'importe-desc':
+                    return copia.sort((a, b) => Number(b.totalImporte ?? 0) - Number(a.totalImporte ?? 0));
+                case 'importe-asc':
+                    return copia.sort((a, b) => Number(a.totalImporte ?? 0) - Number(b.totalImporte ?? 0));
+                case 'peso-desc':
+                    return copia.sort((a, b) => Number(b.totalPeso ?? 0) - Number(a.totalPeso ?? 0));
+                case 'fecha-desc':
+                default:
+                    return copia.sort((a, b) =>
+                        tsPedido(b.fechaRegistro || b.fechaEntrega) - tsPedido(a.fechaRegistro || a.fechaEntrega));
+            }
+        }
+
+        function opcionesEstadoPedido(pedidos) {
+            const estados = new Map();
+            pedidos.forEach(p => {
+                const k = p.estado == null ? '' : String(p.estado);
+                if (!estados.has(k)) {
+                    estados.set(k, p.estadoTexto || FICHA_ESTADO[Number(k)] || (k ? `Estado ${k}` : 'Sin estado'));
+                }
+            });
+            return Array.from(estados.entries())
+                .sort((a, b) => a[0] === '' ? -1 : b[0] === '' ? 1 : Number(a[0]) - Number(b[0]))
+                .map(([valor, texto]) => `<option value="${esc(valor)}">${esc(texto)}</option>`)
+                .join('');
+        }
+
+        function filaPedido(p) {
+            const idx = fichaPedidosData.pedidos.indexOf(p);
+            const detalleId = `detalle-pedido-${idx}`;
+            const productos = Array.isArray(p.productos) ? p.productos : [];
+            const detalleProductos = productos.length
+                ? `<div class="ficha-card"><h3>Renglones del pedido</h3>
+                     <div style="overflow:auto;max-height:320px">
+                         <table class="ficha-table">
+                             <thead><tr><th>SKU</th><th>Producto</th><th class="num">Cajas</th><th class="num">Precio</th><th class="num">Kilos</th><th>Almacén</th></tr></thead>
+                             <tbody>${productos.map(pr => `<tr>
+                                 <td>${txt(pr.sku)}</td>
+                                 <td title="${esc(pr.producto)}">${txt(pr.producto)}</td>
+                                 <td class="num">${fmtEntero(pr.cajas)}</td>
+                                 <td class="num">${fmtDinero(pr.precio)}</td>
+                                 <td class="num">${fmtKilos(pr.kilos)}</td>
+                                 <td>${txt(pr.almacen)}</td>
+                             </tr>`).join('')}</tbody>
+                         </table>
+                      </div>
+                   </div>`
+                : fichaVacio('Este pedido no tiene renglones registrados en PedidoVenta.');
+
+            return `<tr>
+                <td><button type="button" class="btn-detalle-pedido" data-detalle="${detalleId}"
+                            aria-expanded="false" aria-controls="${detalleId}"
+                            title="Ver productos del pedido"><i class="bi bi-chevron-right"></i></button></td>
+                <td>${txt(p.consecutivo)}</td>
+                <td>${txt(p.serie)}</td>
+                <td>${fmtFechaCorta(p.fechaRegistro)}</td>
+                <td>${fmtFechaCorta(p.fechaEntrega)}</td>
+                <td>${estadoPedidoBadge(p)}</td>
+                <td>${txt(p.vendedor)}</td>
+                <td>${txt(p.almacenSurtir)}</td>
+                <td class="num">${fmtDinero(p.totalImporte)}</td>
+                <td class="num">${fmtKilos(p.totalPeso)}</td>
+            </tr>
+            <tr class="ficha-detalle-pedido d-none" id="${detalleId}">
+                <td colspan="10">
+                    ${p.observacionGestion ? `<p class="ficha-note" style="margin-top:0"><b>Observación:</b> ${esc(p.observacionGestion)}</p>` : ''}
+                    ${p.fechaEmbarque ? `<p class="ficha-note" style="margin-top:0"><b>Embarque:</b> ${fmtFechaCorta(p.fechaEmbarque)} · <b>Saldo:</b> ${fmtDinero(p.saldo)} · <b>Crédito:</b> ${fmtDinero(p.credito)}</p>` : ''}
+                    ${detalleProductos}
+                </td>
+            </tr>`;
+        }
+
+        function aplicarFiltrosPedidos() {
+            if (!fichaPedidosData) return;
+
+            const buscar = document.getElementById('fichaPedidosBuscar');
+            const estado = document.getElementById('fichaPedidosEstado');
+            const orden = document.getElementById('fichaPedidosOrden');
+            const body = document.getElementById('fichaPedidosBody');
+            const conteo = document.getElementById('fichaPedidosConteo');
+            if (!buscar || !estado || !orden || !body) return;
+
+            const q = txtPedido(buscar.value.trim());
+            const estadoSel = estado.value;
+            const filtrados = fichaPedidosData.pedidos.filter(p => {
+                const texto = !q || [p.consecutivo, p.serie, p.vendedor, p.almacenSurtir]
+                    .some(v => txtPedido(v).includes(q));
+                const est = estadoSel === '' || String(p.estado ?? '') === estadoSel;
+                return texto && est;
+            });
+
+            const visibles = pedidosOrdenados(filtrados, orden.value);
+            body.innerHTML = visibles.length
+                ? visibles.map(filaPedido).join('')
+                : `<tr><td colspan="10" class="ficha-empty">No hay pedidos que coincidan con los filtros.</td></tr>`;
+
+            if (conteo) {
+                const total = fichaPedidosData.pedidos.length;
+                const base = visibles.length === total
+                    ? `${fmtEntero(total)} pedido(s)`
+                    : `${fmtEntero(visibles.length)} de ${fmtEntero(total)} pedido(s)`;
+                const limite = fichaPedidosData.truncado
+                    ? ` · máx. ${fmtEntero(fichaPedidosData.limite)}` : '';
+                conteo.textContent = base + limite;
+            }
+        }
+
         function renderPedidos(data) {
             const pedidos = Array.isArray(data.pedidos) ? data.pedidos : [];
+            fichaPedidosData = {
+                pedidos,
+                truncado: !!data.truncado,
+                limite: Number(data.limite || 300)
+            };
+
             const kpis = `<div class="ficha-kpis">
                 ${fichaKpi('Pedidos', fmtEntero(data.totalPedidos ?? pedidos.length))}
                 ${fichaKpi('Importe total', fmtDinero(data.importeTotal))}
@@ -1464,72 +1651,61 @@
             </div>`;
 
             if (!pedidos.length) {
+                fichaPedidosData = null;
                 setFichaHtml('ficha-pedidos', kpis + fichaVacio('No hay pedidos registrados en los últimos meses para este cliente.'));
                 return;
             }
 
-            const filas = pedidos.map((p, i) => {
-                const productos = Array.isArray(p.productos) ? p.productos : [];
-                const detalleId = `detalle-pedido-${i}`;
-                const detalleProductos = productos.length
-                    ? `<div class="ficha-card"><h3>Renglones del pedido</h3>
-                         <div style="overflow:auto;max-height:320px">
-                             <table class="ficha-table">
-                                 <thead><tr><th>SKU</th><th>Producto</th><th class="num">Cajas</th><th class="num">Precio</th><th class="num">Kilos</th><th>Almacén</th></tr></thead>
-                                 <tbody>${productos.map(pr => `<tr>
-                                     <td>${txt(pr.sku)}</td>
-                                     <td title="${esc(pr.producto)}">${txt(pr.producto)}</td>
-                                     <td class="num">${fmtEntero(pr.cajas)}</td>
-                                     <td class="num">${fmtDinero(pr.precio)}</td>
-                                     <td class="num">${fmtKilos(pr.kilos)}</td>
-                                     <td>${txt(pr.almacen)}</td>
-                                 </tr>`).join('')}</tbody>
-                             </table>
-                          </div>
-                       </div>`
-                    : fichaVacio('Este pedido no tiene renglones registrados en PedidoVenta.');
-
-                return `<tr>
-                    <td><button type="button" class="btn-detalle-pedido" data-detalle="${detalleId}"
-                                aria-expanded="false" aria-controls="${detalleId}"
-                                title="Ver productos del pedido"><i class="bi bi-chevron-right"></i></button></td>
-                    <td>${txt(p.consecutivo)}</td>
-                    <td>${txt(p.serie)}</td>
-                    <td>${fmtFechaCorta(p.fechaRegistro)}</td>
-                    <td>${fmtFechaCorta(p.fechaEntrega)}</td>
-                    <td>${estadoPedidoBadge(p)}</td>
-                    <td>${txt(p.vendedor)}</td>
-                    <td>${txt(p.almacenSurtir)}</td>
-                    <td class="num">${fmtDinero(p.totalImporte)}</td>
-                    <td class="num">${fmtKilos(p.totalPeso)}</td>
-                </tr>
-                <tr class="ficha-detalle-pedido d-none" id="${detalleId}">
-                    <td colspan="10">
-                        ${p.observacionGestion ? `<p class="ficha-note" style="margin-top:0"><b>Observación:</b> ${esc(p.observacionGestion)}</p>` : ''}
-                        ${p.fechaEmbarque ? `<p class="ficha-note" style="margin-top:0"><b>Embarque:</b> ${fmtFechaCorta(p.fechaEmbarque)} · <b>Saldo:</b> ${fmtDinero(p.saldo)} · <b>Crédito:</b> ${fmtDinero(p.credito)}</p>` : ''}
-                        ${detalleProductos}
-                    </td>
-                </tr>`;
-            }).join('');
+            const toolbar = `<div class="ficha-toolbar">
+                <input id="fichaPedidosBuscar" type="search" placeholder="Buscar pedido, serie o vendedor"
+                       aria-label="Buscar pedidos" autocomplete="off" />
+                <select id="fichaPedidosEstado" aria-label="Filtrar por estado">
+                    <option value="">Todos los estados</option>${opcionesEstadoPedido(pedidos)}
+                </select>
+                <select id="fichaPedidosOrden" aria-label="Ordenar pedidos">
+                    <option value="fecha-desc">Más recientes</option>
+                    <option value="fecha-asc">Más antiguos</option>
+                    <option value="entrega-desc">Entrega: más reciente</option>
+                    <option value="importe-desc">Importe: mayor a menor</option>
+                    <option value="importe-asc">Importe: menor a mayor</option>
+                    <option value="peso-desc">Peso: mayor a menor</option>
+                </select>
+                <button type="button" class="ficha-toolbar__reset" id="fichaPedidosLimpiar">Limpiar</button>
+                <span class="ficha-toolbar__count" id="fichaPedidosConteo"></span>
+            </div>`;
 
             const nota = data.truncado
                 ? `Se muestran los ${fmtEntero(data.limite || 300)} pedidos más recientes; puede haber más fuera de ese límite.`
                 : `${fmtEntero(pedidos.length)} pedido(s) en la ventana consultada.`;
 
             setFichaHtml('ficha-pedidos', kpis + fichaCard('Pedidos de venta',
-                `<div style="overflow:auto;max-height:480px">
+                toolbar + `<div style="overflow:auto;max-height:480px">
                     <table class="ficha-table">
                         <thead><tr><th></th><th>Pedido</th><th>Serie</th><th>Registro</th><th>Entrega</th><th>Estado</th><th>Vendedor</th><th>Almacén</th><th class="num">Importe</th><th class="num">Peso</th></tr></thead>
-                        <tbody>${filas}</tbody>
+                        <tbody id="fichaPedidosBody"></tbody>
                     </table>
                  </div>`,
                 nota));
+
+            document.getElementById('fichaPedidosBuscar').addEventListener('input', aplicarFiltrosPedidos);
+            document.getElementById('fichaPedidosEstado').addEventListener('change', aplicarFiltrosPedidos);
+            document.getElementById('fichaPedidosOrden').addEventListener('change', aplicarFiltrosPedidos);
+            document.getElementById('fichaPedidosLimpiar').addEventListener('click', function () {
+                document.getElementById('fichaPedidosBuscar').value = '';
+                document.getElementById('fichaPedidosEstado').value = '';
+                document.getElementById('fichaPedidosOrden').value = 'fecha-desc';
+                aplicarFiltrosPedidos();
+                document.getElementById('fichaPedidosBuscar').focus();
+            });
+
+            aplicarFiltrosPedidos();
         }
 
         async function cargarFichaPedidos(codigo) {
             if (fichaActual && fichaActual.codigo !== codigo) return;
             if (fichaCache[codigo] && fichaCache[codigo].pedidos) return;
 
+            fichaPedidosData = null;
             setFichaHtml('ficha-pedidos', fichaCargando('Consultando pedidos de venta…'));
 
             try {
@@ -1541,6 +1717,7 @@
                 if (!fichaCache[codigo]) fichaCache[codigo] = {};
                 fichaCache[codigo].pedidos = true;
             } catch (err) {
+                fichaPedidosData = null;
                 if (fichaActual && fichaActual.codigo === codigo) {
                     setFichaHtml('ficha-pedidos', fichaError('No se pudo cargar la información de pedidos.', err.message));
                 }
@@ -1636,7 +1813,10 @@
             document.getElementById('fichaSubtitle').textContent =
                 `${codigo} · ${fichaActual.clasificacion || 'Sin clasificación'} · ${fichaActual.canal || 'Sin canal'} · ${fichaActual.vendedor || 'Sin vendedor'}`;
 
-            if (!fichaCache[codigo]) fichaCache[codigo] = {};
+            /* Reabrir la ficha recarga todo: evita dejar pestañas en "Carga al abrir…"
+               cuando el caché decía que ya estaban listas pero el DOM se limpió. */
+            fichaCache[codigo] = {};
+            fichaPedidosData = null;
             renderResumenLocal(fichaActual);
             setFichaHtml('ficha-credito', '<div class="ficha-empty">Carga al abrir la pestaña <b>Crédito y cobranza</b>.</div>');
             setFichaHtml('ficha-productos', fichaCargando('Consultando facturas de los últimos meses…'));
